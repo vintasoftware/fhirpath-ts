@@ -18,6 +18,7 @@ import {
 import { type EvaluationContext, resolveEnvironmentVariable } from './context'
 import { navigateIdentifier } from './navigation'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index'
+import '../functions/install'
 import './operators/install'
 
 /** Evaluate one AST node against an input collection. */

@@ -83,6 +83,9 @@ function normalizeString(value: string): string {
 }
 
 function deepEquals(a: unknown, b: unknown): boolean {
+  if (a === b) {
+    return true
+  }
   if (Array.isArray(a) || Array.isArray(b)) {
     return (
       Array.isArray(a) &&
@@ -103,6 +106,9 @@ function deepEquals(a: unknown, b: unknown): boolean {
 }
 
 function deepEquivalent(a: unknown, b: unknown): boolean {
+  if (a === b) {
+    return true
+  }
   if (typeof a === 'string' && typeof b === 'string') {
     return normalizeString(a) === normalizeString(b)
   }

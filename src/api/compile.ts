@@ -12,6 +12,11 @@ export interface EvaluateOptions {
   model?: ModelProvider
   /** Evaluation clock for now()/today()/timeOfDay(); defaults to the real time. */
   now?: Date
+  /**
+   * Sink for trace(name, ...) calls. No default logging: traced values may contain
+   * patient data, so sending them anywhere is an explicit choice.
+   */
+  trace?: (name: string, values: TypedValue[]) => void
 }
 
 /** A parsed expression, reusable across inputs. Create via `compile()` or the `fhirpath` tag. */
@@ -37,6 +42,7 @@ export class CompiledExpression {
       env: options?.env,
       model: options?.model,
       now: options?.now,
+      trace: options?.trace,
     })
     return evaluateNode(this.ast, context, root)
   }

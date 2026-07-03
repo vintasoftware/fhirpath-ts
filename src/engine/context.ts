@@ -18,6 +18,11 @@ export interface EvaluationContext {
   model: ModelProvider | undefined
   /** Fixed evaluation clock so now()/today()/timeOfDay() are stable within one evaluation. */
   now: Date
+  /**
+   * Sink for trace(). Default is a no-op: traced values may contain patient data,
+   * so writing them to console or log files is the caller's deliberate choice.
+   */
+  trace: (name: string, values: TypedValue[]) => void
   frame: Frame
 }
 
@@ -32,6 +37,7 @@ export function createContext(options: {
   env?: Record<string, unknown> | undefined
   model?: ModelProvider | undefined
   now?: Date | undefined
+  trace?: ((name: string, values: TypedValue[]) => void) | undefined
 }): EvaluationContext {
   const env = new Map<string, TypedValue[]>()
   for (const [name, url] of BUILTIN_CONSTANTS) {
@@ -46,6 +52,7 @@ export function createContext(options: {
     env,
     model: options.model,
     now: options.now ?? new Date(),
+    trace: options.trace ?? (() => {}),
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
 }
