@@ -216,7 +216,7 @@ describe('json escape variants', () => {
     ["'a\\\\rb'.unescape('json')", ['a\rb']],
     ["'a\\\\tb'.unescape('json')", ['a\tb']],
     ["'a\\\\u0041b'.unescape('json')", ['aAb']],
-    [String.raw`'aAb'.unescape('json')`, ['aAb']],
+    ["'aAb'.unescape('json')", ['aAb']],
     [`'"1<2"'.unescape('json')`, ['"1<2"']],
   ])('%s', (expression, expected) => {
     expect(evaluate(expression)).toEqual(expected)

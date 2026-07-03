@@ -4,6 +4,7 @@ import type { ModelProvider } from '../model/provider'
 import type { AstNode } from '../parser/ast'
 import { parse } from '../parser/parser'
 import { printExpression } from '../parser/printer'
+import type { FhirpathInput, FhirpathResult } from '../typed/infer'
 import { type TypedValue, toCollection, unwrap } from '../values/typed-value'
 
 export interface EvaluateOptions {
@@ -19,19 +20,23 @@ export interface EvaluateOptions {
   trace?: (name: string, values: TypedValue[]) => void
 }
 
-/** A parsed expression, reusable across inputs. Create via `compile()` or the `fhirpath` tag. */
-export class CompiledExpression {
+/**
+ * A parsed expression, reusable across inputs. Create via `compile()` or the
+ * `fhirpath` tag: literal expressions carry inferred result and input types for
+ * the supported subset (see src/typed/infer.ts), everything else is unknown[].
+ */
+export class CompiledExpression<Expr extends string = string> {
   readonly source: string
   readonly ast: AstNode
 
-  constructor(source: string) {
+  constructor(source: Expr) {
     this.source = source
     this.ast = parse(source)
   }
 
   /** Evaluate and unwrap results to plain JS values. */
-  evaluate(input?: unknown, options?: EvaluateOptions): unknown[] {
-    return this.evaluateTyped(input, options).map(unwrap)
+  evaluate(input?: FhirpathInput<Expr>, options?: EvaluateOptions): FhirpathResult<Expr> {
+    return this.evaluateTyped(input, options).map(unwrap) as FhirpathResult<Expr>
   }
 
   /** Evaluate keeping the internal typed representation (types, Decimal, Temporal). */
@@ -54,6 +59,6 @@ export class CompiledExpression {
 }
 
 /** Parse an expression once for reuse. Unlike `evaluate()`, does not touch the parse cache. */
-export function compile(expression: string): CompiledExpression {
+export function compile<const Expr extends string>(expression: Expr): CompiledExpression<Expr> {
   return new CompiledExpression(expression)
 }

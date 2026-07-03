@@ -10,14 +10,15 @@ const parseCache = new LruCache<CompiledExpression>(PARSE_CACHE_CAPACITY)
  * Parsed expressions are kept in a module-level LRU keyed by the expression text.
  */
 export function evaluate(
-  expression: string | CompiledExpression,
+  // biome-ignore lint/suspicious/noExplicitAny: accepts any literal-typed CompiledExpression; results here are untyped
+  expression: string | CompiledExpression<any>,
   input?: unknown,
   options?: EvaluateOptions
 ): unknown[] {
   return compiled(expression).evaluate(input, options)
 }
 
-function compiled(expression: string | CompiledExpression): CompiledExpression {
+function compiled(expression: string | CompiledExpression<string>): CompiledExpression<string> {
   if (typeof expression !== 'string') {
     return expression
   }
