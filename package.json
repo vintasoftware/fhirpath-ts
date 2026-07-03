@@ -8,15 +8,18 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./r4": "./src/r4/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "generate:r4": "node scripts/generate-r4-model.ts"
   },
   "devDependencies": {
+    "@medplum/definitions": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }
