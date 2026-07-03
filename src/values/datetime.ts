@@ -113,6 +113,23 @@ export class Temporal {
     })
   }
 
+  /** Build from components with the same range validation as parsing. */
+  static fromFields(
+    kind: TemporalKind,
+    fields: {
+      year?: number | undefined
+      month?: number | undefined
+      day?: number | undefined
+      hour?: number | undefined
+      minute?: number | undefined
+      second?: number | undefined
+      fraction?: string | undefined
+      timezoneOffsetMinutes?: number | undefined
+    }
+  ): Temporal | undefined {
+    return Temporal.build(kind, fields)
+  }
+
   private static build(
     kind: TemporalKind,
     fields: {

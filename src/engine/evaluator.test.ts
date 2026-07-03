@@ -125,14 +125,8 @@ describe('special and environment variables', () => {
   })
 })
 
-describe('unimplemented constructs fail loudly for now', () => {
-  it('operators and functions raise clear errors until their phases land', () => {
-    expect(() => evaluate('1 + 1')).toThrow("Operator '+' is not implemented yet")
-    expect(() => evaluate('-1')).toThrow("Operator 'unary -' is not implemented yet")
-    expect(() => evaluate('1 is Integer')).toThrow("Operator 'is' is not implemented yet")
-  })
-
-  it('unknown functions are semantic errors', () => {
+describe('unknown functions', () => {
+  it('are semantic errors', () => {
     expect(() => evaluate('frobnicate()')).toThrow("Unrecognized function 'frobnicate'")
   })
 })
