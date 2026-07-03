@@ -1,3 +1,4 @@
+import { withFrame } from '../engine/context'
 import type { AstNode } from '../parser/ast'
 import { booleanSingleton, wrapBoolean } from '../values/collection'
 import { Temporal } from '../values/datetime'
@@ -19,7 +20,12 @@ registerFunction('trace', {
   evaluate: (context, input, args, evaluateNode) => {
     const name = evaluateNode(args[0] as AstNode, context, input)
     const label = typeof name[0]?.value === 'string' ? (name[0].value as string) : ''
-    const traced = args.length === 2 ? evaluateNode(args[1] as AstNode, context, input) : input
+    const traced =
+      args.length === 2
+        ? withFrame(context, { thisValue: input }, frameContext =>
+            evaluateNode(args[1] as AstNode, frameContext, input)
+          )
+        : input
     context.trace(label, traced)
     return input
   },

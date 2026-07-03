@@ -70,7 +70,9 @@ describe('cross-unit quantity semantics', () => {
     expect(evaluate('1 week + 1 day')).toEqual([{ value: 8, unit: 'day' }])
     expect(evaluate("1 'mg' + 1 'bananas'")).toEqual([])
     expect(evaluate('1 year + 1 day')).toEqual([])
-    expect(evaluate("1 day + 1 'd'")).toEqual([])
+    // Calendar week-and-below are exact UCUM twins, so mixed addition converts.
+    expect(evaluate("1 day + 1 'd'")).toEqual([{ value: 2, unit: 'd' }])
+    expect(evaluate("1 year + 1 'a'")).toEqual([])
   })
 
   it('multiplication and division compose units', () => {

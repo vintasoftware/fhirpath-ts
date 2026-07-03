@@ -22,6 +22,10 @@ export function compareTemporal(a: Temporal, b: Temporal): TemporalComparison {
   const levelA = comparisonLevel(a)
   const levelB = comparisonLevel(b)
   const shared = Math.min(levelA, levelB)
+  // At time precision, a value with a timezone and one without cannot be ordered (spec §6.1).
+  if (shared >= 3 && (a.timezoneOffsetMinutes === undefined) !== (b.timezoneOffsetMinutes === undefined)) {
+    return 'differentPrecision'
+  }
   const rankA = rank(a, shared)
   const rankB = rank(b, shared)
   if (rankA < rankB) {

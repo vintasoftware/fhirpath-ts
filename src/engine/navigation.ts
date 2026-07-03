@@ -1,5 +1,6 @@
+import { FhirPathTypeError } from '../errors'
 import { readModelProperty } from '../fhir/model-navigation'
-import { OBJECT_TYPE, type TypedValue, toTypedValue, typeLocalName } from '../values/typed-value'
+import { OBJECT_TYPE, type TypedValue, toTypedValue } from '../values/typed-value'
 import type { EvaluationContext } from './context'
 
 /**
@@ -12,6 +13,19 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
   for (const item of input) {
     if (matchesTypeName(context, item, name)) {
       results.push(item)
+    } else if (context.model && item.type.startsWith(`${context.model.namespace}.`)) {
+      const modelRead = readModelProperty(context.model, item, name)
+      if (modelRead === undefined) {
+        // Unknown elements on model-typed values are semantic errors — this is what
+        // rejects `Observation.valueQuantity` (choice elements go by stem name).
+        if (name === 'resourceType') {
+          results.push(...getProperty(item, name))
+        } else {
+          throw new FhirPathTypeError(`Element '${name}' is not defined on ${item.type}`)
+        }
+      } else {
+        results.push(...modelRead)
+      }
     } else if (context.model) {
       const modelRead = readModelProperty(context.model, item, name)
       results.push(...(modelRead ?? getProperty(item, name)))
@@ -23,7 +37,11 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
 }
 
 function matchesTypeName(context: EvaluationContext, item: TypedValue, name: string): boolean {
-  if (typeLocalName(item.type) === name && item.type !== OBJECT_TYPE) {
+  // Only the namespace strips off: the backbone type FHIR.ValueSet.expansion.contains
+  // must not answer to the element name 'contains'.
+  const separator = item.type.indexOf('.')
+  const local = separator === -1 ? item.type : item.type.slice(separator + 1)
+  if (local === name && item.type !== OBJECT_TYPE) {
     return true
   }
   if (context.model) {

@@ -49,10 +49,12 @@ describe('choice element navigation', () => {
     expect(evaluate("Observation.value.comparable(1 's')", observation, options)).toEqual([false])
   })
 
-  it('model-typed primitives parse into System values', () => {
-    expect(evaluate('Patient.birthDate is Date', patient, options)).toEqual([true])
+  it('model-typed primitives keep their FHIR type; values parse into System representations', () => {
+    expect(evaluate('Patient.birthDate is date', patient, options)).toEqual([true])
+    // The FHIR type does not answer unqualified or System-qualified System names (testType12/14).
+    expect(evaluate('Patient.birthDate is Date', patient, options)).toEqual([false])
     expect(evaluate('Patient.birthDate < @2000-01-01', patient, options)).toEqual([true])
-    expect(evaluate('Patient.name.given.ofType(String).count()', patient, options)).toEqual([2])
+    expect(evaluate('Patient.name.given.ofType(string).count()', patient, options)).toEqual([2])
     expect(evaluate('Patient.name.ofType(HumanName).exists()', patient, options)).toEqual([true])
   })
 })
@@ -165,7 +167,15 @@ describe('FHIR equivalence', () => {
 
   it('deferred functions fail with clear messages', () => {
     expect(() => evaluate("code.memberOf('http://vs')", observation, options)).toThrow(FhirPathRuntimeError)
-    expect(() => evaluate("conformsTo('http://profile')", observation, options)).toThrow('not supported in v1')
+    expect(() => evaluate("conformsTo('http://profile')", observation, options)).toThrow(
+      'only supports base StructureDefinition urls'
+    )
+    expect(evaluate("conformsTo('http://hl7.org/fhir/StructureDefinition/Observation')", observation, options)).toEqual(
+      [true]
+    )
+    expect(evaluate("conformsTo('http://hl7.org/fhir/StructureDefinition/Patient')", observation, options)).toEqual([
+      false,
+    ])
     expect(() => evaluate('weight()', observation, options)).toThrow('not supported in v1')
   })
 })

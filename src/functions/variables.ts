@@ -1,3 +1,4 @@
+import { withFrame } from '../engine/context'
 import { FhirPathTypeError } from '../errors'
 import type { AstNode } from '../parser/ast'
 import { singleton } from '../values/collection'
@@ -24,7 +25,14 @@ registerFunction('defineVariable', {
     if (context.variables.has(name)) {
       throw new FhirPathTypeError(`Variable %${name} is already defined in this scope`)
     }
-    const value: TypedValue[] = args.length === 2 ? evaluateNode(args[1] as AstNode, context, input) : input
+    // The value expression evaluates against the function input, e.g.
+    // Patient.name.defineVariable('n2', skip(1).first()).
+    const value: TypedValue[] =
+      args.length === 2
+        ? withFrame(context, { thisValue: input }, frameContext =>
+            evaluateNode(args[1] as AstNode, frameContext, input)
+          )
+        : input
     context.variables.set(name, value)
     return input
   },

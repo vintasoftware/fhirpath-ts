@@ -1,35 +1,10 @@
 import type { ElementInfo, ModelProvider } from '../model/provider'
 import { Temporal } from '../values/datetime'
 import { Decimal } from '../values/decimal'
-import { type TypedValue, toTypedValue } from '../values/typed-value'
-
-/** FHIR primitive type names to their System twins (FHIR spec "types" page). */
-const PRIMITIVE_TO_SYSTEM: Readonly<Record<string, string>> = {
-  boolean: 'System.Boolean',
-  integer: 'System.Integer',
-  positiveInt: 'System.Integer',
-  unsignedInt: 'System.Integer',
-  integer64: 'System.Long',
-  decimal: 'System.Decimal',
-  date: 'System.Date',
-  dateTime: 'System.DateTime',
-  instant: 'System.DateTime',
-  time: 'System.Time',
-  string: 'System.String',
-  code: 'System.String',
-  id: 'System.String',
-  markdown: 'System.String',
-  uri: 'System.String',
-  url: 'System.String',
-  canonical: 'System.String',
-  oid: 'System.String',
-  uuid: 'System.String',
-  base64Binary: 'System.String',
-  xhtml: 'System.String',
-}
+import { FHIR_PRIMITIVE_TO_SYSTEM, type TypedValue, toTypedValue } from '../values/typed-value'
 
 export function isFhirPrimitiveType(typeName: string): boolean {
-  return PRIMITIVE_TO_SYSTEM[typeName] !== undefined
+  return FHIR_PRIMITIVE_TO_SYSTEM[typeName] !== undefined
 }
 
 /**
@@ -118,7 +93,11 @@ function convertSingle(raw: unknown, sibling: unknown, typeName: string): TypedV
   if ((raw === undefined || raw === null) && (sibling === undefined || sibling === null)) {
     return undefined
   }
-  const systemType = PRIMITIVE_TO_SYSTEM[typeName]
+  // Element ids and primitive value elements carry System types directly.
+  if (typeName.startsWith('System.')) {
+    return raw === undefined || raw === null ? undefined : { type: typeName, value: raw }
+  }
+  const systemType = FHIR_PRIMITIVE_TO_SYSTEM[typeName]
   if (systemType === undefined) {
     // Complex, backbone, or resource element.
     if (raw === undefined || raw === null) {
@@ -129,7 +108,9 @@ function convertSingle(raw: unknown, sibling: unknown, typeName: string): TypedV
     }
     return { type: `FHIR.${typeName}`, value: raw }
   }
-  const typed: TypedValue = { type: systemType, value: parsePrimitive(raw, systemType) }
+  // FHIR primitives keep their FHIR type (the official type() and is() tests rely
+  // on it) while the value itself parses into the System representation.
+  const typed: TypedValue = { type: `FHIR.${typeName}`, value: parsePrimitive(raw, systemType) }
   if (sibling !== undefined && sibling !== null) {
     typed.primitiveElement = sibling
   }
@@ -154,6 +135,7 @@ function parsePrimitive(raw: unknown, systemType: string): unknown {
       const parsed = typeof raw === 'number' ? Decimal.fromNumber(raw) : Decimal.fromString(String(raw))
       return parsed ?? raw
     }
+    /* v8 ignore next 3 -- R4 has no integer64 elements; kept for R5 model reuse */
     case 'System.Long': {
       return typeof raw === 'number' ? BigInt(raw) : raw
     }

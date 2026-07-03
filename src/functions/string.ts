@@ -2,7 +2,7 @@ import type { EvaluationContext } from '../engine/context'
 import { FhirPathTypeError } from '../errors'
 import type { AstNode } from '../parser/ast'
 import { singleton, wrapBoolean } from '../values/collection'
-import { SYSTEM_INTEGER, SYSTEM_STRING, type TypedValue } from '../values/typed-value'
+import { SYSTEM_INTEGER, SYSTEM_STRING, systemTypeOf, type TypedValue } from '../values/typed-value'
 import type { NodeEvaluator } from './iteration'
 import { type FhirPathFunction, registerFunction } from './registry'
 
@@ -12,7 +12,7 @@ function stringInput(name: string, input: TypedValue[]): string | undefined {
   if (item === undefined) {
     return undefined
   }
-  if (item.type !== SYSTEM_STRING) {
+  if (systemTypeOf(item) !== SYSTEM_STRING) {
     throw new FhirPathTypeError(`${name}() expects a String input, found ${item.type}`)
   }
   return item.value as string
@@ -29,7 +29,7 @@ function stringArgument(
   if (item === undefined) {
     return undefined
   }
-  if (item.type !== SYSTEM_STRING) {
+  if (systemTypeOf(item) !== SYSTEM_STRING) {
     throw new FhirPathTypeError(`${name}() expects a String argument, found ${item.type}`)
   }
   return item.value as string
@@ -137,11 +137,16 @@ stringFunction('matchesFull', { min: 1, max: 1 }, (value, [pattern]) =>
   pattern === undefined ? [] : wrapBoolean(compileRegex('matchesFull', `^(?:${pattern})$`, 's').test(value))
 )
 
-stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitution]) =>
-  pattern === undefined || substitution === undefined
-    ? []
-    : str(value.replace(compileRegex('replaceMatches', pattern, 'gs'), substitution))
-)
+stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitution]) => {
+  if (pattern === undefined || substitution === undefined) {
+    return []
+  }
+  // An empty regex matches nothing meaningful; the input passes through unchanged.
+  if (pattern === '') {
+    return str(value)
+  }
+  return str(value.replace(compileRegex('replaceMatches', pattern, 'gs'), substitution))
+})
 
 stringFunction('length', { min: 0, max: 0 }, value => int(value.length))
 
@@ -160,7 +165,7 @@ registerFunction('join', {
   evaluate: (context, input, args, evaluateNode) => {
     const separator = args.length === 1 ? stringArgument('join', context, input, args[0] as AstNode, evaluateNode) : ''
     const parts = input.map(item => {
-      if (item.type !== SYSTEM_STRING) {
+      if (systemTypeOf(item) !== SYSTEM_STRING) {
         throw new FhirPathTypeError(`join() expects a collection of strings, found ${item.type}`)
       }
       return item.value as string
@@ -285,6 +290,54 @@ function escapeJson(value: string): string {
   return result
 }
 
+/** Backslash sequences decode; everything else (including quote characters) is literal content. */
+function unescapeJson(value: string): string {
+  let result = ''
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i] as string
+    if (ch !== '\\') {
+      result += ch
+      continue
+    }
+    const next = value[i + 1]
+    i += 1
+    switch (next) {
+      case '"':
+      case '\\':
+      case '/':
+        result += next
+        break
+      case 'b':
+        result += '\b'
+        break
+      case 'f':
+        result += '\f'
+        break
+      case 'n':
+        result += '\n'
+        break
+      case 'r':
+        result += '\r'
+        break
+      case 't':
+        result += '\t'
+        break
+      case 'u': {
+        const hex = value.slice(i + 1, i + 5)
+        if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
+          throw new FhirPathTypeError('unescape() received invalid JSON string content')
+        }
+        result += String.fromCharCode(Number.parseInt(hex, 16))
+        i += 4
+        break
+      }
+      default:
+        throw new FhirPathTypeError('unescape() received invalid JSON string content')
+    }
+  }
+  return result
+}
+
 stringFunction('escape', { min: 1, max: 1 }, (value, [target]) => {
   switch (target) {
     case undefined:
@@ -312,11 +365,7 @@ stringFunction('unescape', { min: 1, max: 1 }, (value, [target]) => {
           .replace(/&amp;/g, '&')
       )
     case 'json':
-      try {
-        return str(JSON.parse(`"${value}"`) as string)
-      } catch {
-        throw new FhirPathTypeError('unescape() received invalid JSON string content')
-      }
+      return str(unescapeJson(value))
     default:
       throw new FhirPathTypeError(`unescape() does not support the target '${target}'`)
   }

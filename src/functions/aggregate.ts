@@ -63,6 +63,7 @@ function extremum(name: string, keep: (comparison: number) => boolean): void {
         }
       }
       const wrapped = wrapNumeric(best, kind)
+      /* v8 ignore next -- min/max of in-range inputs cannot overflow */
       return wrapped === undefined ? [] : [wrapped]
     },
   })
@@ -81,6 +82,7 @@ registerFunction('avg', {
     const { values } = numericItems('avg', input)
     const total = values.reduce((acc, value) => acc.add(value), Decimal.zero())
     const average = total.divide(Decimal.fromString(String(values.length)) as Decimal)
+    /* v8 ignore next -- the divisor is the non-zero item count */
     return average === undefined ? [] : [{ type: SYSTEM_DECIMAL, value: average }]
   },
 })

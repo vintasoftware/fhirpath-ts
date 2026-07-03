@@ -140,6 +140,7 @@ registerFunction('log', {
     }
     const result = Math.log(numeric.value.toNumber()) / Math.log(base.value.toNumber())
     const decimal = Decimal.fromNumber(result)
+    // NaN and infinities (log of a non-positive value, base 1) become empty.
     return decimal === undefined ? [] : [{ type: SYSTEM_DECIMAL, value: decimal }]
   },
 })

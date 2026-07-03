@@ -3,6 +3,7 @@ import type { EvaluateOptions } from '../api/compile'
 import { evaluate } from '../api/evaluate'
 import { FhirPathTypeError } from '../errors'
 import { r4Model } from '../r4/index'
+import { validateNarrative } from './html-checks'
 
 const options: EvaluateOptions = { model: r4Model }
 
@@ -11,9 +12,10 @@ describe('model navigation branches', () => {
     expect(evaluate('Observation.value', { resourceType: 'Observation', status: 'final' }, options)).toEqual([])
   })
 
-  it('elements the model does not know fall back to raw reads', () => {
+  it('unknown elements on model-typed values are semantic errors', () => {
     const resource = { resourceType: 'Patient', unknownKey: 'x' }
-    expect(evaluate('unknownKey', resource, options)).toEqual(['x'])
+    expect(() => evaluate('unknownKey', resource, options)).toThrow("Element 'unknownKey' is not defined")
+    expect(evaluate('resourceType', resource, options)).toEqual(['Patient'])
   })
 
   it('known elements missing from the JSON are empty', () => {
@@ -63,7 +65,7 @@ describe('model navigation branches', () => {
   it('malformed date strings stay as strings instead of throwing', () => {
     const resource = { resourceType: 'Patient', birthDate: 'not-a-date' }
     expect(evaluate('Patient.birthDate', resource, options)).toEqual(['not-a-date'])
-    expect(evaluate('Patient.birthDate is Date', resource, options)).toEqual([true])
+    expect(evaluate('Patient.birthDate is date', resource, options)).toEqual([true])
   })
 
   it('primitive metadata reads only id and extension', () => {
@@ -135,14 +137,14 @@ describe('additional branch sweep', () => {
       valueTime: '10:30:00',
       _valueTime: { id: 't' },
     }
-    expect(evaluate('Observation.value is Time', timing, options)).toEqual([true])
+    expect(evaluate('Observation.value is time', timing, options)).toEqual([true])
     expect(evaluate('Observation.value = @T10:30:00', timing, options)).toEqual([true])
     expect(evaluate('Observation.value.id', timing, options)).toEqual(['t'])
   })
 
   it('instant and integer64-shaped primitives convert', () => {
     const resource = { resourceType: 'Patient', birthDate: '1980-01-02', meta: { lastUpdated: '2020-01-01T00:00:00Z' } }
-    expect(evaluate('Patient.meta.lastUpdated is DateTime', resource, options)).toEqual([true])
+    expect(evaluate('Patient.meta.lastUpdated is instant', resource, options)).toEqual([true])
     expect(evaluate('Patient.meta.lastUpdated.yearOf()', resource, options)).toEqual([2020])
   })
 
@@ -166,8 +168,8 @@ describe('additional branch sweep', () => {
     expect(evaluate('@2014-01-02 > @2014-01-01T10:00')).toEqual([true])
   })
 
-  it('boundary with explicit low date precisions', () => {
-    expect(evaluate('@2014-01-01T08.lowBoundary(8).toString()')).toEqual(['2014-01-01T08'])
+  it('boundary precision below the value precision truncates components', () => {
+    expect(evaluate('@2014-01-01T08.lowBoundary(8).toString()')).toEqual(['2014-01-01'])
     expect(evaluate('@T10.lowBoundary(2).toString()')).toEqual(['10'])
   })
 
@@ -248,5 +250,70 @@ describe('final branch sweep', () => {
 
   it('unit exponents of zero are dimensionless', () => {
     expect(evaluate("1 'm0' = 1 '1'")).toEqual([true])
+  })
+})
+
+describe('phase-11 branch sweep', () => {
+  it('null slots in primitive arrays without siblings are dropped', () => {
+    const resource = { resourceType: 'Patient', name: [{ given: [null, 'A'] }] }
+    expect(evaluate('Patient.name.given', resource, options)).toEqual(['A'])
+  })
+
+  it('null slots in complex arrays are dropped even with sibling metadata', () => {
+    const resource = { resourceType: 'Patient', name: [null], _name: [{ id: 'x' }] }
+    expect(evaluate('Patient.name', resource, options)).toEqual([])
+  })
+
+  it('math edges: overflow and domain errors are empty', () => {
+    expect(evaluate('10000000000.5.floor()')).toEqual([])
+    expect(evaluate('10000000000.5.ceiling()')).toEqual([])
+    expect(evaluate('10000000000.5.truncate()')).toEqual([])
+    expect(evaluate('(-1).log(2)')).toEqual([])
+    expect(evaluate('2.log(1)')).toEqual([])
+    expect(evaluate('2.power(31)')).toEqual([])
+  })
+
+  it('boundary precision above the type maximum is empty', () => {
+    expect(evaluate("(1.5 'mg').lowBoundary(30)")).toEqual([])
+    expect(evaluate('@T10.lowBoundary(12)')).toEqual([])
+  })
+
+  it('long values convert through toDecimal/toString/toQuantity', () => {
+    expect(evaluate('%a.toDecimal()', undefined, { env: { a: 5n } })).toEqual([5])
+    expect(evaluate('%a.toString()', undefined, { env: { a: 5n } })).toEqual(['5'])
+    expect(evaluate('%a.toQuantity()', undefined, { env: { a: 5n } })).toEqual([{ value: 5, unit: '1' }])
+    expect(evaluate('@2014.toDate().toString()')).toEqual(['2014'])
+  })
+
+  it('extension url edge cases', () => {
+    expect(evaluate('Patient.extension({})', { resourceType: 'Patient' }, options)).toEqual([])
+    expect(() => evaluate('Patient.extension(1)', { resourceType: 'Patient' }, options)).toThrow(
+      'extension() expects a String url'
+    )
+    expect(evaluate('{}.conformsTo(%x)', undefined, { env: { x: 'y' } })).toEqual([])
+  })
+
+  it('ordering with mixed timezone presence is empty', () => {
+    expect(evaluate('@2014-01-01T10:00Z < @2014-01-01T11:00')).toEqual([])
+    // 11:00+02:00 is 09:00Z, so it comes before 10:00Z.
+    expect(evaluate('@2014-01-01T10:00Z < @2014-01-01T11:00+02:00')).toEqual([false])
+    expect(evaluate('@2014-01-01T08:00Z < @2014-01-01T11:00+02:00')).toEqual([true])
+  })
+
+  it('quoted calendar words drive date arithmetic', () => {
+    expect(evaluate("@2014-01-01 + 1 'week'")).toEqual(['2014-01-08'])
+    expect(evaluate("@2014-12-25 - 1 'month'")).toEqual(['2014-11-25'])
+  })
+
+  it('non-quantity complex values never coerce to quantities', () => {
+    const observation = { resourceType: 'Observation', status: 'final', code: { coding: [{ code: 'x' }] } }
+    expect(evaluate("Observation.code = 1 'kg'", observation, options)).toEqual([false])
+  })
+
+  it('narrative validation handles CDATA and bare attributes', () => {
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><![CDATA[x]]><p>t</p></div>')).toBe(true)
+    expect(
+      validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><table><tr><td nowrap="1">t</td></tr></table></div>')
+    ).toBe(true)
   })
 })

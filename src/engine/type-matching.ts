@@ -15,49 +15,69 @@ const SYSTEM_LOCAL_NAMES = new Set([
 ])
 
 /**
- * Does an item satisfy a type specifier? Shared by `is`/`as`, `ofType()`, and later
- * the static analyzer. Resolution order per spec §10.1: the context model's types
- * first, then the System namespace; unqualified names match either.
+ * Does an item satisfy a type specifier? Shared by `is`/`as`/`ofType()` and the
+ * static analyzer. Resolution order per spec §10.1: the context model's types
+ * first, then the System namespace. `is` walks subtypes; `as`/`ofType` demand the
+ * exact type (the official inheritance tests pin this split: `gender.is(string)`
+ * is true for a code, `gender.as(string)` is empty).
  */
-export function itemMatchesType(context: EvaluationContext, item: TypedValue, parts: string[]): boolean {
+export function itemMatchesType(
+  context: EvaluationContext,
+  item: TypedValue,
+  parts: string[],
+  options?: { exact?: boolean }
+): boolean {
+  const exact = options?.exact === true
   if (parts.length === 2 && parts[0] === 'System') {
-    return matchesSystemType(item, parts[1] as string)
+    // FHIR-typed values do not answer System-qualified questions (testType14).
+    return item.type.startsWith('System.') && matchesSystemType(item, parts[1] as string)
   }
   const model = context.model
   if (parts.length === 2) {
     if (model && parts[0] === model.namespace) {
       const canonical = model.resolveType(parts[1] as string)
-      return canonical !== undefined && model.isSubtypeOf(item.type, canonical)
+      if (canonical === undefined) {
+        return false
+      }
+      return exact ? item.type === canonical : model.isSubtypeOf(item.type, canonical)
     }
     return item.type === parts.join('.')
   }
   const name = parts[0] as string
-  // System-typed values answer from the System namespace; FHIR primitive names
-  // (boolean, dateTime) reach their System twins here even when a model is active.
+  // System-typed values answer from the System namespace.
   if (item.type.startsWith('System.')) {
     return matchesSystemType(item, name)
   }
   if (model) {
     const canonical = model.resolveType(name)
     if (canonical !== undefined) {
-      return model.isSubtypeOf(item.type, canonical)
+      return exact ? item.type === canonical : model.isSubtypeOf(item.type, canonical)
     }
   }
   // Dynamic fallback: resource and complex types match on their local name.
   return typeLocalName(item.type) === name
 }
 
+/** True when a single-part type name resolves in the model or the System namespace. */
+export function isKnownTypeName(context: EvaluationContext, parts: string[]): boolean {
+  if (parts.length === 2) {
+    return parts[0] === 'System' ? SYSTEM_LOCAL_NAMES.has(parts[1] as string) : parts[0] === context.model?.namespace
+  }
+  const name = parts[0] as string
+  if (context.model?.resolveType(name) !== undefined) {
+    return true
+  }
+  return SYSTEM_LOCAL_NAMES.has(name)
+}
+
 function matchesSystemType(item: TypedValue, name: string): boolean {
   if (name === 'Any') {
     return true
-  }
-  if (!item.type.startsWith('System.')) {
-    return false
   }
   const local = typeLocalName(item.type)
   if (local === name) {
     return true
   }
-  // FHIR primitive spellings (`boolean`, `dateTime`) match their System twins.
-  return SYSTEM_LOCAL_NAMES.has(local) && local.toLowerCase() === name.toLowerCase()
+  // Lowercase FHIR spellings (`boolean`, `dateTime`) reach the System twin.
+  return local.toLowerCase() === name.toLowerCase()
 }

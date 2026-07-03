@@ -7,11 +7,9 @@ import { alignQuantities, composeUnits } from '../../values/quantity'
 import { addDuration } from '../../values/temporal-arithmetic'
 import {
   type QuantityValue,
-  SYSTEM_DATE,
-  SYSTEM_DATETIME,
   SYSTEM_QUANTITY,
   SYSTEM_STRING,
-  SYSTEM_TIME,
+  systemTypeOf,
   type TypedValue,
 } from '../../values/typed-value'
 import { binaryOperators, unaryOperators } from './index'
@@ -95,7 +93,7 @@ function quantityArithmetic(operator: ArithmeticOperator, a: TypedValue, b: Type
 }
 
 function isTemporalType(item: TypedValue): boolean {
-  return item.type === SYSTEM_DATE || item.type === SYSTEM_DATETIME || item.type === SYSTEM_TIME
+  return item.value instanceof Temporal
 }
 
 function arithmeticOperator(operator: ArithmeticOperator) {
@@ -105,8 +103,8 @@ function arithmeticOperator(operator: ArithmeticOperator) {
     if (a === undefined || b === undefined) {
       return []
     }
-    if (a.type === SYSTEM_STRING || b.type === SYSTEM_STRING) {
-      if (operator === '+' && a.type === SYSTEM_STRING && b.type === SYSTEM_STRING) {
+    if (systemTypeOf(a) === SYSTEM_STRING || systemTypeOf(b) === SYSTEM_STRING) {
+      if (operator === '+' && systemTypeOf(a) === SYSTEM_STRING && systemTypeOf(b) === SYSTEM_STRING) {
         return [{ type: SYSTEM_STRING, value: (a.value as string) + (b.value as string) }]
       }
       throw new FhirPathTypeError(`Operator '${operator}' is not defined for strings`)

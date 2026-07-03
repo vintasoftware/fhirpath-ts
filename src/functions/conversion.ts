@@ -15,6 +15,7 @@ import {
   SYSTEM_QUANTITY,
   SYSTEM_STRING,
   SYSTEM_TIME,
+  systemTypeOf,
   type TypedValue,
 } from '../values/typed-value'
 import { registerFunction } from './registry'
@@ -52,7 +53,7 @@ const TRUE_STRINGS = new Set(['true', 't', 'yes', 'y', '1', '1.0'])
 const FALSE_STRINGS = new Set(['false', 'f', 'no', 'n', '0', '0.0'])
 
 conversionPair('Boolean', item => {
-  switch (item.type) {
+  switch (systemTypeOf(item)) {
     case SYSTEM_BOOLEAN:
       return item
     case SYSTEM_INTEGER: {
@@ -81,7 +82,7 @@ conversionPair('Boolean', item => {
 })
 
 conversionPair('Integer', item => {
-  switch (item.type) {
+  switch (systemTypeOf(item)) {
     case SYSTEM_INTEGER:
       return item
     case SYSTEM_LONG: {
@@ -106,7 +107,7 @@ conversionPair('Integer', item => {
 })
 
 conversionPair('Long', item => {
-  switch (item.type) {
+  switch (systemTypeOf(item)) {
     case SYSTEM_LONG:
       return item
     case SYSTEM_INTEGER:
@@ -123,7 +124,7 @@ conversionPair('Long', item => {
 })
 
 conversionPair('Decimal', item => {
-  switch (item.type) {
+  switch (systemTypeOf(item)) {
     case SYSTEM_DECIMAL:
       return item
     case SYSTEM_INTEGER:
@@ -144,7 +145,7 @@ conversionPair('Decimal', item => {
 })
 
 export function valueToString(item: TypedValue): string | undefined {
-  switch (item.type) {
+  switch (systemTypeOf(item) ?? item.type) {
     case SYSTEM_STRING:
       return item.value as string
     case SYSTEM_BOOLEAN:
@@ -176,7 +177,7 @@ conversionPair('String', item => {
 })
 
 conversionPair('Date', item => {
-  switch (item.type) {
+  switch (systemTypeOf(item)) {
     case SYSTEM_DATE:
       return item
     case SYSTEM_DATETIME: {
@@ -194,7 +195,7 @@ conversionPair('Date', item => {
 })
 
 conversionPair('DateTime', item => {
-  switch (item.type) {
+  switch (systemTypeOf(item)) {
     case SYSTEM_DATETIME:
       return item
     case SYSTEM_DATE: {
@@ -212,7 +213,7 @@ conversionPair('DateTime', item => {
 })
 
 conversionPair('Time', item => {
-  switch (item.type) {
+  switch (systemTypeOf(item)) {
     case SYSTEM_TIME:
       return item
     case SYSTEM_STRING: {
@@ -247,7 +248,7 @@ function stringToQuantity(text: string): QuantityValue | undefined {
 }
 
 function quantityConverter(item: TypedValue): TypedValue | undefined {
-  switch (item.type) {
+  switch (systemTypeOf(item) ?? item.type) {
     case SYSTEM_QUANTITY:
       return item
     case SYSTEM_INTEGER:

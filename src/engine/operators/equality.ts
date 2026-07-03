@@ -2,7 +2,7 @@ import { Temporal } from '../../values/datetime'
 import { asNumeric } from '../../values/numeric'
 import { coerceQuantity, compareQuantities, quantitiesEquivalent } from '../../values/quantity'
 import { compareTemporal } from '../../values/temporal-compare'
-import { SYSTEM_BOOLEAN, SYSTEM_STRING, type TypedValue, typeLocalName } from '../../values/typed-value'
+import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, type TypedValue, typeLocalName } from '../../values/typed-value'
 import { binaryOperators } from './index'
 
 /**
@@ -28,10 +28,10 @@ export function pairEquals(a: TypedValue, b: TypedValue): boolean | undefined {
     const comparison = compareQuantities(quantityA, quantityB)
     return comparison === undefined ? undefined : comparison === 0
   }
-  if (a.type === SYSTEM_STRING && b.type === SYSTEM_STRING) {
+  if (systemTypeOf(a) === SYSTEM_STRING && systemTypeOf(b) === SYSTEM_STRING) {
     return a.value === b.value
   }
-  if (a.type === SYSTEM_BOOLEAN && b.type === SYSTEM_BOOLEAN) {
+  if (systemTypeOf(a) === SYSTEM_BOOLEAN && systemTypeOf(b) === SYSTEM_BOOLEAN) {
     return a.value === b.value
   }
   if (isComplex(a) && isComplex(b)) {
@@ -69,10 +69,10 @@ export function pairEquivalent(a: TypedValue, b: TypedValue): boolean {
   ) {
     return codeableConceptEquivalent(a.value, b.value)
   }
-  if (a.type === SYSTEM_STRING && b.type === SYSTEM_STRING) {
+  if (systemTypeOf(a) === SYSTEM_STRING && systemTypeOf(b) === SYSTEM_STRING) {
     return normalizeString(a.value as string) === normalizeString(b.value as string)
   }
-  if (a.type === SYSTEM_BOOLEAN && b.type === SYSTEM_BOOLEAN) {
+  if (systemTypeOf(a) === SYSTEM_BOOLEAN && systemTypeOf(b) === SYSTEM_BOOLEAN) {
     return a.value === b.value
   }
   if (isComplex(a) && isComplex(b)) {

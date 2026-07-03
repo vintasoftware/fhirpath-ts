@@ -9,19 +9,48 @@ import {
   SYSTEM_DATETIME,
   SYSTEM_DECIMAL,
   SYSTEM_INTEGER,
-  SYSTEM_LONG,
   SYSTEM_QUANTITY,
   SYSTEM_TIME,
+  systemTypeOf,
 } from '../values/typed-value'
 import { registerFunction } from './registry'
 
 type Edge = 'low' | 'high'
 
-/** Decimal boundary: the range of values that would round to this one, widened to `targetScale`. */
+const MAX_DECIMAL_PRECISION = 28
+const MAX_DATETIME_DIGITS = 17
+const MAX_TIME_DIGITS = 9
+
+/**
+ * Decimal boundary: value ± half of the last-digit step, then floored (low) or
+ * ceiled (high) to the target precision. Integers behave as scale-0 decimals
+ * (`1.lowBoundary(0)` is 0, per the official suite).
+ */
 function decimalBoundary(value: Decimal, edge: Edge, targetScale: number): Decimal {
   const halfStep = new Decimal(5n, value.scale + 1)
   const boundary = edge === 'low' ? value.subtract(halfStep) : value.add(halfStep)
-  return boundary.withScale(Math.max(targetScale, boundary.scale))
+  if (targetScale >= boundary.scale) {
+    return boundary.withScale(targetScale)
+  }
+  return edge === 'low' ? floorAt(boundary, targetScale) : ceilAt(boundary, targetScale)
+}
+
+function floorAt(value: Decimal, scale: number): Decimal {
+  const factor = 10n ** BigInt(value.scale - scale)
+  let digits = value.digits / factor
+  if (value.digits < 0n && value.digits % factor !== 0n) {
+    digits -= 1n
+  }
+  return new Decimal(digits, scale)
+}
+
+function ceilAt(value: Decimal, scale: number): Decimal {
+  const factor = 10n ** BigInt(value.scale - scale)
+  let digits = value.digits / factor
+  if (value.digits > 0n && value.digits % factor !== 0n) {
+    digits += 1n
+  }
+  return new Decimal(digits, scale)
 }
 
 /** Digit count of the value's text form, timezone excluded — the spec's precision measure. */
@@ -31,43 +60,42 @@ function temporalPrecisionDigits(value: Temporal): number {
 }
 
 /**
- * Widen a partial date/time to its earliest ('low') or latest ('high') possible
- * moment, down to the component that `targetDigits` reaches (17 = milliseconds).
+ * The earliest ('low') or latest ('high') moment a partial date/time may mean:
+ * missing components fill with their extremes down to `targetDigits`, components
+ * beyond the target truncate away, and a dateTime reaching time precision with no
+ * timezone gets the earliest (+14:00) or latest (-12:00) offset.
  */
 function temporalBoundary(value: Temporal, edge: Edge, targetDigits: number | undefined): Temporal | undefined {
   const isTime = value.kind === 'time'
-  const digits = targetDigits ?? (isTime ? 9 : 17)
+  const digits = targetDigits ?? (isTime ? MAX_TIME_DIGITS : MAX_DATETIME_DIGITS)
+  if (digits > (isTime ? MAX_TIME_DIGITS : MAX_DATETIME_DIGITS)) {
+    return undefined
+  }
   const low = edge === 'low'
-  const year = value.year
-  let month = value.month
-  let day = value.day
-  let hour = value.hour
-  let minute = value.minute
-  let second = value.second
-  let fraction = value.fraction
-  // Digit counts as components fill in: date 4/6/8, then time 2 per component +3 ms.
   const dateDigits = isTime ? 0 : 8
-  if (!isTime) {
-    if (digits >= 6 && month === undefined) {
-      month = low ? 1 : 12
-    }
-    if (digits >= 8 && day === undefined && month !== undefined) {
-      day = low ? 1 : daysInMonth(year as number, month)
-    }
+  const wantsMonth = !isTime && digits >= 6
+  const wantsDay = !isTime && digits >= 8
+  const wantsHour = digits >= dateDigits + 2 && (isTime || value.kind === 'dateTime')
+  const wantsMinute = digits >= dateDigits + 4
+  const wantsSecond = digits >= dateDigits + 6
+  const wantsFraction = digits >= dateDigits + 9
+  const year = value.year
+  const month = wantsMonth ? (value.month ?? (low ? 1 : 12)) : undefined
+  const day =
+    wantsDay && month !== undefined ? (value.day ?? (low ? 1 : daysInMonth(year as number, month))) : undefined
+  const hour = wantsHour ? (value.hour ?? (low ? 0 : 23)) : undefined
+  const minute = wantsMinute && hour !== undefined ? (value.minute ?? (low ? 0 : 59)) : undefined
+  const second = wantsSecond && minute !== undefined ? (value.second ?? (low ? 0 : 59)) : undefined
+  const fraction = wantsFraction && second !== undefined ? (value.fraction ?? (low ? '000' : '999')) : undefined
+  let timezoneOffsetMinutes = value.timezoneOffsetMinutes
+  if (value.kind === 'dateTime' && hour !== undefined && timezoneOffsetMinutes === undefined) {
+    timezoneOffsetMinutes = low ? 14 * 60 : -12 * 60
   }
-  if (digits >= dateDigits + 2 && hour === undefined && (isTime || value.kind === 'dateTime')) {
-    hour = low ? 0 : 23
+  if (value.kind === 'dateTime' && hour === undefined) {
+    timezoneOffsetMinutes = undefined
   }
-  if (digits >= dateDigits + 4 && minute === undefined && hour !== undefined) {
-    minute = low ? 0 : 59
-  }
-  if (digits >= dateDigits + 6 && second === undefined && minute !== undefined) {
-    second = low ? 0 : 59
-  }
-  if (digits >= dateDigits + 9 && fraction === undefined && second !== undefined) {
-    fraction = low ? '000' : '999'
-  }
-  return Temporal.fromFields(value.kind, {
+  const kind = value.kind === 'dateTime' && hour === undefined ? 'date' : value.kind
+  return Temporal.fromFields(kind, {
     year,
     month,
     day,
@@ -75,7 +103,7 @@ function temporalBoundary(value: Temporal, edge: Edge, targetDigits: number | un
     minute,
     second,
     fraction,
-    timezoneOffsetMinutes: value.timezoneOffsetMinutes,
+    timezoneOffsetMinutes,
   })
 }
 
@@ -95,18 +123,29 @@ function boundaryFunction(name: string, edge: Edge): void {
       let precision: number | undefined
       if (args.length === 1) {
         const argument = singleton(evaluateNode(args[0] as AstNode, context, input), SYSTEM_INTEGER)
-        if (argument === undefined || typeof argument.value !== 'number' || argument.value < 0) {
-          throw new FhirPathTypeError(`${name}() expects a non-negative integer precision`)
+        if (argument === undefined || typeof argument.value !== 'number') {
+          throw new FhirPathTypeError(`${name}() expects an integer precision`)
+        }
+        // Out-of-range precision means the boundary cannot be represented: empty.
+        if (argument.value < 0) {
+          return []
         }
         precision = argument.value
       }
-      switch (item.type) {
+      switch (systemTypeOf(item) ?? item.type) {
         case SYSTEM_INTEGER:
-        case SYSTEM_LONG:
-          return [item]
-        case SYSTEM_DECIMAL:
-          return [{ type: SYSTEM_DECIMAL, value: decimalBoundary(item.value as Decimal, edge, precision ?? 8) }]
+        case 'System.Long':
+        case SYSTEM_DECIMAL: {
+          if (precision !== undefined && precision > MAX_DECIMAL_PRECISION) {
+            return []
+          }
+          const value = item.value instanceof Decimal ? item.value : (Decimal.fromString(String(item.value)) as Decimal)
+          return [{ type: SYSTEM_DECIMAL, value: decimalBoundary(value, edge, precision ?? 8) }]
+        }
         case SYSTEM_QUANTITY: {
+          if (precision !== undefined && precision > MAX_DECIMAL_PRECISION) {
+            return []
+          }
           const quantity = item.value as QuantityValue
           return [
             {
@@ -119,7 +158,11 @@ function boundaryFunction(name: string, edge: Edge): void {
         case SYSTEM_DATETIME:
         case SYSTEM_TIME: {
           const boundary = temporalBoundary(item.value as Temporal, edge, precision)
-          return boundary === undefined ? [] : [{ type: item.type, value: boundary }]
+          if (boundary === undefined) {
+            return []
+          }
+          const type = boundary.kind === 'date' ? SYSTEM_DATE : boundary.kind === 'time' ? SYSTEM_TIME : SYSTEM_DATETIME
+          return [{ type, value: boundary }]
         }
         default:
           throw new FhirPathTypeError(`${name}() is not defined for ${item.type}`)
@@ -139,9 +182,14 @@ registerFunction('precision', {
     if (item === undefined) {
       return []
     }
-    switch (item.type) {
+    switch (systemTypeOf(item) ?? item.type) {
       case SYSTEM_DECIMAL:
-        return [{ type: SYSTEM_INTEGER, value: (item.value as Decimal).scale }]
+        return [
+          {
+            type: SYSTEM_INTEGER,
+            value: item.value instanceof Decimal ? item.value.scale : 0,
+          },
+        ]
       case SYSTEM_INTEGER:
         return [{ type: SYSTEM_INTEGER, value: 0 }]
       case SYSTEM_DATE:

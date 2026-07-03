@@ -21,6 +21,7 @@
   "devDependencies": {
     "@medplum/definitions": "catalog:",
     "@types/node": "catalog:",
+    "fast-xml-parser": "catalog:",
     "typescript": "catalog:"
   }
 }

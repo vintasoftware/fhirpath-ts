@@ -75,10 +75,17 @@ export function forkVariables(context: EvaluationContext): EvaluationContext {
 /** Resolve `%name`; referencing an undefined environment variable is an error (spec §9). */
 export function resolveEnvironmentVariable(context: EvaluationContext, name: string): TypedValue[] {
   const value = context.variables.get(name) ?? context.env.get(name)
-  if (value === undefined) {
-    throw new FhirPathTypeError(`Undefined environment variable %${name}`)
+  if (value !== undefined) {
+    return value
   }
-  return value
+  // FHIR-defined families: %`vs-[name]` and %`ext-[name]` expand to HL7 urls.
+  if (name.startsWith('vs-')) {
+    return [{ type: SYSTEM_STRING, value: `http://hl7.org/fhir/ValueSet/${name.slice(3)}` }]
+  }
+  if (name.startsWith('ext-')) {
+    return [{ type: SYSTEM_STRING, value: `http://hl7.org/fhir/StructureDefinition/${name.slice(4)}` }]
+  }
+  throw new FhirPathTypeError(`Undefined environment variable %${name}`)
 }
 
 /** Run `body` with a frame binding `$this` (and optionally `$index` / `$total`). */

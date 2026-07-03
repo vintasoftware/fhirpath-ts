@@ -58,8 +58,9 @@ describe('boundary and precision functions', () => {
     ['1.587.highBoundary().toString()', ['1.58750000']],
     ['1.587.lowBoundary(6).toString()', ['1.586500']],
     ['1.9.lowBoundary(0) <= 2', [true]],
-    ['5.lowBoundary()', [5]],
-    ['5.highBoundary()', [5]],
+    // Integers behave as scale-0 decimals: the boundary is the half-unit range.
+    ['5.lowBoundary().toString()', ['4.50000000']],
+    ['5.highBoundary().toString()', ['5.50000000']],
     ["(4.5 'mg').lowBoundary().toString()", ["4.45000000 'mg'"]],
   ] as [string, unknown[]][])('%s', (expression, expected) => {
     expect(evaluate(expression)).toEqual(expected)
@@ -73,9 +74,10 @@ describe('boundary and precision functions', () => {
     expect(evaluate('@2014.lowBoundary(6).toString()')).toEqual(['2014-01'])
   })
 
-  it('dateTime and time boundaries reach milliseconds', () => {
-    expect(evaluate('@2014-01-01T08.lowBoundary().toString()')).toEqual(['2014-01-01T08:00:00.000'])
-    expect(evaluate('@2014-01-01T08.highBoundary().toString()')).toEqual(['2014-01-01T08:59:59.999'])
+  it('dateTime and time boundaries reach milliseconds; missing timezones get the extremes', () => {
+    expect(evaluate('@2014-01-01T08.lowBoundary().toString()')).toEqual(['2014-01-01T08:00:00.000+14:00'])
+    expect(evaluate('@2014-01-01T08.highBoundary().toString()')).toEqual(['2014-01-01T08:59:59.999-12:00'])
+    expect(evaluate('@2014-01-01T08:05+08:00.lowBoundary().toString()')).toEqual(['2014-01-01T08:05:00.000+08:00'])
     expect(evaluate('@T10:30.lowBoundary().toString()')).toEqual(['10:30:00.000'])
     expect(evaluate('@T10:30.highBoundary().toString()')).toEqual(['10:30:59.999'])
   })
@@ -89,7 +91,9 @@ describe('boundary and precision functions', () => {
     expect(evaluate('{}.precision()')).toEqual([])
     expect(() => evaluate('true.precision()')).toThrow(FhirPathTypeError)
     expect(() => evaluate('true.lowBoundary()')).toThrow(FhirPathTypeError)
-    expect(() => evaluate('1.5.lowBoundary(-1)')).toThrow(FhirPathTypeError)
+    // Out-of-range precision means the boundary cannot be represented.
+    expect(evaluate('1.5.lowBoundary(-1)')).toEqual([])
+    expect(evaluate('1.5.lowBoundary(40)')).toEqual([])
   })
 })
 
@@ -298,7 +302,7 @@ describe('remaining phase-7 branches', () => {
   it('boundaries fill time components at each precision', () => {
     expect(evaluate('@T10.highBoundary().toString()')).toEqual(['10:59:59.999'])
     expect(evaluate('@2014.lowBoundary(4).toString()')).toEqual(['2014'])
-    expect(evaluate('@2014-01-01T10:00:00.500.lowBoundary().toString()')).toEqual(['2014-01-01T10:00:00.500'])
+    expect(evaluate('@2014-01-01T10:00:00.500.lowBoundary().toString()')).toEqual(['2014-01-01T10:00:00.500+14:00'])
   })
 
   it('type() namespace falls back for plain objects and uses the model namespace', () => {
@@ -344,6 +348,6 @@ describe('remaining phase-7 branches', () => {
 
   it('week durations are equivalent to UCUM weeks', () => {
     expect(evaluate("1 week ~ 1 'wk'")).toEqual([true])
-    expect(evaluate("1 week = 1 'wk'")).toEqual([])
+    expect(evaluate("1 week = 1 'wk'")).toEqual([true])
   })
 })

@@ -2,7 +2,7 @@ import { pairEquals } from '../engine/operators/equality'
 import { FhirPathTypeError } from '../errors'
 import type { AstNode } from '../parser/ast'
 import { booleanSingleton, wrapBoolean } from '../values/collection'
-import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, type TypedValue } from '../values/typed-value'
+import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, systemTypeOf, type TypedValue } from '../values/typed-value'
 import { perItem } from './iteration'
 import { registerFunction } from './registry'
 
@@ -45,7 +45,7 @@ function booleanAggregate(name: string, fold: (values: boolean[]) => boolean) {
     maxArity: 0,
     evaluate: (_context, input) => {
       const values = input.map(item => {
-        if (item.type !== SYSTEM_BOOLEAN) {
+        if (systemTypeOf(item) !== SYSTEM_BOOLEAN) {
           throw new FhirPathTypeError(`${name}() expects a collection of booleans, found ${item.type}`)
         }
         return item.value as boolean

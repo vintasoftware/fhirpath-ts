@@ -52,6 +52,7 @@ registerFunction('timezoneOffsetOf', {
     }
     // Offset in hours as a Decimal: +05:30 is 5.5.
     const hours = Decimal.fromString(String(temporal.timezoneOffsetMinutes / 60))
+    /* v8 ignore next -- minutes divided by 60 always renders a parseable number */
     return hours === undefined ? [] : [{ type: SYSTEM_DECIMAL, value: hours }]
   },
 })
@@ -65,6 +66,7 @@ registerFunction('dateOf', {
       return []
     }
     const date = Temporal.fromFields('date', { year: temporal.year, month: temporal.month, day: temporal.day })
+    /* v8 ignore next -- components come from an already-valid Temporal */
     return date === undefined ? [] : [{ type: SYSTEM_DATE, value: date }]
   },
 })
@@ -83,6 +85,7 @@ registerFunction('timeOf', {
       second: temporal.second,
       fraction: temporal.fraction,
     })
+    /* v8 ignore next -- components come from an already-valid Temporal */
     return time === undefined ? [] : [{ type: SYSTEM_TIME, value: time }]
   },
 })

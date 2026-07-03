@@ -3,7 +3,7 @@ import { validateNarrative } from '../fhir/html-checks'
 import type { AstNode } from '../parser/ast'
 import { singleton, wrapBoolean } from '../values/collection'
 import { coerceQuantity, compareQuantities } from '../values/quantity'
-import { SYSTEM_STRING, type TypedValue, toTypedValue } from '../values/typed-value'
+import { SYSTEM_STRING, systemTypeOf, type TypedValue, toTypedValue } from '../values/typed-value'
 import { registerFunction } from './registry'
 
 /** extension(url): extensions of each item, including primitive `_field` extensions. */
@@ -54,7 +54,7 @@ registerFunction('hasValue', {
     if (item === undefined) {
       return []
     }
-    return wrapBoolean(item.type.startsWith('System.') && item.value !== undefined && item.value !== null)
+    return wrapBoolean(systemTypeOf(item) !== undefined && item.value !== undefined && item.value !== null)
   },
 })
 
@@ -63,10 +63,10 @@ registerFunction('getValue', {
   maxArity: 0,
   evaluate: (_context, input) => {
     const item = singleton(input)
-    if (item === undefined || !item.type.startsWith('System.')) {
+    if (item === undefined || systemTypeOf(item) === undefined || item.value === undefined) {
       return []
     }
-    return [{ type: item.type, value: item.value }]
+    return [{ type: systemTypeOf(item) as string, value: item.value }]
   },
 })
 
@@ -172,6 +172,29 @@ registerFunction('comparable', {
   },
 })
 
+/**
+ * Base-StructureDefinition conformance only: the url must name a core resource type.
+ * Real profile validation is a deferred feature (README register).
+ */
+registerFunction('conformsTo', {
+  minArity: 1,
+  maxArity: 1,
+  evaluate: (context, input, args, evaluateNode) => {
+    const item = singleton(input)
+    if (item === undefined) {
+      return []
+    }
+    const urlValue = singleton(evaluateNode(args[0] as AstNode, context, input))
+    const url = typeof urlValue?.value === 'string' ? urlValue.value : ''
+    const match = /^http:\/\/hl7\.org\/fhir\/StructureDefinition\/([A-Za-z]+)$/.exec(url)
+    if (!match) {
+      throw new FhirPathRuntimeError(`conformsTo() only supports base StructureDefinition urls, got '${url}'`)
+    }
+    const resourceType = (item.value as { resourceType?: unknown } | undefined)?.resourceType
+    return wrapBoolean(resourceType === match[1])
+  },
+})
+
 /** Deferred features (see the README register): registered so they fail with a clear message. */
 function unsupported(name: string, minArity: number, maxArity: number, reason: string): void {
   registerFunction(name, {
@@ -186,7 +209,6 @@ function unsupported(name: string, minArity: number, maxArity: number, reason: s
 unsupported('memberOf', 1, 1, 'terminology functions need a terminology service')
 unsupported('subsumes', 1, 1, 'terminology functions need a terminology service')
 unsupported('subsumedBy', 1, 1, 'terminology functions need a terminology service')
-unsupported('conformsTo', 1, 1, 'profile validation needs a FHIR validator')
 unsupported('slice', 2, 2, 'profile slicing needs profile definitions')
 unsupported('elementDefinition', 0, 0, 'element definitions need profile definitions')
 unsupported('checkModifiers', 0, 1, 'modifier checking needs profile definitions')

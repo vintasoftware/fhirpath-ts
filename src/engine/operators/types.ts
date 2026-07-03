@@ -7,7 +7,8 @@ registerTypeOperator((context, operator, operand, type) => {
   if (item === undefined) {
     return []
   }
-  const matches = itemMatchesType(context, item, type.parts)
+  // `is` walks subtypes; the `as` cast demands the exact type (spec + official tests).
+  const matches = itemMatchesType(context, item, type.parts, { exact: operator === 'as' })
   if (operator === 'is') {
     return wrapBoolean(matches)
   }

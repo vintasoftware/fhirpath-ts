@@ -1,6 +1,6 @@
 import { FhirPathTypeError } from '../../errors'
 import { singleton } from '../../values/collection'
-import { SYSTEM_STRING, type TypedValue } from '../../values/typed-value'
+import { SYSTEM_STRING, systemTypeOf, type TypedValue } from '../../values/typed-value'
 import { binaryOperators } from './index'
 
 /** `&` concatenates strings and, unlike `+`, treats an empty operand as `''` (spec §6.6.2). */
@@ -13,7 +13,7 @@ function stringOrEmpty(input: TypedValue[]): string {
   if (item === undefined) {
     return ''
   }
-  if (item.type !== SYSTEM_STRING) {
+  if (systemTypeOf(item) !== SYSTEM_STRING) {
     throw new FhirPathTypeError(`Operator '&' expects strings, got ${item.type}`)
   }
   return item.value as string

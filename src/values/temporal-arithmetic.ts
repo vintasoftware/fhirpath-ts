@@ -50,6 +50,17 @@ function resolveDuration(quantity: QuantityValue): Duration {
     }
     return { level: COMPONENT_LEVELS[unit] as number, amount: value }
   }
+  // Quoted calendar words ('month', 'week') behave like calendar durations.
+  const asCalendarWord = normalizeCalendarUnit(quantity.unit)
+  if (asCalendarWord === 'week') {
+    return { level: 2, amount: value * 7 }
+  }
+  if (COMPONENT_LEVELS[asCalendarWord] !== undefined) {
+    if (asCalendarWord === 'week') {
+      return { level: 2, amount: value * 7 }
+    }
+    return { level: COMPONENT_LEVELS[asCalendarWord] as number, amount: value }
+  }
   const ucum = UCUM_TIME_UNITS[quantity.unit]
   if (!ucum) {
     // The spec reserves UCUM 'a' and 'mo' (definite 365/30-day durations) as errors
@@ -80,9 +91,12 @@ export function addDuration(temporal: Temporal, quantity: QuantityValue, sign: 1
     precisionLevel(temporal.precision === 'millisecond' ? 'millisecond' : temporal.precision),
     temporal.kind === 'date' ? 2 : 6
   )
-  // For precisions above seconds only whole amounts apply; the decimal part is dropped.
+  // Whole amounts only above seconds; fractional seconds add as milliseconds (R5).
   if (level < 5) {
     amount = Math.trunc(amount)
+  } else if (level === 5 && !Number.isInteger(amount)) {
+    level = 6
+    amount = Math.round(amount * 1000)
   }
   while (level > targetLevel) {
     amount = Math.trunc(amount / (UP_CONVERSION_FACTORS[level - 1] as number))

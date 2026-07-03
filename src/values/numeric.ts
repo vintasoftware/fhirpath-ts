@@ -1,5 +1,5 @@
 import { Decimal } from './decimal'
-import { SYSTEM_DECIMAL, SYSTEM_INTEGER, SYSTEM_LONG, type TypedValue } from './typed-value'
+import { SYSTEM_DECIMAL, SYSTEM_INTEGER, SYSTEM_LONG, systemTypeOf, type TypedValue } from './typed-value'
 
 export type NumericKind = 'Integer' | 'Long' | 'Decimal'
 
@@ -13,7 +13,7 @@ const INTEGER_MAX = 2147483647
 
 /** Read an Integer/Long/Decimal operand as a Decimal, remembering its kind. */
 export function asNumeric(item: TypedValue): NumericOperand | undefined {
-  switch (item.type) {
+  switch (systemTypeOf(item)) {
     case SYSTEM_INTEGER:
       return { kind: 'Integer', value: Decimal.fromString(String(item.value as number)) as Decimal }
     case SYSTEM_LONG:

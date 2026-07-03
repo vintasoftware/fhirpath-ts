@@ -64,8 +64,15 @@ const SECOND_FAMILY: Readonly<Record<string, string>> = {
   millisecond: '0.001',
 }
 
-/** Calendar words at or below `second` are exact, so they equal their UCUM twins (spec §6.1). */
+/**
+ * Calendar words at or below `week` are exact durations, so they equal their UCUM
+ * twins (`7 days = 1 'wk'` in the official suite). Year and month stay equivalence-only.
+ */
 const CALENDAR_TO_UCUM_EXACT: Readonly<Record<string, string>> = {
+  week: 'wk',
+  day: 'd',
+  hour: 'h',
+  minute: 'min',
   second: 's',
   millisecond: 'ms',
 }
@@ -134,16 +141,20 @@ function compareUcum(a: QuantityValue, b: QuantityValue): -1 | 0 | 1 | undefined
   return a.value.multiply(canonicalA.factor).compare(b.value.multiply(canonicalB.factor))
 }
 
-/** Equivalence: calendar durations match their UCUM twins (`1 year ~ 1 'a'`), rounded to the least precise value. */
+/**
+ * Equivalence: calendar durations match their UCUM twins (`1 year ~ 1 'a'`), and
+ * values compare after conversion, rounded to the least precise operand
+ * (`4 'g' ~ 4040 'mg'` is true: 4.04 g rounds to 4 at scale 0).
+ */
 export function quantitiesEquivalent(a: QuantityValue, b: QuantityValue): boolean {
   const ucumA = asUcum(a)
   const ucumB = asUcum(b)
-  const scale = Math.min(a.value.scale, b.value.scale)
-  const comparison = compareUcum(
-    { ...ucumA, value: ucumA.value.round(Math.max(scale, 0)) },
-    { ...ucumB, value: ucumB.value.round(Math.max(scale, 0)) }
-  )
-  return comparison === 0
+  const scale = Math.max(Math.min(a.value.scale, b.value.scale), 0)
+  const converted = convertQuantity(ucumB, ucumA.unit)
+  if (converted !== undefined) {
+    return ucumA.value.round(scale).equals(converted.value.round(scale))
+  }
+  return compareUcum({ ...ucumA, value: ucumA.value.round(scale) }, { ...ucumB, value: ucumB.value.round(scale) }) === 0
 }
 
 function asUcum(quantity: QuantityValue): QuantityValue {
@@ -199,7 +210,15 @@ export function alignQuantities(
     }
   }
   if (a.calendar || b.calendar) {
-    return undefined
+    const exactA = a.calendar ? CALENDAR_TO_UCUM_EXACT[normalizeCalendarUnit(a.unit)] : a.unit
+    const exactB = b.calendar ? CALENDAR_TO_UCUM_EXACT[normalizeCalendarUnit(b.unit)] : b.unit
+    if (exactA === undefined || exactB === undefined) {
+      return undefined
+    }
+    return alignQuantities(
+      { value: a.value, unit: exactA, calendar: false },
+      { value: b.value, unit: exactB, calendar: false }
+    )
   }
   const canonicalA = canonicalizeUnit(a.unit)
   const canonicalB = canonicalizeUnit(b.unit)

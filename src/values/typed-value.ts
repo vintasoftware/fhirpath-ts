@@ -35,6 +35,43 @@ export interface TypedValue {
   primitiveElement?: unknown
 }
 
+/** FHIR primitive type names to their System twins (FHIR spec "types" page). */
+export const FHIR_PRIMITIVE_TO_SYSTEM: Readonly<Record<string, string>> = {
+  boolean: 'System.Boolean',
+  integer: 'System.Integer',
+  positiveInt: 'System.Integer',
+  unsignedInt: 'System.Integer',
+  integer64: 'System.Long',
+  decimal: 'System.Decimal',
+  date: 'System.Date',
+  dateTime: 'System.DateTime',
+  instant: 'System.DateTime',
+  time: 'System.Time',
+  string: 'System.String',
+  code: 'System.String',
+  id: 'System.String',
+  markdown: 'System.String',
+  uri: 'System.String',
+  url: 'System.String',
+  canonical: 'System.String',
+  oid: 'System.String',
+  uuid: 'System.String',
+  base64Binary: 'System.String',
+  xhtml: 'System.String',
+}
+
+/**
+ * The System type a value behaves as: System types answer themselves, FHIR
+ * primitives answer their twin (`FHIR.code` → `System.String`), everything else
+ * undefined. Operators dispatch on this so FHIR-typed primitives keep working.
+ */
+export function systemTypeOf(item: TypedValue): string | undefined {
+  if (item.type.startsWith('System.')) {
+    return item.type
+  }
+  return FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(item.type)]
+}
+
 /** The local part of a qualified type name: `System.Boolean` → `Boolean`. */
 export function typeLocalName(type: string): string {
   const separator = type.lastIndexOf('.')

@@ -4,7 +4,7 @@ import { Temporal } from '../../values/datetime'
 import { asNumeric } from '../../values/numeric'
 import { coerceQuantity, compareQuantities } from '../../values/quantity'
 import { compareTemporal } from '../../values/temporal-compare'
-import { SYSTEM_BOOLEAN, SYSTEM_STRING, type TypedValue } from '../../values/typed-value'
+import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, type TypedValue } from '../../values/typed-value'
 import { binaryOperators } from './index'
 
 type ComparisonOperator = '<' | '>' | '<=' | '>='
@@ -13,13 +13,13 @@ type ComparisonOperator = '<' | '>' | '<=' | '>='
  * Order two singleton values (spec §6.2). Undefined means empty: an empty operand,
  * a date/time precision mismatch, or units that cannot be compared.
  */
-function compareValues(a: TypedValue, b: TypedValue): number | undefined {
+export function compareValues(a: TypedValue, b: TypedValue): number | undefined {
   const numericA = asNumeric(a)
   const numericB = asNumeric(b)
   if (numericA && numericB) {
     return numericA.value.compare(numericB.value)
   }
-  if (a.type === SYSTEM_STRING && b.type === SYSTEM_STRING) {
+  if (systemTypeOf(a) === SYSTEM_STRING && systemTypeOf(b) === SYSTEM_STRING) {
     const left = a.value as string
     const right = b.value as string
     if (left < right) {

@@ -21,8 +21,12 @@ import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index
 import '../functions/install'
 import './operators/install'
 
-function evaluateArgument(node: AstNode, context: EvaluationContext, input: TypedValue[]): TypedValue[] {
-  return evaluateNode(node, forkVariables(context), input)
+function evaluateArgument(node: AstNode, context: EvaluationContext, _input: TypedValue[]): TypedValue[] {
+  // Arguments evaluate against $this (the current context item), not the function's
+  // input collection: `name.given.combine(name.family)` resolves name.family on the
+  // Patient. Lambda-style functions bind their own frame first, so they see each item.
+  const forked = forkVariables(context)
+  return evaluateNode(node, forked, forked.frame.thisValue)
 }
 
 /** Evaluate one AST node against an input collection. */

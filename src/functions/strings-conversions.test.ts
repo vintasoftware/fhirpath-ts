@@ -206,3 +206,56 @@ describe('conversions', () => {
     expect(() => evaluate("4.5 'mg'.toQuantity(1)")).toThrow(FhirPathTypeError)
   })
 })
+
+describe('json escape variants', () => {
+  it.each([
+    // Doubled backslashes: the FHIRPath lexer resolves one level first.
+    ["'a\\\\/b'.unescape('json')", ['a/b']],
+    ["'a\\\\bb'.unescape('json')", ['a\bb']],
+    ["'a\\\\fb'.unescape('json')", ['a\fb']],
+    ["'a\\\\rb'.unescape('json')", ['a\rb']],
+    ["'a\\\\tb'.unescape('json')", ['a\tb']],
+    ["'a\\\\u0041b'.unescape('json')", ['aAb']],
+    [String.raw`'aAb'.unescape('json')`, ['aAb']],
+    [`'"1<2"'.unescape('json')`, ['"1<2"']],
+  ])('%s', (expression, expected) => {
+    expect(evaluate(expression)).toEqual(expected)
+  })
+
+  it('rejects malformed json escapes', () => {
+    expect(() => evaluate("'a\\\\qb'.unescape('json')")).toThrow('invalid JSON')
+    expect(() => evaluate("'a\\\\u12'.unescape('json')")).toThrow('invalid JSON')
+    expect(() => evaluate("'trailing\\\\'.unescape('json')")).toThrow('invalid JSON')
+  })
+})
+
+describe('sort', () => {
+  it.each([
+    ['(3 | 1 | 2).sort()', [1, 2, 3]],
+    ["('c' | 'a').sort($this)", ['a', 'c']],
+    ['(1 | 2 | 3).sort(-$this)', [3, 2, 1]],
+    ['{}.sort()', []],
+  ])('%s -> %j', (expression, expected) => {
+    expect(evaluate(expression)).toEqual(expected)
+  })
+
+  it('empty keys sort last ascending and first descending', () => {
+    const input = { resourceType: 'Basic', part: [{ n: 'b' }, { x: 1 }, { n: 'a' }] }
+    expect(evaluate('part.sort(n).n', input)).toEqual(['a', 'b'])
+    expect(evaluate('part.sort(-n).count()', input)).toEqual([3])
+    expect(evaluate('part.sort(-n)[0].n', input)).toEqual([])
+  })
+
+  it('multiple keys break ties in order', () => {
+    const input = {
+      resourceType: 'Basic',
+      part: [
+        { a: 1, b: 2 },
+        { a: 1, b: 1 },
+        { a: 0, b: 9 },
+      ],
+    }
+    expect(evaluate('part.sort(a, b).b', input)).toEqual([9, 1, 2])
+    expect(evaluate('part.sort(a, -b).b', input)).toEqual([9, 2, 1])
+  })
+})

@@ -40,7 +40,8 @@ describe('model-aware root identifiers', () => {
   const model: ModelProvider = {
     namespace: 'FHIR',
     resolveType: name => (name === 'Resource' || name === 'Patient' ? `FHIR.${name}` : undefined),
-    getElement: () => undefined,
+    getElement: (_type, element) =>
+      element === 'id' ? { types: ['System.String'], isCollection: false, isChoice: false } : undefined,
     isSubtypeOf: (type, base) => type === base || (type === 'FHIR.Patient' && base === 'FHIR.Resource'),
   }
 
@@ -48,6 +49,9 @@ describe('model-aware root identifiers', () => {
     const patient = toTypedValue({ resourceType: 'Patient', id: 'x' })
     const context = createContext({ root: [patient], model })
     expect(evaluateNode(parse('Resource.id'), context, [patient]).map(item => item.value)).toEqual(['x'])
-    expect(evaluateNode(parse('Observation.id'), context, [patient])).toEqual([])
+    // A mismatched root type name is an unknown element under a model: an error.
+    expect(() => evaluateNode(parse('Observation.id'), context, [patient])).toThrow(
+      "Element 'Observation' is not defined"
+    )
   })
 })
