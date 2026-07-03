@@ -32,8 +32,10 @@ interface Bundle {
 export interface GeneratedElement {
   /** Element types; several entries for choice elements (`value[x]`). */
   t: string[]
-  /** True when max cardinality is above 1. */
+  /** Present (1) when max cardinality is above 1. */
   a?: 1
+  /** Present (1) for choice elements: JSON keys carry a type suffix (valueQuantity). */
+  c?: 1
 }
 
 export interface GeneratedType {
@@ -65,6 +67,7 @@ function extract(bundles: Bundle[]): Record<string, GeneratedType> {
         const separator = element.path.lastIndexOf('.')
         const ownerPath = element.path.slice(0, separator)
         let name = element.path.slice(separator + 1)
+        const isChoice = name.endsWith('[x]')
         let owner = root
         if (ownerPath !== typeName) {
           owner = types[ownerPath] ?? { b: 'BackboneElement', e: {} }
@@ -78,6 +81,9 @@ function extract(bundles: Bundle[]): Record<string, GeneratedType> {
           continue
         }
         const generated: GeneratedElement = { t: elementTypes }
+        if (isChoice) {
+          generated.c = 1
+        }
         if (element.max === '*' || (element.max !== undefined && Number.parseInt(element.max, 10) > 1)) {
           generated.a = 1
         }

@@ -1,0 +1,193 @@
+import { FhirPathRuntimeError, FhirPathTypeError } from '../errors'
+import { validateNarrative } from '../fhir/html-checks'
+import type { AstNode } from '../parser/ast'
+import { singleton, wrapBoolean } from '../values/collection'
+import { coerceQuantity, compareQuantities } from '../values/quantity'
+import { SYSTEM_STRING, type TypedValue, toTypedValue } from '../values/typed-value'
+import { registerFunction } from './registry'
+
+/** extension(url): extensions of each item, including primitive `_field` extensions. */
+registerFunction('extension', {
+  minArity: 1,
+  maxArity: 1,
+  evaluate: (context, input, args, evaluateNode) => {
+    const urlValue = singleton(evaluateNode(args[0] as AstNode, context, input))
+    if (urlValue === undefined) {
+      return []
+    }
+    if (urlValue.type !== SYSTEM_STRING) {
+      throw new FhirPathTypeError('extension() expects a String url argument')
+    }
+    const url = urlValue.value as string
+    const result: TypedValue[] = []
+    for (const item of input) {
+      for (const extension of extensionsOf(item)) {
+        if ((extension as { url?: unknown }).url === url) {
+          result.push({ type: 'FHIR.Extension', value: extension })
+        }
+      }
+    }
+    return result
+  },
+})
+
+function extensionsOf(item: TypedValue): unknown[] {
+  const containers: unknown[] = [item.value, item.primitiveElement]
+  const result: unknown[] = []
+  for (const container of containers) {
+    if (typeof container === 'object' && container !== null) {
+      const extensions = (container as { extension?: unknown }).extension
+      if (Array.isArray(extensions)) {
+        result.push(...extensions)
+      }
+    }
+  }
+  return result
+}
+
+/** True when the single input item is a primitive holding an actual value. */
+registerFunction('hasValue', {
+  minArity: 0,
+  maxArity: 0,
+  evaluate: (_context, input) => {
+    const item = singleton(input)
+    if (item === undefined) {
+      return []
+    }
+    return wrapBoolean(item.type.startsWith('System.') && item.value !== undefined && item.value !== null)
+  },
+})
+
+registerFunction('getValue', {
+  minArity: 0,
+  maxArity: 0,
+  evaluate: (_context, input) => {
+    const item = singleton(input)
+    if (item === undefined || !item.type.startsWith('System.')) {
+      return []
+    }
+    return [{ type: item.type, value: item.value }]
+  },
+})
+
+/**
+ * Sync resolve(): contained references (`#id`) and Bundle-internal references.
+ * Never touches the network — external references quietly resolve to nothing
+ * (the async story is a deferred feature, see the README).
+ */
+registerFunction('resolve', {
+  minArity: 0,
+  maxArity: 0,
+  evaluate: (context, input) => {
+    const result: TypedValue[] = []
+    const scope = context.root[0]?.value as ResolveScope | undefined
+    for (const item of input) {
+      const reference = referenceStringOf(item)
+      if (reference === undefined) {
+        continue
+      }
+      const resolved = resolveReference(reference, scope)
+      if (resolved !== undefined) {
+        result.push(toTypedValue(resolved))
+      }
+    }
+    return result
+  },
+})
+
+function referenceStringOf(item: TypedValue): string | undefined {
+  if (typeof item.value === 'string') {
+    return item.value
+  }
+  if (typeof item.value === 'object' && item.value !== null) {
+    const reference = (item.value as { reference?: unknown }).reference
+    return typeof reference === 'string' ? reference : undefined
+  }
+  return undefined
+}
+
+interface ResolveScope {
+  resourceType?: unknown
+  contained?: unknown
+  entry?: { fullUrl?: string; resource?: { resourceType?: unknown; id?: unknown } }[]
+}
+
+function resolveReference(reference: string, scope: ResolveScope | undefined): unknown {
+  if (!scope) {
+    return undefined
+  }
+  if (reference.startsWith('#')) {
+    const id = reference.slice(1)
+    if (id === '') {
+      return scope
+    }
+    if (Array.isArray(scope.contained)) {
+      return scope.contained.find(resource => (resource as { id?: unknown }).id === id)
+    }
+    return undefined
+  }
+  if (scope.resourceType === 'Bundle' && Array.isArray(scope.entry)) {
+    for (const entry of scope.entry) {
+      if (entry.fullUrl === reference || entry.fullUrl?.endsWith(`/${reference}`)) {
+        return entry.resource
+      }
+      const resource = entry.resource
+      if (resource && `${String(resource.resourceType)}/${String(resource.id)}` === reference) {
+        return resource
+      }
+    }
+  }
+  return undefined
+}
+
+/** Validate narrative xhtml against the FHIR rules (real implementation, not a stub). */
+registerFunction('htmlChecks', {
+  minArity: 0,
+  maxArity: 0,
+  evaluate: (_context, input) => {
+    const item = singleton(input)
+    if (item === undefined) {
+      return []
+    }
+    return wrapBoolean(typeof item.value === 'string' && validateNarrative(item.value))
+  },
+})
+
+/** Quantities are comparable when their units share a dimension (FHIR R5 addition). */
+registerFunction('comparable', {
+  minArity: 1,
+  maxArity: 1,
+  evaluate: (context, input, args, evaluateNode) => {
+    const left = singleton(input)
+    const right = singleton(evaluateNode(args[0] as AstNode, context, input))
+    if (left === undefined || right === undefined) {
+      return []
+    }
+    const a = coerceQuantity(left)
+    const b = coerceQuantity(right)
+    if (!(a && b)) {
+      throw new FhirPathTypeError('comparable() expects Quantity operands')
+    }
+    return wrapBoolean(compareQuantities(a, b) !== undefined)
+  },
+})
+
+/** Deferred features (see the README register): registered so they fail with a clear message. */
+function unsupported(name: string, minArity: number, maxArity: number, reason: string): void {
+  registerFunction(name, {
+    minArity,
+    maxArity,
+    evaluate: () => {
+      throw new FhirPathRuntimeError(`${name}() is not supported in v1: ${reason}`)
+    },
+  })
+}
+
+unsupported('memberOf', 1, 1, 'terminology functions need a terminology service')
+unsupported('subsumes', 1, 1, 'terminology functions need a terminology service')
+unsupported('subsumedBy', 1, 1, 'terminology functions need a terminology service')
+unsupported('conformsTo', 1, 1, 'profile validation needs a FHIR validator')
+unsupported('slice', 2, 2, 'profile slicing needs profile definitions')
+unsupported('elementDefinition', 0, 0, 'element definitions need profile definitions')
+unsupported('checkModifiers', 0, 1, 'modifier checking needs profile definitions')
+unsupported('weight', 0, 0, 'item weights need code-system lookups')

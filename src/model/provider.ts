@@ -3,6 +3,8 @@ export interface ElementInfo {
   /** Canonical type name(s); more than one for choice elements like `Observation.value[x]`. */
   types: string[]
   isCollection: boolean
+  /** True for `[x]` elements, whose JSON keys carry a type suffix (`valueQuantity`). */
+  isChoice: boolean
 }
 
 /**

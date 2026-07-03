@@ -1,14 +1,8 @@
 import { Temporal } from '../../values/datetime'
 import { asNumeric } from '../../values/numeric'
-import { compareQuantities, quantitiesEquivalent } from '../../values/quantity'
+import { coerceQuantity, compareQuantities, quantitiesEquivalent } from '../../values/quantity'
 import { compareTemporal } from '../../values/temporal-compare'
-import {
-  type QuantityValue,
-  SYSTEM_BOOLEAN,
-  SYSTEM_QUANTITY,
-  SYSTEM_STRING,
-  type TypedValue,
-} from '../../values/typed-value'
+import { SYSTEM_BOOLEAN, SYSTEM_STRING, type TypedValue, typeLocalName } from '../../values/typed-value'
 import { binaryOperators } from './index'
 
 /**
@@ -28,8 +22,10 @@ export function pairEquals(a: TypedValue, b: TypedValue): boolean | undefined {
     }
     return comparison === 0
   }
-  if (a.type === SYSTEM_QUANTITY && b.type === SYSTEM_QUANTITY) {
-    const comparison = compareQuantities(a.value as QuantityValue, b.value as QuantityValue)
+  const quantityA = coerceQuantity(a)
+  const quantityB = coerceQuantity(b)
+  if (quantityA && quantityB) {
+    const comparison = compareQuantities(quantityA, quantityB)
     return comparison === undefined ? undefined : comparison === 0
   }
   if (a.type === SYSTEM_STRING && b.type === SYSTEM_STRING) {
@@ -56,8 +52,22 @@ export function pairEquivalent(a: TypedValue, b: TypedValue): boolean {
   if (a.value instanceof Temporal && b.value instanceof Temporal) {
     return compareTemporal(a.value, b.value) === 0
   }
-  if (a.type === SYSTEM_QUANTITY && b.type === SYSTEM_QUANTITY) {
-    return quantitiesEquivalent(a.value as QuantityValue, b.value as QuantityValue)
+  const quantityA = coerceQuantity(a)
+  const quantityB = coerceQuantity(b)
+  if (quantityA && quantityB) {
+    return quantitiesEquivalent(quantityA, quantityB)
+  }
+  // One typed side is enough: untyped comparison values (e.g. from %env) still get
+  // FHIR semantics when compared against a model-typed Coding/CodeableConcept.
+  if ((typeLocalName(a.type) === 'Coding' || typeLocalName(b.type) === 'Coding') && isComplex(a) && isComplex(b)) {
+    return codingEquivalent(a.value, b.value)
+  }
+  if (
+    (typeLocalName(a.type) === 'CodeableConcept' || typeLocalName(b.type) === 'CodeableConcept') &&
+    isComplex(a) &&
+    isComplex(b)
+  ) {
+    return codeableConceptEquivalent(a.value, b.value)
   }
   if (a.type === SYSTEM_STRING && b.type === SYSTEM_STRING) {
     return normalizeString(a.value as string) === normalizeString(b.value as string)
@@ -69,6 +79,20 @@ export function pairEquivalent(a: TypedValue, b: TypedValue): boolean {
     return deepEquivalent(a.value, b.value)
   }
   return false
+}
+
+/** FHIR equivalence for Coding: system and code only (display and id do not matter). */
+function codingEquivalent(a: unknown, b: unknown): boolean {
+  const codingA = a as { system?: unknown; code?: unknown }
+  const codingB = b as { system?: unknown; code?: unknown }
+  return codingA.system === codingB.system && codingA.code === codingB.code
+}
+
+/** FHIR equivalence for CodeableConcept: any pair of equivalent codings. */
+function codeableConceptEquivalent(a: unknown, b: unknown): boolean {
+  const codingsA = ((a as { coding?: unknown[] }).coding ?? []) as unknown[]
+  const codingsB = ((b as { coding?: unknown[] }).coding ?? []) as unknown[]
+  return codingsA.some(one => codingsB.some(other => codingEquivalent(one, other)))
 }
 
 function isComplex(item: TypedValue): boolean {
@@ -121,14 +145,19 @@ function deepEquivalent(a: unknown, b: unknown): boolean {
     )
   }
   if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
-    const keysA = Object.keys(a)
-    const keysB = Object.keys(b)
+    // Equivalence on FHIR complex values ignores element ids and primitive metadata.
+    const keysA = Object.keys(a).filter(equivalenceKey)
+    const keysB = Object.keys(b).filter(equivalenceKey)
     return (
       keysA.length === keysB.length &&
       keysA.every(key => deepEquivalent((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]))
     )
   }
   return a === b
+}
+
+function equivalenceKey(key: string): boolean {
+  return key !== 'id' && !key.startsWith('_')
 }
 
 /** Collection `=`: empty operand → empty; different lengths → false; ordered pairwise. */

@@ -31,6 +31,8 @@ export interface QuantityValue {
 export interface TypedValue {
   type: string
   value: unknown
+  /** For FHIR primitives navigated with a model: the `_field` sibling (id/extension). */
+  primitiveElement?: unknown
 }
 
 /** The local part of a qualified type name: `System.Boolean` → `Boolean`. */

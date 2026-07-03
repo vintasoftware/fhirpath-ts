@@ -4,6 +4,8 @@ export interface GeneratedElement {
   t: string[]
   /** Present (1) when max cardinality is above 1. */
   a?: 1
+  /** Present (1) for choice elements: JSON keys carry a type suffix (valueQuantity). */
+  c?: 1
 }
 
 export interface GeneratedType {

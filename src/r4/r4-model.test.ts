@@ -22,9 +22,21 @@ describe('r4Model type resolution', () => {
 
 describe('r4Model element lookup', () => {
   it('finds plain elements with cardinality', () => {
-    expect(r4Model.getElement('FHIR.Patient', 'birthDate')).toEqual({ types: ['date'], isCollection: false })
-    expect(r4Model.getElement('FHIR.Patient', 'name')).toEqual({ types: ['HumanName'], isCollection: true })
-    expect(r4Model.getElement('FHIR.HumanName', 'given')).toEqual({ types: ['string'], isCollection: true })
+    expect(r4Model.getElement('FHIR.Patient', 'birthDate')).toEqual({
+      types: ['date'],
+      isCollection: false,
+      isChoice: false,
+    })
+    expect(r4Model.getElement('FHIR.Patient', 'name')).toEqual({
+      types: ['HumanName'],
+      isCollection: true,
+      isChoice: false,
+    })
+    expect(r4Model.getElement('FHIR.HumanName', 'given')).toEqual({
+      types: ['string'],
+      isCollection: true,
+      isChoice: false,
+    })
     expect(r4Model.getElement('FHIR.Patient', 'nope')).toBeUndefined()
     expect(r4Model.getElement('FHIR.Nope', 'x')).toBeUndefined()
   })
@@ -37,6 +49,8 @@ describe('r4Model element lookup', () => {
     expect(value?.types).toContain('CodeableConcept')
     const deceased = r4Model.getElement('FHIR.Patient', 'deceased')
     expect(deceased?.types).toEqual(['boolean', 'dateTime'])
+    expect(deceased?.isChoice).toBe(true)
+    expect(value?.isChoice).toBe(true)
   })
 
   it('types backbone elements by their path and finds their children', () => {

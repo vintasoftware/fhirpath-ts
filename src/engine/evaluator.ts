@@ -70,11 +70,12 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
       )
     case 'typeOp':
       return evaluateTypeOp(context, node.operator, evaluateNode(node.operand, context, input), node.type)
-    /* v8 ignore next 5 -- exhaustiveness guard, unreachable for real ASTs */
+    /* v8 ignore start -- exhaustiveness guard, unreachable for real ASTs */
     default: {
       const unreachable: never = node
       throw new FhirPathRuntimeError(`Unhandled node ${String(unreachable)}`)
     }
+    /* v8 ignore stop */
   }
 }
 
@@ -134,9 +135,10 @@ function evaluateSpecialVariable(name: 'this' | 'index' | 'total', context: Eval
       }
       return current.total
     }
-    /* v8 ignore next 3 -- the parser only produces the three names above */
+    /* v8 ignore start -- the parser only produces the three names above */
     default:
       return []
+    /* v8 ignore stop */
   }
 }
 

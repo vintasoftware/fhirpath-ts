@@ -2,15 +2,9 @@ import { FhirPathTypeError } from '../../errors'
 import { singleton } from '../../values/collection'
 import { Temporal } from '../../values/datetime'
 import { asNumeric } from '../../values/numeric'
-import { compareQuantities } from '../../values/quantity'
+import { coerceQuantity, compareQuantities } from '../../values/quantity'
 import { compareTemporal } from '../../values/temporal-compare'
-import {
-  type QuantityValue,
-  SYSTEM_BOOLEAN,
-  SYSTEM_QUANTITY,
-  SYSTEM_STRING,
-  type TypedValue,
-} from '../../values/typed-value'
+import { SYSTEM_BOOLEAN, SYSTEM_STRING, type TypedValue } from '../../values/typed-value'
 import { binaryOperators } from './index'
 
 type ComparisonOperator = '<' | '>' | '<=' | '>='
@@ -43,8 +37,10 @@ function compareValues(a: TypedValue, b: TypedValue): number | undefined {
     }
     return comparison
   }
-  if (a.type === SYSTEM_QUANTITY && b.type === SYSTEM_QUANTITY) {
-    return compareQuantities(a.value as QuantityValue, b.value as QuantityValue)
+  const quantityA = coerceQuantity(a)
+  const quantityB = coerceQuantity(b)
+  if (quantityA && quantityB) {
+    return compareQuantities(quantityA, quantityB)
   }
   throw new FhirPathTypeError(`Cannot compare ${a.type} with ${b.type}`)
 }

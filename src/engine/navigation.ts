@@ -1,3 +1,4 @@
+import { readModelProperty } from '../fhir/model-navigation'
 import { OBJECT_TYPE, type TypedValue, toTypedValue, typeLocalName } from '../values/typed-value'
 import type { EvaluationContext } from './context'
 
@@ -11,6 +12,9 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
   for (const item of input) {
     if (matchesTypeName(context, item, name)) {
       results.push(item)
+    } else if (context.model) {
+      const modelRead = readModelProperty(context.model, item, name)
+      results.push(...(modelRead ?? getProperty(item, name)))
     } else {
       results.push(...getProperty(item, name))
     }

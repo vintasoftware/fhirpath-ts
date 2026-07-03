@@ -76,7 +76,7 @@ export const r4Model: ModelProvider = {
     if (!found) {
       return undefined
     }
-    return { types: found.t, isCollection: found.a === 1 }
+    return { types: found.t, isCollection: found.a === 1, isChoice: found.c === 1 }
   },
 
   isSubtypeOf(type: string, base: string): boolean {

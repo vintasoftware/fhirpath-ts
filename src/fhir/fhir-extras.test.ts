@@ -1,0 +1,214 @@
+import { describe, expect, it } from 'vitest'
+import type { EvaluateOptions } from '../api/compile'
+import { evaluate } from '../api/evaluate'
+import { FhirPathRuntimeError } from '../errors'
+import { r4Model } from '../r4/index'
+import { validateNarrative } from './html-checks'
+
+const options: EvaluateOptions = { model: r4Model }
+
+const observation = {
+  resourceType: 'Observation',
+  id: 'o1',
+  status: 'final',
+  code: { coding: [{ system: 'http://loinc.org', code: '29463-7', display: 'Body weight' }] },
+  valueQuantity: { value: 185, unit: 'lbs', system: 'http://unitsofmeasure.org', code: '[lb_av]' },
+}
+
+const patient = {
+  resourceType: 'Patient',
+  id: 'example',
+  active: true,
+  deceasedBoolean: false,
+  birthDate: '1974-12-25',
+  _birthDate: {
+    id: 'bd',
+    extension: [
+      { url: 'http://hl7.org/fhir/StructureDefinition/patient-birthTime', valueDateTime: '1974-12-25T14:35:45-05:00' },
+    ],
+  },
+  name: [{ use: 'official', family: 'Chalmers', given: ['Peter', 'James'] }],
+  extension: [{ url: 'http://example.org/flag', valueBoolean: true }],
+  managingOrganization: { reference: '#org1' },
+  contained: [{ resourceType: 'Organization', id: 'org1', name: 'ACME' }],
+}
+
+describe('choice element navigation', () => {
+  it('resolves value[x] by stem name', () => {
+    expect(evaluate('Observation.value.exists()', observation, options)).toEqual([true])
+    expect(evaluate('(Observation.value as Quantity).unit', observation, options)).toEqual(['lbs'])
+    expect(evaluate('Observation.value.is(Quantity)', observation, options)).toEqual([true])
+    expect(evaluate('Patient.deceased', patient, options)).toEqual([false])
+    expect(evaluate('Patient.deceased.is(boolean)', patient, options)).toEqual([true])
+  })
+
+  it('quantity choice values compare against quantity literals with unit conversion', () => {
+    expect(evaluate("Observation.value = 185 '[lb_av]'", observation, options)).toEqual([true])
+    expect(evaluate("Observation.value > 80 'kg'", observation, options)).toEqual([true])
+    expect(evaluate("Observation.value.comparable(1 'kg')", observation, options)).toEqual([true])
+    expect(evaluate("Observation.value.comparable(1 's')", observation, options)).toEqual([false])
+  })
+
+  it('model-typed primitives parse into System values', () => {
+    expect(evaluate('Patient.birthDate is Date', patient, options)).toEqual([true])
+    expect(evaluate('Patient.birthDate < @2000-01-01', patient, options)).toEqual([true])
+    expect(evaluate('Patient.name.given.ofType(String).count()', patient, options)).toEqual([2])
+    expect(evaluate('Patient.name.ofType(HumanName).exists()', patient, options)).toEqual([true])
+  })
+})
+
+describe('primitive extensions', () => {
+  it('extension() reads primitive _field extensions', () => {
+    expect(
+      evaluate(
+        "Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.exists()",
+        patient,
+        options
+      )
+    ).toEqual([true])
+    expect(evaluate("Patient.birthDate.extension('http://nope').exists()", patient, options)).toEqual([false])
+  })
+
+  it('extension() reads complex-value extensions', () => {
+    expect(evaluate("Patient.extension('http://example.org/flag').value", patient, options)).toEqual([true])
+  })
+
+  it('id and extension navigate from the _field sibling', () => {
+    expect(evaluate('Patient.birthDate.id', patient, options)).toEqual(['bd'])
+    expect(evaluate('Patient.birthDate.extension.url', patient, options)).toEqual([
+      'http://hl7.org/fhir/StructureDefinition/patient-birthTime',
+    ])
+  })
+
+  it('a primitive present only through its _field sibling still navigates', () => {
+    const resource = { resourceType: 'Patient', _birthDate: { extension: [{ url: 'http://x', valueCode: 'unknown' }] } }
+    expect(evaluate('Patient.birthDate.extension.url', resource, options)).toEqual(['http://x'])
+    expect(evaluate('Patient.birthDate.hasValue()', resource, options)).toEqual([false])
+  })
+
+  it('hasValue/getValue distinguish primitives from complex values', () => {
+    expect(evaluate('Patient.birthDate.hasValue()', patient, options)).toEqual([true])
+    expect(evaluate('Patient.name.first().hasValue()', patient, options)).toEqual([false])
+    expect(evaluate('Patient.birthDate.getValue() = @1974-12-25', patient, options)).toEqual([true])
+    expect(evaluate('Patient.name.first().getValue()', patient, options)).toEqual([])
+    expect(evaluate('{}.hasValue()', patient, options)).toEqual([])
+  })
+})
+
+describe('resolve()', () => {
+  it('resolves contained references', () => {
+    expect(evaluate('Patient.managingOrganization.resolve().name', patient, options)).toEqual(['ACME'])
+  })
+
+  it('a bare # resolves to the container', () => {
+    const resource = { ...patient, managingOrganization: { reference: '#' } }
+    expect(evaluate('Patient.managingOrganization.resolve().id', resource, options)).toEqual(['example'])
+  })
+
+  it('resolves bundle-internal references by fullUrl and type/id', () => {
+    const bundle = {
+      resourceType: 'Bundle',
+      entry: [
+        { fullUrl: 'http://example.org/Patient/p1', resource: { resourceType: 'Patient', id: 'p1' } },
+        {
+          fullUrl: 'http://example.org/Observation/obs',
+          resource: { resourceType: 'Observation', id: 'obs', subject: { reference: 'Patient/p1' } },
+        },
+      ],
+    }
+    expect(evaluate('Bundle.entry.resource.ofType(Observation).subject.resolve().id', bundle, options)).toEqual(['p1'])
+    expect(
+      evaluate('%bundleRef.resolve().id', bundle, { ...options, env: { bundleRef: 'http://example.org/Patient/p1' } })
+    ).toEqual(['p1'])
+  })
+
+  it('unresolvable references are empty', () => {
+    expect(evaluate("'Patient/elsewhere'.resolve()", patient, options)).toEqual([])
+    expect(evaluate("'#missing'.resolve()", patient, options)).toEqual([])
+    expect(evaluate('name.first().resolve()', patient, options)).toEqual([])
+  })
+})
+
+describe('FHIR equivalence', () => {
+  it('Codings are equivalent on system and code', () => {
+    const input = {
+      resourceType: 'Observation',
+      status: 'final',
+      code: {
+        coding: [
+          { system: 'http://loinc.org', code: '29463-7', display: 'Body weight' },
+          { system: 'http://snomed.info/sct', code: '27113001' },
+        ],
+      },
+      valueQuantity: { value: 1, unit: 'kg' },
+    }
+    // Display differences do not matter for Coding equivalence.
+    expect(
+      evaluate('Observation.code.coding.first() ~ %other', input, {
+        ...options,
+        env: { other: { system: 'http://loinc.org', code: '29463-7', display: 'Different Display' } },
+      })
+    ).toEqual([true])
+    expect(
+      evaluate('Observation.code.coding.first() ~ %other', input, {
+        ...options,
+        env: { other: { system: 'http://loinc.org', code: 'other-code' } },
+      })
+    ).toEqual([false])
+    expect(evaluate('Observation.code.coding.first().type().name', input, options)).toEqual(['Coding'])
+  })
+
+  it('element ids are ignored by ~ on complex values', () => {
+    const withIds = { resourceType: 'Patient', name: [{ id: 'x', family: 'A' }] }
+    expect(evaluate('name ~ %other', withIds, { ...options, env: { other: { family: 'A' } } })).toEqual([true])
+  })
+
+  it('deferred functions fail with clear messages', () => {
+    expect(() => evaluate("code.memberOf('http://vs')", observation, options)).toThrow(FhirPathRuntimeError)
+    expect(() => evaluate("conformsTo('http://profile')", observation, options)).toThrow('not supported in v1')
+    expect(() => evaluate('weight()', observation, options)).toThrow('not supported in v1')
+  })
+})
+
+describe('htmlChecks', () => {
+  const valid = '<div xmlns="http://www.w3.org/1999/xhtml"><p>Body <b>weight</b></p></div>'
+
+  it('accepts valid narrative and rejects violations', () => {
+    expect(validateNarrative(valid)).toBe(true)
+    expect(evaluate('%html.htmlChecks()', undefined, { env: { html: valid } })).toEqual([true])
+  })
+
+  it.each([
+    ['<div><p>no namespace</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p onclick="x()">hi</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="javascript:x()">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>unclosed</div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p foo="bar">attr</p></div>'],
+    ['<p xmlns="http://www.w3.org/1999/xhtml">not a div</p>'],
+    ['stray text <div xmlns="http://www.w3.org/1999/xhtml"/>'],
+  ])('rejects %s', html => {
+    expect(validateNarrative(html)).toBe(false)
+  })
+
+  it('accepts void and self-closing elements, comments, and entities', () => {
+    expect(
+      validateNarrative(
+        '<div xmlns="http://www.w3.org/1999/xhtml"><!-- note --><p>a&amp;b<br/></p><hr/><img src="data:image/png;base64,x" alt="i"/></div>'
+      )
+    ).toBe(true)
+  })
+
+  it('empty input propagates and non-strings are false', () => {
+    expect(evaluate('{}.htmlChecks()')).toEqual([])
+    expect(evaluate('1.htmlChecks()')).toEqual([false])
+  })
+})
+
+describe('%resource and %rootResource', () => {
+  it('both point at the evaluation root', () => {
+    expect(evaluate('%resource.id', patient, options)).toEqual(['example'])
+    expect(evaluate('name.where($this.use = %resource.name.first().use).exists()', patient, options)).toEqual([true])
+    expect(evaluate('%rootResource.id', patient, options)).toEqual(['example'])
+  })
+})

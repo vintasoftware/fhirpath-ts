@@ -50,6 +50,9 @@ export function createContext(options: {
     env.set(name, [{ type: SYSTEM_STRING, value: url }])
   }
   env.set('context', options.root)
+  // FHIR-defined variables; contained-resource re-rooting is a later refinement.
+  env.set('resource', options.root)
+  env.set('rootResource', options.root)
   for (const [name, value] of Object.entries(options.env ?? {})) {
     env.set(name.startsWith('%') ? name.slice(1) : name, toCollection(value))
   }

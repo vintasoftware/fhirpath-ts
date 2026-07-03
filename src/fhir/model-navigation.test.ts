@@ -1,0 +1,252 @@
+import { describe, expect, it } from 'vitest'
+import type { EvaluateOptions } from '../api/compile'
+import { evaluate } from '../api/evaluate'
+import { FhirPathTypeError } from '../errors'
+import { r4Model } from '../r4/index'
+
+const options: EvaluateOptions = { model: r4Model }
+
+describe('model navigation branches', () => {
+  it('choice elements with no populated key are empty', () => {
+    expect(evaluate('Observation.value', { resourceType: 'Observation', status: 'final' }, options)).toEqual([])
+  })
+
+  it('elements the model does not know fall back to raw reads', () => {
+    const resource = { resourceType: 'Patient', unknownKey: 'x' }
+    expect(evaluate('unknownKey', resource, options)).toEqual(['x'])
+  })
+
+  it('known elements missing from the JSON are empty', () => {
+    expect(evaluate('Patient.birthDate', { resourceType: 'Patient' }, options)).toEqual([])
+    expect(evaluate('Patient.name.given', { resourceType: 'Patient' }, options)).toEqual([])
+  })
+
+  it('arrays with aligned _name siblings keep per-element metadata', () => {
+    const resource = {
+      resourceType: 'Patient',
+      name: [{ given: ['A', 'B'], _given: [null, { id: 'g2' }] }],
+    }
+    expect(evaluate('Patient.name.given', resource, options)).toEqual(['A', 'B'])
+    expect(evaluate('Patient.name.given.id', resource, options)).toEqual(['g2'])
+  })
+
+  it('array primitives present only through _name navigate too', () => {
+    const resource = {
+      resourceType: 'Patient',
+      name: [{ _given: [{ extension: [{ url: 'http://x', valueString: 'y' }] }] }],
+    }
+    expect(evaluate('Patient.name.given.extension.url', resource, options)).toEqual(['http://x'])
+  })
+
+  it('a collection element holding a single JSON value still yields one item', () => {
+    const resource = { resourceType: 'Patient', name: { family: 'Solo' } }
+    expect(evaluate('Patient.name.family', resource, options)).toEqual(['Solo'])
+  })
+
+  it('contained resources type by their resourceType', () => {
+    const resource = {
+      resourceType: 'Patient',
+      contained: [{ resourceType: 'Organization', id: 'o1', name: 'ACME' }],
+    }
+    expect(evaluate('Patient.contained.ofType(Organization).name', resource, options)).toEqual(['ACME'])
+  })
+
+  it('decimal and integer64 primitives parse into exact values', () => {
+    const resource = {
+      resourceType: 'Observation',
+      status: 'final',
+      valueQuantity: { value: 0.1, unit: 'kg', code: 'kg' },
+    }
+    expect(evaluate('(Observation.value as Quantity).value + 0.2 = 0.3', resource, options)).toEqual([true])
+  })
+
+  it('malformed date strings stay as strings instead of throwing', () => {
+    const resource = { resourceType: 'Patient', birthDate: 'not-a-date' }
+    expect(evaluate('Patient.birthDate', resource, options)).toEqual(['not-a-date'])
+    expect(evaluate('Patient.birthDate is Date', resource, options)).toEqual([true])
+  })
+
+  it('primitive metadata reads only id and extension', () => {
+    const resource = {
+      resourceType: 'Patient',
+      birthDate: '1980-01-01',
+      _birthDate: { id: 'x', extension: [{ url: 'u' }] },
+    }
+    expect(evaluate('Patient.birthDate.value', resource, options)).toEqual([])
+    expect(evaluate('Patient.birthDate.id', resource, options)).toEqual(['x'])
+  })
+
+  it('quantity coercion rejects quantities without numeric values', () => {
+    const resource = {
+      resourceType: 'Observation',
+      status: 'final',
+      valueQuantity: { unit: 'kg' },
+    }
+    expect(() => evaluate("Observation.value < 1 'kg'", resource, options)).toThrow(FhirPathTypeError)
+  })
+
+  it('mixed calendar and UCUM second comparisons work both ways', () => {
+    expect(evaluate("1 's' = 1 second")).toEqual([true])
+    expect(evaluate("1000 'ms' = 1 second")).toEqual([true])
+    expect(evaluate("1 'a' = 1 year")).toEqual([])
+    expect(evaluate("2 's' > 1 second")).toEqual([true])
+  })
+
+  it('bundle entries without resources are skipped by resolve()', () => {
+    const bundle = {
+      resourceType: 'Bundle',
+      entry: [{ fullUrl: 'http://x/Patient/p9' }, { resource: { resourceType: 'Patient', id: 'p1' } }],
+    }
+    expect(evaluate("'Patient/p1'.resolve().id", bundle, options)).toEqual(['p1'])
+    expect(evaluate("'Patient/p2'.resolve()", bundle, options)).toEqual([])
+    expect(evaluate("'#x'.resolve()", bundle, options)).toEqual([])
+  })
+
+  it('resolve with an empty root is empty', () => {
+    expect(evaluate("'Patient/p1'.resolve()")).toEqual([])
+  })
+
+  it('comparable() requires quantities', () => {
+    expect(() => evaluate("1.comparable(1 'kg')")).toThrow('comparable() expects Quantity operands')
+    expect(evaluate("{}.comparable(1 'kg')")).toEqual([])
+  })
+})
+
+describe('additional branch sweep', () => {
+  it('CodeableConcepts are equivalent when any coding matches', () => {
+    const a = {
+      coding: [
+        { system: 's1', code: 'c1' },
+        { system: 's2', code: 'c2' },
+      ],
+    }
+    const b = { coding: [{ system: 's2', code: 'c2' }] }
+    const c = { coding: [{ system: 's3', code: 'c3' }] }
+    const observation = { resourceType: 'Observation', status: 'final', code: a }
+    expect(evaluate('Observation.code ~ %other', observation, { ...options, env: { other: b } })).toEqual([true])
+    expect(evaluate('Observation.code ~ %other', observation, { ...options, env: { other: c } })).toEqual([false])
+    expect(evaluate('Observation.code ~ %other', observation, { ...options, env: { other: {} } })).toEqual([false])
+  })
+
+  it('time-only values parse through model navigation', () => {
+    const timing = {
+      resourceType: 'Observation',
+      status: 'final',
+      valueTime: '10:30:00',
+      _valueTime: { id: 't' },
+    }
+    expect(evaluate('Observation.value is Time', timing, options)).toEqual([true])
+    expect(evaluate('Observation.value = @T10:30:00', timing, options)).toEqual([true])
+    expect(evaluate('Observation.value.id', timing, options)).toEqual(['t'])
+  })
+
+  it('instant and integer64-shaped primitives convert', () => {
+    const resource = { resourceType: 'Patient', birthDate: '1980-01-02', meta: { lastUpdated: '2020-01-01T00:00:00Z' } }
+    expect(evaluate('Patient.meta.lastUpdated is DateTime', resource, options)).toEqual([true])
+    expect(evaluate('Patient.meta.lastUpdated.yearOf()', resource, options)).toEqual([2020])
+  })
+
+  it('sum keeps Decimal kind and avg divides exactly', () => {
+    expect(evaluate('(0.1 | 0.2).sum() = 0.3')).toEqual([true])
+    expect(evaluate('(1 | 2).avg()')).toEqual([1.5])
+  })
+
+  it('negative and zero unit exponents parse', () => {
+    expect(evaluate("(1 's-1' * 1 's').exists()")).toEqual([true])
+    expect(evaluate("1 's-1' = 1 's-1'")).toEqual([true])
+  })
+
+  it('temporal arithmetic hitting the year floor from milliseconds is empty', () => {
+    expect(evaluate('@0001-01-01T00:00 - 1 hour')).toEqual([])
+    expect(evaluate('@9999-12-31T23:00 + 2 hours')).toEqual([])
+  })
+
+  it('date vs dateTime comparisons share the day prefix', () => {
+    expect(evaluate('@2014-01-01 = @2014-01-01T10:00')).toEqual([])
+    expect(evaluate('@2014-01-02 > @2014-01-01T10:00')).toEqual([true])
+  })
+
+  it('boundary with explicit low date precisions', () => {
+    expect(evaluate('@2014-01-01T08.lowBoundary(8).toString()')).toEqual(['2014-01-01T08'])
+    expect(evaluate('@T10.lowBoundary(2).toString()')).toEqual(['10'])
+  })
+
+  it('component extraction on values missing the component', () => {
+    expect(evaluate('@2014-01.dayOf()')).toEqual([])
+    expect(evaluate('@2014-01-01T10.minuteOf()')).toEqual([])
+    expect(evaluate('@T10.minuteOf()')).toEqual([])
+  })
+
+  it('math functions with quantity or empty argument shapes', () => {
+    expect(evaluate('{}.floor()')).toEqual([])
+    expect(evaluate('{}.truncate()')).toEqual([])
+    expect(evaluate('2.power(0)')).toEqual([1])
+    expect(evaluate('0.ln()')).toEqual([])
+  })
+
+  it('is()/as() function forms on multi-item input error via singleton', () => {
+    expect(() => evaluate('(1 | 2).is(Integer)')).toThrow()
+    expect(() => evaluate('(1 | 2).as(Integer)')).toThrow()
+  })
+
+  it('conversion defaults for temporal inputs', () => {
+    expect(evaluate('@T10:00.toDate()')).toEqual([])
+    expect(evaluate('@T10:00.toDateTime()')).toEqual([])
+    expect(evaluate('true.toDate()')).toEqual([])
+    expect(evaluate('true.toDateTime()')).toEqual([])
+    expect(evaluate('true.toTime()')).toEqual([])
+    expect(evaluate('@2014.convertsToBoolean()')).toEqual([false])
+  })
+
+  it('deep equality with differing key counts', () => {
+    const input = { resourceType: 'Basic', a: { x: 1 }, b: { x: 1, y: 2 } }
+    expect(evaluate('a = b', input)).toEqual([false])
+    expect(evaluate('a ~ b', input)).toEqual([false])
+  })
+})
+
+describe('final branch sweep', () => {
+  it('malformed containers behave as empty', () => {
+    const resource = { resourceType: 'Patient', name: 'oops' }
+    expect(evaluate('Patient.name.family', resource, options)).toEqual([])
+  })
+
+  it('primitive metadata without the asked field is empty', () => {
+    const resource = { resourceType: 'Patient', birthDate: '1980-01-01', _birthDate: { id: 'x' } }
+    expect(evaluate('Patient.birthDate.extension', resource, options)).toEqual([])
+  })
+
+  it('quantity conversions of non-quantity inputs stay non-quantity', () => {
+    expect(evaluate("(4 'mg').toBoolean()")).toEqual([])
+    expect(evaluate('@2014T.toDateTime().toString()')).toEqual(['2014'])
+    expect(evaluate('@T10:00.toTime().toString()')).toEqual(['10:00'])
+  })
+
+  it('temporal component functions reject non-temporal inputs', () => {
+    expect(() => evaluate('1.timezoneOffsetOf()')).toThrow()
+    expect(() => evaluate('1.dateOf()')).toThrow()
+    expect(() => evaluate('1.timeOf()')).toThrow()
+  })
+
+  it('boundary at a precision matching the value is unchanged', () => {
+    expect(evaluate('@T10.lowBoundary(2).toString()')).toEqual(['10'])
+    expect(evaluate('@T10:30:14.559.highBoundary().toString()')).toEqual(['10:30:14.559'])
+  })
+
+  it('integer sums that overflow the Integer range are empty', () => {
+    expect(evaluate('(2147483647 | 1).sum()')).toEqual([])
+  })
+
+  it('type arguments with call segments are rejected', () => {
+    expect(() => evaluate('1.ofType(a.exists().b)')).toThrow('expects a type name argument')
+  })
+
+  it('year-only ordering compares at the year level', () => {
+    expect(evaluate('@2013 < @2014')).toEqual([true])
+    expect(evaluate('@T10 + 26 hours = @T12')).toEqual([true])
+  })
+
+  it('unit exponents of zero are dimensionless', () => {
+    expect(evaluate("1 'm0' = 1 '1'")).toEqual([true])
+  })
+})

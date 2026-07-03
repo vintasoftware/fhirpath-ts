@@ -1,6 +1,37 @@
 import { Decimal } from './decimal'
-import type { QuantityValue } from './typed-value'
+import { type QuantityValue, SYSTEM_QUANTITY, type TypedValue, typeLocalName } from './typed-value'
 import { canonicalizeUnit, sameDimensions } from './ucum'
+
+/** FHIR Quantity and its specializations coerce to System.Quantity for comparison. */
+const FHIR_QUANTITY_TYPES = new Set([
+  'Quantity',
+  'Age',
+  'Distance',
+  'Duration',
+  'Count',
+  'SimpleQuantity',
+  'MoneyQuantity',
+])
+
+/** Read a TypedValue as a quantity: System.Quantity directly, FHIR Quantity objects by value+code/unit. */
+export function coerceQuantity(item: TypedValue): QuantityValue | undefined {
+  if (item.type === SYSTEM_QUANTITY) {
+    return item.value as QuantityValue
+  }
+  if (!(item.type.startsWith('FHIR.') && FHIR_QUANTITY_TYPES.has(typeLocalName(item.type)))) {
+    return undefined
+  }
+  const raw = item.value as { value?: unknown; code?: unknown; unit?: unknown }
+  if (typeof raw !== 'object' || raw === null || typeof raw.value !== 'number') {
+    return undefined
+  }
+  const value = Decimal.fromNumber(raw.value)
+  if (!value) {
+    return undefined
+  }
+  const unit = typeof raw.code === 'string' ? raw.code : typeof raw.unit === 'string' ? raw.unit : '1'
+  return { value, unit, calendar: false }
+}
 
 const SINGULAR_CALENDAR_UNITS: Readonly<Record<string, string>> = {
   years: 'year',

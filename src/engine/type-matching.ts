@@ -32,14 +32,16 @@ export function itemMatchesType(context: EvaluationContext, item: TypedValue, pa
     return item.type === parts.join('.')
   }
   const name = parts[0] as string
+  // System-typed values answer from the System namespace; FHIR primitive names
+  // (boolean, dateTime) reach their System twins here even when a model is active.
+  if (item.type.startsWith('System.')) {
+    return matchesSystemType(item, name)
+  }
   if (model) {
     const canonical = model.resolveType(name)
     if (canonical !== undefined) {
       return model.isSubtypeOf(item.type, canonical)
     }
-  }
-  if (matchesSystemType(item, name)) {
-    return true
   }
   // Dynamic fallback: resource and complex types match on their local name.
   return typeLocalName(item.type) === name

@@ -78,6 +78,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     e: {
       author: {
         t: ['Reference', 'string'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -322,6 +323,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       type: {
         t: ['code'],
@@ -371,6 +373,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['dateTime', 'Period', 'Duration'],
+        c: 1,
       },
     },
   },
@@ -428,6 +431,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       },
       asNeeded: {
         t: ['boolean', 'CodeableConcept'],
+        c: 1,
       },
       doseAndRate: {
         t: ['Dosage.doseAndRate'],
@@ -481,6 +485,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     e: {
       dose: {
         t: ['Range', 'Quantity'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -491,6 +496,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       },
       rate: {
         t: ['Ratio', 'Range', 'Quantity'],
+        c: 1,
       },
       type: {
         t: ['CodeableConcept'],
@@ -619,6 +625,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
           'Dosage',
           'Meta',
         ],
+        c: 1,
       },
       definition: {
         t: ['markdown'],
@@ -684,6 +691,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
           'Dosage',
           'Meta',
         ],
+        c: 1,
       },
       id: {
         t: ['System.String'],
@@ -712,6 +720,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       },
       maxValue: {
         t: ['date', 'dateTime', 'instant', 'time', 'decimal', 'integer', 'positiveInt', 'unsignedInt', 'Quantity'],
+        c: 1,
       },
       meaningWhenMissing: {
         t: ['markdown'],
@@ -721,6 +730,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       },
       minValue: {
         t: ['date', 'dateTime', 'instant', 'time', 'decimal', 'integer', 'positiveInt', 'unsignedInt', 'Quantity'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -788,6 +798,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
           'Dosage',
           'Meta',
         ],
+        c: 1,
       },
       representation: {
         t: ['code'],
@@ -955,6 +966,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
           'Dosage',
           'Meta',
         ],
+        c: 1,
       },
     },
   },
@@ -1148,6 +1160,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
           'Dosage',
           'Meta',
         ],
+        c: 1,
       },
     },
   },
@@ -1397,6 +1410,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     e: {
       age: {
         t: ['Range', 'CodeableConcept'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -1697,6 +1711,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     e: {
       amount: {
         t: ['Quantity', 'Range', 'string'],
+        c: 1,
       },
       amountText: {
         t: ['string'],
@@ -1769,6 +1784,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     e: {
       bounds: {
         t: ['Duration', 'Range', 'Period'],
+        c: 1,
       },
       count: {
         t: ['positiveInt'],
@@ -1846,6 +1862,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       },
       timing: {
         t: ['Timing', 'Reference', 'date', 'dateTime'],
+        c: 1,
       },
       type: {
         t: ['code'],
@@ -1867,6 +1884,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['CodeableConcept', 'Quantity', 'Range', 'Reference'],
+        c: 1,
       },
     },
   },

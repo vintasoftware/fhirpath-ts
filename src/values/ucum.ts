@@ -119,8 +119,8 @@ function powDecimal(base: Decimal, exponent: number): Decimal {
     result = result.multiply(base)
   }
   if (exponent < 0) {
-    // Factors are powers of exact decimals, so the inverse is computed once here.
-    return result.equals(new Decimal(0n, 0)) ? result : (new Decimal(1n, 0).divide(result) as Decimal)
+    // Factors are exact positive decimals, so the inverse always exists.
+    return new Decimal(1n, 0).divide(result) as Decimal
   }
   return result
 }

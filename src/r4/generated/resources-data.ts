@@ -242,6 +242,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       product: {
         t: ['Reference', 'CodeableConcept'],
+        c: 1,
       },
       profile: {
         t: ['canonical'],
@@ -272,6 +273,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       subtitle: {
         t: ['string'],
@@ -281,6 +283,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       timing: {
         t: ['Timing', 'dateTime', 'Age', 'Period', 'Range', 'Duration'],
+        c: 1,
       },
       title: {
         t: ['string'],
@@ -560,6 +563,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       onset: {
         t: ['dateTime', 'Age', 'Period', 'Range', 'string'],
+        c: 1,
       },
       patient: {
         t: ['Reference'],
@@ -1030,6 +1034,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['string', 'base64Binary'],
+        c: 1,
       },
     },
   },
@@ -1211,6 +1216,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       collected: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
       collector: {
         t: ['Reference'],
@@ -1250,6 +1256,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       time: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
     },
   },
@@ -1278,6 +1285,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       time: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
     },
   },
@@ -2263,6 +2271,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       product: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       quantity: {
         t: ['Quantity'],
@@ -2277,6 +2286,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       scheduled: {
         t: ['Timing', 'Period', 'string'],
+        c: 1,
       },
       status: {
         t: ['code'],
@@ -2564,6 +2574,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       occurrence: {
         t: ['dateTime', 'Period', 'Timing'],
+        c: 1,
       },
       overrideReason: {
         t: ['string'],
@@ -2584,6 +2595,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       product: {
         t: ['Reference', 'CodeableConcept'],
+        c: 1,
       },
       quantity: {
         t: ['Quantity'],
@@ -2960,6 +2972,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Address', 'Reference'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -3006,6 +3019,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       diagnosis: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -3112,6 +3126,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['CodeableConcept', 'Address', 'Reference'],
+        c: 1,
       },
       modifier: {
         t: ['CodeableConcept'],
@@ -3146,6 +3161,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       serviced: {
         t: ['date', 'Period'],
+        c: 1,
       },
       subSite: {
         t: ['CodeableConcept'],
@@ -3309,6 +3325,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       procedure: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       sequence: {
         t: ['positiveInt'],
@@ -3376,9 +3393,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       timing: {
         t: ['date', 'Period'],
+        c: 1,
       },
       value: {
         t: ['boolean', 'string', 'Quantity', 'Attachment', 'Reference'],
+        c: 1,
       },
     },
   },
@@ -3538,6 +3557,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['CodeableConcept', 'Address', 'Reference'],
+        c: 1,
       },
       modifier: {
         t: ['CodeableConcept'],
@@ -3570,6 +3590,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       serviced: {
         t: ['date', 'Period'],
+        c: 1,
       },
       subSite: {
         t: ['CodeableConcept'],
@@ -3955,6 +3976,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       effective: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
       encounter: {
         t: ['Reference'],
@@ -4281,6 +4303,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['code', 'Coding', 'string', 'integer', 'boolean', 'dateTime', 'decimal'],
+        c: 1,
       },
     },
   },
@@ -4461,6 +4484,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       content: {
         t: ['string', 'Attachment', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -4540,6 +4564,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       occurrence: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
       payload: {
         t: ['CommunicationRequest.payload'],
@@ -4589,6 +4614,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       content: {
         t: ['string', 'Attachment', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -4860,6 +4886,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       target: {
         t: ['Identifier', 'Reference'],
+        c: 1,
       },
     },
   },
@@ -4977,12 +5004,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       source: {
         t: ['uri', 'canonical'],
+        c: 1,
       },
       status: {
         t: ['code'],
       },
       target: {
         t: ['uri', 'canonical'],
+        c: 1,
       },
       text: {
         t: ['Narrative'],
@@ -5160,6 +5189,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       abatement: {
         t: ['dateTime', 'Age', 'Period', 'Range', 'string'],
+        c: 1,
       },
       asserter: {
         t: ['Reference'],
@@ -5219,6 +5249,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       onset: {
         t: ['dateTime', 'Age', 'Period', 'Range', 'string'],
+        c: 1,
       },
       recordedDate: {
         t: ['dateTime'],
@@ -5358,6 +5389,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       source: {
         t: ['Attachment', 'Reference'],
+        c: 1,
       },
       status: {
         t: ['code'],
@@ -5592,6 +5624,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       legallyBinding: {
         t: ['Attachment', 'Reference'],
+        c: 1,
       },
       meta: {
         t: ['Meta'],
@@ -5652,6 +5685,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       topic: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       type: {
         t: ['CodeableConcept'],
@@ -5703,6 +5737,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       content: {
         t: ['Attachment', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -5722,6 +5757,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       content: {
         t: ['Attachment', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -5741,6 +5777,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       content: {
         t: ['Attachment', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -5831,6 +5868,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       topic: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       type: {
         t: ['CodeableConcept'],
@@ -5874,6 +5912,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       occurrence: {
         t: ['dateTime', 'Period', 'Timing'],
+        c: 1,
       },
       performer: {
         t: ['Reference'],
@@ -6058,6 +6097,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       entity: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -6191,6 +6231,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
           'Quantity',
           'Reference',
         ],
+        c: 1,
       },
     },
   },
@@ -6384,6 +6425,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['Quantity', 'Money'],
+        c: 1,
       },
     },
   },
@@ -6475,6 +6517,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       serviced: {
         t: ['date', 'Period'],
+        c: 1,
       },
       status: {
         t: ['code'],
@@ -6568,6 +6611,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       diagnosis: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -6679,6 +6723,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       serviced: {
         t: ['date', 'Period'],
+        c: 1,
       },
       status: {
         t: ['code'],
@@ -6802,6 +6847,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       allowed: {
         t: ['unsignedInt', 'string', 'Money'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -6819,6 +6865,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       used: {
         t: ['unsignedInt', 'string', 'Money'],
+        c: 1,
       },
     },
   },
@@ -6851,6 +6898,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       identified: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
       identifier: {
         t: ['Identifier'],
@@ -7242,6 +7290,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       manufacturer: {
         t: ['string', 'Reference'],
+        c: 1,
       },
       material: {
         t: ['DeviceDefinition.material'],
@@ -7579,6 +7628,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       code: {
         t: ['Reference', 'CodeableConcept'],
+        c: 1,
       },
       contained: {
         t: ['Resource'],
@@ -7635,6 +7685,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       occurrence: {
         t: ['dateTime', 'Period', 'Timing'],
+        c: 1,
       },
       parameter: {
         t: ['DeviceRequest.parameter'],
@@ -7702,6 +7753,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['CodeableConcept', 'Quantity', 'Range', 'boolean'],
+        c: 1,
       },
     },
   },
@@ -7779,6 +7831,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       timing: {
         t: ['Timing', 'Period', 'dateTime'],
+        c: 1,
       },
     },
   },
@@ -7809,6 +7862,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       effective: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
       encounter: {
         t: ['Reference'],
@@ -9194,6 +9248,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       subtitle: {
         t: ['string'],
@@ -9510,6 +9565,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       duration: {
         t: ['Quantity', 'Range'],
+        c: 1,
       },
       exclude: {
         t: ['boolean'],
@@ -9523,6 +9579,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       instances: {
         t: ['Quantity', 'Range'],
+        c: 1,
       },
       linkId: {
         t: ['id'],
@@ -9596,6 +9653,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['CodeableConcept', 'boolean', 'Quantity', 'Range', 'Reference', 'id'],
+        c: 1,
       },
     },
   },
@@ -9607,6 +9665,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       event: {
         t: ['CodeableConcept', 'Reference', 'dateTime', 'id'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -10155,6 +10214,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Address', 'Reference'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -10199,6 +10259,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['CodeableConcept', 'Address', 'Reference'],
+        c: 1,
       },
       modifier: {
         t: ['CodeableConcept'],
@@ -10231,6 +10292,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       serviced: {
         t: ['date', 'Period'],
+        c: 1,
       },
       subDetailSequence: {
         t: ['positiveInt'],
@@ -10381,6 +10443,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       allowed: {
         t: ['unsignedInt', 'string', 'Money'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -10398,6 +10461,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       used: {
         t: ['unsignedInt', 'Money'],
+        c: 1,
       },
     },
   },
@@ -10437,6 +10501,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       diagnosis: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -10535,6 +10600,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['CodeableConcept', 'Address', 'Reference'],
+        c: 1,
       },
       modifier: {
         t: ['CodeableConcept'],
@@ -10573,6 +10639,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       serviced: {
         t: ['date', 'Period'],
+        c: 1,
       },
       subSite: {
         t: ['CodeableConcept'],
@@ -10814,6 +10881,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       procedure: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       sequence: {
         t: ['positiveInt'],
@@ -10909,9 +10977,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       timing: {
         t: ['date', 'Period'],
+        c: 1,
       },
       value: {
         t: ['boolean', 'string', 'Quantity', 'Attachment', 'Reference'],
+        c: 1,
       },
     },
   },
@@ -10942,9 +11012,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       age: {
         t: ['Age', 'Range', 'string'],
+        c: 1,
       },
       born: {
         t: ['Period', 'date', 'string'],
+        c: 1,
       },
       condition: {
         t: ['FamilyMemberHistory.condition'],
@@ -10962,6 +11034,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       deceased: {
         t: ['boolean', 'Age', 'Range', 'date', 'string'],
+        c: 1,
       },
       estimatedAge: {
         t: ['boolean'],
@@ -11056,6 +11129,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       onset: {
         t: ['Age', 'Range', 'Period', 'string'],
+        c: 1,
       },
       outcome: {
         t: ['CodeableConcept'],
@@ -11188,6 +11262,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       start: {
         t: ['date', 'CodeableConcept'],
+        c: 1,
       },
       statusDate: {
         t: ['date'],
@@ -11212,9 +11287,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       detail: {
         t: ['Quantity', 'Range', 'CodeableConcept', 'string', 'boolean', 'integer', 'Ratio'],
+        c: 1,
       },
       due: {
         t: ['date', 'Duration'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -11502,6 +11579,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['CodeableConcept', 'boolean', 'Quantity', 'Range', 'Reference'],
+        c: 1,
       },
     },
   },
@@ -11574,6 +11652,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       module: {
         t: ['uri', 'canonical', 'CodeableConcept'],
+        c: 1,
       },
       note: {
         t: ['Annotation'],
@@ -12079,6 +12158,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       occurrence: {
         t: ['dateTime', 'string'],
+        c: 1,
       },
       patient: {
         t: ['Reference'],
@@ -12198,6 +12278,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       doseNumber: {
         t: ['positiveInt', 'string'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -12215,6 +12296,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       seriesDoses: {
         t: ['positiveInt', 'string'],
+        c: 1,
       },
       targetDisease: {
         t: ['CodeableConcept'],
@@ -12265,6 +12347,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       doseNumber: {
         t: ['positiveInt', 'string'],
+        c: 1,
       },
       doseStatus: {
         t: ['CodeableConcept'],
@@ -12308,6 +12391,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       seriesDoses: {
         t: ['positiveInt', 'string'],
+        c: 1,
       },
       status: {
         t: ['code'],
@@ -12385,6 +12469,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       doseNumber: {
         t: ['positiveInt', 'string'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -12409,6 +12494,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       seriesDoses: {
         t: ['positiveInt', 'string'],
+        c: 1,
       },
       supportingImmunization: {
         t: ['Reference'],
@@ -12623,6 +12709,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       name: {
         t: ['url', 'Reference'],
+        c: 1,
       },
       page: {
         t: ['ImplementationGuide.definition.page'],
@@ -12663,6 +12750,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       example: {
         t: ['boolean', 'canonical'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -12828,6 +12916,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       example: {
         t: ['boolean', 'canonical'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -13267,6 +13356,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       chargeItem: {
         t: ['Reference', 'CodeableConcept'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -13444,6 +13534,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       subtitle: {
         t: ['string'],
@@ -13918,6 +14009,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       subtitle: {
         t: ['string'],
@@ -14336,6 +14428,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       created: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
       device: {
         t: ['Reference'],
@@ -14515,6 +14608,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       item: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -14547,6 +14641,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       effective: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
       eventHistory: {
         t: ['Reference'],
@@ -14575,6 +14670,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       medication: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       meta: {
         t: ['Meta'],
@@ -14647,6 +14743,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       rate: {
         t: ['Ratio', 'Quantity'],
+        c: 1,
       },
       route: {
         t: ['CodeableConcept'],
@@ -14738,6 +14835,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       medication: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       meta: {
         t: ['Meta'],
@@ -14770,6 +14868,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       statusReason: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       subject: {
         t: ['Reference'],
@@ -14976,6 +15075,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       indication: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -15015,6 +15115,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       characteristic: {
         t: ['CodeableConcept', 'Quantity'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -15077,6 +15178,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['CodeableConcept', 'string', 'Quantity', 'base64Binary'],
+        c: 1,
       },
     },
   },
@@ -15095,6 +15197,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       item: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -15416,6 +15519,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       medication: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       meta: {
         t: ['Meta'],
@@ -15453,6 +15557,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       reported: {
         t: ['boolean', 'Reference'],
+        c: 1,
       },
       requester: {
         t: ['Reference'],
@@ -15542,6 +15647,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       allowed: {
         t: ['boolean', 'CodeableConcept'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -15589,6 +15695,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       effective: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -15612,6 +15719,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       medication: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       meta: {
         t: ['Meta'],
@@ -15885,6 +15993,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       indication: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       intendedUse: {
         t: ['CodeableConcept'],
@@ -16030,6 +16139,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       date: {
         t: ['Period', 'dateTime'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -16120,6 +16230,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       medication: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -16206,6 +16317,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       medication: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -16458,6 +16570,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       item: {
         t: ['Reference', 'CodeableConcept'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -16916,6 +17029,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       event: {
         t: ['Coding', 'uri'],
+        c: 1,
       },
       experimental: {
         t: ['boolean'],
@@ -17069,6 +17183,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       event: {
         t: ['Coding', 'uri'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -17836,6 +17951,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       rate: {
         t: ['Quantity', 'Ratio'],
+        c: 1,
       },
       schedule: {
         t: ['Timing'],
@@ -17994,6 +18110,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       effective: {
         t: ['dateTime', 'Period', 'Timing', 'instant'],
+        c: 1,
       },
       encounter: {
         t: ['Reference'],
@@ -18082,6 +18199,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
           'dateTime',
           'Period',
         ],
+        c: 1,
       },
     },
   },
@@ -18127,6 +18245,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
           'dateTime',
           'Period',
         ],
+        c: 1,
       },
     },
   },
@@ -18891,6 +19010,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
           'Dosage',
           'Meta',
         ],
+        c: 1,
       },
     },
   },
@@ -18921,6 +19041,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       deceased: {
         t: ['boolean', 'dateTime'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -18965,6 +19086,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       multipleBirth: {
         t: ['boolean', 'integer'],
+        c: 1,
       },
       name: {
         t: ['HumanName'],
@@ -19478,6 +19600,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       subtitle: {
         t: ['string'],
@@ -19530,6 +19653,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       definition: {
         t: ['canonical', 'uri'],
+        c: 1,
       },
       description: {
         t: ['string'],
@@ -19597,12 +19721,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       textEquivalent: {
         t: ['string'],
       },
       timing: {
         t: ['dateTime', 'Age', 'Period', 'Duration', 'Range', 'Timing'],
+        c: 1,
       },
       title: {
         t: ['string'],
@@ -19704,6 +19830,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       offset: {
         t: ['Duration', 'Range'],
+        c: 1,
       },
       relationship: {
         t: ['code'],
@@ -19755,6 +19882,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       detail: {
         t: ['Quantity', 'Range', 'CodeableConcept'],
+        c: 1,
       },
       due: {
         t: ['Duration'],
@@ -20098,6 +20226,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       performed: {
         t: ['dateTime', 'Period', 'string', 'Age', 'Range'],
+        c: 1,
       },
       performer: {
         t: ['Procedure.performer'],
@@ -20230,6 +20359,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       occurred: {
         t: ['Period', 'dateTime'],
+        c: 1,
       },
       policy: {
         t: ['uri'],
@@ -20504,6 +20634,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['integer', 'date', 'time', 'string', 'Coding', 'Reference'],
+        c: 1,
       },
     },
   },
@@ -20512,6 +20643,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       answer: {
         t: ['boolean', 'decimal', 'integer', 'date', 'dateTime', 'time', 'string', 'Coding', 'Quantity', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -20561,6 +20693,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
           'Quantity',
           'Reference',
         ],
+        c: 1,
       },
     },
   },
@@ -20698,6 +20831,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
           'Quantity',
           'Reference',
         ],
+        c: 1,
       },
     },
   },
@@ -20963,6 +21097,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       timing: {
         t: ['dateTime', 'Age', 'Period', 'Duration', 'Range', 'Timing'],
+        c: 1,
       },
       title: {
         t: ['string'],
@@ -21013,6 +21148,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       offset: {
         t: ['Duration', 'Range'],
+        c: 1,
       },
       relationship: {
         t: ['code'],
@@ -21136,6 +21272,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       subtitle: {
         t: ['string'],
@@ -21274,6 +21411,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       subtitle: {
         t: ['string'],
@@ -21314,6 +21452,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       definition: {
         t: ['CodeableConcept', 'canonical', 'Expression', 'DataRequirement'],
+        c: 1,
       },
       exclude: {
         t: ['boolean'],
@@ -21331,6 +21470,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       participantEffective: {
         t: ['dateTime', 'Period', 'Duration', 'Timing'],
+        c: 1,
       },
       participantEffectiveDescription: {
         t: ['string'],
@@ -21343,6 +21483,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       studyEffective: {
         t: ['dateTime', 'Period', 'Duration', 'Timing'],
+        c: 1,
       },
       studyEffectiveDescription: {
         t: ['string'],
@@ -21883,6 +22024,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       occurrence: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
       parent: {
         t: ['Reference'],
@@ -21932,6 +22074,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       probability: {
         t: ['decimal', 'Range'],
+        c: 1,
       },
       qualitativeRisk: {
         t: ['CodeableConcept'],
@@ -21944,6 +22087,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       when: {
         t: ['Period', 'Range'],
+        c: 1,
       },
     },
   },
@@ -22437,6 +22581,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       asNeeded: {
         t: ['boolean', 'CodeableConcept'],
+        c: 1,
       },
       authoredOn: {
         t: ['dateTime'],
@@ -22519,6 +22664,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       occurrence: {
         t: ['dateTime', 'Period', 'Timing'],
+        c: 1,
       },
       orderDetail: {
         t: ['CodeableConcept'],
@@ -22539,6 +22685,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       quantity: {
         t: ['Quantity', 'Ratio', 'Range'],
+        c: 1,
       },
       reasonCode: {
         t: ['CodeableConcept'],
@@ -22736,6 +22883,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       collected: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
       collector: {
         t: ['Reference'],
@@ -22749,6 +22897,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       fastingStatus: {
         t: ['CodeableConcept', 'Duration'],
+        c: 1,
       },
       id: {
         t: ['System.String'],
@@ -22770,6 +22919,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       additive: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       capacity: {
         t: ['Quantity'],
@@ -22826,6 +22976,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       time: {
         t: ['dateTime', 'Period'],
+        c: 1,
       },
     },
   },
@@ -22952,6 +23103,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       minimumVolume: {
         t: ['Quantity', 'string'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -22970,6 +23122,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       additive: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -23506,6 +23659,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
           'Dosage',
           'Meta',
         ],
+        c: 1,
       },
       element: {
         t: ['string'],
@@ -23599,6 +23753,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['id', 'string', 'boolean', 'integer', 'decimal'],
+        c: 1,
       },
     },
   },
@@ -23873,6 +24028,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       substance: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
     },
   },
@@ -24482,6 +24638,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       amount: {
         t: ['Quantity', 'Range', 'string'],
+        c: 1,
       },
       amountType: {
         t: ['CodeableConcept'],
@@ -24894,6 +25051,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       amount: {
         t: ['Quantity', 'string'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -25012,6 +25170,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       amount: {
         t: ['Quantity', 'string'],
+        c: 1,
       },
       category: {
         t: ['CodeableConcept'],
@@ -25021,6 +25180,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       definingSubstance: {
         t: ['Reference', 'CodeableConcept'],
+        c: 1,
       },
       extension: {
         t: ['Extension'],
@@ -25043,6 +25203,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       amount: {
         t: ['Quantity', 'Range', 'Ratio', 'string'],
+        c: 1,
       },
       amountRatioLowLimit: {
         t: ['Ratio'],
@@ -25073,6 +25234,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       substance: {
         t: ['Reference', 'CodeableConcept'],
+        c: 1,
       },
     },
   },
@@ -25240,6 +25402,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       occurrence: {
         t: ['dateTime', 'Period', 'Timing'],
+        c: 1,
       },
       partOf: {
         t: ['Reference'],
@@ -25281,6 +25444,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       item: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       modifierExtension: {
         t: ['Extension'],
@@ -25326,6 +25490,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       item: {
         t: ['CodeableConcept', 'Reference'],
+        c: 1,
       },
       language: {
         t: ['code'],
@@ -25339,6 +25504,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       occurrence: {
         t: ['dateTime', 'Period', 'Timing'],
+        c: 1,
       },
       parameter: {
         t: ['SupplyRequest.parameter'],
@@ -25392,6 +25558,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['CodeableConcept', 'Quantity', 'Range', 'boolean'],
+        c: 1,
       },
     },
   },
@@ -25599,6 +25766,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
           'Dosage',
           'Meta',
         ],
+        c: 1,
       },
     },
   },
@@ -25672,6 +25840,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
           'Dosage',
           'Meta',
         ],
+        c: 1,
       },
     },
   },
@@ -27259,6 +27428,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       value: {
         t: ['string', 'boolean', 'integer', 'decimal', 'uri', 'code', 'dateTime'],
+        c: 1,
       },
     },
   },
