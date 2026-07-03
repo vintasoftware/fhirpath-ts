@@ -1,11 +1,17 @@
 // Importing this module registers the function library into the registry table.
 // The evaluator imports it for its side effects; later phases append more modules.
+import './aggregate'
+import './boundary'
 import './combining'
 import './conversion'
+import './date-components'
 import './control'
 import './existence'
 import './filtering'
+import './math'
+import './reflection'
 import './string'
 import './subsetting'
 import './tree'
+import './variables'
 import './utility'

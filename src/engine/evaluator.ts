@@ -15,11 +15,15 @@ import {
   SYSTEM_TIME,
   type TypedValue,
 } from '../values/typed-value'
-import { type EvaluationContext, resolveEnvironmentVariable } from './context'
+import { type EvaluationContext, forkVariables, resolveEnvironmentVariable } from './context'
 import { navigateIdentifier } from './navigation'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index'
 import '../functions/install'
 import './operators/install'
+
+function evaluateArgument(node: AstNode, context: EvaluationContext, input: TypedValue[]): TypedValue[] {
+  return evaluateNode(node, forkVariables(context), input)
+}
 
 /** Evaluate one AST node against an input collection. */
 export function evaluateNode(node: AstNode, context: EvaluationContext, input: TypedValue[]): TypedValue[] {
@@ -51,15 +55,18 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
     case 'indexer':
       return evaluateIndexer(node.target, node.index, context, input)
     case 'call':
-      return lookupFunction(node.name, node.args.length).evaluate(context, input, node.args, evaluateNode)
+      // Each function argument evaluates in its own defineVariable() scope.
+      return lookupFunction(node.name, node.args.length).evaluate(context, input, node.args, evaluateArgument)
     case 'unary':
       return evaluateUnary(context, node.operator, evaluateNode(node.operand, context, input))
     case 'binary':
+      // Operator operands are separate chains; variables defined in one are not
+      // visible in the other (locked by the official defineVariable tests).
       return evaluateBinary(
         context,
         node.operator,
-        evaluateNode(node.left, context, input),
-        evaluateNode(node.right, context, input)
+        evaluateNode(node.left, forkVariables(context), input),
+        evaluateNode(node.right, forkVariables(context), input)
       )
     case 'typeOp':
       return evaluateTypeOp(context, node.operator, evaluateNode(node.operand, context, input), node.type)

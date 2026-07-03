@@ -23,6 +23,12 @@ export interface EvaluationContext {
    * so writing them to console or log files is the caller's deliberate choice.
    */
   trace: (name: string, values: TypedValue[]) => void
+  /**
+   * Variables from defineVariable(). The map is local to one expression chain:
+   * dots thread it along, while operator operands, function arguments, and
+   * iteration frames evaluate against a copy (see forkVariables).
+   */
+  variables: Map<string, TypedValue[]>
   frame: Frame
 }
 
@@ -53,13 +59,19 @@ export function createContext(options: {
     model: options.model,
     now: options.now ?? new Date(),
     trace: options.trace ?? (() => {}),
+    variables: new Map(),
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
 }
 
+/** A context whose defineVariable() scope is detached from the parent chain. */
+export function forkVariables(context: EvaluationContext): EvaluationContext {
+  return { ...context, variables: new Map(context.variables) }
+}
+
 /** Resolve `%name`; referencing an undefined environment variable is an error (spec §9). */
 export function resolveEnvironmentVariable(context: EvaluationContext, name: string): TypedValue[] {
-  const value = context.env.get(name)
+  const value = context.variables.get(name) ?? context.env.get(name)
   if (value === undefined) {
     throw new FhirPathTypeError(`Undefined environment variable %${name}`)
   }
@@ -78,5 +90,5 @@ export function withFrame<T>(
     index: frame.index,
     total: frame.total,
   }
-  return body({ ...context, frame: child })
+  return body({ ...context, frame: child, variables: new Map(context.variables) })
 }
