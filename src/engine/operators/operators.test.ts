@@ -101,7 +101,9 @@ describe('equality (=, !=)', () => {
     expect(evaluate("4 'mg' = 4 'mg'")).toEqual([true])
     expect(evaluate("4 'mg' = 5 'mg'")).toEqual([false])
     expect(evaluate('1 year = 1 year')).toEqual([true])
-    expect(evaluate('1 year = 12 months')).toEqual([])
+    expect(evaluate('1 year = 12 months')).toEqual([true])
+    expect(evaluate('1 year = 11 months')).toEqual([false])
+    expect(evaluate('1 year = 365 days')).toEqual([])
   })
 
   it('calendar years never equal UCUM years', () => {
@@ -336,11 +338,10 @@ describe('quantity arithmetic', () => {
     expect(evaluate(expression)).toEqual(expected)
   })
 
-  it('rejects unsupported quantity operand combinations for now', () => {
-    expect(() => evaluate("4 'mg' + 3 'kg'")).toThrow(FhirPathTypeError)
-    expect(() => evaluate("4 'mg' * 3 'mg'")).toThrow(FhirPathTypeError)
+  it('rejects quantity-plus-number and non-additive temporal operators', () => {
     expect(() => evaluate("4 'mg' + 2")).toThrow(FhirPathTypeError)
     expect(() => evaluate('@2014 * 1 day')).toThrow(FhirPathTypeError)
+    expect(() => evaluate('1 year * 2 months')).toThrow(FhirPathTypeError)
   })
 })
 

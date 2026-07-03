@@ -3,6 +3,7 @@ import { CALENDAR_DURATION_UNITS } from '../lexer/tokens'
 import { singleton, wrapBoolean } from '../values/collection'
 import { Temporal } from '../values/datetime'
 import { Decimal } from '../values/decimal'
+import { convertQuantity } from '../values/quantity'
 import {
   type QuantityValue,
   SYSTEM_BOOLEAN,
@@ -296,10 +297,11 @@ registerFunction('toQuantity', {
       if (unitArg === undefined || unitArg.type !== SYSTEM_STRING) {
         throw new FhirPathTypeError('toQuantity() expects a String unit argument')
       }
-      // Unit conversion between different units lands with the UCUM phase.
       const quantity = converted.value as QuantityValue
-      if (quantity.unit !== (unitArg.value as string)) {
-        return []
+      const target = unitArg.value as string
+      if (quantity.unit !== target || quantity.calendar) {
+        const convertedQuantity = convertQuantity(quantity, target)
+        return convertedQuantity === undefined ? [] : [{ type: SYSTEM_QUANTITY, value: convertedQuantity }]
       }
     }
     return [converted]

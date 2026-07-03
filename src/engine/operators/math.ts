@@ -3,6 +3,7 @@ import { singleton } from '../../values/collection'
 import { Temporal } from '../../values/datetime'
 import type { Decimal } from '../../values/decimal'
 import { asNumeric, widerKind, wrapNumeric } from '../../values/numeric'
+import { alignQuantities, composeUnits } from '../../values/quantity'
 import { addDuration } from '../../values/temporal-arithmetic'
 import {
   type QuantityValue,
@@ -61,17 +62,29 @@ function temporalArithmetic(operator: ArithmeticOperator, a: TypedValue, b: Type
 
 function quantityArithmetic(operator: ArithmeticOperator, a: TypedValue, b: TypedValue): TypedValue[] {
   const left = a.value as QuantityValue
-  // Unit algebra for quantity*quantity and quantity/quantity lands with the UCUM phase.
   if (b.type === SYSTEM_QUANTITY) {
     const right = b.value as QuantityValue
-    if (left.unit !== right.unit || left.calendar !== right.calendar) {
-      throw new FhirPathTypeError('Arithmetic between quantities with different units is not supported yet')
-    }
     if (operator === '+' || operator === '-') {
-      const value = operator === '+' ? left.value.add(right.value) : left.value.subtract(right.value)
-      return [{ type: SYSTEM_QUANTITY, value: { ...left, value } }]
+      // Convertible units align on the more granular one (spec §6.6); else empty.
+      const aligned = alignQuantities(left, right)
+      if (!aligned) {
+        return []
+      }
+      const value = operator === '+' ? aligned.left.add(aligned.right) : aligned.left.subtract(aligned.right)
+      return [{ type: SYSTEM_QUANTITY, value: { value, unit: aligned.unit, calendar: aligned.calendar } }]
     }
-    throw new FhirPathTypeError(`Operator '${operator}' between quantities is not supported yet`)
+    if (operator === '*' || operator === '/') {
+      if (left.calendar || right.calendar) {
+        throw new FhirPathTypeError(`Operator '${operator}' is not defined for calendar durations`)
+      }
+      const value = operator === '*' ? left.value.multiply(right.value) : left.value.divide(right.value)
+      if (value === undefined) {
+        return []
+      }
+      const unit = composeUnits(operator, left.unit, right.unit)
+      return [{ type: SYSTEM_QUANTITY, value: { value, unit, calendar: false } }]
+    }
+    throw new FhirPathTypeError(`Operator '${operator}' is not defined for quantities`)
   }
   const scalar = asNumeric(b)
   if (!scalar || (operator !== '*' && operator !== '/')) {
