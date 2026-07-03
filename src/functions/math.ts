@@ -1,16 +1,16 @@
-import { FhirPathTypeError } from '../errors'
-import type { AstNode } from '../parser/ast'
-import { singleton } from '../values/collection'
-import { Decimal } from '../values/decimal'
-import { asNumeric, wrapNumeric } from '../values/numeric'
+import { FhirPathTypeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { singleton } from '../values/collection.ts'
+import { Decimal } from '../values/decimal.ts'
+import { asNumeric, wrapNumeric } from '../values/numeric.ts'
 import {
   type QuantityValue,
   SYSTEM_DECIMAL,
   SYSTEM_INTEGER,
   SYSTEM_QUANTITY,
   type TypedValue,
-} from '../values/typed-value'
-import { registerFunction } from './registry'
+} from '../values/typed-value.ts'
+import { registerFunction } from './registry.ts'
 
 function numericInput(name: string, input: TypedValue[]): { item: TypedValue; value: Decimal } | undefined {
   const item = singleton(input)

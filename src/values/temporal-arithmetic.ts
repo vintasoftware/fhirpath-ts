@@ -1,7 +1,7 @@
-import { FhirPathRuntimeError } from '../errors'
-import { Temporal, type TemporalPrecision } from './datetime'
-import { normalizeCalendarUnit } from './quantity'
-import type { QuantityValue } from './typed-value'
+import { FhirPathRuntimeError } from '../errors.ts'
+import { Temporal, type TemporalPrecision } from './datetime.ts'
+import { normalizeCalendarUnit } from './quantity.ts'
+import type { QuantityValue } from './typed-value.ts'
 
 /** Position of each precision on the component ladder used for duration conversion. */
 const COMPONENT_LEVELS: Readonly<Record<string, number>> = {

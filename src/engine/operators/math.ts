@@ -1,18 +1,18 @@
-import { FhirPathTypeError } from '../../errors'
-import { singleton } from '../../values/collection'
-import { Temporal } from '../../values/datetime'
-import type { Decimal } from '../../values/decimal'
-import { asNumeric, widerKind, wrapNumeric } from '../../values/numeric'
-import { alignQuantities, composeUnits } from '../../values/quantity'
-import { addDuration } from '../../values/temporal-arithmetic'
+import { FhirPathTypeError } from '../../errors.ts'
+import { singleton } from '../../values/collection.ts'
+import { Temporal } from '../../values/datetime.ts'
+import type { Decimal } from '../../values/decimal.ts'
+import { asNumeric, widerKind, wrapNumeric } from '../../values/numeric.ts'
+import { alignQuantities, composeUnits } from '../../values/quantity.ts'
+import { addDuration } from '../../values/temporal-arithmetic.ts'
 import {
   type QuantityValue,
   SYSTEM_QUANTITY,
   SYSTEM_STRING,
   systemTypeOf,
   type TypedValue,
-} from '../../values/typed-value'
-import { binaryOperators, unaryOperators } from './index'
+} from '../../values/typed-value.ts'
+import { binaryOperators, unaryOperators } from './index.ts'
 
 type ArithmeticOperator = '+' | '-' | '*' | '/' | 'div' | 'mod'
 

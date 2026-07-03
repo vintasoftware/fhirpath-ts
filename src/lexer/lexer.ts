@@ -1,5 +1,5 @@
-import { FhirPathSyntaxError, type SourceSpan } from '../errors'
-import { KEYWORDS, SPECIAL_VARIABLES, type Token, type TokenKind } from './tokens'
+import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
+import { KEYWORDS, SPECIAL_VARIABLES, type Token, type TokenKind } from './tokens.ts'
 
 const isDigit = (ch: string): boolean => ch >= '0' && ch <= '9'
 const isIdentifierStart = (ch: string): boolean => (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || ch === '_'

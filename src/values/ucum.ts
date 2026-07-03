@@ -1,4 +1,4 @@
-import { Decimal } from './decimal'
+import { Decimal } from './decimal.ts'
 
 /**
  * Minimal UCUM support: enough units for quantity comparison, conversion, and the

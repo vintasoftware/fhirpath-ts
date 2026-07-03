@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { testDataPath } from './test-data'
+import { testDataPath } from './test-data.ts'
 
 describe('testDataPath', () => {
   it('resolves vendored files from either cwd', () => {

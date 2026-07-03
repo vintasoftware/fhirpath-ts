@@ -1,7 +1,7 @@
-import type { EvaluationContext } from '../engine/context'
-import { FhirPathTypeError } from '../errors'
-import type { AstNode } from '../parser/ast'
-import type { TypedValue } from '../values/typed-value'
+import type { EvaluationContext } from '../engine/context.ts'
+import { FhirPathTypeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
+import type { TypedValue } from '../values/typed-value.ts'
 
 /**
  * A FHIRPath function. Arguments arrive as unevaluated ASTs so functions with

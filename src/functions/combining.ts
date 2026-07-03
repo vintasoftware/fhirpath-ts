@@ -1,6 +1,6 @@
-import { unionCollections } from '../engine/operators/collections'
-import type { AstNode } from '../parser/ast'
-import { registerFunction } from './registry'
+import { unionCollections } from '../engine/operators/collections.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { registerFunction } from './registry.ts'
 
 registerFunction('union', {
   minArity: 1,

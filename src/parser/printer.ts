@@ -1,6 +1,6 @@
-import { KEYWORDS } from '../lexer/tokens'
-import type { AstNode } from './ast'
-import { BindingPower, INFIX_BINDING_POWER } from './precedence'
+import { KEYWORDS } from '../lexer/tokens.ts'
+import type { AstNode } from './ast.ts'
+import { BindingPower, INFIX_BINDING_POWER } from './precedence.ts'
 
 const ATOMIC = 15
 

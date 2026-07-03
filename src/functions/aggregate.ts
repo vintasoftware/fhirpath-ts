@@ -1,10 +1,10 @@
-import { withFrame } from '../engine/context'
-import { FhirPathTypeError } from '../errors'
-import type { AstNode } from '../parser/ast'
-import { Decimal } from '../values/decimal'
-import { asNumeric, type NumericKind, widerKind, wrapNumeric } from '../values/numeric'
-import { SYSTEM_DECIMAL, type TypedValue } from '../values/typed-value'
-import { registerFunction } from './registry'
+import { withFrame } from '../engine/context.ts'
+import { FhirPathTypeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { Decimal } from '../values/decimal.ts'
+import { asNumeric, type NumericKind, widerKind, wrapNumeric } from '../values/numeric.ts'
+import { SYSTEM_DECIMAL, type TypedValue } from '../values/typed-value.ts'
+import { registerFunction } from './registry.ts'
 
 registerFunction('aggregate', {
   minArity: 1,

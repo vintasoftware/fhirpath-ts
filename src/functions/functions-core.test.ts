@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { evaluate } from '../api/evaluate'
-import { FhirPathRuntimeError, FhirPathTypeError } from '../errors'
-import type { TypedValue } from '../values/typed-value'
+import { evaluate } from '../api/evaluate.ts'
+import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import type { TypedValue } from '../values/typed-value.ts'
 
 const patient = {
   resourceType: 'Patient',

@@ -1,11 +1,11 @@
-import { createContext } from '../engine/context'
-import { evaluateNode } from '../engine/evaluator'
-import type { ModelProvider } from '../model/provider'
-import type { AstNode } from '../parser/ast'
-import { parse } from '../parser/parser'
-import { printExpression } from '../parser/printer'
-import type { FhirpathInput, FhirpathResult } from '../typed/infer'
-import { type TypedValue, toCollection, unwrap } from '../values/typed-value'
+import { createContext } from '../engine/context.ts'
+import { evaluateNode } from '../engine/evaluator.ts'
+import type { ModelProvider } from '../model/provider.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { parse } from '../parser/parser.ts'
+import { printExpression } from '../parser/printer.ts'
+import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
+import { type TypedValue, toCollection, unwrap } from '../values/typed-value.ts'
 
 export interface EvaluateOptions {
   /** Environment variables (`%name`), keyed with or without the leading `%`. */

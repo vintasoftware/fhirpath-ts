@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { compile } from '../api/compile'
-import { evaluate } from '../api/evaluate'
-import { fhirpath } from '../api/tagged'
-import { FhirPathError, FhirPathRuntimeError, FhirPathTypeError } from '../errors'
+import { compile } from '../api/compile.ts'
+import { evaluate } from '../api/evaluate.ts'
+import { fhirpath } from '../api/tagged.ts'
+import { FhirPathError, FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 
 const patient = {
   resourceType: 'Patient',

@@ -1,4 +1,4 @@
-import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated/type-maps'
+import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
 
 /**
  * Type-level FHIRPath inference for a tractable subset of the language:

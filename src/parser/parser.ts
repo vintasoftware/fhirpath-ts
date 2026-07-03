@@ -1,11 +1,11 @@
 // The Pratt parsing approach (prefix/infix parselets driven by a precedence table) is adapted
 // from Medplum's FHIRPath parser (Apache-2.0):
 // https://github.com/medplum/medplum/blob/main/packages/core/src/fhirlexer/parse.ts
-import { FhirPathSyntaxError, type SourceSpan } from '../errors'
-import { tokenize } from '../lexer/lexer'
-import { CALENDAR_DURATION_UNITS, type Token } from '../lexer/tokens'
-import type { AstNode, BinaryOperator, TypeSpecifier, UnaryOperator } from './ast'
-import { BindingPower, INFIX_BINDING_POWER } from './precedence'
+import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
+import { tokenize } from '../lexer/lexer.ts'
+import { CALENDAR_DURATION_UNITS, type Token } from '../lexer/tokens.ts'
+import type { AstNode, BinaryOperator, TypeSpecifier, UnaryOperator } from './ast.ts'
+import { BindingPower, INFIX_BINDING_POWER } from './precedence.ts'
 
 /** Keywords the grammar also accepts as element names, e.g. `'abc'.contains('b')`. */
 const KEYWORDS_USABLE_AS_IDENTIFIERS: ReadonlySet<string> = new Set(['as', 'contains', 'in', 'is'])

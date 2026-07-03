@@ -1,7 +1,7 @@
-import { FhirPathRuntimeError } from '../../errors'
-import { SYSTEM_BOOLEAN, type TypedValue } from '../../values/typed-value'
-import { pairEquals } from './equality'
-import { binaryOperators } from './index'
+import { FhirPathRuntimeError } from '../../errors.ts'
+import { SYSTEM_BOOLEAN, type TypedValue } from '../../values/typed-value.ts'
+import { pairEquals } from './equality.ts'
+import { binaryOperators } from './index.ts'
 
 /** Merge with duplicate elimination using `=` semantics (spec §6.4.1 / `union()`). */
 export function unionCollections(left: TypedValue[], right: TypedValue[]): TypedValue[] {

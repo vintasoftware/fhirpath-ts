@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { evaluate } from '../api/evaluate'
-import { r4Model } from './index'
+import { evaluate } from '../api/evaluate.ts'
+import { r4Model } from './index.ts'
 
 describe('r4Model type resolution', () => {
   it('resolves resources, datatypes, and primitives', () => {

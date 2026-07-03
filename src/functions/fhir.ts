@@ -1,10 +1,10 @@
-import { FhirPathRuntimeError, FhirPathTypeError } from '../errors'
-import { validateNarrative } from '../fhir/html-checks'
-import type { AstNode } from '../parser/ast'
-import { singleton, wrapBoolean } from '../values/collection'
-import { coerceQuantity, compareQuantities } from '../values/quantity'
-import { SYSTEM_STRING, systemTypeOf, type TypedValue, toTypedValue } from '../values/typed-value'
-import { registerFunction } from './registry'
+import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { validateNarrative } from '../fhir/html-checks.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { singleton, wrapBoolean } from '../values/collection.ts'
+import { coerceQuantity, compareQuantities } from '../values/quantity.ts'
+import { SYSTEM_STRING, systemTypeOf, type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import { registerFunction } from './registry.ts'
 
 /** extension(url): extensions of each item, including primitive `_field` extensions. */
 registerFunction('extension', {

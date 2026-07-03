@@ -1,9 +1,9 @@
-import { FhirPathRuntimeError, FhirPathTypeError } from '../errors'
-import { lookupFunction } from '../functions/registry'
-import type { AstNode } from '../parser/ast'
-import { singleton } from '../values/collection'
-import { Temporal } from '../values/datetime'
-import { Decimal } from '../values/decimal'
+import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { lookupFunction } from '../functions/registry.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { singleton } from '../values/collection.ts'
+import { Temporal } from '../values/datetime.ts'
+import { Decimal } from '../values/decimal.ts'
 import {
   SYSTEM_BOOLEAN,
   SYSTEM_DATE,
@@ -14,12 +14,12 @@ import {
   SYSTEM_STRING,
   SYSTEM_TIME,
   type TypedValue,
-} from '../values/typed-value'
-import { type EvaluationContext, forkVariables, resolveEnvironmentVariable } from './context'
-import { navigateIdentifier } from './navigation'
-import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index'
-import '../functions/install'
-import './operators/install'
+} from '../values/typed-value.ts'
+import { type EvaluationContext, forkVariables, resolveEnvironmentVariable } from './context.ts'
+import { navigateIdentifier } from './navigation.ts'
+import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
+import '../functions/install.ts'
+import './operators/install.ts'
 
 function evaluateArgument(node: AstNode, context: EvaluationContext, _input: TypedValue[]): TypedValue[] {
   // Arguments evaluate against $this (the current context item), not the function's

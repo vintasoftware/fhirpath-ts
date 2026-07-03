@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { FhirPathRuntimeError } from '../errors'
-import { booleanSingleton, singleton, wrapBoolean } from './collection'
-import { Decimal } from './decimal'
+import { FhirPathRuntimeError } from '../errors.ts'
+import { booleanSingleton, singleton, wrapBoolean } from './collection.ts'
+import { Decimal } from './decimal.ts'
 import {
   SYSTEM_BOOLEAN,
   SYSTEM_DECIMAL,
@@ -12,7 +12,7 @@ import {
   toTypedValue,
   typeLocalName,
   unwrap,
-} from './typed-value'
+} from './typed-value.ts'
 
 describe('toTypedValue', () => {
   it('infers System types from JS values', () => {

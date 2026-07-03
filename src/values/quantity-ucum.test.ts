@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { evaluate } from '../api/evaluate'
-import { canonicalizeUnit } from './ucum'
+import { evaluate } from '../api/evaluate.ts'
+import { canonicalizeUnit } from './ucum.ts'
 
 describe('unit canonicalization', () => {
   it('resolves prefixed units', () => {

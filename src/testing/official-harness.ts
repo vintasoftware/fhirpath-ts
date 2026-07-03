@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs'
-import { SKIP_MANIFEST, type SkipEntry } from '../../test-data/official/skip-manifest'
-import { CompiledExpression } from '../api/compile'
-import { FhirPathError } from '../errors'
-import { valueToString } from '../functions/conversion'
-import { r4Model } from '../r4/index'
-import { Temporal } from '../values/datetime'
-import { Decimal } from '../values/decimal'
-import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, SYSTEM_LONG, systemTypeOf, type TypedValue } from '../values/typed-value'
-import { testDataPath } from './test-data'
+import { SKIP_MANIFEST, type SkipEntry } from '../../test-data/official/skip-manifest.ts'
+import { CompiledExpression } from '../api/compile.ts'
+import { FhirPathError } from '../errors.ts'
+import { valueToString } from '../functions/conversion.ts'
+import { r4Model } from '../r4/index.ts'
+import { Temporal } from '../values/datetime.ts'
+import { Decimal } from '../values/decimal.ts'
+import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, SYSTEM_LONG, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
+import { testDataPath } from './test-data.ts'
 
 export interface OfficialOutput {
   type: string

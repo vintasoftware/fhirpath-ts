@@ -1,5 +1,5 @@
-import { Decimal } from './decimal'
-import { SYSTEM_DECIMAL, SYSTEM_INTEGER, SYSTEM_LONG, systemTypeOf, type TypedValue } from './typed-value'
+import { Decimal } from './decimal.ts'
+import { SYSTEM_DECIMAL, SYSTEM_INTEGER, SYSTEM_LONG, systemTypeOf, type TypedValue } from './typed-value.ts'
 
 export type NumericKind = 'Integer' | 'Long' | 'Decimal'
 

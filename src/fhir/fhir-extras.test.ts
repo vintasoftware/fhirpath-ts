@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { EvaluateOptions } from '../api/compile'
-import { evaluate } from '../api/evaluate'
-import { FhirPathRuntimeError } from '../errors'
-import { r4Model } from '../r4/index'
-import { validateNarrative } from './html-checks'
+import type { EvaluateOptions } from '../api/compile.ts'
+import { evaluate } from '../api/evaluate.ts'
+import { FhirPathRuntimeError } from '../errors.ts'
+import { r4Model } from '../r4/index.ts'
+import { validateNarrative } from './html-checks.ts'
 
 const options: EvaluateOptions = { model: r4Model }
 

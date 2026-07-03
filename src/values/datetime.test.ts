@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Temporal } from './datetime'
+import { Temporal } from './datetime.ts'
 
 describe('date parsing', () => {
   it.each([

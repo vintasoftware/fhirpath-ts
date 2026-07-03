@@ -3,7 +3,8 @@
   "compilerOptions": {
     "module": "esnext",
     "moduleResolution": "bundler",
-    "types": ["vitest/globals", "node"]
+    "types": ["vitest/globals", "node"],
+    "allowImportingTsExtensions": true
   },
   "include": ["src/**/*.ts"]
 }

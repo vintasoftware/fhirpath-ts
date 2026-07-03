@@ -9,19 +9,26 @@
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json",
-    "./r4": "./src/r4/index.ts"
+    "./r4": "./src/r4/index.ts",
+    "./analyzer": "./src/analyzer/analyze.ts",
+    "./eslint": "./src/eslint/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
-    "generate:r4": "node scripts/generate-r4-model.ts"
+    "generate:r4": "node scripts/generate-r4-model.ts",
+    "check:fhirpath": "node src/cli/fhirpath-check.ts"
   },
   "devDependencies": {
     "@medplum/definitions": "catalog:",
     "@types/node": "catalog:",
+    "eslint": "catalog:",
     "fast-xml-parser": "catalog:",
     "typescript": "catalog:"
+  },
+  "bin": {
+    "fhirpath-check": "./src/cli/fhirpath-check.ts"
   }
 }

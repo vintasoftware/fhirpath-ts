@@ -1,6 +1,6 @@
-import { pairEquals } from '../engine/operators/equality'
-import { type TypedValue, toTypedValue } from '../values/typed-value'
-import { registerFunction } from './registry'
+import { pairEquals } from '../engine/operators/equality.ts'
+import { type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import { registerFunction } from './registry.ts'
 
 /**
  * All immediate child nodes of an item. `resourceType` is a JSON discriminator, not

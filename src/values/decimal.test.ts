@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Decimal } from './decimal'
+import { Decimal } from './decimal.ts'
 
 function decimal(text: string): Decimal {
   const parsed = Decimal.fromString(text)

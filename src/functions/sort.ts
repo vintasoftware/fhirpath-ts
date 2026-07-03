@@ -1,11 +1,11 @@
-import type { EvaluationContext } from '../engine/context'
-import { withFrame } from '../engine/context'
-import { compareValues } from '../engine/operators/comparison'
-import type { AstNode } from '../parser/ast'
-import { singleton } from '../values/collection'
-import type { TypedValue } from '../values/typed-value'
-import type { NodeEvaluator } from './iteration'
-import { registerFunction } from './registry'
+import type { EvaluationContext } from '../engine/context.ts'
+import { withFrame } from '../engine/context.ts'
+import { compareValues } from '../engine/operators/comparison.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { singleton } from '../values/collection.ts'
+import type { TypedValue } from '../values/typed-value.ts'
+import type { NodeEvaluator } from './iteration.ts'
+import { registerFunction } from './registry.ts'
 
 interface SortKey {
   expression: AstNode | undefined

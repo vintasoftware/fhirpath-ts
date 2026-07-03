@@ -1,6 +1,6 @@
-import { booleanSingleton, wrapBoolean } from '../../values/collection'
-import type { TypedValue } from '../../values/typed-value'
-import { binaryOperators } from './index'
+import { booleanSingleton, wrapBoolean } from '../../values/collection.ts'
+import type { TypedValue } from '../../values/typed-value.ts'
+import { binaryOperators } from './index.ts'
 
 /**
  * Three-valued logic straight from the spec §6.5 truth tables. `undefined` is the

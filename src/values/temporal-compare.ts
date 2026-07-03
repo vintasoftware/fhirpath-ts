@@ -1,4 +1,4 @@
-import type { Temporal } from './datetime'
+import type { Temporal } from './datetime.ts'
 
 /**
  * Precision levels for comparison. Seconds and milliseconds are one level: the spec

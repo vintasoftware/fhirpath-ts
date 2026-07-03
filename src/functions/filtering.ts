@@ -1,12 +1,12 @@
-import { pairEquals } from '../engine/operators/equality'
-import { isKnownTypeName, itemMatchesType } from '../engine/type-matching'
-import { FhirPathRuntimeError } from '../errors'
-import type { AstNode } from '../parser/ast'
-import { booleanSingleton, singleton, wrapBoolean } from '../values/collection'
-import type { TypedValue } from '../values/typed-value'
-import { perItem } from './iteration'
-import { registerFunction } from './registry'
-import { typePartsFromArgument } from './type-specifier'
+import { pairEquals } from '../engine/operators/equality.ts'
+import { isKnownTypeName, itemMatchesType } from '../engine/type-matching.ts'
+import { FhirPathRuntimeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { booleanSingleton, singleton, wrapBoolean } from '../values/collection.ts'
+import type { TypedValue } from '../values/typed-value.ts'
+import { perItem } from './iteration.ts'
+import { registerFunction } from './registry.ts'
+import { typePartsFromArgument } from './type-specifier.ts'
 
 registerFunction('where', {
   minArity: 1,

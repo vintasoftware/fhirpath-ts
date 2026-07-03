@@ -1,6 +1,6 @@
-import { Decimal } from './decimal'
-import { type QuantityValue, SYSTEM_QUANTITY, type TypedValue, typeLocalName } from './typed-value'
-import { canonicalizeUnit, sameDimensions } from './ucum'
+import { Decimal } from './decimal.ts'
+import { type QuantityValue, SYSTEM_QUANTITY, type TypedValue, typeLocalName } from './typed-value.ts'
+import { canonicalizeUnit, sameDimensions } from './ucum.ts'
 
 /** FHIR Quantity and its specializations coerce to System.Quantity for comparison. */
 const FHIR_QUANTITY_TYPES = new Set([

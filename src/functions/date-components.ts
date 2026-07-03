@@ -1,9 +1,9 @@
-import { FhirPathTypeError } from '../errors'
-import { singleton } from '../values/collection'
-import { Temporal } from '../values/datetime'
-import { Decimal } from '../values/decimal'
-import { SYSTEM_DATE, SYSTEM_DECIMAL, SYSTEM_INTEGER, SYSTEM_TIME, type TypedValue } from '../values/typed-value'
-import { registerFunction } from './registry'
+import { FhirPathTypeError } from '../errors.ts'
+import { singleton } from '../values/collection.ts'
+import { Temporal } from '../values/datetime.ts'
+import { Decimal } from '../values/decimal.ts'
+import { SYSTEM_DATE, SYSTEM_DECIMAL, SYSTEM_INTEGER, SYSTEM_TIME, type TypedValue } from '../values/typed-value.ts'
+import { registerFunction } from './registry.ts'
 
 function temporalInput(name: string, input: TypedValue[]): Temporal | undefined {
   const item = singleton(input)

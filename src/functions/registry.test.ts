@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { FhirPathTypeError } from '../errors'
-import { type FhirPathFunction, lookupFunction, registerFunction } from './registry'
+import { FhirPathTypeError } from '../errors.ts'
+import { type FhirPathFunction, lookupFunction, registerFunction } from './registry.ts'
 
 const stub = (minArity: number, maxArity: number): FhirPathFunction => ({
   minArity,

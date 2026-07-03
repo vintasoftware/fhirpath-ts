@@ -1,9 +1,9 @@
-import { withFrame } from '../engine/context'
-import { FhirPathTypeError } from '../errors'
-import type { AstNode } from '../parser/ast'
-import { singleton } from '../values/collection'
-import { SYSTEM_STRING, type TypedValue } from '../values/typed-value'
-import { registerFunction } from './registry'
+import { withFrame } from '../engine/context.ts'
+import { FhirPathTypeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { singleton } from '../values/collection.ts'
+import { SYSTEM_STRING, type TypedValue } from '../values/typed-value.ts'
+import { registerFunction } from './registry.ts'
 
 /**
  * defineVariable(name [, value]) — ballot STU. The variable joins the current

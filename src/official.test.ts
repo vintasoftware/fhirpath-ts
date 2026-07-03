@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { SKIP_MANIFEST } from '../test-data/official/skip-manifest'
+import { SKIP_MANIFEST } from '../test-data/official/skip-manifest.ts'
 import {
   findSkipReason,
   loadOfficialSuite,
   runOfficialTest,
   type SuiteName,
   skipEntryMatchesSomething,
-} from './testing/official-harness'
+} from './testing/official-harness.ts'
 
 const suites: Record<SuiteName, ReturnType<typeof loadOfficialSuite>> = {
   r4: loadOfficialSuite('r4'),

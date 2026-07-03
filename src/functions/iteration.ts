@@ -1,6 +1,6 @@
-import { type EvaluationContext, withFrame } from '../engine/context'
-import type { AstNode } from '../parser/ast'
-import type { TypedValue } from '../values/typed-value'
+import { type EvaluationContext, withFrame } from '../engine/context.ts'
+import type { AstNode } from '../parser/ast.ts'
+import type { TypedValue } from '../values/typed-value.ts'
 
 export type NodeEvaluator = (node: AstNode, context: EvaluationContext, input: TypedValue[]) => TypedValue[]
 

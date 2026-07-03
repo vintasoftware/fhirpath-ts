@@ -1,9 +1,9 @@
-import type { ElementInfo, ModelProvider } from '../model/provider'
-import { R4_RESOURCES } from './generated/resources-data'
-import { R4_DATA_TYPES } from './generated/types-data'
-import type { GeneratedElement, GeneratedType } from './model-data'
+import type { ElementInfo, ModelProvider } from '../model/provider.ts'
+import { R4_RESOURCES } from './generated/resources-data.ts'
+import { R4_DATA_TYPES } from './generated/types-data.ts'
+import type { GeneratedElement, GeneratedType } from './model-data.ts'
 
-export type { GeneratedElement, GeneratedType } from './model-data'
+export type { GeneratedElement, GeneratedType } from './model-data.ts'
 
 /** FHIR primitive type names to their System twins (FHIR spec "types" page). */
 export const PRIMITIVE_TO_SYSTEM: Readonly<Record<string, string>> = {

@@ -1,9 +1,9 @@
-import { withFrame } from '../engine/context'
-import type { AstNode } from '../parser/ast'
-import { booleanSingleton, wrapBoolean } from '../values/collection'
-import { Temporal } from '../values/datetime'
-import { SYSTEM_DATE, SYSTEM_DATETIME, SYSTEM_TIME, type TypedValue } from '../values/typed-value'
-import { registerFunction } from './registry'
+import { withFrame } from '../engine/context.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { booleanSingleton, wrapBoolean } from '../values/collection.ts'
+import { Temporal } from '../values/datetime.ts'
+import { SYSTEM_DATE, SYSTEM_DATETIME, SYSTEM_TIME, type TypedValue } from '../values/typed-value.ts'
+import { registerFunction } from './registry.ts'
 
 registerFunction('not', {
   minArity: 0,

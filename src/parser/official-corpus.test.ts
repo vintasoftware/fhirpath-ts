@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { FhirPathSyntaxError } from '../errors'
-import { stripSpans } from '../testing/strip-spans'
-import { testDataPath } from '../testing/test-data'
-import { parse } from './parser'
-import { printExpression } from './printer'
+import { FhirPathSyntaxError } from '../errors.ts'
+import { stripSpans } from '../testing/strip-spans.ts'
+import { testDataPath } from '../testing/test-data.ts'
+import { parse } from './parser.ts'
+import { printExpression } from './printer.ts'
 
 interface CorpusEntry {
   expression: string

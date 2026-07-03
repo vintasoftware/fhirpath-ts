@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { evaluate } from '../api/evaluate'
-import { FhirPathTypeError } from '../errors'
+import { evaluate } from '../api/evaluate.ts'
+import { FhirPathTypeError } from '../errors.ts'
 
 describe('math functions', () => {
   it.each([

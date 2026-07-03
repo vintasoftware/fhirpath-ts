@@ -1,8 +1,8 @@
-import { FhirPathTypeError } from '../errors'
-import type { AstNode } from '../parser/ast'
-import { singleton } from '../values/collection'
-import { Temporal } from '../values/datetime'
-import { Decimal } from '../values/decimal'
+import { FhirPathTypeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { singleton } from '../values/collection.ts'
+import { Temporal } from '../values/datetime.ts'
+import { Decimal } from '../values/decimal.ts'
 import {
   type QuantityValue,
   SYSTEM_DATE,
@@ -12,8 +12,8 @@ import {
   SYSTEM_QUANTITY,
   SYSTEM_TIME,
   systemTypeOf,
-} from '../values/typed-value'
-import { registerFunction } from './registry'
+} from '../values/typed-value.ts'
+import { registerFunction } from './registry.ts'
 
 type Edge = 'low' | 'high'
 

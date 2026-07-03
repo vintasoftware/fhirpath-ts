@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { FhirPathSyntaxError } from '../errors'
-import { tokenize } from './lexer'
-import type { Token, TokenKind } from './tokens'
+import { FhirPathSyntaxError } from '../errors.ts'
+import { tokenize } from './lexer.ts'
+import type { Token, TokenKind } from './tokens.ts'
 
 function kinds(source: string): TokenKind[] {
   return tokenize(source)

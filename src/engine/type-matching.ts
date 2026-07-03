@@ -1,5 +1,5 @@
-import { type TypedValue, typeLocalName } from '../values/typed-value'
-import type { EvaluationContext } from './context'
+import { type TypedValue, typeLocalName } from '../values/typed-value.ts'
+import type { EvaluationContext } from './context.ts'
 
 const SYSTEM_LOCAL_NAMES = new Set([
   'Any',

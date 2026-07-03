@@ -1,12 +1,12 @@
-import type { EvaluationContext } from '../engine/context'
-import { pairEquals } from '../engine/operators/equality'
-import { FhirPathRuntimeError, FhirPathTypeError } from '../errors'
-import type { AstNode } from '../parser/ast'
-import { singleton } from '../values/collection'
-import { SYSTEM_INTEGER, type TypedValue } from '../values/typed-value'
-import { distinctItems } from './existence'
-import type { NodeEvaluator } from './iteration'
-import { registerFunction } from './registry'
+import type { EvaluationContext } from '../engine/context.ts'
+import { pairEquals } from '../engine/operators/equality.ts'
+import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { singleton } from '../values/collection.ts'
+import { SYSTEM_INTEGER, type TypedValue } from '../values/typed-value.ts'
+import { distinctItems } from './existence.ts'
+import type { NodeEvaluator } from './iteration.ts'
+import { registerFunction } from './registry.ts'
 
 registerFunction('single', {
   minArity: 0,

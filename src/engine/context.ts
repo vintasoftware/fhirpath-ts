@@ -1,6 +1,6 @@
-import { FhirPathTypeError } from '../errors'
-import type { ModelProvider } from '../model/provider'
-import { SYSTEM_STRING, type TypedValue, toCollection } from '../values/typed-value'
+import { FhirPathTypeError } from '../errors.ts'
+import type { ModelProvider } from '../model/provider.ts'
+import { SYSTEM_STRING, type TypedValue, toCollection } from '../values/typed-value.ts'
 
 /** `$this` / `$index` / `$total` bindings; iteration functions push one frame per element. */
 export interface Frame {

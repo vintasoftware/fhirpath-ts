@@ -1,5 +1,5 @@
-import type { Temporal } from './datetime'
-import { Decimal } from './decimal'
+import type { Temporal } from './datetime.ts'
+import { Decimal } from './decimal.ts'
 
 export const SYSTEM_BOOLEAN = 'System.Boolean'
 export const SYSTEM_STRING = 'System.String'

@@ -1,5 +1,5 @@
-import { FhirPathRuntimeError } from '../errors'
-import { SYSTEM_BOOLEAN, type TypedValue, typeLocalName } from './typed-value'
+import { FhirPathRuntimeError } from '../errors.ts'
+import { SYSTEM_BOOLEAN, type TypedValue, typeLocalName } from './typed-value.ts'
 
 /**
  * Singleton evaluation of collections, spec §4.5:

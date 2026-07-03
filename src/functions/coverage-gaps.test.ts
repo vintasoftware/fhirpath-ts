@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { evaluate } from '../api/evaluate'
-import type { ModelProvider } from '../model/provider'
+import { evaluate } from '../api/evaluate.ts'
+import type { ModelProvider } from '../model/provider.ts'
 
 // Focused cases for branches the broader suites do not reach.
 describe('remaining branch coverage', () => {

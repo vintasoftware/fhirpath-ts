@@ -1,4 +1,4 @@
-import type { SourceSpan } from '../errors'
+import type { SourceSpan } from '../errors.ts'
 
 export type TokenKind =
   | 'identifier'

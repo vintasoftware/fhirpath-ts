@@ -1,10 +1,10 @@
-import type { EvaluationContext } from '../engine/context'
-import { FhirPathTypeError } from '../errors'
-import type { AstNode } from '../parser/ast'
-import { singleton, wrapBoolean } from '../values/collection'
-import { SYSTEM_INTEGER, SYSTEM_STRING, systemTypeOf, type TypedValue } from '../values/typed-value'
-import type { NodeEvaluator } from './iteration'
-import { type FhirPathFunction, registerFunction } from './registry'
+import type { EvaluationContext } from '../engine/context.ts'
+import { FhirPathTypeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { singleton, wrapBoolean } from '../values/collection.ts'
+import { SYSTEM_INTEGER, SYSTEM_STRING, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
+import type { NodeEvaluator } from './iteration.ts'
+import { type FhirPathFunction, registerFunction } from './registry.ts'
 
 /** Singleton String input; empty stays empty, anything else is a type error (spec §5.6). */
 function stringInput(name: string, input: TypedValue[]): string | undefined {

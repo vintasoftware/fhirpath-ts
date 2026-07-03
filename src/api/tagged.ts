@@ -1,5 +1,5 @@
-import { FhirPathError } from '../errors'
-import { CompiledExpression } from './compile'
+import { FhirPathError } from '../errors.ts'
+import { CompiledExpression } from './compile.ts'
 
 /**
  * Expression entry point, usable two ways:

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { FhirPathSyntaxError } from '../errors'
-import { stripSpans } from '../testing/strip-spans'
-import { parse } from './parser'
+import { FhirPathSyntaxError } from '../errors.ts'
+import { stripSpans } from '../testing/strip-spans.ts'
+import { parse } from './parser.ts'
 
 function ast(source: string): unknown {
   return stripSpans(parse(source))

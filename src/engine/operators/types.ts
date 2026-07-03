@@ -1,6 +1,6 @@
-import { singleton, wrapBoolean } from '../../values/collection'
-import { itemMatchesType } from '../type-matching'
-import { registerTypeOperator } from './index'
+import { singleton, wrapBoolean } from '../../values/collection.ts'
+import { itemMatchesType } from '../type-matching.ts'
+import { registerTypeOperator } from './index.ts'
 
 registerTypeOperator((context, operator, operand, type) => {
   const item = singleton(operand)

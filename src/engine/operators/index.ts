@@ -1,7 +1,7 @@
-import { FhirPathRuntimeError } from '../../errors'
-import type { BinaryOperator, TypeSpecifier, UnaryOperator } from '../../parser/ast'
-import type { TypedValue } from '../../values/typed-value'
-import type { EvaluationContext } from '../context'
+import { FhirPathRuntimeError } from '../../errors.ts'
+import type { BinaryOperator, TypeSpecifier, UnaryOperator } from '../../parser/ast.ts'
+import type { TypedValue } from '../../values/typed-value.ts'
+import type { EvaluationContext } from '../context.ts'
 
 export type BinaryOperatorImpl = (context: EvaluationContext, left: TypedValue[], right: TypedValue[]) => TypedValue[]
 

@@ -1,8 +1,8 @@
-import { withFrame } from '../engine/context'
-import { FhirPathRuntimeError } from '../errors'
-import type { AstNode } from '../parser/ast'
-import { booleanSingleton } from '../values/collection'
-import { registerFunction } from './registry'
+import { withFrame } from '../engine/context.ts'
+import { FhirPathRuntimeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { booleanSingleton } from '../values/collection.ts'
+import { registerFunction } from './registry.ts'
 
 registerFunction('iif', {
   minArity: 2,

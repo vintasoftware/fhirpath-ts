@@ -1,9 +1,9 @@
-import { FhirPathTypeError } from '../errors'
-import { CALENDAR_DURATION_UNITS } from '../lexer/tokens'
-import { singleton, wrapBoolean } from '../values/collection'
-import { Temporal } from '../values/datetime'
-import { Decimal } from '../values/decimal'
-import { convertQuantity } from '../values/quantity'
+import { FhirPathTypeError } from '../errors.ts'
+import { CALENDAR_DURATION_UNITS } from '../lexer/tokens.ts'
+import { singleton, wrapBoolean } from '../values/collection.ts'
+import { Temporal } from '../values/datetime.ts'
+import { Decimal } from '../values/decimal.ts'
+import { convertQuantity } from '../values/quantity.ts'
 import {
   type QuantityValue,
   SYSTEM_BOOLEAN,
@@ -17,8 +17,8 @@ import {
   SYSTEM_TIME,
   systemTypeOf,
   type TypedValue,
-} from '../values/typed-value'
-import { registerFunction } from './registry'
+} from '../values/typed-value.ts'
+import { registerFunction } from './registry.ts'
 
 type Converter = (item: TypedValue) => TypedValue | undefined
 

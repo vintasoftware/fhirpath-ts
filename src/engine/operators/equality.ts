@@ -1,9 +1,15 @@
-import { Temporal } from '../../values/datetime'
-import { asNumeric } from '../../values/numeric'
-import { coerceQuantity, compareQuantities, quantitiesEquivalent } from '../../values/quantity'
-import { compareTemporal } from '../../values/temporal-compare'
-import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, type TypedValue, typeLocalName } from '../../values/typed-value'
-import { binaryOperators } from './index'
+import { Temporal } from '../../values/datetime.ts'
+import { asNumeric } from '../../values/numeric.ts'
+import { coerceQuantity, compareQuantities, quantitiesEquivalent } from '../../values/quantity.ts'
+import { compareTemporal } from '../../values/temporal-compare.ts'
+import {
+  SYSTEM_BOOLEAN,
+  SYSTEM_STRING,
+  systemTypeOf,
+  type TypedValue,
+  typeLocalName,
+} from '../../values/typed-value.ts'
+import { binaryOperators } from './index.ts'
 
 /**
  * Single-item `=` semantics (spec §6.1.1). Undefined means empty: date/time values

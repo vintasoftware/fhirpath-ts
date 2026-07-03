@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { stripSpans } from '../testing/strip-spans'
-import { parse } from './parser'
-import { printExpression } from './printer'
+import { stripSpans } from '../testing/strip-spans.ts'
+import { parse } from './parser.ts'
+import { printExpression } from './printer.ts'
 
 function roundTrip(source: string): void {
   const first = parse(source)

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { ModelProvider } from '../model/provider'
-import { parse } from '../parser/parser'
-import { toCollection, toTypedValue } from '../values/typed-value'
-import { createContext, withFrame } from './context'
-import { evaluateNode } from './evaluator'
+import type { ModelProvider } from '../model/provider.ts'
+import { parse } from '../parser/parser.ts'
+import { toCollection, toTypedValue } from '../values/typed-value.ts'
+import { createContext, withFrame } from './context.ts'
+import { evaluateNode } from './evaluator.ts'
 
 describe('withFrame', () => {
   it('binds $this, $index, and $total for the body only', () => {

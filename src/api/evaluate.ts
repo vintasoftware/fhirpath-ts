@@ -1,5 +1,5 @@
-import { LruCache } from './cache'
-import { CompiledExpression, type EvaluateOptions } from './compile'
+import { LruCache } from './cache.ts'
+import { CompiledExpression, type EvaluateOptions } from './compile.ts'
 
 const PARSE_CACHE_CAPACITY = 500
 

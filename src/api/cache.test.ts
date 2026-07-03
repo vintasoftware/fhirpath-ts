@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LruCache } from './cache'
+import { LruCache } from './cache.ts'
 
 describe('LruCache', () => {
   it('stores and retrieves values', () => {

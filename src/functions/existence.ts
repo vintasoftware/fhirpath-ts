@@ -1,10 +1,10 @@
-import { pairEquals } from '../engine/operators/equality'
-import { FhirPathTypeError } from '../errors'
-import type { AstNode } from '../parser/ast'
-import { booleanSingleton, wrapBoolean } from '../values/collection'
-import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, systemTypeOf, type TypedValue } from '../values/typed-value'
-import { perItem } from './iteration'
-import { registerFunction } from './registry'
+import { pairEquals } from '../engine/operators/equality.ts'
+import { FhirPathTypeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
+import { booleanSingleton, wrapBoolean } from '../values/collection.ts'
+import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
+import { perItem } from './iteration.ts'
+import { registerFunction } from './registry.ts'
 
 registerFunction('empty', {
   minArity: 0,

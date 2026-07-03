@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { evaluate } from '../../api/evaluate'
-import { wrapBoolean } from '../../values/collection'
-import { binaryOperators, registerTypeOperator, unaryOperators } from './index'
+import { evaluate } from '../../api/evaluate.ts'
+import { wrapBoolean } from '../../values/collection.ts'
+import { binaryOperators, registerTypeOperator, unaryOperators } from './index.ts'
 
 // This file registers throwaway implementations to exercise the dispatch layer.
 // Real operator implementations replace these in their own modules; per-file

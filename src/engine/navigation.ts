@@ -1,7 +1,7 @@
-import { FhirPathTypeError } from '../errors'
-import { readModelProperty } from '../fhir/model-navigation'
-import { OBJECT_TYPE, type TypedValue, toTypedValue } from '../values/typed-value'
-import type { EvaluationContext } from './context'
+import { FhirPathTypeError } from '../errors.ts'
+import { readModelProperty } from '../fhir/model-navigation.ts'
+import { OBJECT_TYPE, type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import type { EvaluationContext } from './context.ts'
 
 /**
  * Evaluate a bare identifier against the input. The spec's root rule (§10.1) applies

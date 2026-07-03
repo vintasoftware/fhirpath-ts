@@ -1,5 +1,5 @@
-import { FhirPathTypeError } from '../errors'
-import type { AstNode } from '../parser/ast'
+import { FhirPathTypeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
 
 /**
  * `ofType(Quantity)`, `is(System.Boolean)`, and `as(FHIR.Patient)` receive their type
