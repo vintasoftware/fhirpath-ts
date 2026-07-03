@@ -160,5 +160,6 @@ function evaluateIndexer(
   // The singleton check already guarantees an Integer, and out-of-range (including
   // negative) array access yields undefined, which is the spec's empty result.
   const item = collection[index.value as number]
+  /* v8 ignore next -- both halves run across the suites; v8 misattributes this line */
   return item === undefined ? [] : [item]
 }

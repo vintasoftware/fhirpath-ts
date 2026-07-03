@@ -44,11 +44,12 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
   try {
     ast = parse(expression)
   } catch (error) {
-    if (error instanceof FhirPathSyntaxError) {
-      return [{ severity: 'error', code: 'syntax', message: error.message, span: error.span }]
+    /* v8 ignore start -- parse only throws syntax errors */
+    if (!(error instanceof FhirPathSyntaxError)) {
+      throw error
     }
-    /* v8 ignore next 2 -- parse only throws syntax errors */
-    throw error
+    /* v8 ignore stop */
+    return [{ severity: 'error', code: 'syntax', message: error.message, span: error.span }]
   }
   const analyzer = new Analyzer(options?.model, options?.inputType)
   analyzer.walk(ast, analyzer.rootState())
@@ -113,11 +114,12 @@ class Analyzer {
         return this.walkBinary(node, input)
       case 'typeOp':
         return this.walkTypeOp(node, input)
-      /* v8 ignore next 4 -- exhaustiveness guard */
+      /* v8 ignore start -- exhaustiveness guard */
       default: {
         const unreachable: never = node
         throw new Error(`Unhandled node ${String(unreachable)}`)
       }
+      /* v8 ignore stop */
     }
   }
 
@@ -332,9 +334,10 @@ class Analyzer {
         }
         return { types: ['System.Boolean'], single: true }
       }
-      /* v8 ignore next 2 -- the parser produces no other binary operators */
+      /* v8 ignore start -- the parser produces no other binary operators */
       default:
         return UNKNOWN
+      /* v8 ignore stop */
     }
   }
 

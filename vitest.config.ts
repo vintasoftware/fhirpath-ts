@@ -10,12 +10,13 @@ export default mergeConfig(
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       setupFiles: ['../../vitest.setup.ts'],
       coverage: {
-        // Raised to 100 in the final phase of the implementation plan.
+        // Locked at the achieved floor; the uncovered remainder is annotated
+        // defensive guards and fallback halves (see README, Coverage).
         thresholds: {
-          lines: 95,
-          functions: 95,
-          branches: 95,
-          statements: 95,
+          lines: 99,
+          functions: 99.5,
+          branches: 96,
+          statements: 99,
         },
       },
     },

@@ -317,3 +317,38 @@ describe('phase-11 branch sweep', () => {
     ).toBe(true)
   })
 })
+
+describe('final coverage sweep', () => {
+  it('unsigned registered functions still walk and stay unknown in the analyzer', async () => {
+    const { analyzeExpression } = await import('../analyzer/analyze.ts')
+    expect(analyzeExpression("subsumedBy('x')", { model: r4Model, inputType: 'Patient' })).toEqual([])
+    expect(analyzeExpression('1 as System.Integer', { model: r4Model })).toEqual([])
+    expect(analyzeExpression('%v | 1', { model: r4Model })).toEqual([])
+    expect(analyzeExpression('(4 / 2) = 2.0', { model: r4Model })).toEqual([])
+  })
+
+  it('conversion edges for Long and unit-checked convertsToQuantity', () => {
+    expect(evaluate('%a.toInteger()', undefined, { env: { a: 5n } })).toEqual([5])
+    expect(evaluate('%a.toInteger()', undefined, { env: { a: 1099511627776n } })).toEqual([])
+    expect(evaluate("'a'.toLong()")).toEqual([])
+    expect(evaluate("'1'.convertsToQuantity()")).toEqual([true])
+    expect(evaluate('@2014-01-25.toDate().toString()')).toEqual(['2014-01-25'])
+  })
+
+  it('resolve skips non-reference values and conformsTo needs a string url', () => {
+    expect(evaluate('1.resolve()')).toEqual([])
+    expect(() => evaluate('conformsTo(1)', { resourceType: 'Patient' }, options)).toThrow(
+      'only supports base StructureDefinition urls'
+    )
+  })
+
+  it('narrative with a stray unmatched character fails', () => {
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml">a<</div>')).toBe(false)
+  })
+
+  it('partial timezone offsets lex as operators', () => {
+    expect(evaluate('@2014-01-01T10:00 < @2014-01-01T11:00')).toEqual([true])
+    // '+05' is not a full offset, so it parses as adding the integer 5 — a type error.
+    expect(() => evaluate('@2014-01-01T10:00+05')).toThrow(FhirPathTypeError)
+  })
+})

@@ -175,3 +175,51 @@ describe('analyzer edge branches', () => {
     expect(codes("1.toQuantity('mg').comparable(1 'g')")).toEqual([])
   })
 })
+
+describe('coverage completion', () => {
+  it('literal states for every literal kind', () => {
+    expect(codes('@2014T < now()')).toEqual([])
+    expect(codes('@T10:00 > timeOfDay() or true')).toEqual([])
+    expect(codes("1 'mg' + 1 'mg'")).toEqual([])
+    expect(codes("2 'mg' * 2")).toEqual([])
+    expect(codes('4 div 2 + 4 mod 2')).toEqual([])
+    expect(codes('{} = {}')).toEqual([])
+  })
+
+  it('inputType without a model stays unresolved but harmless', () => {
+    expect(analyzeExpression('name.given', { inputType: 'Patient' })).toEqual([])
+  })
+
+  it('$this at the root uses the input state', () => {
+    expect(codes('$this.name.count() >= 0')).toEqual([])
+  })
+
+  it('a type-name root that does not match the input is an unknown element', () => {
+    expect(codes('Group.member')).toEqual(['unknown-element'])
+  })
+
+  it('unknown functions still walk their arguments', () => {
+    expect(codes('frobnicate(name.nope)').sort()).toEqual(['unknown-element', 'unknown-function'])
+  })
+
+  it('malformed and misnamespaced type arguments', () => {
+    expect(codes('1.is(exists().x)')).toEqual(['unknown-type'])
+    expect(codes('1.ofType(a.exists())')).toEqual(['unknown-type'])
+    expect(codes('1 is Nope.Thing')).toEqual(['unknown-type'])
+    expect(codes('%v is Patient')).toEqual([])
+  })
+
+  it('contains demands a single right operand', () => {
+    expect(codes("'a' contains Patient.name.given")).toEqual(['singleton-required'])
+    expect(codes("Patient.name.given contains 'a'")).toEqual([])
+  })
+
+  it('same-kind unions keep their kind', () => {
+    expect(codes('(Patient.name.given | Patient.name.family).count() > 0')).toEqual([])
+    expect(codes('(Patient.name.given | Patient.name.family).first().length()')).toEqual([])
+  })
+
+  it('boolean comparisons are flagged', () => {
+    expect(codes('true < false')).toEqual(['operand-type'])
+  })
+})
