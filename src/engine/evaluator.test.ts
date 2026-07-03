@@ -31,7 +31,7 @@ describe('literal evaluation', () => {
 
   it('evaluates temporal literals to their literal text', () => {
     expect(evaluate('@2014-01-25')).toEqual(['2014-01-25'])
-    expect(evaluate('@2014T')).toEqual(['2014T'])
+    expect(evaluate('@2014T')).toEqual(['2014'])
     expect(evaluate('@T14:30')).toEqual(['14:30'])
   })
 

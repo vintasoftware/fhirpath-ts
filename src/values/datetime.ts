@@ -204,7 +204,7 @@ export class Temporal {
         }
       }
     }
-    if (this.kind === 'dateTime') {
+    if (this.kind === 'dateTime' && this.hour !== undefined) {
       parts.push('T')
     }
     if (this.hour !== undefined) {

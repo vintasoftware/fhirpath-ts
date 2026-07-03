@@ -87,7 +87,10 @@ describe('filtering and projection', () => {
       part: [{ name: 'a', part: [{ name: 'b' }, { name: 'c', part: [{ name: 'd' }] }] }],
     }
     expect(evaluate('repeat(part).name', tree)).toEqual(['a', 'b', 'c', 'd'])
-    const looped: Record<string, unknown> = { resourceType: 'Basic', name: 'root' }
+    const looped: { resourceType: string; name: string; self?: unknown } = {
+      resourceType: 'Basic',
+      name: 'root',
+    }
     looped.self = looped
     expect(evaluate('repeat($this).name', looped)).toEqual(['root'])
   })

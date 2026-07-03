@@ -44,9 +44,14 @@ describe('dateTime parsing', () => {
   })
 
   it('prints back the literal text', () => {
-    for (const text of ['2014T', '2014-01-25T14:30:14.559Z', '2014-01-25T14:30+11:00', '2014-01-25T14:30-05:30']) {
+    for (const text of ['2014-01-25T14:30:14.559Z', '2014-01-25T14:30+11:00', '2014-01-25T14:30-05:30']) {
       expect(Temporal.parseDateTime(text)?.toString()).toBe(text)
     }
+  })
+
+  it('a dateTime with no time components prints without the trailing T', () => {
+    expect(Temporal.parseDateTime('2014T')?.toString()).toBe('2014')
+    expect(Temporal.parseDateTime('2014-01-25')?.toString()).toBe('2014-01-25')
   })
 
   it('rejects a dateTime with no T and a bad date', () => {
@@ -85,7 +90,7 @@ describe('time parsing', () => {
 describe('literal form', () => {
   it('prefixes @ and @T', () => {
     expect(Temporal.parseDate('2014-01')?.toLiteralString()).toBe('@2014-01')
-    expect(Temporal.parseDateTime('2014T')?.toLiteralString()).toBe('@2014T')
+    expect(Temporal.parseDateTime('2014T')?.toLiteralString()).toBe('@2014')
     expect(Temporal.parseTime('14:30')?.toLiteralString()).toBe('@T14:30')
   })
 
