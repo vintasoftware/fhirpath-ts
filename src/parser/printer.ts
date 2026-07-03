@@ -99,6 +99,7 @@ function printInner(node: AstNode): string {
       const bindingPower = INFIX_BINDING_POWER[node.operator] as number
       return `${print(node.left, bindingPower)} ${node.operator} ${print(node.right, bindingPower + 1)}`
     }
+    /* v8 ignore next 4 -- exhaustiveness guard, unreachable for real ASTs */
     default: {
       const unreachable: never = node
       throw new Error(`Unhandled node ${String(unreachable)}`)

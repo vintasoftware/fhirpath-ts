@@ -77,6 +77,7 @@ class Parser {
         return this.parseUnary(token)
       case 'punct':
         return this.parsePunctPrefix(token)
+      /* v8 ignore next 2 -- exhaustiveness guard, every token kind has a case above */
       default:
         throw this.error(`Unexpected '${token.text}'`, token)
     }

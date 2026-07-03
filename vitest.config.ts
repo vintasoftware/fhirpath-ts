@@ -9,6 +9,15 @@ export default mergeConfig(
       name: 'fhirpath',
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       setupFiles: ['../../vitest.setup.ts'],
+      coverage: {
+        // Raised to 100 in the final phase of the implementation plan.
+        thresholds: {
+          lines: 95,
+          functions: 95,
+          branches: 95,
+          statements: 95,
+        },
+      },
     },
   })
 )

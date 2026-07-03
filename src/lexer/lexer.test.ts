@@ -161,6 +161,10 @@ describe('numbers', () => {
   it('lexes .5 as dot then number, not a decimal', () => {
     expect(kinds('.5')).toEqual(['punct', 'number'])
   })
+
+  it('a trailing dot at end of input stays a separate token', () => {
+    expect(kinds('5.')).toEqual(['number', 'punct'])
+  })
 })
 
 describe('date, dateTime, and time literals', () => {
@@ -228,6 +232,12 @@ describe('date, dateTime, and time literals', () => {
 
   it.each([['@'], ['@20'], ['@201'], ['@T'], ['@Tabc'], ['@abcd']])('rejects malformed literal %s', source => {
     expect(() => tokenize(source)).toThrow(FhirPathSyntaxError)
+  })
+
+  it('handles truncation at end of input', () => {
+    expect(kinds('@T12:00:00.')).toEqual(['time', 'punct'])
+    expect(kinds('@2014-01-01T10:00+')).toEqual(['dateTime', 'operator'])
+    expect(kinds('@2014-')).toEqual(['date', 'operator'])
   })
 })
 

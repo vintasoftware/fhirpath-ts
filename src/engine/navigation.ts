@@ -1,0 +1,48 @@
+import { OBJECT_TYPE, type TypedValue, toTypedValue, typeLocalName } from '../values/typed-value'
+import type { EvaluationContext } from './context'
+
+/**
+ * Evaluate a bare identifier against the input. The spec's root rule (§10.1) applies
+ * first: an identifier naming the item's own type yields the item itself, which is
+ * how `Patient.name` works when the context is a Patient.
+ */
+export function navigateIdentifier(context: EvaluationContext, name: string, input: TypedValue[]): TypedValue[] {
+  const results: TypedValue[] = []
+  for (const item of input) {
+    if (matchesTypeName(context, item, name)) {
+      results.push(item)
+    } else {
+      results.push(...getProperty(item, name))
+    }
+  }
+  return results
+}
+
+function matchesTypeName(context: EvaluationContext, item: TypedValue, name: string): boolean {
+  if (typeLocalName(item.type) === name && item.type !== OBJECT_TYPE) {
+    return true
+  }
+  if (context.model) {
+    const canonical = context.model.resolveType(name)
+    if (canonical !== undefined) {
+      return context.model.isSubtypeOf(item.type, canonical)
+    }
+  }
+  return false
+}
+
+/** Read one child element from a complex value, flattening arrays. Missing → empty. */
+export function getProperty(item: TypedValue, name: string): TypedValue[] {
+  const value = item.value
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return []
+  }
+  const child = (value as Record<string, unknown>)[name]
+  if (child === undefined || child === null) {
+    return []
+  }
+  if (Array.isArray(child)) {
+    return child.filter(element => element !== null && element !== undefined).map(element => toTypedValue(element))
+  }
+  return [toTypedValue(child)]
+}

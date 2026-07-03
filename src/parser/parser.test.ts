@@ -264,6 +264,8 @@ describe('syntax errors', () => {
     ['and', "Unexpected 'and'"],
     ['a.true', "Expected an element or function name after '.'"],
     ['(a)(b)', 'Unexpected parentheses'],
+    [',5', "Unexpected ','"],
+    [')', "Unexpected ')'"],
     ['2 + 2 /* not finished', 'Unterminated comment'],
   ])('rejects %j', (source, message) => {
     expect(() => parse(source)).toThrow(message)
