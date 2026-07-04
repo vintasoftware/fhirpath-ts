@@ -18,7 +18,8 @@ describe('remaining branch coverage', () => {
     expect(evaluate("'a'.endsWith({})")).toEqual([])
     expect(evaluate("'a'.contains({})")).toEqual([])
     expect(evaluate("'a'.lastIndexOf({})")).toEqual([])
-    expect(evaluate("'ab'.substring(0, {})")).toEqual([])
+    // substring's empty length means "to the end" (both reference engines agree).
+    expect(evaluate("'ab'.substring(0, {})")).toEqual(['ab'])
   })
 
   it('json escaping covers newlines and backslashes', () => {

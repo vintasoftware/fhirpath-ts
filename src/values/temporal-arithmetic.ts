@@ -84,19 +84,21 @@ function precisionLevel(precision: TemporalPrecision): number {
 export function addDuration(temporal: Temporal, quantity: QuantityValue, sign: 1 | -1): Temporal | undefined {
   const duration = resolveDuration(quantity)
   // Times have no year/month/day components to add to.
-  if (temporal.kind === 'time' && duration.level <= (COMPONENT_LEVELS['day'] as number)) {
+  const dayLevel = 2
+  if (temporal.kind === 'time' && duration.level <= dayLevel) {
     throw new FhirPathRuntimeError(`Cannot add a quantity of '${quantity.unit}' to a Time value`)
   }
   let level = duration.level
   let amount = duration.amount * sign
   let targetLevel = Math.min(precisionLevel(temporal.precision), temporal.kind === 'date' ? 2 : 6)
-  // Fractional seconds add as milliseconds (R5) and extend the result's precision.
+  // Fractional seconds add as milliseconds (R5); millisecond-level additions
+  // extend a second-precision value to milliseconds instead of truncating.
   if (level === 5 && !Number.isInteger(amount)) {
     level = 6
     amount = Math.round(amount * 1000)
-    if (targetLevel === 5) {
-      targetLevel = 6
-    }
+  }
+  if (level === 6 && targetLevel === 5) {
+    targetLevel = 6
   }
   while (level > targetLevel) {
     if (level === 2 && targetLevel === 0) {

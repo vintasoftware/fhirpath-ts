@@ -130,8 +130,9 @@ describe('date component extraction', () => {
     expect(evaluate('@2014.dateOf().toString()')).toEqual(['2014'])
   })
 
-  it('rejects non-temporal input', () => {
-    expect(() => evaluate('1.yearOf()')).toThrow(FhirPathTypeError)
+  it('non-temporal input is not applicable, so empty', () => {
+    expect(evaluate('1.yearOf()')).toEqual([])
+    expect(evaluate("'2014-01-05'.yearOf()")).toEqual([])
   })
 })
 

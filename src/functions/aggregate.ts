@@ -3,8 +3,8 @@ import { FhirPathTypeError } from '../errors.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { Decimal } from '../values/decimal.ts'
 import { asNumeric, type NumericKind, widerKind, wrapNumeric } from '../values/numeric.ts'
-import { alignQuantities, coerceQuantity, type QuantityValue } from '../values/quantity.ts'
-import { SYSTEM_DECIMAL, SYSTEM_QUANTITY, type TypedValue } from '../values/typed-value.ts'
+import { alignQuantities, coerceQuantity } from '../values/quantity.ts'
+import { type QuantityValue, SYSTEM_DECIMAL, SYSTEM_QUANTITY, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
 registerFunction('aggregate', {

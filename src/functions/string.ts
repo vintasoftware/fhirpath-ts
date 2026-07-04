@@ -85,7 +85,13 @@ registerFunction('substring', {
     if (args.length === 1) {
       return str(value.slice(start.value))
     }
-    const length = singleton(evaluateNode(args[1] as AstNode, context, input), SYSTEM_INTEGER)
+    const lengthCollection = evaluateNode(args[1] as AstNode, context, input)
+    if (lengthCollection.length === 0) {
+      // An empty length means "to the end", like the one-argument form.
+      return str(value.slice(start.value))
+    }
+    const length = singleton(lengthCollection, SYSTEM_INTEGER)
+    /* v8 ignore next 3 -- singleton(SYSTEM_INTEGER) only returns integer items */
     if (length === undefined || typeof length.value !== 'number') {
       return []
     }

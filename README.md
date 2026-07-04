@@ -64,6 +64,21 @@ service), CDA mode (needs a CDA model), lenient-polymorphics mode, strict-mode
 static-typing cases (enforced by the analyzer instead of the evaluator), R5-only
 elements (this package ships the R4 model), and four documented suite oddities.
 
+The reference implementations' own corpora run too (`src/fhirpathjs.test.ts`):
+
+| Corpus | Pass | Skipped (with reasons) |
+| --- | --- | --- |
+| [HL7/fhirpath.js](https://github.com/HL7/fhirpath.js) `test/cases` + [fhirpath-py](https://github.com/beda-software/fhirpath-py) extras | 2,289 | 1,380 |
+
+Skips are non-R4 models (1,078 — mostly `model: r5`), cases disabled upstream, and
+241 **documented intentional divergences** in `test-data/fhirpathjs/quirk-manifest.ts`
+— places where the reference behavior contradicts the spec text or the official
+suites (their whitespace-trimming `~`, month = 30 days, flags argument on
+`matches()`, …). Each manifest family carries its evidence, and hygiene tests keep
+it exact. [octofhir/fhirpath-rs](https://github.com/octofhir/fhirpath-rs) was
+reviewed as well: its corpus is a regrouped official R5 suite plus custom cases
+ported into `src/reference-crosschecks.test.ts` (alongside Medplum spot checks).
+
 ## Static checking (spec §11)
 
 Three layers, from cheapest to most thorough:

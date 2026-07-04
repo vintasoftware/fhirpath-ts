@@ -246,10 +246,10 @@ describe('final branch sweep', () => {
     expect(evaluate('@T10:00.toTime().toString()')).toEqual(['10:00'])
   })
 
-  it('temporal component functions reject non-temporal inputs', () => {
-    expect(() => evaluate('1.timezoneOffsetOf()')).toThrow()
-    expect(() => evaluate('1.dateOf()')).toThrow()
-    expect(() => evaluate('1.timeOf()')).toThrow()
+  it('temporal component functions are empty for non-temporal inputs', () => {
+    expect(evaluate('1.timezoneOffsetOf()')).toEqual([])
+    expect(evaluate('1.dateOf()')).toEqual([])
+    expect(evaluate('1.timeOf()')).toEqual([])
   })
 
   it('boundary at a precision matching the value is unchanged', () => {

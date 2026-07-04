@@ -1,0 +1,258 @@
+{
+  "3.2_paths.yaml": {
+    "subject": {
+      "contained": [
+        {
+          "resourceType": "Observation",
+          "valueString": "medium"
+        },
+        {
+          "contained": [
+            {
+              "resourceType": "Observation",
+              "valueString": "zero"
+            }
+          ],
+          "resourceType": "Observation",
+          "valueString": "low"
+        },
+        {
+          "item": [
+            {
+              "answer": [
+                {
+                  "item": [
+                    {
+                      "answer": [
+                        {
+                          "valueString": "Green"
+                        }
+                      ],
+                      "linkId": "1.0"
+                    }
+                  ],
+                  "valueString": "Red"
+                }
+              ],
+              "item": [
+                {
+                  "answer": [
+                    {
+                      "valueString": "Blue"
+                    }
+                  ],
+                  "linkId": "1.1"
+                }
+              ],
+              "linkId": "1"
+            }
+          ],
+          "resourceType": "QuestionnaireResponse"
+        }
+      ],
+      "resourceType": "Observation",
+      "valueString": "high"
+    },
+    "tests": [
+      {
+        "desc": "Observation.value with an R5 FHIR model",
+        "expression": "Observation.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r5",
+        "result": ["high"]
+      },
+      {
+        "desc": "Observation.value with an R4 FHIR model",
+        "expression": "Observation.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["high"]
+      },
+      {
+        "desc": "Observation.value with an STU3 FHIR model",
+        "expression": "Observation.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "stu3",
+        "result": ["high"]
+      },
+      {
+        "desc": "Observation.value with an DSTU2 FHIR model",
+        "expression": "Observation.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "dstu2",
+        "result": ["high"]
+      },
+      {
+        "desc": "Observation.value without a model",
+        "expression": "Observation.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "result": []
+      },
+      {
+        "desc": "Observation.value contained in another resource (1)",
+        "expression": "Observation.contained[0].value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["medium"]
+      },
+      {
+        "desc": "Observation.value contained in another resource (2)",
+        "expression": "Observation.contained.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["medium", "low"]
+      },
+      {
+        "desc": "Getting choice type fields via children()",
+        "expression": "Observation.children().value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["medium", "low"]
+      },
+      {
+        "desc": "Getting choice type fields via children() (2)",
+        "expression": "Observation.children().children().value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["zero"]
+      },
+      {
+        "desc": "Getting choice type fields via descendants()",
+        "expression": "Observation.descendants().value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["medium", "low", "zero", "Red", "Blue", "Green"]
+      },
+      {
+        "desc": "Getting choice type fields via descendants() and where()",
+        "expression": "Observation.descendants().where(resourceType = 'Observation').value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["medium", "low", "zero"]
+      },
+      {
+        "desc": "QR with where()",
+        "expression": "contained.where(resourceType = 'QuestionnaireResponse').item.where(linkId = '1').answer.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["Red"]
+      },
+      {
+        "desc": "QR with descendants() and where() (1)",
+        "expression": "contained.where(resourceType = 'QuestionnaireResponse').descendants().where(linkId = '1').answer.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["Red"]
+      },
+      {
+        "desc": "QR with descendants() and where() (2)",
+        "expression": "contained.where(resourceType = 'QuestionnaireResponse').descendants().where(linkId = '1.0').answer.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["Green"]
+      },
+      {
+        "desc": "QR with descendants() and where() (3)",
+        "expression": "contained.where(resourceType = 'QuestionnaireResponse').descendants().where(linkId = '1.1').answer.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["Blue"]
+      },
+      {
+        "desc": "QR with item.answer.value",
+        "expression": "contained.where(resourceType = 'QuestionnaireResponse').item.answer.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["Red"]
+      },
+      {
+        "desc": "QR with item.item.answer.value",
+        "expression": "contained.where(resourceType = 'QuestionnaireResponse').item.item.answer.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["Blue"]
+      },
+      {
+        "desc": "QR with item.answer.item.answer.value",
+        "expression": "contained.where(resourceType = 'QuestionnaireResponse').item.answer.item.answer.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "r4",
+        "result": ["Green"]
+      },
+      {
+        "desc": "QR with item.answer.item.answer.value (STU3)",
+        "expression": "contained.where(resourceType = 'QuestionnaireResponse').item.answer.item.answer.value",
+        "groupPath": ["Paths with choice types"],
+        "inheritedDisable": false,
+        "model": "stu3",
+        "result": ["Green"]
+      }
+    ]
+  },
+  "5.2.8_coalesce.yaml": {
+    "subject": {
+      "identifier": [
+        {
+          "system": "required-system",
+          "value": "required-value"
+        }
+      ],
+      "resourceType": "Patient"
+    },
+    "tests": [
+      {
+        "desc": "** returns first non-empty value from identifier",
+        "expression": "coalesce(Patient.identifier.where(system='required-system').value.first(), 'unknown')",
+        "groupPath": [],
+        "inheritedDisable": false,
+        "result": ["required-value"]
+      },
+      {
+        "desc": "** returns fallback when first is empty",
+        "expression": "coalesce(Patient.identifier.where(system='other-system').value.first(), 'unknown')",
+        "groupPath": [],
+        "inheritedDisable": false,
+        "result": ["unknown"]
+      },
+      {
+        "desc": "** returns first non-empty collection among multiple args",
+        "expression": "coalesce({}, (1 | 2), (3 | 4))",
+        "groupPath": [],
+        "inheritedDisable": false,
+        "result": [1, 2]
+      },
+      {
+        "desc": "** returns single value when first arg is empty",
+        "expression": "coalesce({}, 1)",
+        "groupPath": [],
+        "inheritedDisable": false,
+        "result": [1]
+      },
+      {
+        "desc": "** returns empty when only arg is empty",
+        "expression": "coalesce({})",
+        "groupPath": [],
+        "inheritedDisable": false,
+        "result": []
+      }
+    ]
+  }
+}

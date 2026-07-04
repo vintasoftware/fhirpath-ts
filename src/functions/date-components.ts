@@ -1,17 +1,14 @@
-import { FhirPathTypeError } from '../errors.ts'
 import { singleton } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
 import { SYSTEM_DATE, SYSTEM_DECIMAL, SYSTEM_INTEGER, SYSTEM_TIME, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
-function temporalInput(name: string, input: TypedValue[]): Temporal | undefined {
+function temporalInput(_name: string, input: TypedValue[]): Temporal | undefined {
   const item = singleton(input)
-  if (item === undefined) {
+  if (item === undefined || !(item.value instanceof Temporal)) {
+    // Component extraction from a non-temporal value is not applicable → empty.
     return undefined
-  }
-  if (!(item.value instanceof Temporal)) {
-    throw new FhirPathTypeError(`${name}() is not defined for ${item.type}`)
   }
   return item.value
 }

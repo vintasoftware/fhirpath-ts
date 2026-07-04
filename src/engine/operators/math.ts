@@ -9,7 +9,6 @@ import {
   calendarToUcumLoose,
   coerceQuantity,
   composeUnits,
-  convertQuantity,
   promoteQuantity,
 } from '../../values/quantity.ts'
 import { addDuration } from '../../values/temporal-arithmetic.ts'
@@ -20,7 +19,7 @@ import {
   systemTypeOf,
   type TypedValue,
 } from '../../values/typed-value.ts'
-import { canonicalizeUnit } from '../../values/ucum.ts'
+import { canonicalizeUnit, sameDimensions } from '../../values/ucum.ts'
 import type { BinaryOperatorTable, UnaryOperatorImpl } from './index.ts'
 
 type ArithmeticOperator = '+' | '-' | '*' | '/' | 'div' | 'mod'
@@ -99,13 +98,24 @@ function quantityArithmetic(operator: ArithmeticOperator, left: QuantityValue, r
  */
 function calendarMultiplicative(operator: '*' | '/', left: QuantityValue, right: QuantityValue): TypedValue[] {
   if (operator === '/') {
+    if (left.calendar) {
+      const factor = right.calendar ? undefined : dimensionlessValue(right)
+      if (factor !== undefined) {
+        // Scaling a duration keeps its calendar unit: 1 year / 2 = 0.5 years.
+        const scaled = left.value.divide(factor)
+        return scaled === undefined ? [] : [{ type: SYSTEM_QUANTITY, value: { ...left, value: scaled } }]
+      }
+    }
     // Ratios of durations are well defined; both sides drop to their UCUM twins
-    // (185 months / 185 'mo' = 1 '1'). Same-dimension ratios cancel to '1'.
+    // (185 months / 185 'mo' = 1 '1'), computing through exact canonical factors.
     const leftUcum = calendarAsUcum(left)
     const rightUcum = calendarAsUcum(right)
-    const aligned = convertQuantity(rightUcum, leftUcum.unit)
-    if (aligned !== undefined) {
-      const ratio = leftUcum.value.divide(aligned.value)
+    const leftCanonical = canonicalizeUnit(leftUcum.unit)
+    const rightCanonical = canonicalizeUnit(rightUcum.unit)
+    if (leftCanonical && rightCanonical && sameDimensions(leftCanonical, rightCanonical)) {
+      const ratio = leftUcum.value
+        .multiply(leftCanonical.factor)
+        .divide(rightUcum.value.multiply(rightCanonical.factor))
       return ratio === undefined ? [] : [{ type: SYSTEM_QUANTITY, value: { value: ratio, unit: '1', calendar: false } }]
     }
     return quantityArithmetic('/', leftUcum, rightUcum)
