@@ -10,7 +10,8 @@ Vendored reference-implementation test cases, converted from YAML to JSON offlin
 | `resources/*.json` | fhirpath.js `test/resources/r4/` (the fixtures the r4/model-less cases reference) | same as `cases.json` |
 
 `LICENSE.md` is the fhirpath.js license (NLM/Health Samurai, BSD-style) and covers
-the cases and fixtures.
+`cases.json` and the fixtures. `LICENSE-fhirpath-py.md` is the fhirpath-py MIT
+license (beda.software) and covers `cases-py-extras.json`.
 
 ## How the harness runs them (`src/fhirpathjs.test.ts`)
 
