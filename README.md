@@ -167,15 +167,20 @@ production (org policy: never log PHI values; use record ids instead).
 
 ## Licensing and attribution
 
-Package code is part of this repository (private). It contains:
+Package code is part of this repository (private). All third-party material it
+contains is consolidated with full license texts in
+[`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md) — ship that file with any
+future redistribution (npm, OSS extraction). In short:
 
 - Parser structure adapted from Medplum (Apache-2.0) — see `src/parser/parser.ts`.
 - Official FHIRPath test suites from FHIR/fhir-test-cases (Apache-2.0 / FHIR CC0
   content) — `test-data/official/`, license alongside.
-- JSON fixture conversions from HL7/fhirpath.js (NLM public-domain-style license) —
-  `test-data/official/FIXTURES-LICENSE.md`.
+- Reference test corpora from HL7/fhirpath.js (NLM BSD-style) and
+  beda-software/fhirpath-py (MIT) — `test-data/fhirpathjs/`, licenses alongside.
+- Custom test cases from octofhir/fhirpath-rs (Apache-2.0) and Medplum spot checks
+  — `src/reference-crosschecks.test.ts`.
 - R4 model data generated from the HL7 FHIR R4 StructureDefinitions (CC0) shipped in
-  `@medplum/definitions`.
+  `@medplum/definitions`. FHIR® is a registered trademark of HL7.
 
 ## Development
 
