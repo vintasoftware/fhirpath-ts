@@ -129,11 +129,26 @@ Planned but deliberately out of v1; each fails with a clear error today:
 | Full UCUM | The built-in subset covers the official suites | Swap `values/ucum.ts` internals for `@lhncbc/ucum-lhc` |
 | R5 model package | This repo runs R4 (Medplum) | Re-run the generator against R5 definitions |
 
-## PHI note
+## Security
 
-`trace()` is a no-op unless you pass a `trace` sink. Traced values may contain
-patient data — do not point the sink at console output or log files in production
-(org policy: never log PHI values; use record ids instead).
+**Expression trust boundary.** The engine is hardened against hostile *expressions*
+in most dimensions — parser nesting is capped, tokenization is linear, UCUM
+exponents and decimal exponents are bounded, and navigation never reads the
+prototype chain — with one documented exception: `matches()`, `matchesFull()`, and
+`replaceMatches()` compile their pattern argument with the host `RegExp`, so a
+catastrophic-backtracking pattern like `(a+)+$` can stall the event loop. This is
+fine when expressions are developer-authored (the normal case). If a deployment
+evaluates **user-authored** FHIRPath — SDC `enableWhen`, Questionnaire logic,
+stored expressions — vet or sandbox those expressions and bound the subject string
+length; a true regex timeout is impractical without native dependencies.
+
+**Narrative checking.** `htmlChecks()` validates against FHIR's narrative rules
+with an inert-URL-scheme allowlist, entity-decoding attribute values the way a
+browser would. A `true` result means the narrative carries no active content.
+
+**PHI note.** `trace()` is a no-op unless you pass a `trace` sink. Traced values
+may contain patient data — do not point the sink at console output or log files in
+production (org policy: never log PHI values; use record ids instead).
 
 ## Licensing and attribution
 
