@@ -174,6 +174,13 @@ describe('conversions', () => {
     ["'4 days'.convertsToQuantity()", [true]],
     ["'x'.convertsToQuantity()", [false]],
     ['{}.convertsToQuantity()', []],
+    // With a unit argument, convertible exactly when toQuantity(unit) succeeds.
+    ["4.5 'mg'.convertsToQuantity('mg')", [true]],
+    ["4.5 'mg'.convertsToQuantity('kg')", [true]],
+    ["4.5 'mg'.convertsToQuantity('cm')", [false]],
+    ["4.5 'mg'.convertsToQuantity('s')", [false]],
+    ["'x'.convertsToQuantity('mg')", [false]],
+    ["{}.convertsToQuantity('mg')", []],
   ])('%s', (expression, expected) => {
     expect(evaluate(expression)).toEqual(expected)
   })
@@ -204,6 +211,7 @@ describe('conversions', () => {
 
   it('toQuantity unit argument must be a string', () => {
     expect(() => evaluate("4.5 'mg'.toQuantity(1)")).toThrow(FhirPathTypeError)
+    expect(() => evaluate("4.5 'mg'.convertsToQuantity(1)")).toThrow(FhirPathTypeError)
   })
 })
 

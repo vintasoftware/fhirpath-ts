@@ -18,6 +18,7 @@ import {
   systemTypeOf,
   type TypedValue,
 } from '../values/typed-value.ts'
+import type { FhirPathFunction } from './registry.ts'
 import { registerFunction } from './registry.ts'
 
 type Converter = (item: TypedValue) => TypedValue | undefined
@@ -281,42 +282,46 @@ function quantityConverter(item: TypedValue): TypedValue | undefined {
   }
 }
 
+const toQuantityImpl: FhirPathFunction['evaluate'] = (context, input, args, evaluateNode) => {
+  const item = singleton(input)
+  if (item === undefined) {
+    return []
+  }
+  const converted = quantityConverter(item)
+  if (converted === undefined) {
+    return []
+  }
+  if (args.length === 1) {
+    const unitArg = singleton(evaluateNode(args[0] as NonNullable<(typeof args)[0]>, context, input))
+    if (unitArg === undefined || unitArg.type !== SYSTEM_STRING) {
+      throw new FhirPathTypeError('toQuantity() expects a String unit argument')
+    }
+    const quantity = converted.value as QuantityValue
+    const target = unitArg.value as string
+    if (quantity.unit !== target || quantity.calendar) {
+      const convertedQuantity = convertQuantity(quantity, target)
+      return convertedQuantity === undefined ? [] : [{ type: SYSTEM_QUANTITY, value: convertedQuantity }]
+    }
+  }
+  return [converted]
+}
+
 registerFunction('toQuantity', {
   minArity: 0,
   maxArity: 1,
-  evaluate: (context, input, args, evaluateNode) => {
-    const item = singleton(input)
-    if (item === undefined) {
-      return []
-    }
-    const converted = quantityConverter(item)
-    if (converted === undefined) {
-      return []
-    }
-    if (args.length === 1) {
-      const unitArg = singleton(evaluateNode(args[0] as NonNullable<(typeof args)[0]>, context, input))
-      if (unitArg === undefined || unitArg.type !== SYSTEM_STRING) {
-        throw new FhirPathTypeError('toQuantity() expects a String unit argument')
-      }
-      const quantity = converted.value as QuantityValue
-      const target = unitArg.value as string
-      if (quantity.unit !== target || quantity.calendar) {
-        const convertedQuantity = convertQuantity(quantity, target)
-        return convertedQuantity === undefined ? [] : [{ type: SYSTEM_QUANTITY, value: convertedQuantity }]
-      }
-    }
-    return [converted]
-  },
+  evaluate: toQuantityImpl,
 })
 
 registerFunction('convertsToQuantity', {
   minArity: 0,
   maxArity: 1,
-  evaluate: (_context, input) => {
+  // Same path as toQuantity so the toX/convertsToX contract holds with a unit
+  // argument too: convertible exactly when toQuantity(unit) is non-empty.
+  evaluate: (context, input, args, evaluateNode) => {
     const item = singleton(input)
     if (item === undefined) {
       return []
     }
-    return wrapBoolean(quantityConverter(item) !== undefined)
+    return wrapBoolean(toQuantityImpl(context, input, args, evaluateNode).length > 0)
   },
 })
