@@ -35,7 +35,8 @@ registerFunction('trace', {
 function clockParts(now: Date): { date: string; time: string; offset: number } {
   const pad = (value: number): string => String(value).padStart(2, '0')
   const date = `${String(now.getFullYear()).padStart(4, '0')}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+  const millis = String(now.getMilliseconds()).padStart(3, '0')
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${millis}`
   return { date, time, offset: -now.getTimezoneOffset() }
 }
 
@@ -56,6 +57,7 @@ registerFunction('now', {
       hour: value.hour,
       minute: value.minute,
       second: value.second,
+      fraction: value.fraction,
       timezoneOffsetMinutes: offset,
     }) as Temporal
     return [{ type: SYSTEM_DATETIME, value: withOffset }] as TypedValue[]

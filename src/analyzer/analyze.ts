@@ -80,7 +80,10 @@ class Analyzer {
       case 'string':
         return { types: ['System.String'], single: true }
       case 'number':
-        return { types: [node.isDecimal ? 'System.Decimal' : 'System.Integer'], single: true }
+        return {
+          types: [node.isLong ? 'System.Long' : node.isDecimal ? 'System.Decimal' : 'System.Integer'],
+          single: true,
+        }
       case 'date':
         return { types: ['System.Date'], single: true }
       case 'dateTime':

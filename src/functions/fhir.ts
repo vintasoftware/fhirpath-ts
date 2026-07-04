@@ -2,8 +2,8 @@ import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { validateNarrative } from '../fhir/html-checks.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
-import { coerceQuantity, compareQuantities } from '../values/quantity.ts'
-import { SYSTEM_STRING, systemTypeOf, type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import { calendarToUcumLoose, compareQuantities, promoteQuantity } from '../values/quantity.ts'
+import { SYSTEM_QUANTITY, SYSTEM_STRING, systemTypeOf, type TypedValue, toTypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
 /** extension(url): extensions of each item, including primitive `_field` extensions. */
@@ -45,16 +45,27 @@ function extensionsOf(item: TypedValue): unknown[] {
   return result
 }
 
-/** True when the single input item is a primitive holding an actual value. */
+/**
+ * True when the input holds a single primitive with an actual value; a multi-item
+ * input is "not a single value" (FHIR spec wording), so false — not an error.
+ */
 registerFunction('hasValue', {
   minArity: 0,
   maxArity: 0,
   evaluate: (_context, input) => {
-    const item = singleton(input)
-    if (item === undefined) {
+    if (input.length === 0) {
       return []
     }
-    return wrapBoolean(systemTypeOf(item) !== undefined && item.value !== undefined && item.value !== null)
+    if (input.length > 1) {
+      return wrapBoolean(false)
+    }
+    const item = input[0] as TypedValue
+    return wrapBoolean(
+      systemTypeOf(item) !== undefined &&
+        item.type !== SYSTEM_QUANTITY &&
+        item.value !== undefined &&
+        item.value !== null
+    )
   },
 })
 
@@ -62,8 +73,11 @@ registerFunction('getValue', {
   minArity: 0,
   maxArity: 0,
   evaluate: (_context, input) => {
-    const item = singleton(input)
-    if (item === undefined || systemTypeOf(item) === undefined || item.value === undefined) {
+    if (input.length !== 1) {
+      return []
+    }
+    const item = input[0] as TypedValue
+    if (systemTypeOf(item) === undefined || item.value === undefined) {
       return []
     }
     return [{ type: systemTypeOf(item) as string, value: item.value }]
@@ -163,12 +177,14 @@ registerFunction('comparable', {
     if (left === undefined || right === undefined) {
       return []
     }
-    const a = coerceQuantity(left)
-    const b = coerceQuantity(right)
+    const a = promoteQuantity(left)
+    const b = promoteQuantity(right)
     if (!(a && b)) {
       throw new FhirPathTypeError('comparable() expects Quantity operands')
     }
-    return wrapBoolean(compareQuantities(a, b) !== undefined)
+    // Dimensions decide comparability, so calendar durations count as their
+    // loose UCUM twins: 1 year.comparable(1 second) is true.
+    return wrapBoolean(compareQuantities(calendarToUcumLoose(a), calendarToUcumLoose(b)) !== undefined)
   },
 })
 

@@ -57,6 +57,31 @@ export const r4Model: ModelProvider = {
     return { types: found.t, isCollection: found.a === 1, isChoice: found.c === 1 }
   },
 
+  listElements(type: string): string[] | undefined {
+    let current: string | undefined = localName(type)
+    if (!lookupType(current)) {
+      return undefined
+    }
+    const names: string[] = []
+    const seen = new Set<string>()
+    const visited = new Set<string>()
+    while (current !== undefined && !visited.has(current)) {
+      visited.add(current)
+      const definition = lookupType(current)
+      if (!definition) {
+        break
+      }
+      for (const name of Object.keys(definition.e)) {
+        if (!seen.has(name)) {
+          seen.add(name)
+          names.push(name)
+        }
+      }
+      current = definition.b
+    }
+    return names
+  },
+
   isSubtypeOf(type: string, base: string): boolean {
     const target = localName(base)
     let current: string | undefined = localName(type)

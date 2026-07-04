@@ -68,7 +68,7 @@ function printInner(node: AstNode): string {
     case 'string':
       return `'${escapeQuoted(node.value, "'")}'`
     case 'number':
-      return node.text
+      return node.isLong ? `${node.text}L` : node.text
     case 'date':
       return `@${node.text}`
     case 'dateTime':

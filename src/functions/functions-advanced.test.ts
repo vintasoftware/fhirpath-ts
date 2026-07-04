@@ -142,7 +142,7 @@ describe('aggregate and convenience aggregates', () => {
     ['(1 | 2 | 3).aggregate(iif($total.empty(), $this, iif($this < $total, $this, $total)))', [1]],
     ['{}.aggregate($this + $total, 5)', [5]],
     ['(1 | 2 | 3 | 4).sum()', [10]],
-    ['{}.sum()', [0]],
+    ['{}.sum()', []],
     ['(1.5 | 2.5).sum()', [4]],
     ['(1 | 2 | 3).min()', [1]],
     ['(3 | 1 | 2).max()', [3]],
@@ -268,7 +268,7 @@ describe('clock functions', () => {
 
   it('now/today/timeOfDay come from the injected clock', () => {
     expect(evaluate('today().toString()', undefined, { now })).toEqual(['2026-07-03'])
-    expect(evaluate('timeOfDay().toString()', undefined, { now })).toEqual(['14:30:45'])
+    expect(evaluate('timeOfDay().toString()', undefined, { now })).toEqual(['14:30:45.000'])
     const [nowText] = evaluate('now().toString()', undefined, { now }) as [string]
     expect(nowText.startsWith('2026-07-03T14:30:45')).toBe(true)
     expect(evaluate('now() = now()', undefined, { now })).toEqual([true])

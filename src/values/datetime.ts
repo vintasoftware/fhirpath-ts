@@ -149,9 +149,21 @@ export class Temporal {
         inRange(fields.day, 1, 31) &&
         inRange(fields.hour, 0, 23) &&
         inRange(fields.minute, 0, 59) &&
-        inRange(fields.second, 0, 59)
+        inRange(fields.second, 0, 60)
       )
     ) {
+      return undefined
+    }
+    // @2019-02-29 is not a date; timezone offsets only exist within -12:00..+14:00.
+    if (
+      fields.day !== undefined &&
+      fields.month !== undefined &&
+      fields.year !== undefined &&
+      fields.day > daysInMonth(fields.year, fields.month)
+    ) {
+      return undefined
+    }
+    if (fields.timezoneOffsetMinutes !== undefined && Math.abs(fields.timezoneOffsetMinutes) > 14 * 60) {
       return undefined
     }
     return new Temporal({ kind, ...fields })
@@ -233,6 +245,10 @@ export class Temporal {
 
 function optionalNumber(text: string | undefined): number | undefined {
   return text === undefined ? undefined : Number(text)
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate()
 }
 
 function inRange(value: number | undefined, min: number, max: number): boolean {

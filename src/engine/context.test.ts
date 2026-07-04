@@ -49,9 +49,7 @@ describe('model-aware root identifiers', () => {
     const patient = toTypedValue({ resourceType: 'Patient', id: 'x' })
     const context = createContext({ root: [patient], model })
     expect(evaluateNode(parse('Resource.id'), context, [patient]).map(item => item.value)).toEqual(['x'])
-    // A mismatched root type name is an unknown element under a model: an error.
-    expect(() => evaluateNode(parse('Observation.id'), context, [patient])).toThrow(
-      "Element 'Observation' is not defined"
-    )
+    // A mismatched root type name navigates to empty (the analyzer flags it statically).
+    expect(evaluateNode(parse('Observation.id'), context, [patient])).toEqual([])
   })
 })

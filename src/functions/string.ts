@@ -122,6 +122,12 @@ stringFunction('replace', { min: 2, max: 2 }, (value, [pattern, substitution]) =
 
 function compileRegex(name: string, pattern: string, flags: string): RegExp {
   try {
+    // Unicode mode enables \p{...} property escapes and full code-point matching.
+    return new RegExp(pattern, `${flags}u`)
+  } catch {
+    // Patterns with annex-B quirks (e.g. unescaped braces) only compile without it.
+  }
+  try {
     return new RegExp(pattern, flags)
   } catch {
     throw new FhirPathTypeError(`${name}() received an invalid regular expression`)
@@ -164,12 +170,15 @@ registerFunction('join', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const separator = args.length === 1 ? stringArgument('join', context, input, args[0] as AstNode, evaluateNode) : ''
-    const parts = input.map(item => {
+    const parts: string[] = []
+    for (const item of input) {
       if (systemTypeOf(item) !== SYSTEM_STRING) {
         throw new FhirPathTypeError(`join() expects a collection of strings, found ${item.type}`)
       }
-      return item.value as string
-    })
+      if (item.value !== undefined) {
+        parts.push(item.value as string)
+      }
+    }
     return str(parts.join(separator ?? ''))
   },
 })

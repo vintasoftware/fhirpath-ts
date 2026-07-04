@@ -61,6 +61,21 @@ registerFunction('repeat', {
   },
 })
 
+/** coalesce(...) — ballot STU: the first argument that evaluates non-empty. */
+registerFunction('coalesce', {
+  minArity: 0,
+  maxArity: 99,
+  evaluate: (context, input, args, evaluateNode) => {
+    for (const arg of args) {
+      const value = evaluateNode(arg, context, input)
+      if (value.length > 0) {
+        return value
+      }
+    }
+    return []
+  },
+})
+
 registerFunction('ofType', {
   minArity: 1,
   maxArity: 1,

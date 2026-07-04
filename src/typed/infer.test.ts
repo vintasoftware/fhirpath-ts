@@ -128,11 +128,11 @@ describe('degradation to unknown[]', () => {
 })
 
 describe('input typing rejects the wrong resource shape', () => {
-  it('flags mismatched inputs at compile time (and the engine rejects them at runtime)', () => {
+  it('flags mismatched inputs at compile time (and the engine yields empty at runtime)', () => {
     const expression = compile('Patient.name.given')
-    expect(() =>
+    expect(
       // @ts-expect-error an Observation-shaped object is not a Patient
       expression.evaluate({ resourceType: 'Observation', status: 'final' }, options)
-    ).toThrow("Element 'Patient' is not defined")
+    ).toEqual([])
   })
 })

@@ -1,4 +1,4 @@
-import { type TypedValue, typeLocalName } from '../values/typed-value.ts'
+import { OBJECT_TYPE, type TypedValue, typeLocalName } from '../values/typed-value.ts'
 import type { EvaluationContext } from './context.ts'
 
 const SYSTEM_LOCAL_NAMES = new Set([
@@ -54,8 +54,10 @@ export function itemMatchesType(
       return exact ? item.type === canonical : model.isSubtypeOf(item.type, canonical)
     }
   }
-  // Dynamic fallback: resource and complex types match on their local name.
-  return typeLocalName(item.type) === name
+  // Dynamic fallback: resource and complex types match on their local name. The
+  // internal Object marker never answers a type question — `ofType(Object)` is not
+  // a way to select untyped values.
+  return item.type !== OBJECT_TYPE && typeLocalName(item.type) === name
 }
 
 /** True when a single-part type name resolves in the model or the System namespace. */

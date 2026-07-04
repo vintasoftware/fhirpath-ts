@@ -338,10 +338,20 @@ describe('quantity arithmetic', () => {
     expect(evaluate(expression)).toEqual(expected)
   })
 
-  it('rejects quantity-plus-number and non-additive temporal operators', () => {
-    expect(() => evaluate("4 'mg' + 2")).toThrow(FhirPathTypeError)
+  it('numbers promote to unity quantities; undefined combinations are empty', () => {
+    // Implicit Integer/Decimal -> Quantity conversion (spec conversion table).
+    expect(evaluate("4 'mg' + 2")).toEqual([]) // mg vs '1': not alignable
+    expect(evaluate("3 '1' + 2")).toEqual([{ value: 5, unit: '1' }])
+    expect(evaluate("2 * 4 'kg'")).toEqual([{ value: 8, unit: 'kg' }])
+    expect(evaluate("4 'kg' / 2")).toEqual([{ value: 2, unit: 'kg' }])
+    expect(evaluate('1 year * 2 months')).toEqual([]) // no calendar unit algebra
     expect(() => evaluate('@2014 * 1 day')).toThrow(FhirPathTypeError)
-    expect(() => evaluate('1 year * 2 months')).toThrow(FhirPathTypeError)
+    expect(() => evaluate("4 'mg' div 2")).toThrow(FhirPathTypeError)
+  })
+
+  it('addition with a temporal commutes', () => {
+    expect(evaluate('1 year + @2016-02-29')).toEqual(['2017-02-28'])
+    expect(() => evaluate('1 year - @2016-02-29')).toThrow(FhirPathTypeError)
   })
 })
 

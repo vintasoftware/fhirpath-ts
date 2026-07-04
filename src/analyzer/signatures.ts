@@ -182,5 +182,6 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   highBoundary: { input: { singleton: true }, args: ['Numeric'], result: UNKNOWN },
   precision: { input: { singleton: true }, result: INTEGER },
   defineVariable: { args: ['String', 'expression'], result: SAME },
+  coalesce: { args: ['expression', 'expression', 'expression', 'expression'], result: UNKNOWN },
   type: { result: UNKNOWN },
 }

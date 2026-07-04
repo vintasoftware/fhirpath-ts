@@ -42,21 +42,21 @@ interface Duration {
 }
 
 function resolveDuration(quantity: QuantityValue): Duration {
+  // The decimal portion of units above seconds is ignored (spec §6.6.7, official
+  // testPlusDate2: 7.7 days adds 7) — truncate before any week/day expansion.
   const value = quantity.value.toNumber()
-  if (quantity.calendar) {
-    const unit = normalizeCalendarUnit(quantity.unit)
+  const wholeAmount = Math.trunc(value)
+  const unit = normalizeCalendarUnit(quantity.unit)
+  if (COMPONENT_LEVELS[unit] !== undefined || unit === 'week') {
     if (unit === 'week') {
-      return { level: 2, amount: value * 7 }
+      return { level: 2, amount: wholeAmount * 7 }
     }
-    return { level: COMPONENT_LEVELS[unit] as number, amount: value }
+    const level = COMPONENT_LEVELS[unit] as number
+    return { level, amount: level >= 5 ? value : wholeAmount }
   }
-  // Quoted calendar words ('month', 'week') behave like calendar durations.
-  const asCalendarWord = normalizeCalendarUnit(quantity.unit)
-  if (asCalendarWord === 'week') {
-    return { level: 2, amount: value * 7 }
-  }
-  if (COMPONENT_LEVELS[asCalendarWord] !== undefined) {
-    return { level: COMPONENT_LEVELS[asCalendarWord] as number, amount: value }
+  if (quantity.calendar) {
+    /* v8 ignore next 2 -- the lexer only produces the calendar words above */
+    throw new FhirPathRuntimeError(`Unknown calendar duration unit '${quantity.unit}'`)
   }
   const ucum = UCUM_TIME_UNITS[quantity.unit]
   if (!ucum) {
@@ -66,7 +66,8 @@ function resolveDuration(quantity: QuantityValue): Duration {
       `Cannot use UCUM unit '${quantity.unit}' for date/time arithmetic; use a calendar duration keyword`
     )
   }
-  return { level: ucum.level, amount: value * ucum.multiplier }
+  const amount = ucum.level >= 5 ? value * ucum.multiplier : wholeAmount * ucum.multiplier
+  return { level: ucum.level, amount }
 }
 
 /** Week is not a real component; it resolves to days before this table is consulted. */
@@ -82,17 +83,28 @@ function precisionLevel(precision: TemporalPrecision): number {
  */
 export function addDuration(temporal: Temporal, quantity: QuantityValue, sign: 1 | -1): Temporal | undefined {
   const duration = resolveDuration(quantity)
+  // Times have no year/month/day components to add to.
+  if (temporal.kind === 'time' && duration.level <= (COMPONENT_LEVELS['day'] as number)) {
+    throw new FhirPathRuntimeError(`Cannot add a quantity of '${quantity.unit}' to a Time value`)
+  }
   let level = duration.level
   let amount = duration.amount * sign
-  const targetLevel = Math.min(precisionLevel(temporal.precision), temporal.kind === 'date' ? 2 : 6)
-  // Whole amounts only above seconds; fractional seconds add as milliseconds (R5).
-  if (level < 5) {
-    amount = Math.trunc(amount)
-  } else if (level === 5 && !Number.isInteger(amount)) {
+  let targetLevel = Math.min(precisionLevel(temporal.precision), temporal.kind === 'date' ? 2 : 6)
+  // Fractional seconds add as milliseconds (R5) and extend the result's precision.
+  if (level === 5 && !Number.isInteger(amount)) {
     level = 6
     amount = Math.round(amount * 1000)
+    if (targetLevel === 5) {
+      targetLevel = 6
+    }
   }
   while (level > targetLevel) {
+    if (level === 2 && targetLevel === 0) {
+      // Days convert straight to years; going through 30-day months undercounts.
+      amount = Math.trunc(amount / 365)
+      level = 0
+      break
+    }
     amount = Math.trunc(amount / (UP_CONVERSION_FACTORS[level - 1] as number))
     level -= 1
   }
@@ -158,7 +170,10 @@ function addMilliseconds(temporal: Temporal, deltaMs: number): Temporal | undefi
     hour: temporal.hour === undefined ? undefined : shifted.getUTCHours(),
     minute: temporal.minute === undefined ? undefined : shifted.getUTCMinutes(),
     second: temporal.second === undefined ? undefined : shifted.getUTCSeconds(),
-    fraction: temporal.fraction === undefined ? undefined : String(shifted.getUTCMilliseconds()).padStart(3, '0'),
+    fraction:
+      temporal.fraction === undefined && shifted.getUTCMilliseconds() === 0
+        ? undefined
+        : String(shifted.getUTCMilliseconds()).padStart(3, '0'),
   })
 }
 
@@ -174,7 +189,7 @@ function componentsFromDayMs(
     hour,
     minute: temporal.minute === undefined ? undefined : minute,
     second: temporal.second === undefined ? undefined : second,
-    fraction: temporal.fraction === undefined ? undefined : String(ms).padStart(3, '0'),
+    fraction: temporal.fraction === undefined && ms === 0 ? undefined : String(ms).padStart(3, '0'),
   }
 }
 

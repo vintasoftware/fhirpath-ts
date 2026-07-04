@@ -77,8 +77,8 @@ describe('model-aware evaluation', () => {
   it('the root type rule uses the hierarchy', () => {
     expect(evaluate('Resource.id', patient, { model: r4Model })).toEqual(['p'])
     expect(evaluate('DomainResource.name.given', patient, { model: r4Model })).toEqual(['Ann'])
-    // A mismatched root type is an unknown element under a model: an error.
-    expect(() => evaluate('Observation.id', patient, { model: r4Model })).toThrow("Element 'Observation'")
+    // A mismatched root type navigates to empty (the analyzer flags it statically).
+    expect(evaluate('Observation.id', patient, { model: r4Model })).toEqual([])
   })
 
   it('is resolves model types for resources', () => {

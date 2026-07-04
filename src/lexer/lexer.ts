@@ -114,6 +114,9 @@ class Lexer {
       while (this.pos < this.source.length && isDigit(this.source[this.pos] as string)) {
         this.advance()
       }
+    } else if (this.source[this.pos] === 'L') {
+      // Long literal suffix (ballot STU): 5L is a System.Long.
+      this.advance()
     }
     const text = this.source.slice(start, this.pos)
     return this.token('number', start, text)

@@ -21,4 +21,10 @@ export interface ModelProvider {
   getElement(type: string, element: string): ElementInfo | undefined
   /** True when `type` equals or derives from `base` (both canonical). */
   isSubtypeOf(type: string, base: string): boolean
+  /**
+   * All element names of a type, own and inherited, in declaration order.
+   * Undefined when the type is unknown to the model — navigation then falls back
+   * to raw JSON reads instead of strict unknown-element errors.
+   */
+  listElements?(type: string): string[] | undefined
 }

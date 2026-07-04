@@ -4,7 +4,14 @@ import { singleton } from '../../values/collection.ts'
 import { Temporal } from '../../values/datetime.ts'
 import type { Decimal } from '../../values/decimal.ts'
 import { asNumeric, widerKind, wrapNumeric } from '../../values/numeric.ts'
-import { alignQuantities, composeUnits } from '../../values/quantity.ts'
+import {
+  alignQuantities,
+  calendarToUcumLoose,
+  coerceQuantity,
+  composeUnits,
+  convertQuantity,
+  promoteQuantity,
+} from '../../values/quantity.ts'
 import { addDuration } from '../../values/temporal-arithmetic.ts'
 import {
   type QuantityValue,
@@ -13,6 +20,7 @@ import {
   systemTypeOf,
   type TypedValue,
 } from '../../values/typed-value.ts'
+import { canonicalizeUnit } from '../../values/ucum.ts'
 import type { BinaryOperatorTable, UnaryOperatorImpl } from './index.ts'
 
 type ArithmeticOperator = '+' | '-' | '*' | '/' | 'div' | 'mod'
@@ -59,38 +67,73 @@ function temporalArithmetic(operator: ArithmeticOperator, a: TypedValue, b: Type
   return result === undefined ? [] : [{ type: a.type, value: result }]
 }
 
-function quantityArithmetic(operator: ArithmeticOperator, a: TypedValue, b: TypedValue): TypedValue[] {
-  const left = a.value as QuantityValue
-  if (b.type === SYSTEM_QUANTITY) {
-    const right = b.value as QuantityValue
-    if (operator === '+' || operator === '-') {
-      // Convertible units align on the more granular one (spec §6.6); else empty.
-      const aligned = alignQuantities(left, right)
-      if (!aligned) {
-        return []
-      }
-      const value = operator === '+' ? aligned.left.add(aligned.right) : aligned.left.subtract(aligned.right)
-      return [{ type: SYSTEM_QUANTITY, value: { value, unit: aligned.unit, calendar: aligned.calendar } }]
+function quantityArithmetic(operator: ArithmeticOperator, left: QuantityValue, right: QuantityValue): TypedValue[] {
+  if (operator === '+' || operator === '-') {
+    // Convertible units align on the more granular one (spec §6.6); else empty.
+    const aligned = alignQuantities(left, right)
+    if (!aligned) {
+      return []
     }
-    if (operator === '*' || operator === '/') {
-      if (left.calendar || right.calendar) {
-        throw new FhirPathTypeError(`Operator '${operator}' is not defined for calendar durations`)
-      }
-      const value = operator === '*' ? left.value.multiply(right.value) : left.value.divide(right.value)
-      if (value === undefined) {
-        return []
-      }
-      const unit = composeUnits(operator, left.unit, right.unit)
-      return [{ type: SYSTEM_QUANTITY, value: { value, unit, calendar: false } }]
+    const value = operator === '+' ? aligned.left.add(aligned.right) : aligned.left.subtract(aligned.right)
+    return [{ type: SYSTEM_QUANTITY, value: { value, unit: aligned.unit, calendar: aligned.calendar } }]
+  }
+  if (operator === '*' || operator === '/') {
+    if (left.calendar || right.calendar) {
+      return calendarMultiplicative(operator, left, right)
     }
-    throw new FhirPathTypeError(`Operator '${operator}' is not defined for quantities`)
+    const value = operator === '*' ? left.value.multiply(right.value) : left.value.divide(right.value)
+    if (value === undefined) {
+      return []
+    }
+    const unit = composeUnits(operator, left.unit, right.unit)
+    return [{ type: SYSTEM_QUANTITY, value: { value, unit, calendar: false } }]
   }
-  const scalar = asNumeric(b)
-  if (!scalar || (operator !== '*' && operator !== '/')) {
-    throw new FhirPathTypeError(`Operator '${operator}' is not defined for these quantity operands`)
+  throw new FhirPathTypeError(`Operator '${operator}' is not defined for quantities`)
+}
+
+/**
+ * Calendar durations have no general unit algebra, but two cases are exact:
+ * scaling by a dimensionless number (2 year * 3 = 6 years, 1 year / 2 = 6 months)
+ * and the ratio of two same-family durations (185 months / 185 months = 1 '1').
+ * Everything else is undefined → empty.
+ */
+function calendarMultiplicative(operator: '*' | '/', left: QuantityValue, right: QuantityValue): TypedValue[] {
+  if (operator === '/') {
+    // Ratios of durations are well defined; both sides drop to their UCUM twins
+    // (185 months / 185 'mo' = 1 '1'). Same-dimension ratios cancel to '1'.
+    const leftUcum = calendarAsUcum(left)
+    const rightUcum = calendarAsUcum(right)
+    const aligned = convertQuantity(rightUcum, leftUcum.unit)
+    if (aligned !== undefined) {
+      const ratio = leftUcum.value.divide(aligned.value)
+      return ratio === undefined ? [] : [{ type: SYSTEM_QUANTITY, value: { value: ratio, unit: '1', calendar: false } }]
+    }
+    return quantityArithmetic('/', leftUcum, rightUcum)
   }
-  const value = operator === '*' ? left.value.multiply(scalar.value) : left.value.divide(scalar.value)
-  return value === undefined ? [] : [{ type: SYSTEM_QUANTITY, value: { ...left, value } }]
+  const [calendar, scalar] = left.calendar ? [left, right] : [right, left]
+  if (scalar.calendar) {
+    // year * year has no meaning.
+    return []
+  }
+  const factor = dimensionlessValue(scalar)
+  if (factor === undefined) {
+    return []
+  }
+  const value = calendar.value.multiply(factor)
+  return [{ type: SYSTEM_QUANTITY, value: { ...calendar, value } }]
+}
+
+/** The scalar value of a dimensionless quantity (2000 'g/kg' → 2); else undefined. */
+function dimensionlessValue(quantity: QuantityValue): Decimal | undefined {
+  const canonical = canonicalizeUnit(quantity.unit)
+  if (!canonical || Object.keys(canonical.dimensions).length > 0) {
+    return undefined
+  }
+  return quantity.value.multiply(canonical.factor)
+}
+
+function calendarAsUcum(quantity: QuantityValue): QuantityValue {
+  return quantity.calendar ? calendarToUcumLoose(quantity) : quantity
 }
 
 function isTemporalType(item: TypedValue): boolean {
@@ -106,18 +149,32 @@ function arithmeticOperator(operator: ArithmeticOperator) {
     }
     if (systemTypeOf(a) === SYSTEM_STRING || systemTypeOf(b) === SYSTEM_STRING) {
       if (operator === '+' && systemTypeOf(a) === SYSTEM_STRING && systemTypeOf(b) === SYSTEM_STRING) {
+        if (a.value === undefined || b.value === undefined) {
+          // A primitive present only through its _field sibling has no value; +
+          // propagates that like an empty operand.
+          return []
+        }
         return [{ type: SYSTEM_STRING, value: (a.value as string) + (b.value as string) }]
       }
       throw new FhirPathTypeError(`Operator '${operator}' is not defined for strings`)
     }
-    if (isTemporalType(a) && b.type === SYSTEM_QUANTITY) {
-      return temporalArithmetic(operator, a, b)
+    if (isTemporalType(a) && coerceQuantity(b)) {
+      return temporalArithmetic(operator, a, { type: SYSTEM_QUANTITY, value: coerceQuantity(b) })
     }
-    if (a.type === SYSTEM_QUANTITY) {
-      return quantityArithmetic(operator, a, b)
+    if (isTemporalType(b) && coerceQuantity(a) && operator === '+') {
+      // Addition commutes: 1 year + @2016 works like @2016 + 1 year.
+      return temporalArithmetic(operator, b, { type: SYSTEM_QUANTITY, value: coerceQuantity(a) })
     }
     if (asNumeric(a) && asNumeric(b)) {
       return numericArithmetic(operator, a, b)
+    }
+    if (coerceQuantity(a) || coerceQuantity(b)) {
+      const left = promoteQuantity(a)
+      const right = promoteQuantity(b)
+      if (left && right && operator !== 'div' && operator !== 'mod') {
+        return quantityArithmetic(operator, left, right)
+      }
+      throw new FhirPathTypeError(`Operator '${operator}' is not defined for these quantity operands`)
     }
     throw new FhirPathTypeError(`Operator '${operator}' is not defined for ${a.type} and ${b.type}`)
   }

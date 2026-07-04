@@ -1,6 +1,6 @@
 import { Temporal } from '../../values/datetime.ts'
 import { asNumeric } from '../../values/numeric.ts'
-import { coerceQuantity, compareQuantities, quantitiesEquivalent } from '../../values/quantity.ts'
+import { coerceQuantityPair, compareQuantities, quantitiesEquivalent } from '../../values/quantity.ts'
 import { compareTemporal } from '../../values/temporal-compare.ts'
 import {
   SYSTEM_BOOLEAN,
@@ -16,6 +16,10 @@ import type { BinaryOperatorTable } from './index.ts'
  * whose precisions differ, or quantities whose units cannot be compared yet.
  */
 export function pairEquals(a: TypedValue, b: TypedValue): boolean | undefined {
+  if (a.value === undefined || b.value === undefined) {
+    // Valueless primitives (extension-only _field elements) never equal anything.
+    return false
+  }
   const numericA = asNumeric(a)
   const numericB = asNumeric(b)
   if (numericA && numericB) {
@@ -28,10 +32,9 @@ export function pairEquals(a: TypedValue, b: TypedValue): boolean | undefined {
     }
     return comparison === 0
   }
-  const quantityA = coerceQuantity(a)
-  const quantityB = coerceQuantity(b)
-  if (quantityA && quantityB) {
-    const comparison = compareQuantities(quantityA, quantityB)
+  const quantityPair = coerceQuantityPair(a, b)
+  if (quantityPair) {
+    const comparison = compareQuantities(quantityPair[0], quantityPair[1])
     return comparison === undefined ? undefined : comparison === 0
   }
   if (systemTypeOf(a) === SYSTEM_STRING && systemTypeOf(b) === SYSTEM_STRING) {
@@ -48,6 +51,10 @@ export function pairEquals(a: TypedValue, b: TypedValue): boolean | undefined {
 
 /** Single-item `~` semantics (spec §6.1.3). Never empty. */
 export function pairEquivalent(a: TypedValue, b: TypedValue): boolean {
+  if (a.value === undefined || b.value === undefined) {
+    // Two valueless primitives are equivalent; a valueless one never matches a value.
+    return a.value === undefined && b.value === undefined
+  }
   const numericA = asNumeric(a)
   const numericB = asNumeric(b)
   if (numericA && numericB) {
@@ -58,10 +65,9 @@ export function pairEquivalent(a: TypedValue, b: TypedValue): boolean {
   if (a.value instanceof Temporal && b.value instanceof Temporal) {
     return compareTemporal(a.value, b.value) === 0
   }
-  const quantityA = coerceQuantity(a)
-  const quantityB = coerceQuantity(b)
-  if (quantityA && quantityB) {
-    return quantitiesEquivalent(quantityA, quantityB)
+  const quantityPair = coerceQuantityPair(a, b)
+  if (quantityPair) {
+    return quantitiesEquivalent(quantityPair[0], quantityPair[1])
   }
   // One typed side is enough: untyped comparison values (e.g. from %env) still get
   // FHIR semantics when compared against a model-typed Coding/CodeableConcept.
@@ -106,10 +112,9 @@ function isComplex(item: TypedValue): boolean {
 }
 
 function normalizeString(value: string): string {
-  return value
-    .trim()
-    .replace(/[\s\r\n\t]+/g, ' ')
-    .toLowerCase()
+  // "Normalizing whitespace" (spec §6.1.2) makes tab/newline/space interchangeable;
+  // it does not trim or collapse runs — 'a  b' and 'a b' stay different.
+  return value.replace(/\s/g, ' ').toLowerCase()
 }
 
 function deepEquals(a: unknown, b: unknown): boolean {

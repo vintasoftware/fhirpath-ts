@@ -10,6 +10,7 @@ import {
   SYSTEM_DATETIME,
   SYSTEM_DECIMAL,
   SYSTEM_INTEGER,
+  SYSTEM_LONG,
   SYSTEM_QUANTITY,
   SYSTEM_STRING,
   SYSTEM_TIME,
@@ -38,7 +39,11 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
     case 'string':
       return [{ type: SYSTEM_STRING, value: node.value }]
     case 'number':
-      return [evaluateNumberLiteral(node.text, node.isDecimal)]
+      return [
+        node.isLong === true
+          ? { type: SYSTEM_LONG, value: BigInt(node.text) }
+          : evaluateNumberLiteral(node.text, node.isDecimal),
+      ]
     case 'date':
       return [{ type: SYSTEM_DATE, value: parseTemporalLiteral('date', node.text) }]
     case 'dateTime':

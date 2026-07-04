@@ -2,7 +2,7 @@ import { FhirPathTypeError } from '../../errors.ts'
 import { singleton } from '../../values/collection.ts'
 import { Temporal } from '../../values/datetime.ts'
 import { asNumeric } from '../../values/numeric.ts'
-import { coerceQuantity, compareQuantities } from '../../values/quantity.ts'
+import { coerceQuantityPair, compareQuantities } from '../../values/quantity.ts'
 import { compareTemporal } from '../../values/temporal-compare.ts'
 import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, type TypedValue } from '../../values/typed-value.ts'
 import type { BinaryOperatorTable } from './index.ts'
@@ -37,10 +37,9 @@ export function compareValues(a: TypedValue, b: TypedValue): number | undefined 
     }
     return comparison
   }
-  const quantityA = coerceQuantity(a)
-  const quantityB = coerceQuantity(b)
-  if (quantityA && quantityB) {
-    return compareQuantities(quantityA, quantityB)
+  const quantityPair = coerceQuantityPair(a, b)
+  if (quantityPair) {
+    return compareQuantities(quantityPair[0], quantityPair[1])
   }
   throw new FhirPathTypeError(`Cannot compare ${a.type} with ${b.type}`)
 }

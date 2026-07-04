@@ -3,7 +3,7 @@ import { CALENDAR_DURATION_UNITS } from '../lexer/tokens.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
-import { convertQuantity } from '../values/quantity.ts'
+import { coerceQuantity, convertQuantity } from '../values/quantity.ts'
 import {
   type QuantityValue,
   SYSTEM_BOOLEAN,
@@ -62,6 +62,12 @@ conversionPair('Boolean', item => {
         return { type: SYSTEM_BOOLEAN, value: true }
       }
       return item.value === 0 ? { type: SYSTEM_BOOLEAN, value: false } : undefined
+    }
+    case SYSTEM_LONG: {
+      if (item.value === 1n) {
+        return { type: SYSTEM_BOOLEAN, value: true }
+      }
+      return item.value === 0n ? { type: SYSTEM_BOOLEAN, value: false } : undefined
     }
     case SYSTEM_DECIMAL: {
       const value = item.value as Decimal
@@ -146,6 +152,10 @@ conversionPair('Decimal', item => {
 })
 
 export function valueToString(item: TypedValue): string | undefined {
+  if (item.value === undefined || item.value === null) {
+    // A primitive present only through its _field sibling has no value to render.
+    return undefined
+  }
   switch (systemTypeOf(item) ?? item.type) {
     case SYSTEM_STRING:
       return item.value as string
@@ -218,7 +228,9 @@ conversionPair('Time', item => {
     case SYSTEM_TIME:
       return item
     case SYSTEM_STRING: {
-      const parsed = Temporal.parseTime(item.value as string)
+      // The conversion format mirrors the literal form, so the leading T is optional.
+      const text = item.value as string
+      const parsed = Temporal.parseTime(text.startsWith('T') ? text.slice(1) : text)
       return parsed === undefined ? undefined : { type: SYSTEM_TIME, value: parsed }
     }
     default:
@@ -249,6 +261,12 @@ function stringToQuantity(text: string): QuantityValue | undefined {
 }
 
 function quantityConverter(item: TypedValue): TypedValue | undefined {
+  // FHIR Quantity values coerce like they do for operators (incl. UCUM
+  // time-valued codes becoming calendar durations).
+  const coerced = coerceQuantity(item)
+  if (coerced !== undefined) {
+    return item.type === SYSTEM_QUANTITY ? item : { type: SYSTEM_QUANTITY, value: coerced }
+  }
   switch (systemTypeOf(item) ?? item.type) {
     case SYSTEM_QUANTITY:
       return item

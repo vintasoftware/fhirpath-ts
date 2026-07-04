@@ -3,7 +3,8 @@ import { FhirPathTypeError } from '../errors.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { Decimal } from '../values/decimal.ts'
 import { asNumeric, type NumericKind, widerKind, wrapNumeric } from '../values/numeric.ts'
-import { SYSTEM_DECIMAL, type TypedValue } from '../values/typed-value.ts'
+import { alignQuantities, coerceQuantity, type QuantityValue } from '../values/quantity.ts'
+import { SYSTEM_DECIMAL, SYSTEM_QUANTITY, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
 registerFunction('aggregate', {
@@ -34,12 +35,47 @@ function numericItems(name: string, input: TypedValue[]): { values: Decimal[]; k
   return { values, kind }
 }
 
-// Convenience aggregates. The core spec defines these only as aggregate() idioms,
-// e.g. sum() = aggregate($this + $total, 0), which is why sum of empty is 0.
+/**
+ * Quantity collections aggregate by pairwise-aligning units, exactly like
+ * repeated `+`: (1 'cm' | 3 'cm' | 1 'm').sum() = 104 'cm'. Empty when any
+ * pair of units cannot align.
+ */
+function foldQuantities(quantities: QuantityValue[], fold: (acc: Decimal, next: Decimal) => Decimal): TypedValue[] {
+  let acc = quantities[0] as QuantityValue
+  for (const quantity of quantities.slice(1)) {
+    const pair = alignQuantities(acc, quantity)
+    if (!pair) {
+      return []
+    }
+    acc = { value: fold(pair.left, pair.right), unit: pair.unit, calendar: pair.calendar }
+  }
+  return [{ type: SYSTEM_QUANTITY, value: acc }]
+}
+
+function allQuantities(input: TypedValue[]): QuantityValue[] | undefined {
+  const quantities: QuantityValue[] = []
+  for (const item of input) {
+    const quantity = coerceQuantity(item)
+    if (quantity === undefined) {
+      return undefined
+    }
+    quantities.push(quantity)
+  }
+  return quantities
+}
+
+// Convenience aggregates (ballot STU). All four are empty for empty input.
 registerFunction('sum', {
   minArity: 0,
   maxArity: 0,
   evaluate: (_context, input) => {
+    if (input.length === 0) {
+      return []
+    }
+    const quantities = allQuantities(input)
+    if (quantities) {
+      return foldQuantities(quantities, (acc, next) => acc.add(next))
+    }
     const { values, kind } = numericItems('sum', input)
     const total = values.reduce((acc, value) => acc.add(value), Decimal.zero())
     const wrapped = wrapNumeric(total, kind)
@@ -54,6 +90,10 @@ function extremum(name: string, keep: (comparison: number) => boolean): void {
     evaluate: (_context, input) => {
       if (input.length === 0) {
         return []
+      }
+      const quantities = allQuantities(input)
+      if (quantities) {
+        return foldQuantities(quantities, (acc, next) => (keep(next.compare(acc)) ? next : acc))
       }
       const { values, kind } = numericItems(name, input)
       let best = values[0] as Decimal
@@ -79,9 +119,21 @@ registerFunction('avg', {
     if (input.length === 0) {
       return []
     }
+    const count = Decimal.fromString(String(input.length)) as Decimal
+    const quantities = allQuantities(input)
+    if (quantities) {
+      const total = foldQuantities(quantities, (acc, next) => acc.add(next))
+      if (total.length === 0) {
+        return []
+      }
+      const sum = (total[0] as TypedValue).value as QuantityValue
+      const average = sum.value.divide(count)
+      /* v8 ignore next -- the divisor is the non-zero item count */
+      return average === undefined ? [] : [{ type: SYSTEM_QUANTITY, value: { ...sum, value: average } }]
+    }
     const { values } = numericItems('avg', input)
     const total = values.reduce((acc, value) => acc.add(value), Decimal.zero())
-    const average = total.divide(Decimal.fromString(String(values.length)) as Decimal)
+    const average = total.divide(count)
     /* v8 ignore next -- the divisor is the non-zero item count */
     return average === undefined ? [] : [{ type: SYSTEM_DECIMAL, value: average }]
   },

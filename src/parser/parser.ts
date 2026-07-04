@@ -156,6 +156,10 @@ class Parser {
   private parseNumberOrQuantity(): AstNode {
     const token = this.peek()
     this.advance()
+    if (token.value.endsWith('L')) {
+      // Long literals take no quantity unit.
+      return { kind: 'number', text: token.value.slice(0, -1), isDecimal: false, isLong: true, span: token.span }
+    }
     const next = this.peek()
     if (next.kind === 'string') {
       this.advance()

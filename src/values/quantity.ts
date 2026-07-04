@@ -1,4 +1,5 @@
 import { Decimal } from './decimal.ts'
+import { asNumeric } from './numeric.ts'
 import { type QuantityValue, SYSTEM_QUANTITY, type TypedValue, typeLocalName } from './typed-value.ts'
 import { canonicalizeUnit, sameDimensions } from './ucum.ts'
 
@@ -13,6 +14,24 @@ const FHIR_QUANTITY_TYPES = new Set([
   'MoneyQuantity',
 ])
 
+/**
+ * FHIR Quantities with UCUM time-valued codes convert to calendar duration
+ * keywords (FHIR fhirpath page, "Use of FHIR Quantity"): a Duration of 1 'a'
+ * behaves as `1 year`.
+ */
+const UCUM_TIME_TO_CALENDAR: Readonly<Record<string, string>> = {
+  a: 'year',
+  mo: 'month',
+  wk: 'week',
+  d: 'day',
+  h: 'hour',
+  min: 'minute',
+  s: 'second',
+  ms: 'millisecond',
+}
+
+const UCUM_SYSTEM = 'http://unitsofmeasure.org'
+
 /** Read a TypedValue as a quantity: System.Quantity directly, FHIR Quantity objects by value+code/unit. */
 export function coerceQuantity(item: TypedValue): QuantityValue | undefined {
   if (item.type === SYSTEM_QUANTITY) {
@@ -21,7 +40,7 @@ export function coerceQuantity(item: TypedValue): QuantityValue | undefined {
   if (!(item.type.startsWith('FHIR.') && FHIR_QUANTITY_TYPES.has(typeLocalName(item.type)))) {
     return undefined
   }
-  const raw = item.value as { value?: unknown; code?: unknown; unit?: unknown }
+  const raw = item.value as { value?: unknown; code?: unknown; unit?: unknown; system?: unknown }
   if (typeof raw !== 'object' || raw === null || typeof raw.value !== 'number') {
     return undefined
   }
@@ -29,8 +48,43 @@ export function coerceQuantity(item: TypedValue): QuantityValue | undefined {
   if (!value) {
     return undefined
   }
+  if (raw.system === UCUM_SYSTEM && typeof raw.code === 'string' && UCUM_TIME_TO_CALENDAR[raw.code] !== undefined) {
+    return { value, unit: UCUM_TIME_TO_CALENDAR[raw.code] as string, calendar: true }
+  }
   const unit = typeof raw.code === 'string' ? raw.code : typeof raw.unit === 'string' ? raw.unit : '1'
   return { value, unit, calendar: false }
+}
+
+/** A quantity as-is, or a number implicitly converted to a unity quantity (spec §5.5). */
+export function promoteQuantity(item: TypedValue): QuantityValue | undefined {
+  const coerced = coerceQuantity(item)
+  if (coerced) {
+    return coerced
+  }
+  const numeric = asNumeric(item)
+  return numeric === undefined ? undefined : { value: numeric.value, unit: '1', calendar: false }
+}
+
+/**
+ * Coerce a pair of operands for quantity operations. Integers, Longs, and
+ * Decimals implicitly convert to unity quantities (spec §5.5) when the other
+ * side is a quantity: `9 = 9 '1'` and `2 * 4 'kg'` both work.
+ */
+export function coerceQuantityPair(a: TypedValue, b: TypedValue): [QuantityValue, QuantityValue] | undefined {
+  const quantityA = coerceQuantity(a)
+  const quantityB = coerceQuantity(b)
+  if (quantityA && quantityB) {
+    return [quantityA, quantityB]
+  }
+  if (quantityA) {
+    const numeric = asNumeric(b)
+    return numeric ? [quantityA, { value: numeric.value, unit: '1', calendar: false }] : undefined
+  }
+  if (quantityB) {
+    const numeric = asNumeric(a)
+    return numeric ? [{ value: numeric.value, unit: '1', calendar: false }, quantityB] : undefined
+  }
+  return undefined
 }
 
 const SINGULAR_CALENDAR_UNITS: Readonly<Record<string, string>> = {
@@ -157,6 +211,11 @@ export function quantitiesEquivalent(a: QuantityValue, b: QuantityValue): boolea
   return compareUcum({ ...ucumA, value: ucumA.value.round(scale) }, { ...ucumB, value: ucumB.value.round(scale) }) === 0
 }
 
+/** A calendar duration as its loose UCUM twin (`1 year` → `1 'a'`); UCUM passes through. */
+export function calendarToUcumLoose(quantity: QuantityValue): QuantityValue {
+  return asUcum(quantity)
+}
+
 function asUcum(quantity: QuantityValue): QuantityValue {
   if (!quantity.calendar) {
     return quantity
@@ -169,18 +228,71 @@ function asUcum(quantity: QuantityValue): QuantityValue {
   return { ...quantity, unit: twin, calendar: false }
 }
 
-/** Convert to another UCUM unit; undefined when dimensions differ or units are opaque. */
+/** True for `year`/`days`/... — never for UCUM codes like `wk` or `mo`. */
+function isCalendarWord(unit: string): boolean {
+  const singular = normalizeCalendarUnit(unit)
+  return MONTH_FAMILY[singular] !== undefined || SECOND_FAMILY[singular] !== undefined
+}
+
+/**
+ * Convert to another unit. UCUM↔UCUM converts through base dimensions; calendar
+ * words convert within their family (`12 months` → `1 year`, `1 week` → `7 days`),
+ * and week-and-below calendar words cross into UCUM through their exact twins
+ * (`1 'wk'` → `7 days`). Year and month never convert to definite UCUM durations.
+ * Undefined when no exact conversion exists.
+ */
 export function convertQuantity(quantity: QuantityValue, targetUnit: string): QuantityValue | undefined {
-  if (quantity.unit === targetUnit && !quantity.calendar) {
+  if (quantity.unit === targetUnit && !quantity.calendar === !isCalendarWord(targetUnit)) {
     return quantity
   }
-  const source = canonicalizeUnit(quantity.calendar ? asUcum(quantity).unit : quantity.unit)
+  const targetIsCalendar = isCalendarWord(targetUnit)
+  if (quantity.calendar || targetIsCalendar) {
+    return convertCalendar(quantity, targetUnit, targetIsCalendar)
+  }
+  const source = canonicalizeUnit(quantity.unit)
   const target = canonicalizeUnit(targetUnit)
   if (!(source && target && sameDimensions(source, target))) {
     return undefined
   }
   const converted = quantity.value.multiply(source.factor).divide(target.factor)
   return converted === undefined ? undefined : { value: converted, unit: targetUnit, calendar: false }
+}
+
+function convertCalendar(
+  quantity: QuantityValue,
+  targetUnit: string,
+  targetIsCalendar: boolean
+): QuantityValue | undefined {
+  const sourceFamily = quantity.calendar ? calendarFamily(quantity.unit) : undefined
+  const targetFamily = targetIsCalendar ? calendarFamily(normalizeCalendarUnit(targetUnit)) : undefined
+  if (quantity.calendar && targetIsCalendar) {
+    if (!(sourceFamily && targetFamily) || sourceFamily.family !== targetFamily.family) {
+      return undefined
+    }
+    const converted = quantity.value.multiply(sourceFamily.factor).divide(targetFamily.factor)
+    return converted === undefined ? undefined : { value: converted, unit: targetUnit, calendar: true }
+  }
+  if (quantity.calendar) {
+    // Calendar → UCUM: only week-and-below are definite; year/month stay calendar-only.
+    if (sourceFamily?.family !== 'second') {
+      return undefined
+    }
+    const twin = CALENDAR_TO_UCUM_EXACT[normalizeCalendarUnit(quantity.unit)] as string
+    return convertQuantity({ value: quantity.value, unit: twin, calendar: false }, targetUnit)
+  }
+  // UCUM → calendar word: cross through seconds; year/month targets are indefinite.
+  if (targetFamily?.family !== 'second') {
+    return undefined
+  }
+  const source = canonicalizeUnit(quantity.unit)
+  const secondsPerTarget = canonicalizeUnit(
+    CALENDAR_TO_UCUM_EXACT[normalizeCalendarUnit(targetUnit)] as string
+  ) as NonNullable<ReturnType<typeof canonicalizeUnit>>
+  if (!(source && sameDimensions(source, secondsPerTarget))) {
+    return undefined
+  }
+  const converted = quantity.value.multiply(source.factor).divide(secondsPerTarget.factor)
+  return converted === undefined ? undefined : { value: converted, unit: targetUnit, calendar: true }
 }
 
 /**

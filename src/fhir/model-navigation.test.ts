@@ -22,10 +22,19 @@ describe('model navigation branches', () => {
     expect(evaluate('Observation.value.hasValue()', resource, options)).toEqual([false])
   })
 
-  it('unknown elements on model-typed values are semantic errors', () => {
+  it('unknown elements navigate to empty; choice-key misuse is the runtime error', () => {
     const resource = { resourceType: 'Patient', unknownKey: 'x' }
-    expect(() => evaluate('unknownKey', resource, options)).toThrow("Element 'unknownKey' is not defined")
+    // Typos are the static analyzer's job (spec §11); runtime navigation is lenient.
+    expect(evaluate('unknownKey', resource, options)).toEqual([])
     expect(evaluate('resourceType', resource, options)).toEqual(['Patient'])
+    // The one shape the official suites pin as a runtime semantic error.
+    const observation = { resourceType: 'Observation', status: 'final', valueQuantity: { value: 1 } }
+    expect(() => evaluate('Observation.valueQuantity.exists()', observation, options)).toThrow(
+      'choice elements use their stem name'
+    )
+    // Types the model does not define read like raw JSON.
+    const custom = { resourceType: 'CustomResource', anything: 'works' }
+    expect(evaluate('anything', custom, options)).toEqual(['works'])
   })
 
   it('known elements missing from the JSON are empty', () => {
@@ -118,8 +127,11 @@ describe('model navigation branches', () => {
     expect(evaluate("'Patient/p1'.resolve()")).toEqual([])
   })
 
-  it('comparable() requires quantities', () => {
-    expect(() => evaluate("1.comparable(1 'kg')")).toThrow('comparable() expects Quantity operands')
+  it('comparable() promotes numbers to unity quantities; strings still error', () => {
+    // Implicit Integer -> Quantity conversion (spec conversion table).
+    expect(evaluate("1.comparable(1 'kg')")).toEqual([false])
+    expect(evaluate('1.comparable(2)')).toEqual([true])
+    expect(() => evaluate("'x'.comparable(1 'kg')")).toThrow('comparable() expects Quantity operands')
     expect(evaluate("{}.comparable(1 'kg')")).toEqual([])
   })
 })

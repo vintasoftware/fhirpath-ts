@@ -16,12 +16,21 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
     } else if (context.model && item.type.startsWith(`${context.model.namespace}.`)) {
       const modelRead = readModelProperty(context.model, item, name)
       if (modelRead === undefined) {
-        // Unknown elements on model-typed values are semantic errors — this is what
-        // rejects `Observation.valueQuantity` (choice elements go by stem name).
-        if (name === 'resourceType') {
+        // Choice elements go by stem name; a suffixed key like Observation.valueQuantity
+        // is the one unknown-element shape the official suites require to error at
+        // runtime. Everything else is the static analyzer's job (spec §11) — plain
+        // unknown elements navigate to empty, and types the model has never heard of
+        // (custom resourceTypes) read like raw JSON.
+        if (isChoiceKeyMisuse(context, item.type, name)) {
+          throw new FhirPathTypeError(
+            `Element '${name}' is not defined on ${item.type}; choice elements use their stem name`
+          )
+        }
+        if (
+          name === 'resourceType' ||
+          (context.model.listElements !== undefined && context.model.listElements(item.type) === undefined)
+        ) {
           results.push(...getProperty(item, name))
-        } else {
-          throw new FhirPathTypeError(`Element '${name}' is not defined on ${item.type}`)
         }
       } else {
         results.push(...modelRead)
@@ -36,9 +45,30 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
   return results
 }
 
+/** True for `valueQuantity`-style keys whose stem is a choice element of the type. */
+function isChoiceKeyMisuse(context: EvaluationContext, type: string, name: string): boolean {
+  const model = context.model as NonNullable<EvaluationContext['model']>
+  for (let position = 1; position < name.length; position++) {
+    if (!/[A-Z]/.test(name[position] as string)) {
+      continue
+    }
+    const stem = name.slice(0, position)
+    if (model.getElement(type, stem)?.isChoice === true) {
+      return true
+    }
+  }
+  return false
+}
+
 function matchesTypeName(context: EvaluationContext, item: TypedValue, name: string): boolean {
   // Only the namespace strips off: the backbone type FHIR.ValueSet.expansion.contains
-  // must not answer to the element name 'contains'.
+  // must not answer to the element name 'contains'. Lowercase primitive type names
+  // (FHIR.code) never self-match either — `children().code` means the element.
+  if (!/^[A-Z]/.test(name)) {
+    // Lowercase names are always elements: `children().code` never filters by the
+    // primitive type FHIR.code.
+    return false
+  }
   const separator = item.type.indexOf('.')
   const local = separator === -1 ? item.type : item.type.slice(separator + 1)
   if (local === name && item.type !== OBJECT_TYPE) {

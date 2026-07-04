@@ -10,7 +10,8 @@ function concat(_context: unknown, left: TypedValue[], right: TypedValue[]): Typ
 
 function stringOrEmpty(input: TypedValue[]): string {
   const item = singleton(input)
-  if (item === undefined) {
+  if (item === undefined || item.value === undefined) {
+    // Empty operand, or a primitive present only through its _field sibling.
     return ''
   }
   if (systemTypeOf(item) !== SYSTEM_STRING) {

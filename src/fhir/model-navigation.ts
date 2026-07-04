@@ -74,16 +74,18 @@ function readPrimitiveMetadata(item: TypedValue, name: string): TypedValue[] | u
 }
 
 function convertValues(raw: unknown, sibling: unknown, typeName: string, info: ElementInfo): TypedValue[] {
-  if (Array.isArray(raw) || (raw === undefined && Array.isArray(sibling))) {
-    const values = Array.isArray(raw) ? raw : new Array((sibling as unknown[]).length).fill(undefined)
+  if (Array.isArray(raw) || Array.isArray(sibling)) {
+    // The value and _name arrays align by index and either may be the longer one:
+    // a tail entry present only in _name is still an element (with extensions).
+    const values = Array.isArray(raw) ? raw : []
     const siblings = Array.isArray(sibling) ? sibling : []
     const result: TypedValue[] = []
-    values.forEach((element, index) => {
-      const converted = convertSingle(element, siblings[index], typeName)
+    for (let index = 0; index < Math.max(values.length, siblings.length); index++) {
+      const converted = convertSingle(values[index], siblings[index], typeName)
       if (converted) {
         result.push(converted)
       }
-    })
+    }
     return result
   }
   if (info.isCollection && raw !== undefined && !Array.isArray(raw)) {

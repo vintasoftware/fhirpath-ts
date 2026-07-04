@@ -51,11 +51,12 @@ export interface StringLiteralNode extends BaseNode {
   value: string
 }
 
-/** Integer or Decimal literal; the raw text is kept so no float precision is lost. */
+/** Integer, Long (5L), or Decimal literal; the raw text keeps float precision intact. */
 export interface NumberLiteralNode extends BaseNode {
   kind: 'number'
   text: string
   isDecimal: boolean
+  isLong?: boolean
 }
 
 export interface DateLiteralNode extends BaseNode {
