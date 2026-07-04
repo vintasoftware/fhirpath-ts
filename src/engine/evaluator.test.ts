@@ -87,6 +87,15 @@ describe('path navigation', () => {
   it('accepts an array as input', () => {
     expect(evaluate('given', patient.name)).toEqual(['Peter', 'James', 'Jim'])
   })
+
+  it('reads own properties only, never the prototype chain', () => {
+    expect(evaluate('constructor', patient)).toEqual([])
+    expect(evaluate('toString', patient)).toEqual([])
+    expect(evaluate('name.constructor', patient)).toEqual([])
+    expect(evaluate('hasOwnProperty', patient)).toEqual([])
+    // An element that happens to share a prototype member's name still reads.
+    expect(evaluate('a.constructor', { a: { constructor: 5 } })).toEqual([5])
+  })
 })
 
 describe('special and environment variables', () => {

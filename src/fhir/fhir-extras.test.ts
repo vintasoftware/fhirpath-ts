@@ -193,6 +193,15 @@ describe('htmlChecks', () => {
     ['<div xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></div>'],
     ['<div xmlns="http://www.w3.org/1999/xhtml"><p onclick="x()">hi</p></div>'],
     ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="javascript:x()">hi</a></div>'],
+    // Browsers entity-decode and skip control characters before resolving the
+    // scheme, so smuggled forms of javascript: must fail too.
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="java&#115;cript:x()">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="java&#x73;cript:x()">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="jav\tascript:x()">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="\u0001javascript:x()">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="vbscript:x()">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="data:text/html,x">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><img src="data:text/html,x" alt="i"/></div>'],
     ['<div xmlns="http://www.w3.org/1999/xhtml"><p>unclosed</div>'],
     ['<div xmlns="http://www.w3.org/1999/xhtml"><p foo="bar">attr</p></div>'],
     ['<p xmlns="http://www.w3.org/1999/xhtml">not a div</p>'],
@@ -207,6 +216,19 @@ describe('htmlChecks', () => {
         '<div xmlns="http://www.w3.org/1999/xhtml"><!-- note --><p>a&amp;b<br/></p><hr/><img src="data:image/png;base64,x" alt="i"/></div>'
       )
     ).toBe(true)
+  })
+
+  it.each([
+    ['https://example.org/page'],
+    ['http://example.org'],
+    ['mailto:doc@example.org'],
+    ['tel:+15551234567'],
+    ['urn:uuid:0000'],
+    ['relative/path.html'],
+    ['#fragment'],
+    ['?query=1'],
+  ])('accepts inert href %s', href => {
+    expect(validateNarrative(`<div xmlns="http://www.w3.org/1999/xhtml"><a href="${href}">x</a></div>`)).toBe(true)
   })
 
   it('empty input propagates and non-strings are false', () => {

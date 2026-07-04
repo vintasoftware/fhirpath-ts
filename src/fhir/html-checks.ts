@@ -187,9 +187,56 @@ function validAttributes(attributesText: string): boolean {
       return false
     }
     const value = match[2]?.slice(1, -1) ?? ''
-    if ((name === 'href' || name === 'src') && /^\s*javascript:/i.test(value)) {
+    if ((name === 'href' || name === 'src') && !safeUrl(value, name)) {
       return false
     }
   }
   return true
+}
+
+const SAFE_SCHEMES = new Set(['http', 'https', 'mailto', 'tel', 'ftp', 'urn', 'cid'])
+
+/**
+ * Allow only inert URL schemes. Browsers entity-decode attribute values and skip
+ * control characters before resolving the scheme, so the check must see the value
+ * the way a browser does — `java&#115;cript:` is still `javascript:`.
+ */
+function safeUrl(rawValue: string, attributeName: string): boolean {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point
+  const value = decodeEntities(rawValue).replace(/[\u0000-\u0020]/gu, '')
+  const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(value)
+  if (!scheme) {
+    // Relative URL or fragment: no scheme to smuggle code through.
+    return true
+  }
+  const name = (scheme[1] as string).toLowerCase()
+  if (attributeName === 'src' && name === 'data') {
+    // Inline images are common in narratives; data: must never reach href.
+    return /^data:image\//i.test(value)
+  }
+  return SAFE_SCHEMES.has(name)
+}
+
+const NAMED_ENTITIES: Readonly<Record<string, string>> = {
+  lt: '<',
+  gt: '>',
+  amp: '&',
+  quot: '"',
+  apos: "'",
+}
+
+function decodeEntities(text: string): string {
+  return text.replace(/&(?:#x([0-9a-fA-F]+)|#(\d+)|([a-zA-Z]+));/g, (whole, hex, dec, named) => {
+    if (hex !== undefined) {
+      return safeFromCodePoint(Number.parseInt(hex, 16), whole)
+    }
+    if (dec !== undefined) {
+      return safeFromCodePoint(Number.parseInt(dec, 10), whole)
+    }
+    return NAMED_ENTITIES[named as string] ?? whole
+  })
+}
+
+function safeFromCodePoint(codePoint: number, fallback: string): string {
+  return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : fallback
 }

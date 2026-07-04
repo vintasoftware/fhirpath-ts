@@ -66,6 +66,13 @@ export interface CanonicalUnit {
   dimensions: Readonly<Record<string, number>>
 }
 
+/**
+ * Real UCUM exponents are single-digit (m2, cm3, s2). Larger ones would make
+ * powDecimal multiply huge exact BigInts — a tiny expression could hang the
+ * process — so anything past this stays an opaque unit.
+ */
+const MAX_EXPONENT_MAGNITUDE = 9
+
 /** One `atom` optionally followed by an integer exponent, e.g. `m2` or `cm3`. */
 function parseComponent(text: string): { factor: Decimal; dimension: Dimension; exponent: number } | undefined {
   // Whole-text atoms first, so '1' is the unity unit rather than an empty atom with exponent 1.
@@ -81,6 +88,9 @@ function parseComponent(text: string): { factor: Decimal; dimension: Dimension; 
   }
   const [, atomText = '', exponentText] = match
   const exponent = exponentText === undefined ? 1 : Number.parseInt(exponentText, 10)
+  if (Math.abs(exponent) > MAX_EXPONENT_MAGNITUDE) {
+    return undefined
+  }
   const resolved = resolveAtom(atomText)
   if (!resolved) {
     return undefined

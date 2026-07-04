@@ -36,6 +36,19 @@ describe('unit canonicalization', () => {
     expect(canonicalizeUnit('bananas')).toBeUndefined()
     expect(canonicalizeUnit('g/bananas')).toBeUndefined()
   })
+
+  it('oversized exponents stay opaque instead of exploding BigInt math', () => {
+    // A huge exponent would loop powDecimal over exact decimals — a tiny
+    // expression must not be able to hang the process.
+    const started = performance.now()
+    expect(canonicalizeUnit('kg100000000')).toBeUndefined()
+    expect(canonicalizeUnit('m-100000000')).toBeUndefined()
+    expect(canonicalizeUnit('kg10')).toBeUndefined()
+    expect(performance.now() - started).toBeLessThan(50)
+    // The realistic range keeps working.
+    expect(canonicalizeUnit('m9')?.dimensions).toEqual({ m: 9 })
+    expect(evaluate("5 'kg100000000' = 5 'kg'")).toEqual([])
+  })
 })
 
 describe('cross-unit quantity semantics', () => {

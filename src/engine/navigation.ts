@@ -59,6 +59,11 @@ export function getProperty(item: TypedValue, name: string): TypedValue[] {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return []
   }
+  // Own properties only: `Patient.constructor` or `x.toString` must be empty, not
+  // an inherited member leaking off Object.prototype.
+  if (!Object.hasOwn(value, name)) {
+    return []
+  }
   const child = (value as Record<string, unknown>)[name]
   if (child === undefined || child === null) {
     return []
