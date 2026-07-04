@@ -1,8 +1,8 @@
 import { singleton, wrapBoolean } from '../../values/collection.ts'
 import { itemMatchesType } from '../type-matching.ts'
-import { registerTypeOperator } from './index.ts'
+import type { TypeOperatorImpl } from './index.ts'
 
-registerTypeOperator((context, operator, operand, type) => {
+export const typeOperator: TypeOperatorImpl = (context, operator, operand, type) => {
   const item = singleton(operand)
   if (item === undefined) {
     return []
@@ -13,4 +13,4 @@ registerTypeOperator((context, operator, operand, type) => {
     return wrapBoolean(matches)
   }
   return matches ? [item] : []
-})
+}

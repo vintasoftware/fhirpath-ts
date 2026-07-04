@@ -1,7 +1,7 @@
 import { FhirPathRuntimeError } from '../../errors.ts'
 import { SYSTEM_BOOLEAN, type TypedValue } from '../../values/typed-value.ts'
 import { pairEquals } from './equality.ts'
-import { binaryOperators } from './index.ts'
+import type { BinaryOperatorTable } from './index.ts'
 
 /** Merge with duplicate elimination using `=` semantics (spec §6.4.1 / `union()`). */
 export function unionCollections(left: TypedValue[], right: TypedValue[]): TypedValue[] {
@@ -27,6 +27,8 @@ function inOperator(_context: unknown, left: TypedValue[], right: TypedValue[]):
   return [{ type: SYSTEM_BOOLEAN, value: found }]
 }
 
-binaryOperators.set('|', (_context, left, right) => unionCollections(left, right))
-binaryOperators.set('in', inOperator)
-binaryOperators.set('contains', (context, left, right) => inOperator(context, right, left))
+export const collectionOperators = {
+  '|': (_context, left, right) => unionCollections(left, right),
+  in: inOperator,
+  contains: (context, left, right) => inOperator(context, right, left),
+} satisfies BinaryOperatorTable

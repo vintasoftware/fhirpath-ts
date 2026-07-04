@@ -9,7 +9,7 @@ import {
   type TypedValue,
   typeLocalName,
 } from '../../values/typed-value.ts'
-import { binaryOperators } from './index.ts'
+import type { BinaryOperatorTable } from './index.ts'
 
 /**
  * Single-item `=` semantics (spec §6.1.1). Undefined means empty: date/time values
@@ -214,10 +214,12 @@ function wrap(value: boolean | undefined): TypedValue[] {
   return value === undefined ? [] : [{ type: SYSTEM_BOOLEAN, value }]
 }
 
-binaryOperators.set('=', (_context, left, right) => wrap(collectionEquals(left, right)))
-binaryOperators.set('!=', (_context, left, right) => {
-  const result = collectionEquals(left, right)
-  return wrap(result === undefined ? undefined : !result)
-})
-binaryOperators.set('~', (_context, left, right) => wrap(collectionEquivalent(left, right)))
-binaryOperators.set('!~', (_context, left, right) => wrap(!collectionEquivalent(left, right)))
+export const equalityOperators = {
+  '=': (_context, left, right) => wrap(collectionEquals(left, right)),
+  '!=': (_context, left, right) => {
+    const result = collectionEquals(left, right)
+    return wrap(result === undefined ? undefined : !result)
+  },
+  '~': (_context, left, right) => wrap(collectionEquivalent(left, right)),
+  '!~': (_context, left, right) => wrap(!collectionEquivalent(left, right)),
+} satisfies BinaryOperatorTable

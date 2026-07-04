@@ -1,7 +1,7 @@
 import { FhirPathTypeError } from '../../errors.ts'
 import { singleton } from '../../values/collection.ts'
 import { SYSTEM_STRING, systemTypeOf, type TypedValue } from '../../values/typed-value.ts'
-import { binaryOperators } from './index.ts'
+import type { BinaryOperatorTable } from './index.ts'
 
 /** `&` concatenates strings and, unlike `+`, treats an empty operand as `''` (spec §6.6.2). */
 function concat(_context: unknown, left: TypedValue[], right: TypedValue[]): TypedValue[] {
@@ -19,4 +19,6 @@ function stringOrEmpty(input: TypedValue[]): string {
   return item.value as string
 }
 
-binaryOperators.set('&', concat)
+export const stringOperators = {
+  '&': concat,
+} satisfies BinaryOperatorTable

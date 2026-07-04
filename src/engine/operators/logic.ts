@@ -1,6 +1,6 @@
 import { booleanSingleton, wrapBoolean } from '../../values/collection.ts'
 import type { TypedValue } from '../../values/typed-value.ts'
-import { binaryOperators } from './index.ts'
+import type { BinaryOperatorTable } from './index.ts'
 
 /**
  * Three-valued logic straight from the spec §6.5 truth tables. `undefined` is the
@@ -45,7 +45,9 @@ function logicOperator(table: (a: Tri, b: Tri) => Tri) {
     wrapBoolean(table(booleanSingleton(left), booleanSingleton(right)))
 }
 
-binaryOperators.set('and', logicOperator(and))
-binaryOperators.set('or', logicOperator(or))
-binaryOperators.set('xor', logicOperator(xor))
-binaryOperators.set('implies', logicOperator(implies))
+export const logicOperators = {
+  and: logicOperator(and),
+  or: logicOperator(or),
+  xor: logicOperator(xor),
+  implies: logicOperator(implies),
+} satisfies BinaryOperatorTable

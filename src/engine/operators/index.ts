@@ -1,41 +1,20 @@
-import { FhirPathRuntimeError } from '../../errors.ts'
 import type { BinaryOperator, TypeSpecifier, UnaryOperator } from '../../parser/ast.ts'
 import type { TypedValue } from '../../values/typed-value.ts'
 import type { EvaluationContext } from '../context.ts'
+import { collectionOperators } from './collections.ts'
+import { comparisonOperators } from './comparison.ts'
+import { equalityOperators } from './equality.ts'
+import { logicOperators } from './logic.ts'
+import { arithmeticOperators, unaryArithmeticOperators } from './math.ts'
+import { stringOperators } from './strings.ts'
+import { typeOperator } from './types.ts'
 
 export type BinaryOperatorImpl = (context: EvaluationContext, left: TypedValue[], right: TypedValue[]) => TypedValue[]
 
-/** Filled in by the operator modules; registration is append-only. */
-export const binaryOperators = new Map<BinaryOperator, BinaryOperatorImpl>()
-
-export function evaluateBinary(
-  context: EvaluationContext,
-  operator: BinaryOperator,
-  left: TypedValue[],
-  right: TypedValue[]
-): TypedValue[] {
-  const impl = binaryOperators.get(operator)
-  if (!impl) {
-    throw new FhirPathRuntimeError(`Operator '${operator}' is not implemented yet`)
-  }
-  return impl(context, left, right)
-}
+/** What each operator module exports; modules import this type-only, so no cycle. */
+export type BinaryOperatorTable = Partial<Record<BinaryOperator, BinaryOperatorImpl>>
 
 export type UnaryOperatorImpl = (context: EvaluationContext, operand: TypedValue[]) => TypedValue[]
-
-export const unaryOperators = new Map<UnaryOperator, UnaryOperatorImpl>()
-
-export function evaluateUnary(
-  context: EvaluationContext,
-  operator: UnaryOperator,
-  operand: TypedValue[]
-): TypedValue[] {
-  const impl = unaryOperators.get(operator)
-  if (!impl) {
-    throw new FhirPathRuntimeError(`Operator 'unary ${operator}' is not implemented yet`)
-  }
-  return impl(context, operand)
-}
 
 export type TypeOperatorImpl = (
   context: EvaluationContext,
@@ -44,10 +23,36 @@ export type TypeOperatorImpl = (
   type: TypeSpecifier
 ) => TypedValue[]
 
-let typeOperatorImpl: TypeOperatorImpl | undefined
+/**
+ * One entry per BinaryOperator union member, assembled statically — a missing
+ * operator is a compile error here, not a runtime throw.
+ */
+export const binaryOperators: Readonly<Record<BinaryOperator, BinaryOperatorImpl>> = {
+  ...equalityOperators,
+  ...comparisonOperators,
+  ...logicOperators,
+  ...arithmeticOperators,
+  ...collectionOperators,
+  ...stringOperators,
+}
 
-export function registerTypeOperator(impl: TypeOperatorImpl): void {
-  typeOperatorImpl = impl
+export const unaryOperators: Readonly<Record<UnaryOperator, UnaryOperatorImpl>> = unaryArithmeticOperators
+
+export function evaluateBinary(
+  context: EvaluationContext,
+  operator: BinaryOperator,
+  left: TypedValue[],
+  right: TypedValue[]
+): TypedValue[] {
+  return binaryOperators[operator](context, left, right)
+}
+
+export function evaluateUnary(
+  context: EvaluationContext,
+  operator: UnaryOperator,
+  operand: TypedValue[]
+): TypedValue[] {
+  return unaryOperators[operator](context, operand)
 }
 
 export function evaluateTypeOp(
@@ -56,8 +61,5 @@ export function evaluateTypeOp(
   operand: TypedValue[],
   type: TypeSpecifier
 ): TypedValue[] {
-  if (!typeOperatorImpl) {
-    throw new FhirPathRuntimeError(`Operator '${operator}' is not implemented yet`)
-  }
-  return typeOperatorImpl(context, operator, operand, type)
+  return typeOperator(context, operator, operand, type)
 }

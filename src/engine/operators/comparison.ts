@@ -5,7 +5,7 @@ import { asNumeric } from '../../values/numeric.ts'
 import { coerceQuantity, compareQuantities } from '../../values/quantity.ts'
 import { compareTemporal } from '../../values/temporal-compare.ts'
 import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, type TypedValue } from '../../values/typed-value.ts'
-import { binaryOperators } from './index.ts'
+import type { BinaryOperatorTable } from './index.ts'
 
 type ComparisonOperator = '<' | '>' | '<=' | '>='
 
@@ -75,7 +75,9 @@ function comparisonOperator(operator: ComparisonOperator) {
   }
 }
 
-binaryOperators.set('<', comparisonOperator('<'))
-binaryOperators.set('>', comparisonOperator('>'))
-binaryOperators.set('<=', comparisonOperator('<='))
-binaryOperators.set('>=', comparisonOperator('>='))
+export const comparisonOperators = {
+  '<': comparisonOperator('<'),
+  '>': comparisonOperator('>'),
+  '<=': comparisonOperator('<='),
+  '>=': comparisonOperator('>='),
+} satisfies BinaryOperatorTable

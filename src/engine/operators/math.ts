@@ -1,4 +1,5 @@
 import { FhirPathTypeError } from '../../errors.ts'
+import type { UnaryOperator } from '../../parser/ast.ts'
 import { singleton } from '../../values/collection.ts'
 import { Temporal } from '../../values/datetime.ts'
 import type { Decimal } from '../../values/decimal.ts'
@@ -12,7 +13,7 @@ import {
   systemTypeOf,
   type TypedValue,
 } from '../../values/typed-value.ts'
-import { binaryOperators, unaryOperators } from './index.ts'
+import type { BinaryOperatorTable, UnaryOperatorImpl } from './index.ts'
 
 type ArithmeticOperator = '+' | '-' | '*' | '/' | 'div' | 'mod'
 
@@ -122,12 +123,14 @@ function arithmeticOperator(operator: ArithmeticOperator) {
   }
 }
 
-binaryOperators.set('+', arithmeticOperator('+'))
-binaryOperators.set('-', arithmeticOperator('-'))
-binaryOperators.set('*', arithmeticOperator('*'))
-binaryOperators.set('/', arithmeticOperator('/'))
-binaryOperators.set('div', arithmeticOperator('div'))
-binaryOperators.set('mod', arithmeticOperator('mod'))
+export const arithmeticOperators = {
+  '+': arithmeticOperator('+'),
+  '-': arithmeticOperator('-'),
+  '*': arithmeticOperator('*'),
+  '/': arithmeticOperator('/'),
+  div: arithmeticOperator('div'),
+  mod: arithmeticOperator('mod'),
+} satisfies BinaryOperatorTable
 
 function unaryOperator(sign: 1 | -1) {
   return (_context: unknown, input: TypedValue[]): TypedValue[] => {
@@ -151,5 +154,7 @@ function unaryOperator(sign: 1 | -1) {
   }
 }
 
-unaryOperators.set('+', unaryOperator(1))
-unaryOperators.set('-', unaryOperator(-1))
+export const unaryArithmeticOperators: Readonly<Record<UnaryOperator, UnaryOperatorImpl>> = {
+  '+': unaryOperator(1),
+  '-': unaryOperator(-1),
+}
