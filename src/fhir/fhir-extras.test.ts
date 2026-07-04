@@ -129,6 +129,27 @@ describe('resolve()', () => {
     expect(evaluate("'#missing'.resolve()", patient, options)).toEqual([])
     expect(evaluate('name.first().resolve()', patient, options)).toEqual([])
   })
+
+  it('a relative reference does not match a fullUrl on a different base', () => {
+    // fullUrl tail is Patient/123 but the resource id is 999; the resource must
+    // confirm the type/id, so this resolves to empty rather than the wrong resource.
+    const bundle = {
+      resourceType: 'Bundle',
+      entry: [
+        { fullUrl: 'http://other.org/fhir/Patient/123', resource: { resourceType: 'Patient', id: '999' } },
+        {
+          fullUrl: 'http://example.org/Observation/o',
+          resource: { resourceType: 'Observation', id: 'o', subject: { reference: 'Patient/123' } },
+        },
+      ],
+    }
+    expect(evaluate('Bundle.entry.resource.ofType(Observation).subject.resolve().id', bundle, options)).toEqual([])
+  })
+
+  it('tolerates malformed bundle entries without crashing', () => {
+    const bundle = { resourceType: 'Bundle', entry: [null, { resource: { resourceType: 'Patient', id: 'p' } }] }
+    expect(evaluate("'Patient/p'.resolve().id", bundle, options)).toEqual(['p'])
+  })
 })
 
 describe('FHIR equivalence', () => {
@@ -202,6 +223,12 @@ describe('htmlChecks', () => {
     ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="vbscript:x()">hi</a></div>'],
     ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="data:text/html,x">hi</a></div>'],
     ['<div xmlns="http://www.w3.org/1999/xhtml"><img src="data:text/html,x" alt="i"/></div>'],
+    // Non-XML named entities (only lt/gt/amp/quot/apos are well-formed) let a
+    // browser decode &Tab;/&colon; and execute the URL — the document is not
+    // well-formed XHTML, so it must be rejected wherever the entity appears.
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="java&Tab;script:x()">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="javascript&colon;x()">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>bad &nbsp; entity</p></div>'],
     ['<div xmlns="http://www.w3.org/1999/xhtml"><p>unclosed</div>'],
     ['<div xmlns="http://www.w3.org/1999/xhtml"><p foo="bar">attr</p></div>'],
     ['<p xmlns="http://www.w3.org/1999/xhtml">not a div</p>'],

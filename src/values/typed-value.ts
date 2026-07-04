@@ -93,7 +93,10 @@ export function toTypedValue(value: unknown): TypedValue {
     if (Number.isSafeInteger(value)) {
       return { type: SYSTEM_INTEGER, value }
     }
-    return { type: SYSTEM_DECIMAL, value: Decimal.fromNumber(value) }
+    const decimal = Decimal.fromNumber(value)
+    // NaN/Infinity have no FHIRPath representation; keep them opaque so operations
+    // against them fail with a clean type error instead of a raw TypeError.
+    return decimal === undefined ? { type: OBJECT_TYPE, value } : { type: SYSTEM_DECIMAL, value: decimal }
   }
   if (value instanceof Decimal) {
     return { type: SYSTEM_DECIMAL, value }

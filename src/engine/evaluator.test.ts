@@ -123,6 +123,13 @@ describe('special and environment variables', () => {
     expect(evaluate('%nothing', undefined, { env: { nothing: undefined } })).toEqual([])
   })
 
+  it('non-finite numeric variables fail cleanly instead of crashing', () => {
+    // NaN/Infinity have no FHIRPath representation; arithmetic against them must
+    // raise a FhirPathError, not a raw TypeError from a dropped Decimal.
+    expect(() => evaluate('%x + 1', undefined, { env: { x: Number.NaN } })).toThrow(FhirPathError)
+    expect(() => evaluate('%x + 1', undefined, { env: { x: Number.POSITIVE_INFINITY } })).toThrow(FhirPathError)
+  })
+
   it('an undefined environment variable is an error', () => {
     expect(() => evaluate('%unknown')).toThrow(FhirPathTypeError)
     expect(() => evaluate('%unknown')).toThrow('Undefined environment variable %unknown')
@@ -131,6 +138,13 @@ describe('special and environment variables', () => {
   it('$index and $total are errors outside their functions', () => {
     expect(() => evaluate('$index', patient)).toThrow('$index is only defined inside iteration functions')
     expect(() => evaluate('$total', patient)).toThrow('$total is only defined inside aggregate()')
+  })
+
+  it('System-qualified type names are case-sensitive', () => {
+    expect(evaluate("'x' is System.String")).toEqual([true])
+    expect(evaluate("'x' is System.STRING")).toEqual([false])
+    expect(evaluate('1 is System.Integer')).toEqual([true])
+    expect(evaluate('1 is System.integer')).toEqual([false])
   })
 })
 

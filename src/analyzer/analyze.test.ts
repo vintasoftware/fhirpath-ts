@@ -25,6 +25,11 @@ describe('clean expressions produce no diagnostics', () => {
     ['%resource.id'],
     ['Patient.birthDate + 3 months'],
     ["Patient.name.family.first() & ' ' & Patient.name.given.first()"],
+    // The empty literal is statically at most one item, so it satisfies singleton
+    // operands (spec-legal; regression for the analyzer treating {} as a collection).
+    ['{} + 1'],
+    ['{} and true'],
+    ['{} = 1'],
   ])('%s', expression => {
     expect(analyzeExpression(expression, options)).toEqual([])
   })
@@ -60,6 +65,11 @@ describe('spec §11 rules', () => {
   it('rule 4: operators need single-item operands', () => {
     expect(codes('Patient.name.given + Patient.name.family')).toContain('singleton-required')
     expect(codes("Patient.name.given in 'a'")).toEqual(['singleton-required'])
+    // & and the comparison operators throw on multi-item at runtime, so the
+    // analyzer must flag them too (they previously slipped through).
+    expect(codes("Patient.name.given & 'x'")).toEqual(['singleton-required'])
+    expect(codes("Patient.name.given < 'x'")).toEqual(['singleton-required'])
+    expect(codes('Patient.name.given >= 1')).toContain('singleton-required')
   })
 
   it('rule 5: operator operand types', () => {

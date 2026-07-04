@@ -126,7 +126,7 @@ export interface DataRequirement extends Element {
   type?: string
 }
 
-export interface DataRequirementCodeFilter extends BackboneElement {
+export interface DataRequirementCodeFilter extends Element {
   code?: Coding[]
   extension?: Extension[]
   id?: string
@@ -135,7 +135,7 @@ export interface DataRequirementCodeFilter extends BackboneElement {
   valueSet?: string
 }
 
-export interface DataRequirementDateFilter extends BackboneElement {
+export interface DataRequirementDateFilter extends Element {
   extension?: Extension[]
   id?: string
   path?: string
@@ -145,7 +145,7 @@ export interface DataRequirementDateFilter extends BackboneElement {
   valueDuration?: Duration
 }
 
-export interface DataRequirementSort extends BackboneElement {
+export interface DataRequirementSort extends Element {
   direction?: string
   extension?: Extension[]
   id?: string
@@ -182,7 +182,7 @@ export interface Dosage extends BackboneElement {
   timing?: Timing
 }
 
-export interface DosageDoseAndRate extends BackboneElement {
+export interface DosageDoseAndRate extends Element {
   doseRange?: Range
   doseQuantity?: Quantity
   extension?: Extension[]
@@ -411,7 +411,7 @@ export interface ElementDefinition extends BackboneElement {
   type?: ElementDefinitionType[]
 }
 
-export interface ElementDefinitionBase extends BackboneElement {
+export interface ElementDefinitionBase extends Element {
   extension?: Extension[]
   id?: string
   max?: string
@@ -419,7 +419,7 @@ export interface ElementDefinitionBase extends BackboneElement {
   path?: string
 }
 
-export interface ElementDefinitionBinding extends BackboneElement {
+export interface ElementDefinitionBinding extends Element {
   description?: string
   extension?: Extension[]
   id?: string
@@ -427,7 +427,7 @@ export interface ElementDefinitionBinding extends BackboneElement {
   valueSet?: string
 }
 
-export interface ElementDefinitionConstraint extends BackboneElement {
+export interface ElementDefinitionConstraint extends Element {
   expression?: string
   extension?: Extension[]
   human?: string
@@ -439,7 +439,7 @@ export interface ElementDefinitionConstraint extends BackboneElement {
   xpath?: string
 }
 
-export interface ElementDefinitionExample extends BackboneElement {
+export interface ElementDefinitionExample extends Element {
   extension?: Extension[]
   id?: string
   label?: string
@@ -495,7 +495,7 @@ export interface ElementDefinitionExample extends BackboneElement {
   valueMeta?: Meta
 }
 
-export interface ElementDefinitionMapping extends BackboneElement {
+export interface ElementDefinitionMapping extends Element {
   comment?: string
   extension?: Extension[]
   id?: string
@@ -504,7 +504,7 @@ export interface ElementDefinitionMapping extends BackboneElement {
   map?: string
 }
 
-export interface ElementDefinitionSlicing extends BackboneElement {
+export interface ElementDefinitionSlicing extends Element {
   description?: string
   discriminator?: ElementDefinitionSlicingDiscriminator[]
   extension?: Extension[]
@@ -513,14 +513,14 @@ export interface ElementDefinitionSlicing extends BackboneElement {
   rules?: string
 }
 
-export interface ElementDefinitionSlicingDiscriminator extends BackboneElement {
+export interface ElementDefinitionSlicingDiscriminator extends Element {
   extension?: Extension[]
   id?: string
   path?: string
   type?: string
 }
 
-export interface ElementDefinitionType extends BackboneElement {
+export interface ElementDefinitionType extends Element {
   aggregation?: string[]
   code?: string
   extension?: Extension[]
@@ -803,7 +803,7 @@ export interface SubstanceAmount extends BackboneElement {
   referenceRange?: SubstanceAmountReferenceRange
 }
 
-export interface SubstanceAmountReferenceRange extends BackboneElement {
+export interface SubstanceAmountReferenceRange extends Element {
   extension?: Extension[]
   highLimit?: Quantity
   id?: string
@@ -819,7 +819,7 @@ export interface Timing extends BackboneElement {
   repeat?: TimingRepeat
 }
 
-export interface TimingRepeat extends BackboneElement {
+export interface TimingRepeat extends Element {
   boundsDuration?: Duration
   boundsRange?: Range
   boundsPeriod?: Period
@@ -20789,22 +20789,22 @@ export interface R4Bases {
   Contributor: 'Element'
   Count: 'Quantity'
   DataRequirement: 'Element'
-  'DataRequirement.codeFilter': 'BackboneElement'
-  'DataRequirement.dateFilter': 'BackboneElement'
-  'DataRequirement.sort': 'BackboneElement'
+  'DataRequirement.codeFilter': 'Element'
+  'DataRequirement.dateFilter': 'Element'
+  'DataRequirement.sort': 'Element'
   Distance: 'Quantity'
   Dosage: 'BackboneElement'
-  'Dosage.doseAndRate': 'BackboneElement'
+  'Dosage.doseAndRate': 'Element'
   Duration: 'Quantity'
   ElementDefinition: 'BackboneElement'
-  'ElementDefinition.base': 'BackboneElement'
-  'ElementDefinition.binding': 'BackboneElement'
-  'ElementDefinition.constraint': 'BackboneElement'
-  'ElementDefinition.example': 'BackboneElement'
-  'ElementDefinition.mapping': 'BackboneElement'
-  'ElementDefinition.slicing': 'BackboneElement'
-  'ElementDefinition.slicing.discriminator': 'BackboneElement'
-  'ElementDefinition.type': 'BackboneElement'
+  'ElementDefinition.base': 'Element'
+  'ElementDefinition.binding': 'Element'
+  'ElementDefinition.constraint': 'Element'
+  'ElementDefinition.example': 'Element'
+  'ElementDefinition.mapping': 'Element'
+  'ElementDefinition.slicing': 'Element'
+  'ElementDefinition.slicing.discriminator': 'Element'
+  'ElementDefinition.type': 'Element'
   Expression: 'Element'
   Extension: 'Element'
   HumanName: 'Element'
@@ -20828,9 +20828,9 @@ export interface R4Bases {
   Signature: 'Element'
   SimpleQuantity: 'Quantity'
   SubstanceAmount: 'BackboneElement'
-  'SubstanceAmount.referenceRange': 'BackboneElement'
+  'SubstanceAmount.referenceRange': 'Element'
   Timing: 'BackboneElement'
-  'Timing.repeat': 'BackboneElement'
+  'Timing.repeat': 'Element'
   TriggerDefinition: 'Element'
   UsageContext: 'Element'
   base64Binary: 'Element'

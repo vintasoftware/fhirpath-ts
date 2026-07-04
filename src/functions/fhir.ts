@@ -85,9 +85,13 @@ registerFunction('getValue', {
 })
 
 /**
- * Sync resolve(): contained references (`#id`) and Bundle-internal references.
- * Never touches the network — external references quietly resolve to nothing
- * (the async story is a deferred feature, see the README).
+ * Sync resolve() against the evaluation root: contained references (`#id`) and
+ * Bundle-internal references (by fullUrl or type/id). References are resolved
+ * relative to the root resource — per-item re-rooting to a containing resource is
+ * not done yet, so a `#id` that lives inside a Bundle entry resolves to empty
+ * rather than reaching into that entry's `contained`. Never touches the network:
+ * external references quietly resolve to nothing (the async story is a deferred
+ * feature, see the README).
  */
 registerFunction('resolve', {
   minArity: 0,
@@ -120,10 +124,15 @@ function referenceStringOf(item: TypedValue): string | undefined {
   return undefined
 }
 
+interface BundleEntry {
+  fullUrl?: unknown
+  resource?: { resourceType?: unknown; id?: unknown }
+}
+
 interface ResolveScope {
   resourceType?: unknown
   contained?: unknown
-  entry?: { fullUrl?: string; resource?: { resourceType?: unknown; id?: unknown } }[]
+  entry?: unknown
 }
 
 function resolveReference(reference: string, scope: ResolveScope | undefined): unknown {
@@ -136,22 +145,34 @@ function resolveReference(reference: string, scope: ResolveScope | undefined): u
       return scope
     }
     if (Array.isArray(scope.contained)) {
-      return scope.contained.find(resource => (resource as { id?: unknown }).id === id)
+      return scope.contained.find(resource => (resource as { id?: unknown } | null)?.id === id)
     }
     return undefined
   }
   if (scope.resourceType === 'Bundle' && Array.isArray(scope.entry)) {
+    const isAbsolute = reference.includes('://') || reference.startsWith('urn:')
     for (const entry of scope.entry) {
-      if (entry.fullUrl === reference || entry.fullUrl?.endsWith(`/${reference}`)) {
-        return entry.resource
+      if (!isObject(entry)) {
+        continue
       }
-      const resource = entry.resource
+      const { fullUrl, resource } = entry as BundleEntry
+      // Absolute references match a fullUrl exactly. Relative references
+      // (Type/id) match a resource's own type/id — a fullUrl suffix match alone
+      // would wrongly resolve Patient/123 against a different base whose resource
+      // id is not 123, so the resource must confirm the type/id.
+      if (isAbsolute && fullUrl === reference) {
+        return resource
+      }
       if (resource && `${String(resource.resourceType)}/${String(resource.id)}` === reference) {
         return resource
       }
     }
   }
   return undefined
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 /** Validate narrative xhtml against the FHIR rules (real implementation, not a stub). */

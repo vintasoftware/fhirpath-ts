@@ -72,10 +72,10 @@ export function matchQuirk(file: string, expression: string): QuirkFamily | unde
 /** Run one corpus case; returns a failure description or undefined on success. */
 export function runCorpusTest(file: CorpusFile, test: CorpusTest, expression: string): string | undefined {
   const input = test.inputfile !== undefined ? loadResource(test.inputfile) : structuredClone(file.subject)
-  const env: Record<string, unknown> = { ...test.variables }
+  const env: { context?: unknown } & Record<string, unknown> = { ...test.variables }
   try {
     if (test.context !== undefined) {
-      env['context'] = evaluate(test.context, input, { model: r4Model, env })[0]
+      env.context = evaluate(test.context, input, { model: r4Model, env })[0]
     }
     const options = test.model === 'r4' ? { model: r4Model, env } : { env }
     const rendered = compile(expression)

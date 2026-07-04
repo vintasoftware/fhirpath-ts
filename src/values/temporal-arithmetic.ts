@@ -1,5 +1,5 @@
 import { FhirPathRuntimeError } from '../errors.ts'
-import { Temporal, type TemporalPrecision } from './datetime.ts'
+import { daysInMonth, Temporal, type TemporalPrecision } from './datetime.ts'
 import { normalizeCalendarUnit } from './quantity.ts'
 import type { QuantityValue } from './typed-value.ts'
 
@@ -197,10 +197,6 @@ function componentsFromDayMs(
 
 function fractionOf(temporal: Temporal): number {
   return temporal.fraction === undefined ? 0 : Number.parseFloat(`0.${temporal.fraction}`)
-}
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year + 400, month, 0)).getUTCDate()
 }
 
 function rebuild(

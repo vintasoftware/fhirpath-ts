@@ -38,14 +38,17 @@ export function lookupFunction(name: string, argCount: number): FhirPathFunction
     throw new FhirPathTypeError(`Unrecognized function '${name}'`)
   }
   if (argCount < fn.minArity || argCount > fn.maxArity) {
-    throw new FhirPathTypeError(`Function '${name}' expects ${describeArity(fn)}, got ${argCount} arguments`)
+    throw new FhirPathTypeError(
+      `Function '${name}' expects ${describeArity(fn.minArity, fn.maxArity)}, got ${argCount} arguments`
+    )
   }
   return fn
 }
 
-function describeArity(fn: FhirPathFunction): string {
-  if (fn.minArity === fn.maxArity) {
-    return fn.minArity === 1 ? '1 argument' : `${fn.minArity} arguments`
+/** Human-readable arity range, e.g. "1 argument", "2 arguments", "1 to 3 arguments". */
+export function describeArity(minArity: number, maxArity: number): string {
+  if (minArity === maxArity) {
+    return minArity === 1 ? '1 argument' : `${minArity} arguments`
   }
-  return `${fn.minArity} to ${fn.maxArity} arguments`
+  return `${minArity} to ${maxArity} arguments`
 }

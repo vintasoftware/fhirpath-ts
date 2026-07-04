@@ -139,6 +139,11 @@ export function validateNarrative(xhtml: string): boolean {
       if (stack.length === 0 && token.trim() !== '') {
         return false
       }
+      // Well-formed XHTML only uses the five XML entities and numeric references;
+      // an unknown entity (e.g. &Tab;) means the document is not well-formed.
+      if (decodeEntities(token) === undefined) {
+        return false
+      }
       continue
     }
     if (token.startsWith('<!--') || token.startsWith('<![CDATA[')) {
@@ -202,8 +207,13 @@ const SAFE_SCHEMES = new Set(['http', 'https', 'mailto', 'tel', 'ftp', 'urn', 'c
  * the way a browser does — `java&#115;cript:` is still `javascript:`.
  */
 function safeUrl(rawValue: string, attributeName: string): boolean {
+  const decoded = decodeEntities(rawValue)
+  if (decoded === undefined) {
+    // An unknown entity in the URL (e.g. javascript&colon;) is malformed; reject.
+    return false
+  }
   // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point
-  const value = decodeEntities(rawValue).replace(/[\u0000-\u0020]/gu, '')
+  const value = decoded.replace(/[\u0000-\u0020]/gu, '')
   const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(value)
   if (!scheme) {
     // Relative URL or fragment: no scheme to smuggle code through.
@@ -225,18 +235,32 @@ const NAMED_ENTITIES: Readonly<Record<string, string>> = {
   apos: "'",
 }
 
-function decodeEntities(text: string): string {
-  return text.replace(/&(?:#x([0-9a-fA-F]+)|#(\d+)|([a-zA-Z]+));/g, (whole, hex, dec, named) => {
+/**
+ * Resolve XML entity and numeric character references. Returns undefined when the
+ * text contains an entity XHTML does not define — those five names plus numeric
+ * references are the only well-formed forms, so anything else fails validation
+ * instead of passing through unresolved (which is how &Tab;/&colon; smuggled a
+ * javascript: URL past the scheme check).
+ */
+function decodeEntities(text: string): string | undefined {
+  let malformed = false
+  const decoded = text.replace(/&(?:#x([0-9a-fA-F]+)|#(\d+)|([a-zA-Z0-9]+));/g, (whole, hex, dec, named) => {
     if (hex !== undefined) {
-      return safeFromCodePoint(Number.parseInt(hex, 16), whole)
+      return fromCodePoint(Number.parseInt(hex, 16))
     }
     if (dec !== undefined) {
-      return safeFromCodePoint(Number.parseInt(dec, 10), whole)
+      return fromCodePoint(Number.parseInt(dec, 10))
     }
-    return NAMED_ENTITIES[named as string] ?? whole
+    const resolved = NAMED_ENTITIES[named as string]
+    if (resolved === undefined) {
+      malformed = true
+      return whole
+    }
+    return resolved
   })
+  return malformed ? undefined : decoded
 }
 
-function safeFromCodePoint(codePoint: number, fallback: string): string {
-  return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : fallback
+function fromCodePoint(codePoint: number): string {
+  return codePoint >= 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : '\uFFFD'
 }

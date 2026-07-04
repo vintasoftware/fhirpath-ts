@@ -58,6 +58,14 @@ describe('r4Model element lookup', () => {
     expect(r4Model.getElement('Patient.contact', 'name')?.types).toEqual(['HumanName'])
   })
 
+  it('gives inline components the correct base: Element vs BackboneElement', () => {
+    // Patient.contact is a BackboneElement; Timing.repeat is a plain Element. The
+    // generator must not hardcode BackboneElement for every inline component.
+    expect(r4Model.isSubtypeOf('Patient.contact', 'BackboneElement')).toBe(true)
+    expect(r4Model.isSubtypeOf('Timing.repeat', 'Element')).toBe(true)
+    expect(r4Model.isSubtypeOf('Timing.repeat', 'BackboneElement')).toBe(false)
+  })
+
   it('follows contentReference recursion', () => {
     expect(r4Model.getElement('FHIR.Questionnaire', 'item')?.types).toEqual(['Questionnaire.item'])
     expect(r4Model.getElement('Questionnaire.item', 'item')?.types).toEqual(['Questionnaire.item'])

@@ -1,5 +1,5 @@
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
-import { functions } from '../functions/registry.ts'
+import { describeArity, functions } from '../functions/registry.ts'
 import '../functions/install.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode, TypeSpecifier } from '../parser/ast.ts'
@@ -74,7 +74,9 @@ class Analyzer {
   walk(node: AstNode, input: StaticState): StaticState {
     switch (node.kind) {
       case 'null':
-        return { types: [], single: false }
+        // The empty literal `{}` is statically at most one item, so it satisfies
+        // singleton operands (`{} + 1`, `{} and true` are spec-legal).
+        return { types: [], single: true }
       case 'boolean':
         return { types: ['System.Boolean'], single: true }
       case 'string':
@@ -189,7 +191,7 @@ class Analyzer {
     if (node.args.length < registered.minArity || node.args.length > registered.maxArity) {
       this.report(
         'wrong-arity',
-        `Function '${node.name}' expects ${registered.minArity === registered.maxArity ? registered.minArity : `${registered.minArity} to ${registered.maxArity}`} argument(s), got ${node.args.length}`,
+        `Function '${node.name}' expects ${describeArity(registered.minArity, registered.maxArity)}, got ${node.args.length}`,
         node.span
       )
     }
@@ -288,6 +290,8 @@ class Analyzer {
         return { types, single: true }
       }
       case '&':
+        this.requireSingle(left, node.left.span, "'&' expects single-item operands")
+        this.requireSingle(right, node.right.span, "'&' expects single-item operands")
         this.requireKind(left, 'String', node.left.span, "'&' expects String operands")
         this.requireKind(right, 'String', node.right.span, "'&' expects String operands")
         return { types: ['System.String'], single: true }
@@ -295,6 +299,8 @@ class Analyzer {
       case '>':
       case '<=':
       case '>=':
+        this.requireSingle(left, node.left.span, `Operator '${node.operator}' expects single-item operands`)
+        this.requireSingle(right, node.right.span, `Operator '${node.operator}' expects single-item operands`)
         this.checkComparable(left, right, node.span)
         return { types: ['System.Boolean'], single: true }
       case '=':
@@ -309,14 +315,8 @@ class Analyzer {
       case 'implies': {
         // Any single item satisfies a Boolean operand through the implicit-exists
         // rule, so only cardinality is checkable here.
-        for (const [state, span] of [
-          [left, node.left.span],
-          [right, node.right.span],
-        ] as const) {
-          if (state.types !== undefined && !state.single) {
-            this.report('singleton-required', `'${node.operator}' expects single-item operands`, span)
-          }
-        }
+        this.requireSingle(left, node.left.span, `'${node.operator}' expects single-item operands`)
+        this.requireSingle(right, node.right.span, `'${node.operator}' expects single-item operands`)
         return { types: ['System.Boolean'], single: true }
       }
       case '|':
@@ -328,13 +328,11 @@ class Analyzer {
       case 'contains': {
         const singletonSide = node.operator === 'in' ? left : right
         const singletonSpan = node.operator === 'in' ? node.left.span : node.right.span
-        if (singletonSide.types !== undefined && !singletonSide.single) {
-          this.report(
-            'singleton-required',
-            `The ${node.operator === 'in' ? 'left' : 'right'} operand of '${node.operator}' must be a single item`,
-            singletonSpan
-          )
-        }
+        this.requireSingle(
+          singletonSide,
+          singletonSpan,
+          `The ${node.operator === 'in' ? 'left' : 'right'} operand of '${node.operator}' must be a single item`
+        )
         return { types: ['System.Boolean'], single: true }
       }
       /* v8 ignore start -- the parser produces no other binary operators */
@@ -344,11 +342,16 @@ class Analyzer {
     }
   }
 
+  /** Report a singleton violation when the state is statically known to be a collection. */
+  private requireSingle(state: StaticState, span: SourceSpan, message: string): void {
+    if (isCollection(state)) {
+      this.report('singleton-required', message, span)
+    }
+  }
+
   private walkTypeOp(node: AstNode & { kind: 'typeOp' }, input: StaticState): StaticState {
     const operand = this.walk(node.operand, input)
-    if (operand.types !== undefined && !operand.single) {
-      this.report('singleton-required', `'${node.operator}' expects a single item operand`, node.operand.span)
-    }
+    this.requireSingle(operand, node.operand.span, `'${node.operator}' expects a single item operand`)
     this.checkTypeName(node.type.parts, node.type.span)
     if (node.operator === 'is') {
       return { types: ['System.Boolean'], single: true }
@@ -365,7 +368,7 @@ class Analyzer {
   }
 
   private checkArithmetic(operator: string, left: StaticState, right: StaticState, span: SourceSpan): void {
-    if ((left.types !== undefined && !left.single) || (right.types !== undefined && !right.single)) {
+    if (isCollection(left) || isCollection(right)) {
       this.report('singleton-required', `Operator '${operator}' expects single-item operands`, span)
       return
     }
@@ -440,6 +443,11 @@ const SYSTEM_TYPE_NAMES = new Set([
 ])
 
 /** The behavior kind shared by every candidate type, or undefined when mixed/unknown. */
+/** Statically known to hold more than one item (types known, not a singleton). */
+function isCollection(state: StaticState): boolean {
+  return state.types !== undefined && !state.single
+}
+
 function kindOf(state: StaticState): ValueKind | undefined {
   if (state.types === undefined || state.types.length === 0) {
     return undefined

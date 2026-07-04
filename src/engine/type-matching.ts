@@ -30,7 +30,10 @@ export function itemMatchesType(
   const exact = options?.exact === true
   if (parts.length === 2 && parts[0] === 'System') {
     // FHIR-typed values do not answer System-qualified questions (testType14).
-    return item.type.startsWith('System.') && matchesSystemType(item, parts[1] as string)
+    // System type names are case-sensitive, so `System.STRING` is not `System.String`
+    // (the lowercase fallback in matchesSystemType is only for unqualified names).
+    const systemName = parts[1] as string
+    return systemName === 'Any' ? item.type.startsWith('System.') : item.type === `System.${systemName}`
   }
   const model = context.model
   if (parts.length === 2) {

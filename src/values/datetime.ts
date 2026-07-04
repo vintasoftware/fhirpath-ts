@@ -247,8 +247,14 @@ function optionalNumber(text: string | undefined): number | undefined {
   return text === undefined ? undefined : Number(text)
 }
 
-function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate()
+/**
+ * Days in a month (1-based). The +400 shift keeps the proleptic Gregorian rule
+ * exact for years 1–99, where `Date.UTC` would otherwise map them to 1900–1999
+ * (the shift is a no-op for the leap rule but avoids that remapping); see
+ * temporal-compare.ts for the same technique.
+ */
+export function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year + 400, month, 0)).getUTCDate()
 }
 
 function inRange(value: number | undefined, min: number, max: number): boolean {

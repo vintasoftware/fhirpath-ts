@@ -1,4 +1,5 @@
 import ts from 'typescript'
+import { CALL_NAMES, isForeignCall, isForeignModule, TAG_NAME } from '../analyzer/expression-policy.ts'
 
 export interface ExpressionSite {
   expression: string
@@ -7,8 +8,6 @@ export interface ExpressionSite {
   line: number
   column: number
 }
-
-const CALL_NAMES = new Set(['fhirpath', 'compile', 'evaluate', 'analyzeExpression'])
 
 /**
  * Find FHIRPath expression literals in a TypeScript source file: `` fhirpath`...` ``
@@ -24,7 +23,7 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
     sites.push({ expression: text, start: literalStart, line: line + 1, column: character + 1 })
   }
   const visit = (node: ts.Node): void => {
-    if (ts.isTaggedTemplateExpression(node) && nameOf(node.tag) === 'fhirpath' && !foreign.has('fhirpath')) {
+    if (ts.isTaggedTemplateExpression(node) && nameOf(node.tag) === TAG_NAME && !foreign.has(TAG_NAME)) {
       if (ts.isNoSubstitutionTemplateLiteral(node.template)) {
         record(node.template.text, node.template.getStart(source) + 1)
       }
@@ -35,7 +34,7 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
         callee !== undefined &&
         CALL_NAMES.has(callee) &&
         ts.isStringLiteralLike(first) &&
-        !(ts.isIdentifier(node.expression) && foreign.has(callee))
+        !isForeignCall(foreign, callee, receiverRoot(node.expression))
       ) {
         record(first.text, first.getStart(source) + 1)
       }
@@ -57,7 +56,7 @@ function foreignBindings(source: ts.SourceFile): ReadonlySet<string> {
     if (!(ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier))) {
       continue
     }
-    if (statement.moduleSpecifier.text.startsWith('@vinta-bb/fhirpath')) {
+    if (!isForeignModule(statement.moduleSpecifier.text)) {
       continue
     }
     const clause = statement.importClause
@@ -84,4 +83,16 @@ function nameOf(node: ts.Expression): string | undefined {
     return node.name.text
   }
   return undefined
+}
+
+/** Leftmost identifier of a property-access callee (`Handlebars` in `Handlebars.compile`). */
+function receiverRoot(callee: ts.Expression): string | undefined {
+  if (!ts.isPropertyAccessExpression(callee)) {
+    return undefined
+  }
+  let current: ts.Expression = callee.expression
+  while (ts.isPropertyAccessExpression(current)) {
+    current = current.expression
+  }
+  return ts.isIdentifier(current) ? current.text : undefined
 }

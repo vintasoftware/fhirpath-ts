@@ -331,7 +331,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'DataRequirement.codeFilter': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       code: {
         t: ['Coding'],
@@ -356,7 +356,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'DataRequirement.dateFilter': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       extension: {
         t: ['Extension'],
@@ -378,7 +378,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'DataRequirement.sort': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       direction: {
         t: ['code'],
@@ -481,7 +481,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'Dosage.doseAndRate': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       dose: {
         t: ['Range', 'Quantity'],
@@ -826,7 +826,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'ElementDefinition.base': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       extension: {
         t: ['Extension'],
@@ -847,7 +847,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'ElementDefinition.binding': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       description: {
         t: ['string'],
@@ -868,7 +868,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'ElementDefinition.constraint': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       expression: {
         t: ['string'],
@@ -901,7 +901,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'ElementDefinition.example': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       extension: {
         t: ['Extension'],
@@ -971,7 +971,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'ElementDefinition.mapping': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       comment: {
         t: ['string'],
@@ -995,7 +995,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'ElementDefinition.slicing': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       description: {
         t: ['string'],
@@ -1020,7 +1020,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'ElementDefinition.slicing.discriminator': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       extension: {
         t: ['Extension'],
@@ -1038,7 +1038,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'ElementDefinition.type': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       aggregation: {
         t: ['code'],
@@ -1736,7 +1736,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'SubstanceAmount.referenceRange': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       extension: {
         t: ['Extension'],
@@ -1780,7 +1780,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     },
   },
   'Timing.repeat': {
-    b: 'BackboneElement',
+    b: 'Element',
     e: {
       bounds: {
         t: ['Duration', 'Range', 'Period'],

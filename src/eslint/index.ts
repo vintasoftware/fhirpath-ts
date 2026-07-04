@@ -1,8 +1,26 @@
 import type { Rule } from 'eslint'
 import { analyzeExpression } from '../analyzer/analyze.ts'
+import { CALL_NAMES, isForeignCall, isForeignModule, TAG_NAME } from '../analyzer/expression-policy.ts'
 import { r4Model } from '../r4/index.ts'
 
-const CALL_NAMES = new Set(['fhirpath', 'compile', 'evaluate', 'analyzeExpression'])
+// Minimal shape of the ESTree nodes we walk; @types/estree is not a dependency.
+interface MemberLike {
+  type: string
+  object?: MemberLike
+  name?: string
+}
+
+/** Leftmost identifier of a member-expression callee (`Handlebars` in `Handlebars.compile`). */
+function receiverRoot(callee: MemberLike): string | undefined {
+  if (callee.type !== 'MemberExpression') {
+    return undefined
+  }
+  let current: MemberLike | undefined = callee.object
+  while (current?.type === 'MemberExpression') {
+    current = current.object
+  }
+  return current?.type === 'Identifier' ? current.name : undefined
+}
 
 /**
  * ESLint flat-config plugin for consumers whose repos lint with ESLint
@@ -32,7 +50,7 @@ const noInvalidExpressions: Rule.RuleModule = {
     }
     return {
       ImportDeclaration(node) {
-        if (typeof node.source.value !== 'string' || node.source.value.startsWith('@vinta-bb/fhirpath')) {
+        if (typeof node.source.value !== 'string' || !isForeignModule(node.source.value)) {
           return
         }
         for (const specifier of node.specifiers) {
@@ -42,7 +60,7 @@ const noInvalidExpressions: Rule.RuleModule = {
       TaggedTemplateExpression(node) {
         const tag = node.tag
         const name = tag.type === 'Identifier' ? tag.name : undefined
-        if (name === 'fhirpath' && !foreign.has(name) && node.quasi.expressions.length === 0 && node.quasi.quasis[0]) {
+        if (name === TAG_NAME && !foreign.has(name) && node.quasi.expressions.length === 0 && node.quasi.quasis[0]) {
           check(node, node.quasi.quasis[0].value.cooked ?? '')
         }
       },
@@ -58,7 +76,7 @@ const noInvalidExpressions: Rule.RuleModule = {
         if (
           name !== undefined &&
           CALL_NAMES.has(name) &&
-          !(callee.type === 'Identifier' && foreign.has(name)) &&
+          !isForeignCall(foreign, name, receiverRoot(callee as MemberLike)) &&
           first?.type === 'Literal' &&
           typeof first.value === 'string'
         ) {

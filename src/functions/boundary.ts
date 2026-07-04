@@ -1,7 +1,7 @@
 import { FhirPathTypeError } from '../errors.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { singleton } from '../values/collection.ts'
-import { Temporal } from '../values/datetime.ts'
+import { daysInMonth, Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
 import {
   type QuantityValue,
@@ -108,10 +108,6 @@ function temporalBoundary(value: Temporal, edge: Edge, targetDigits: number | un
     fraction,
     timezoneOffsetMinutes,
   })
-}
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year + 400, month, 0)).getUTCDate()
 }
 
 function boundaryFunction(name: string, edge: Edge): void {
