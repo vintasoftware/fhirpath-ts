@@ -6,7 +6,7 @@ import { singleton } from '../values/collection.ts'
 import { SYSTEM_INTEGER, type TypedValue } from '../values/typed-value.ts'
 import { distinctItems } from './existence.ts'
 import type { NodeEvaluator } from './iteration.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 registerFunction('single', {
   minArity: 0,
@@ -55,7 +55,7 @@ registerFunction('skip', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const count = integerArgument('skip', context, input, args[0] as AstNode, evaluateNode)
+    const count = integerArgument('skip', context, input, argAt(args, 0), evaluateNode)
     return count <= 0 ? input : input.slice(count)
   },
 })
@@ -64,7 +64,7 @@ registerFunction('take', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const count = integerArgument('take', context, input, args[0] as AstNode, evaluateNode)
+    const count = integerArgument('take', context, input, argAt(args, 0), evaluateNode)
     return count <= 0 ? [] : input.slice(0, count)
   },
 })
@@ -73,7 +73,7 @@ registerFunction('intersect', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const other = evaluateNode(args[0] as AstNode, context, input)
+    const other = evaluateNode(argAt(args, 0), context, input)
     return distinctItems(input).filter(item => other.some(candidate => pairEquals(item, candidate) === true))
   },
 })
@@ -82,7 +82,7 @@ registerFunction('exclude', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const other = evaluateNode(args[0] as AstNode, context, input)
+    const other = evaluateNode(argAt(args, 0), context, input)
     // Keeps duplicates and order, unlike intersect().
     return input.filter(item => !other.some(candidate => pairEquals(item, candidate) === true))
   },

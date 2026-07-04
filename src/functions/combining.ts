@@ -1,16 +1,15 @@
 import { unionCollections } from '../engine/operators/collections.ts'
-import type { AstNode } from '../parser/ast.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 registerFunction('union', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) =>
-    unionCollections(input, evaluateNode(args[0] as AstNode, context, input)),
+    unionCollections(input, evaluateNode(argAt(args, 0), context, input)),
 })
 
 registerFunction('combine', {
   minArity: 1,
   maxArity: 1,
-  evaluate: (context, input, args, evaluateNode) => [...input, ...evaluateNode(args[0] as AstNode, context, input)],
+  evaluate: (context, input, args, evaluateNode) => [...input, ...evaluateNode(argAt(args, 0), context, input)],
 })

@@ -1,9 +1,8 @@
 import { withFrame } from '../engine/context.ts'
-import type { AstNode } from '../parser/ast.ts'
 import { booleanSingleton, wrapBoolean } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { SYSTEM_DATE, SYSTEM_DATETIME, SYSTEM_TIME, type TypedValue } from '../values/typed-value.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 registerFunction('not', {
   minArity: 0,
@@ -18,13 +17,11 @@ registerFunction('trace', {
   minArity: 1,
   maxArity: 2,
   evaluate: (context, input, args, evaluateNode) => {
-    const name = evaluateNode(args[0] as AstNode, context, input)
+    const name = evaluateNode(argAt(args, 0), context, input)
     const label = typeof name[0]?.value === 'string' ? (name[0].value as string) : ''
     const traced =
       args.length === 2
-        ? withFrame(context, { thisValue: input }, frameContext =>
-            evaluateNode(args[1] as AstNode, frameContext, input)
-          )
+        ? withFrame(context, { thisValue: input }, frameContext => evaluateNode(argAt(args, 1), frameContext, input))
         : input
     context.trace(label, traced)
     return input

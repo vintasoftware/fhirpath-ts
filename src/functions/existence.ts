@@ -1,10 +1,9 @@
 import { pairEquals } from '../engine/operators/equality.ts'
 import { FhirPathTypeError } from '../errors.ts'
-import type { AstNode } from '../parser/ast.ts'
 import { booleanSingleton, wrapBoolean } from '../values/collection.ts'
 import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
 import { perItem } from './iteration.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 registerFunction('empty', {
   minArity: 0,
@@ -20,7 +19,7 @@ registerFunction('exists', {
       return wrapBoolean(input.length > 0)
     }
     let found = false
-    perItem(context, input, args[0] as AstNode, evaluateNode, (_item, result) => {
+    perItem(context, input, argAt(args, 0), evaluateNode, (_item, result) => {
       found = found || booleanSingleton(result) === true
     })
     return wrapBoolean(found)
@@ -32,7 +31,7 @@ registerFunction('all', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     let all = true
-    perItem(context, input, args[0] as AstNode, evaluateNode, (_item, result) => {
+    perItem(context, input, argAt(args, 0), evaluateNode, (_item, result) => {
       all = all && booleanSingleton(result) === true
     })
     return wrapBoolean(all)
@@ -93,7 +92,7 @@ registerFunction('subsetOf', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const other = evaluateNode(args[0] as AstNode, context, input)
+    const other = evaluateNode(argAt(args, 0), context, input)
     return wrapBoolean(input.every(item => other.some(candidate => pairEquals(item, candidate) === true)))
   },
 })
@@ -102,7 +101,7 @@ registerFunction('supersetOf', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const other = evaluateNode(args[0] as AstNode, context, input)
+    const other = evaluateNode(argAt(args, 0), context, input)
     return wrapBoolean(other.every(item => input.some(candidate => pairEquals(item, candidate) === true)))
   },
 })

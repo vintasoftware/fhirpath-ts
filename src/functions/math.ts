@@ -1,5 +1,4 @@
 import { FhirPathTypeError } from '../errors.ts'
-import type { AstNode } from '../parser/ast.ts'
 import { singleton } from '../values/collection.ts'
 import { Decimal } from '../values/decimal.ts'
 import { asNumeric, wrapNumeric } from '../values/numeric.ts'
@@ -10,7 +9,7 @@ import {
   SYSTEM_QUANTITY,
   type TypedValue,
 } from '../values/typed-value.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 function numericInput(name: string, input: TypedValue[]): { item: TypedValue; value: Decimal } | undefined {
   const item = singleton(input)
@@ -94,7 +93,7 @@ registerFunction('round', {
     }
     let precision = 0
     if (args.length === 1) {
-      const argument = singleton(evaluateNode(args[0] as AstNode, context, input), SYSTEM_INTEGER)
+      const argument = singleton(evaluateNode(argAt(args, 0), context, input), SYSTEM_INTEGER)
       if (argument === undefined || typeof argument.value !== 'number' || argument.value < 0) {
         throw new FhirPathTypeError('round() expects a non-negative integer precision')
       }
@@ -133,7 +132,7 @@ registerFunction('log', {
     if (!numeric) {
       return []
     }
-    const baseInput = singleton(evaluateNode(args[0] as AstNode, context, input))
+    const baseInput = singleton(evaluateNode(argAt(args, 0), context, input))
     const base = baseInput === undefined ? undefined : asNumeric(baseInput)
     if (!base) {
       return []
@@ -153,7 +152,7 @@ registerFunction('power', {
     if (!numeric) {
       return []
     }
-    const exponentInput = singleton(evaluateNode(args[0] as AstNode, context, input))
+    const exponentInput = singleton(evaluateNode(argAt(args, 0), context, input))
     const exponent = exponentInput === undefined ? undefined : asNumeric(exponentInput)
     if (!exponent) {
       return []

@@ -1,9 +1,8 @@
 import { withFrame } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
-import type { AstNode } from '../parser/ast.ts'
 import { singleton } from '../values/collection.ts'
 import { SYSTEM_STRING, type TypedValue } from '../values/typed-value.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 /**
  * defineVariable(name [, value]) — ballot STU. The variable joins the current
@@ -14,7 +13,7 @@ registerFunction('defineVariable', {
   minArity: 1,
   maxArity: 2,
   evaluate: (context, input, args, evaluateNode) => {
-    const nameValue = singleton(evaluateNode(args[0] as AstNode, context, input))
+    const nameValue = singleton(evaluateNode(argAt(args, 0), context, input))
     if (nameValue === undefined || nameValue.type !== SYSTEM_STRING) {
       throw new FhirPathTypeError('defineVariable() expects a String name')
     }
@@ -29,9 +28,7 @@ registerFunction('defineVariable', {
     // Patient.name.defineVariable('n2', skip(1).first()).
     const value: TypedValue[] =
       args.length === 2
-        ? withFrame(context, { thisValue: input }, frameContext =>
-            evaluateNode(args[1] as AstNode, frameContext, input)
-          )
+        ? withFrame(context, { thisValue: input }, frameContext => evaluateNode(argAt(args, 1), frameContext, input))
         : input
     context.variables.set(name, value)
     return input

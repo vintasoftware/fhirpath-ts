@@ -20,6 +20,21 @@ export interface FhirPathFunction {
   ): TypedValue[]
 }
 
+/**
+ * The argument AST at `index`. `lookupFunction` has already enforced the arity
+ * range, so within a registered `evaluate` the node exists whenever `index` is
+ * below the function's minArity; this replaces the unchecked `args[i] as AstNode`
+ * casts with one guarded accessor.
+ */
+export function argAt(args: AstNode[], index: number): AstNode {
+  const node = args[index]
+  /* v8 ignore next 3 -- arity is validated before evaluate runs */
+  if (node === undefined) {
+    throw new FhirPathTypeError(`Missing required argument at position ${index}`)
+  }
+  return node
+}
+
 /** Function table; the per-section function modules add entries (append-only). */
 export const functions = new Map<string, FhirPathFunction>()
 

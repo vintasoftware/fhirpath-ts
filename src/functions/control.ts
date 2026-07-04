@@ -1,8 +1,7 @@
 import { withFrame } from '../engine/context.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
-import type { AstNode } from '../parser/ast.ts'
 import { booleanSingleton } from '../values/collection.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 registerFunction('iif', {
   minArity: 2,
@@ -13,12 +12,12 @@ registerFunction('iif', {
     }
     // $this is the (optional) single input item; branches evaluate lazily.
     return withFrame(context, { thisValue: input }, frameContext => {
-      const criterion = booleanSingleton(evaluateNode(args[0] as AstNode, frameContext, input))
+      const criterion = booleanSingleton(evaluateNode(argAt(args, 0), frameContext, input))
       if (criterion === true) {
-        return evaluateNode(args[1] as AstNode, frameContext, input)
+        return evaluateNode(argAt(args, 1), frameContext, input)
       }
       if (args.length === 3) {
-        return evaluateNode(args[2] as AstNode, frameContext, input)
+        return evaluateNode(argAt(args, 2), frameContext, input)
       }
       return []
     })

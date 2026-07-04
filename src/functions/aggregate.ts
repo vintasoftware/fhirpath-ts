@@ -1,20 +1,19 @@
 import { withFrame } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
-import type { AstNode } from '../parser/ast.ts'
 import { Decimal } from '../values/decimal.ts'
 import { asNumeric, type NumericKind, widerKind, wrapNumeric } from '../values/numeric.ts'
 import { alignQuantities, coerceQuantity } from '../values/quantity.ts'
 import { type QuantityValue, SYSTEM_DECIMAL, SYSTEM_QUANTITY, type TypedValue } from '../values/typed-value.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 registerFunction('aggregate', {
   minArity: 1,
   maxArity: 2,
   evaluate: (context, input, args, evaluateNode) => {
-    let total: TypedValue[] = args.length === 2 ? evaluateNode(args[1] as AstNode, context, input) : []
+    let total: TypedValue[] = args.length === 2 ? evaluateNode(argAt(args, 1), context, input) : []
     input.forEach((item, index) => {
       total = withFrame(context, { thisValue: [item], index, total }, frameContext =>
-        evaluateNode(args[0] as AstNode, frameContext, [item])
+        evaluateNode(argAt(args, 0), frameContext, [item])
       )
     })
     return total

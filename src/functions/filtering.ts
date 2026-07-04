@@ -1,11 +1,10 @@
 import { pairEquals } from '../engine/operators/equality.ts'
 import { isKnownTypeName, itemMatchesType } from '../engine/type-matching.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
-import type { AstNode } from '../parser/ast.ts'
 import { booleanSingleton, singleton, wrapBoolean } from '../values/collection.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { perItem } from './iteration.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 import { typePartsFromArgument } from './type-specifier.ts'
 
 registerFunction('where', {
@@ -13,7 +12,7 @@ registerFunction('where', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const result: TypedValue[] = []
-    perItem(context, input, args[0] as AstNode, evaluateNode, (item, criteria) => {
+    perItem(context, input, argAt(args, 0), evaluateNode, (item, criteria) => {
       if (booleanSingleton(criteria) === true) {
         result.push(item)
       }
@@ -27,7 +26,7 @@ registerFunction('select', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const result: TypedValue[] = []
-    perItem(context, input, args[0] as AstNode, evaluateNode, (_item, projected) => {
+    perItem(context, input, argAt(args, 0), evaluateNode, (_item, projected) => {
       result.push(...projected)
     })
     return result
@@ -38,7 +37,7 @@ registerFunction('repeat', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const expression = args[0] as AstNode
+    const expression = argAt(args, 0)
     const collected: TypedValue[] = []
     let current = input
     while (current.length > 0) {
@@ -80,7 +79,7 @@ registerFunction('ofType', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args) => {
-    const parts = typePartsFromArgument('ofType', args[0] as AstNode)
+    const parts = typePartsFromArgument('ofType', argAt(args, 0))
     requireKnownType(context, 'ofType', parts)
     return input.filter(item => itemMatchesType(context, item, parts, { exact: true }))
   },
@@ -102,7 +101,7 @@ registerFunction('is', {
     if (item === undefined) {
       return []
     }
-    return wrapBoolean(itemMatchesType(context, item, typePartsFromArgument('is', args[0] as AstNode)))
+    return wrapBoolean(itemMatchesType(context, item, typePartsFromArgument('is', argAt(args, 0))))
   },
 })
 
@@ -110,7 +109,7 @@ registerFunction('as', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args) => {
-    const parts = typePartsFromArgument('as', args[0] as AstNode)
+    const parts = typePartsFromArgument('as', argAt(args, 0))
     requireKnownType(context, 'as', parts)
     const item = singleton(input)
     if (item === undefined) {

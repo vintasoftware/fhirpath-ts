@@ -4,7 +4,7 @@ import type { AstNode } from '../parser/ast.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
 import { SYSTEM_INTEGER, SYSTEM_STRING, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
 import type { NodeEvaluator } from './iteration.ts'
-import { type FhirPathFunction, registerFunction } from './registry.ts'
+import { argAt, type FhirPathFunction, registerFunction } from './registry.ts'
 
 /** Singleton String input; empty stays empty, anything else is a type error (spec §5.6). */
 function stringInput(name: string, input: TypedValue[]): string | undefined {
@@ -75,7 +75,7 @@ registerFunction('substring', {
     if (value === undefined) {
       return []
     }
-    const start = singleton(evaluateNode(args[0] as AstNode, context, input), SYSTEM_INTEGER)
+    const start = singleton(evaluateNode(argAt(args, 0), context, input), SYSTEM_INTEGER)
     if (start === undefined || typeof start.value !== 'number') {
       return []
     }
@@ -85,7 +85,7 @@ registerFunction('substring', {
     if (args.length === 1) {
       return str(value.slice(start.value))
     }
-    const lengthCollection = evaluateNode(args[1] as AstNode, context, input)
+    const lengthCollection = evaluateNode(argAt(args, 1), context, input)
     if (lengthCollection.length === 0) {
       // An empty length means "to the end", like the one-argument form.
       return str(value.slice(start.value))
@@ -175,7 +175,7 @@ registerFunction('join', {
   minArity: 0,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const separator = args.length === 1 ? stringArgument('join', context, input, args[0] as AstNode, evaluateNode) : ''
+    const separator = args.length === 1 ? stringArgument('join', context, input, argAt(args, 0), evaluateNode) : ''
     const parts: string[] = []
     for (const item of input) {
       if (systemTypeOf(item) !== SYSTEM_STRING) {

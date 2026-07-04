@@ -35,4 +35,17 @@ describe('analyzer signature table', () => {
     )
     expect(pointless).toEqual([])
   })
+
+  it('no signature declares more argument specs than the runtime accepts', () => {
+    // The analyzer repeats the last arg spec for variadic positions, so a
+    // signature never needs more specs than maxArity; declaring extra ones is
+    // dead metadata and a sign the two halves of the contract have drifted.
+    const overspecified = Object.entries(FUNCTION_SIGNATURES)
+      .filter(([name, signature]) => {
+        const runtime = functions.get(name)
+        return runtime !== undefined && (signature.args?.length ?? 0) > runtime.maxArity
+      })
+      .map(([name]) => name)
+    expect(overspecified).toEqual([])
+  })
 })

@@ -1,17 +1,16 @@
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { validateNarrative } from '../fhir/html-checks.ts'
-import type { AstNode } from '../parser/ast.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
 import { calendarToUcumLoose, compareQuantities, promoteQuantity } from '../values/quantity.ts'
 import { SYSTEM_QUANTITY, SYSTEM_STRING, systemTypeOf, type TypedValue, toTypedValue } from '../values/typed-value.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 /** extension(url): extensions of each item, including primitive `_field` extensions. */
 registerFunction('extension', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const urlValue = singleton(evaluateNode(args[0] as AstNode, context, input))
+    const urlValue = singleton(evaluateNode(argAt(args, 0), context, input))
     if (urlValue === undefined) {
       return []
     }
@@ -194,7 +193,7 @@ registerFunction('comparable', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const left = singleton(input)
-    const right = singleton(evaluateNode(args[0] as AstNode, context, input))
+    const right = singleton(evaluateNode(argAt(args, 0), context, input))
     if (left === undefined || right === undefined) {
       return []
     }
@@ -221,7 +220,7 @@ registerFunction('conformsTo', {
     if (item === undefined) {
       return []
     }
-    const urlValue = singleton(evaluateNode(args[0] as AstNode, context, input))
+    const urlValue = singleton(evaluateNode(argAt(args, 0), context, input))
     const url = typeof urlValue?.value === 'string' ? urlValue.value : ''
     const match = /^http:\/\/hl7\.org\/fhir\/StructureDefinition\/([A-Za-z]+)$/.exec(url)
     if (!match) {

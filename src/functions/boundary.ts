@@ -1,5 +1,4 @@
 import { FhirPathTypeError } from '../errors.ts'
-import type { AstNode } from '../parser/ast.ts'
 import { singleton } from '../values/collection.ts'
 import { daysInMonth, Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
@@ -13,7 +12,7 @@ import {
   SYSTEM_TIME,
   systemTypeOf,
 } from '../values/typed-value.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 type Edge = 'low' | 'high'
 
@@ -121,7 +120,7 @@ function boundaryFunction(name: string, edge: Edge): void {
       }
       let precision: number | undefined
       if (args.length === 1) {
-        const argument = singleton(evaluateNode(args[0] as AstNode, context, input), SYSTEM_INTEGER)
+        const argument = singleton(evaluateNode(argAt(args, 0), context, input), SYSTEM_INTEGER)
         if (argument === undefined || typeof argument.value !== 'number') {
           throw new FhirPathTypeError(`${name}() expects an integer precision`)
         }
