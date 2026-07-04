@@ -23,7 +23,13 @@ if (files.length === 0) {
 
 let failures = 0
 for (const file of files) {
-  const text = readFileSync(file, 'utf8')
+  let text: string
+  try {
+    text = readFileSync(file, 'utf8')
+  } catch (error) {
+    console.error(`fhirpath-check: cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(2)
+  }
   for (const site of findExpressionSites(text, file)) {
     for (const diagnostic of analyzeExpression(site.expression, { model: r4Model })) {
       failures += 1

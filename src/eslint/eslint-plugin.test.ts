@@ -14,6 +14,9 @@ tester.run('no-invalid-expressions', plugin.rules['no-invalid-expressions'], {
     { code: 'const dynamic = compile(someVariable)' },
     { code: 'const other = somethingElse`Patient.nope`' },
     { code: 'const withHole = fhirpath`Patient.$' + '{x}`' },
+    // Names imported from other modules are not FHIRPath entry points.
+    { code: "import { compile } from 'handlebars'; const t = compile('not [fhirpath]')" },
+    { code: "import fhirpath from 'other-lib'; const t = fhirpath`Patient.nope`" },
   ],
   invalid: [
     {

@@ -15,6 +15,7 @@ interface SortKey {
 /** sort([keys...]) — ballot STU. `-key` sorts that key descending; no keys sorts by value. */
 registerFunction('sort', {
   minArity: 0,
+  // The ballot puts no limit on sort keys; 8 is a practical cap for arity checking.
   maxArity: 8,
   evaluate: (context, input, args, evaluateNode) => {
     const keys: SortKey[] = args.length

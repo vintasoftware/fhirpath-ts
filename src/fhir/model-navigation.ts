@@ -33,6 +33,12 @@ export function readModelProperty(model: ModelProvider, item: TypedValue, name: 
       if (record[key] !== undefined && record[key] !== null) {
         return convertValues(record[key], record[`_${key}`], typeName, info)
       }
+      // A choice primitive may be present through its `_field` sibling alone,
+      // e.g. { _valueString: { extension: [...] } } with no valueString.
+      const sibling = record[`_${key}`]
+      if (sibling !== undefined && sibling !== null && isFhirPrimitiveType(typeName)) {
+        return convertValues(undefined, sibling, typeName, info)
+      }
     }
     return []
   }

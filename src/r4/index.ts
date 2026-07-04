@@ -3,32 +3,10 @@ import { R4_RESOURCES } from './generated/resources-data.ts'
 import { R4_DATA_TYPES } from './generated/types-data.ts'
 import type { GeneratedElement, GeneratedType } from './model-data.ts'
 
+// One canonical FHIR-primitive → System map lives in values/typed-value.ts;
+// re-exported here because the model subpath is where consumers look for it.
+export { FHIR_PRIMITIVE_TO_SYSTEM as PRIMITIVE_TO_SYSTEM } from '../values/typed-value.ts'
 export type { GeneratedElement, GeneratedType } from './model-data.ts'
-
-/** FHIR primitive type names to their System twins (FHIR spec "types" page). */
-export const PRIMITIVE_TO_SYSTEM: Readonly<Record<string, string>> = {
-  boolean: 'System.Boolean',
-  integer: 'System.Integer',
-  positiveInt: 'System.Integer',
-  unsignedInt: 'System.Integer',
-  integer64: 'System.Long',
-  decimal: 'System.Decimal',
-  date: 'System.Date',
-  dateTime: 'System.DateTime',
-  instant: 'System.DateTime',
-  time: 'System.Time',
-  string: 'System.String',
-  code: 'System.String',
-  id: 'System.String',
-  markdown: 'System.String',
-  uri: 'System.String',
-  url: 'System.String',
-  canonical: 'System.String',
-  oid: 'System.String',
-  uuid: 'System.String',
-  base64Binary: 'System.String',
-  xhtml: 'System.String',
-}
 
 const NAMESPACE = 'FHIR'
 const PREFIX = `${NAMESPACE}.`

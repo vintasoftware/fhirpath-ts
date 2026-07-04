@@ -26,6 +26,18 @@ describe('expression site extraction', () => {
     expect(sites[0]?.line).toBe(2)
     expect(sites[1]?.line).toBe(3)
   })
+
+  it('skips call names imported from other modules', () => {
+    const source = [
+      "import { compile } from 'handlebars'",
+      "import fhirpath from 'some-other-fhirpath'",
+      "import { evaluate } from '@vinta-bb/fhirpath'",
+      "const template = compile('not a [fhirpath] expression')",
+      'const other = fhirpath`Patient.nope`',
+      "const checked = evaluate('Patient.active', input)",
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => site.expression)).toEqual(['Patient.active'])
+  })
 })
 
 describe('fhirpath-check CLI', () => {

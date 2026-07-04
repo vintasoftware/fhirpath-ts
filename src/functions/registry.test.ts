@@ -15,6 +15,13 @@ describe('function registry', () => {
     expect(lookupFunction('registryTestFn', 2)).toBeDefined()
   })
 
+  it('rejects duplicate registrations', () => {
+    registerFunction('registryDuplicate', stub(0, 0))
+    expect(() => registerFunction('registryDuplicate', stub(0, 0))).toThrow(
+      "FHIRPath function 'registryDuplicate' is registered twice"
+    )
+  })
+
   it('rejects unknown functions', () => {
     expect(() => lookupFunction('nope', 0)).toThrow(FhirPathTypeError)
     expect(() => lookupFunction('nope', 0)).toThrow("Unrecognized function 'nope'")

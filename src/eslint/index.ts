@@ -22,16 +22,27 @@ const noInvalidExpressions: Rule.RuleModule = {
     schema: [],
   },
   create(context) {
+    // Local names bound by imports from other modules: `compile` from handlebars
+    // is not a FHIRPath expression. Files without imports are always checked.
+    const foreign = new Set<string>()
     const check = (node: Rule.Node, expression: string): void => {
       for (const diagnostic of analyzeExpression(expression, { model: r4Model })) {
         context.report({ node, message: `[${diagnostic.code}] ${diagnostic.message}` })
       }
     }
     return {
+      ImportDeclaration(node) {
+        if (typeof node.source.value !== 'string' || node.source.value.startsWith('@vinta-bb/fhirpath')) {
+          return
+        }
+        for (const specifier of node.specifiers) {
+          foreign.add(specifier.local.name)
+        }
+      },
       TaggedTemplateExpression(node) {
         const tag = node.tag
         const name = tag.type === 'Identifier' ? tag.name : undefined
-        if (name === 'fhirpath' && node.quasi.expressions.length === 0 && node.quasi.quasis[0]) {
+        if (name === 'fhirpath' && !foreign.has(name) && node.quasi.expressions.length === 0 && node.quasi.quasis[0]) {
           check(node, node.quasi.quasis[0].value.cooked ?? '')
         }
       },
@@ -47,6 +58,7 @@ const noInvalidExpressions: Rule.RuleModule = {
         if (
           name !== undefined &&
           CALL_NAMES.has(name) &&
+          !(callee.type === 'Identifier' && foreign.has(name)) &&
           first?.type === 'Literal' &&
           typeof first.value === 'string'
         ) {

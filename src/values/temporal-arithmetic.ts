@@ -56,9 +56,6 @@ function resolveDuration(quantity: QuantityValue): Duration {
     return { level: 2, amount: value * 7 }
   }
   if (COMPONENT_LEVELS[asCalendarWord] !== undefined) {
-    if (asCalendarWord === 'week') {
-      return { level: 2, amount: value * 7 }
-    }
     return { level: COMPONENT_LEVELS[asCalendarWord] as number, amount: value }
   }
   const ucum = UCUM_TIME_UNITS[quantity.unit]
@@ -87,10 +84,7 @@ export function addDuration(temporal: Temporal, quantity: QuantityValue, sign: 1
   const duration = resolveDuration(quantity)
   let level = duration.level
   let amount = duration.amount * sign
-  const targetLevel = Math.min(
-    precisionLevel(temporal.precision === 'millisecond' ? 'millisecond' : temporal.precision),
-    temporal.kind === 'date' ? 2 : 6
-  )
+  const targetLevel = Math.min(precisionLevel(temporal.precision), temporal.kind === 'date' ? 2 : 6)
   // Whole amounts only above seconds; fractional seconds add as milliseconds (R5).
   if (level < 5) {
     amount = Math.trunc(amount)

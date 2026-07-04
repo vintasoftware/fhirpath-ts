@@ -18,6 +18,9 @@ import { registerFunction } from './registry.ts'
 type Edge = 'low' | 'high'
 
 const MAX_DECIMAL_PRECISION = 28
+// Spec default for decimal boundaries, and the digit count of a full date (YYYYMMDD).
+const DEFAULT_DECIMAL_BOUNDARY_PRECISION = 8
+const FULL_DATE_DIGITS = 8
 const MAX_DATETIME_DIGITS = 17
 const MAX_TIME_DIGITS = 9
 
@@ -72,9 +75,9 @@ function temporalBoundary(value: Temporal, edge: Edge, targetDigits: number | un
     return undefined
   }
   const low = edge === 'low'
-  const dateDigits = isTime ? 0 : 8
+  const dateDigits = isTime ? 0 : FULL_DATE_DIGITS
   const wantsMonth = !isTime && digits >= 6
-  const wantsDay = !isTime && digits >= 8
+  const wantsDay = !isTime && digits >= FULL_DATE_DIGITS
   const wantsHour = digits >= dateDigits + 2 && (isTime || value.kind === 'dateTime')
   const wantsMinute = digits >= dateDigits + 4
   const wantsSecond = digits >= dateDigits + 6
@@ -140,7 +143,12 @@ function boundaryFunction(name: string, edge: Edge): void {
             return []
           }
           const value = item.value instanceof Decimal ? item.value : (Decimal.fromString(String(item.value)) as Decimal)
-          return [{ type: SYSTEM_DECIMAL, value: decimalBoundary(value, edge, precision ?? 8) }]
+          return [
+            {
+              type: SYSTEM_DECIMAL,
+              value: decimalBoundary(value, edge, precision ?? DEFAULT_DECIMAL_BOUNDARY_PRECISION),
+            },
+          ]
         }
         case SYSTEM_QUANTITY: {
           if (precision !== undefined && precision > MAX_DECIMAL_PRECISION) {
@@ -150,7 +158,10 @@ function boundaryFunction(name: string, edge: Edge): void {
           return [
             {
               type: SYSTEM_QUANTITY,
-              value: { ...quantity, value: decimalBoundary(quantity.value, edge, precision ?? 8) },
+              value: {
+                ...quantity,
+                value: decimalBoundary(quantity.value, edge, precision ?? DEFAULT_DECIMAL_BOUNDARY_PRECISION),
+              },
             },
           ]
         }

@@ -24,6 +24,11 @@ export interface FhirPathFunction {
 export const functions = new Map<string, FhirPathFunction>()
 
 export function registerFunction(name: string, fn: FhirPathFunction): void {
+  if (functions.has(name)) {
+    // 100+ names across 20 modules: a copy-paste collision would silently
+    // replace an implementation, so fail loudly at import time instead.
+    throw new Error(`FHIRPath function '${name}' is registered twice`)
+  }
   functions.set(name, fn)
 }
 

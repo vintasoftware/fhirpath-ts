@@ -73,5 +73,7 @@ describe('print/parse round trips', () => {
     ["'it\\'s' = 'it\\u0027s'"],
     ["contained.select(('#' + id in %resource.descendants().reference).not()).empty()"],
     ['`PID-1`[0].`odd name`.exists()'],
+    ['x as `odd type`'],
+    ['x is FHIR.`odd type` or y.ofType(Quantity)'],
   ])('round trips %j', roundTrip)
 })

@@ -12,6 +12,16 @@ describe('model navigation branches', () => {
     expect(evaluate('Observation.value', { resourceType: 'Observation', status: 'final' }, options)).toEqual([])
   })
 
+  it('a choice primitive present only through its _field sibling still navigates', () => {
+    const resource = {
+      resourceType: 'Observation',
+      status: 'final',
+      _valueString: { extension: [{ url: 'http://data-absent', valueCode: 'masked' }] },
+    }
+    expect(evaluate('Observation.value.extension.url', resource, options)).toEqual(['http://data-absent'])
+    expect(evaluate('Observation.value.hasValue()', resource, options)).toEqual([false])
+  })
+
   it('unknown elements on model-typed values are semantic errors', () => {
     const resource = { resourceType: 'Patient', unknownKey: 'x' }
     expect(() => evaluate('unknownKey', resource, options)).toThrow("Element 'unknownKey' is not defined")

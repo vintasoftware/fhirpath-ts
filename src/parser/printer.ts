@@ -94,7 +94,7 @@ function printInner(node: AstNode): string {
     case 'unary':
       return `${node.operator}${print(node.operand, BindingPower.Unary)}`
     case 'typeOp':
-      return `${print(node.operand, BindingPower.TypeOps)} ${node.operator} ${node.type.parts.join('.')}`
+      return `${print(node.operand, BindingPower.TypeOps)} ${node.operator} ${node.type.parts.map(printIdentifier).join('.')}`
     case 'binary': {
       const bindingPower = INFIX_BINDING_POWER[node.operator] as number
       return `${print(node.left, bindingPower)} ${node.operator} ${print(node.right, bindingPower + 1)}`
