@@ -6,8 +6,37 @@ other implementation offers together:
 
 - **Compile-time result types** for common expressions, in plain `tsc` with no plugin:
   `compile('Patient.name.given').evaluate(patient)` is a `string[]`.
-- **A spec §11 static analyzer** that checks full expressions (unknown elements, wrong
-  types, singleton misuse) at CI time, via a CLI or an ESLint rule.
+- **A static analyzer for the official spec's §11**
+  ([Type safety and strict evaluation](https://hl7.org/fhirpath/#typesafety)) that
+  checks full expressions (unknown elements, wrong types, singleton misuse) at CI
+  time, via a CLI or an ESLint rule.
+
+## Why this engine
+
+| | **@vinta-bb/fhirpath** | fhirpath.js | fhirpath-py | fhirpath-rs | Medplum |
+|---|---|---|---|---|---|
+| Runtime deps | zero | ANTLR runtime, ucum-lhc, … | ANTLR runtime | Rust crates | none (large SDK) |
+| Decimal arithmetic | exact, always on | floats (opt-in precise mode) | Python decimal | Rust decimal | floats |
+| Official R4+R5 suites in CI | 100% of non-skipped | not run | not run | regrouped R5 | not run |
+| Runs the other engines' suites | yes, with evidence for each divergence | no | no | no | no |
+| Compile-time result types | yes (plain `tsc`) | no | no | no | no |
+| Spec §11 as dev tooling | CLI + ESLint + API | no | no | runtime analyzer | no |
+| Terminology / async / `%factory` | deferred (see Gaps) | yes | partial | `%factory` | no |
+| FHIR models | R4 (provider interface) | DSTU2–R5 | DSTU2–R5 | R5 | R4 |
+
+Three things are genuinely different here. **Expressions are checked before they
+run**: the spec has had §11 for years, but the reference engines treat it as at most
+a runtime mode — here a typo like `Observation.valueQuantity` or a singleton misuse
+is a build failure (type inference in `tsc`, the `fhirpath-check` CLI, or the ESLint
+rule), not a production empty-result. **Correctness is demonstrated against everyone
+else's tests, not just ours**: 100% of the non-skipped official suites plus the
+fhirpath.js/fhirpath-py corpora, with every intentional divergence carrying its
+spec citation — a process that caught reference-implementation bugs this engine
+refused to inherit (Medplum's `(0).not() = true` contradicts the official suite;
+fhirpath.js treats `1 month = 30 days` as true). **The engineering shape fits this
+repo**: zero dependencies, source-consumed, hardened against hostile expressions,
+and model-agnostic behind a provider interface so R5/CDA are additive. The
+trade-offs live in [Gaps and deferred features](#gaps-and-deferred-features).
 
 ## Quick start
 
@@ -29,8 +58,10 @@ fhirpath`Patient.name.given`.evaluate(patient, { model: r4Model }) // unknown[]
 ```
 
 Pass `{ model: r4Model }` for FHIR-aware evaluation: choice elements by stem name
-(`Observation.value`), primitive `_field` extensions, type checks (`is`/`as`/`ofType`),
-and strict unknown-element errors. Without a model the engine navigates raw JSON.
+(`Observation.value`), primitive `_field` extensions, and type checks
+(`is`/`as`/`ofType`). Unknown elements navigate to empty like the reference engines
+(typos are the static analyzer's job); the one runtime semantic error is choice-key
+misuse (`Observation.valueQuantity`). Without a model the engine navigates raw JSON.
 
 ### Options
 
@@ -79,7 +110,7 @@ it exact. [octofhir/fhirpath-rs](https://github.com/octofhir/fhirpath-rs) was
 reviewed as well: its corpus is a regrouped official R5 suite plus custom cases
 ported into `src/reference-crosschecks.test.ts` (alongside Medplum spot checks).
 
-## Static checking (spec §11)
+## Static checking (official spec §11)
 
 Three layers, from cheapest to most thorough:
 
@@ -89,8 +120,10 @@ Three layers, from cheapest to most thorough:
    Anything else degrades to `unknown[]` — never a type error.
 2. **`fhirpath-check` CLI** — scans sources for `` fhirpath`...` `` tags and literal
    `fhirpath()/compile()/evaluate()` arguments, and runs the analyzer over each with
-   the R4 model. This is the CI hook for repos (like this one) that lint with Biome:
-   `pnpm --filter @vinta-bb/fhirpath exec fhirpath-check src/**/*.ts`
+   the R4 model: `pnpm --filter @vinta-bb/fhirpath exec fhirpath-check src/**/*.ts`.
+   There is no Biome rule because Biome cannot run one: its plugin system is
+   GritQL pattern matching and cannot execute the analyzer. The CLI is the
+   equivalent CI hook for Biome repos like this one (`check:fhirpath` script).
 3. **ESLint rule** for repos that lint with ESLint:
 
    ```js
@@ -109,13 +142,27 @@ arities, and type names. Unknown regions (`children()`, `descendants()`, `resolv
 
 ## Architecture
 
-- Hand-written lexer and Pratt parser (no ANTLR runtime) over a plain
-  discriminated-union AST with source spans; a canonical printer round-trips every
-  official-suite expression. The Pratt structure is adapted from
+- Hand-written lexer and Pratt parser over a plain discriminated-union AST with
+  source spans; a canonical printer round-trips every official-suite expression.
+  Hand-written beats ANTLR generation here for four reasons: no runtime dependency
+  (the ANTLR runtime is what fhirpath.js/fhirpath-py ship), no codegen build step
+  (this repo consumes packages from source), full control over error positions and
+  hostile-input bounds (the 500-level depth cap; generated parsers recurse
+  unboundedly), and speed (~2µs parses). The grammar is small and frozen (13
+  precedence levels), so the usual ANTLR advantage — tracking a moving grammar —
+  does not apply; the normative `fhirpath.g4` stays the source of truth for tests.
+  The Pratt structure is adapted from
   [Medplum](https://github.com/medplum/medplum)'s parser (Apache-2.0).
 - Exact decimal arithmetic on a BigInt-scaled `Decimal` (no float drift:
   `0.1 + 0.2 = 0.3` holds), partial-precision `Temporal` date/time values, and a
   built-in UCUM subset with exact conversion factors (`1 'm' = 100 'cm'`).
+  "Exact-factor subset" means a curated table (SI prefixes × base units plus the
+  customary units the official suites exercise) whose factors are exact decimal
+  strings — conversions carry zero rounding error, where `@lhncbc/ucum-lhc` (used
+  by fhirpath.js) covers all ~300 UCUM units in float arithmetic. What the subset
+  omits: offset units (`Cel`, `[degF]`), logarithmic/special units (`B`, `Np`),
+  and arbitrary units. Units outside the table still work as opaque units that
+  compare with themselves; only cross-unit conversion needs the table.
 - The engine core is model-agnostic behind a `ModelProvider` interface (the spec's
   ModelInfo concept). `scripts/generate-r4-model.ts` generates the R4 model from the
   HL7 StructureDefinitions in `@medplum/definitions` — runtime tables and the
@@ -128,9 +175,18 @@ lines (current: 99.4 / 96.5 / 99.8 / 99.3). The uncovered remainder is annotated
 `v8 ignore` defensive guards (exhaustiveness defaults, impossible states) and
 fallback halves of `??`-style guards on shapes real FHIR data does not produce.
 
-## Deferred features
+## Gaps and deferred features
 
-Planned but deliberately out of v1; each fails with a clear error today:
+Current limitations beyond the deferred features below: the R4 model is the only
+one shipped (`model: r5/stu3/dstu2` reference-corpus cases are skipped); the
+engine is synchronous by design; regex evaluation of **user-authored** expressions
+is the one unhardened dimension (see Security); and tagged templates stay untyped
+(TS#33304) — use the `fhirpath('...')`/`compile('...')` call forms for inference.
+Behavioral differences from the reference implementations are not gaps but
+documented choices: see the divergence manifest under Conformance.
+
+Deferred features — planned but deliberately out of v1; each fails with a clear
+error today:
 
 | Feature | Why deferred | Unblocks it |
 | --- | --- | --- |
