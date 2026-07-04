@@ -1,4 +1,4 @@
-import type { ElementInfo, ModelProvider } from '../model/provider.ts'
+import type { ModelProvider } from '../model/provider.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, type TypedValue, toTypedValue } from '../values/typed-value.ts'
@@ -31,13 +31,13 @@ export function readModelProperty(model: ModelProvider, item: TypedValue, name: 
     for (const typeName of info.types) {
       const key = name + typeName.charAt(0).toUpperCase() + typeName.slice(1)
       if (record[key] !== undefined && record[key] !== null) {
-        return convertValues(record[key], record[`_${key}`], typeName, info)
+        return convertValues(record[key], record[`_${key}`], typeName)
       }
       // A choice primitive may be present through its `_field` sibling alone,
       // e.g. { _valueString: { extension: [...] } } with no valueString.
       const sibling = record[`_${key}`]
       if (sibling !== undefined && sibling !== null && isFhirPrimitiveType(typeName)) {
-        return convertValues(undefined, sibling, typeName, info)
+        return convertValues(undefined, sibling, typeName)
       }
     }
     return []
@@ -47,11 +47,11 @@ export function readModelProperty(model: ModelProvider, item: TypedValue, name: 
     // A primitive may be present through its `_field` sibling alone.
     const sibling = record[`_${name}`]
     if (sibling !== undefined && sibling !== null && isFhirPrimitiveType(info.types[0] as string)) {
-      return convertValues(undefined, sibling, info.types[0] as string, info)
+      return convertValues(undefined, sibling, info.types[0] as string)
     }
     return []
   }
-  return convertValues(raw, record[`_${name}`], info.types[0] as string, info)
+  return convertValues(raw, record[`_${name}`], info.types[0] as string)
 }
 
 /** `id` and `extension` on an already-navigated primitive come from its `_field` sibling. */
@@ -73,7 +73,7 @@ function readPrimitiveMetadata(item: TypedValue, name: string): TypedValue[] | u
   }))
 }
 
-function convertValues(raw: unknown, sibling: unknown, typeName: string, info: ElementInfo): TypedValue[] {
+function convertValues(raw: unknown, sibling: unknown, typeName: string): TypedValue[] {
   if (Array.isArray(raw) || Array.isArray(sibling)) {
     // The value and _name arrays align by index and either may be the longer one:
     // a tail entry present only in _name is still an element (with extensions).
@@ -87,11 +87,6 @@ function convertValues(raw: unknown, sibling: unknown, typeName: string, info: E
       }
     }
     return result
-  }
-  if (info.isCollection && raw !== undefined && !Array.isArray(raw)) {
-    // Collection element with a single JSON value still yields one item.
-    const converted = convertSingle(raw, sibling, typeName)
-    return converted ? [converted] : []
   }
   const converted = convertSingle(raw, sibling, typeName)
   return converted ? [converted] : []

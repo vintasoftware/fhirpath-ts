@@ -442,12 +442,12 @@ const SYSTEM_TYPE_NAMES = new Set([
   'Quantity',
 ])
 
-/** The behavior kind shared by every candidate type, or undefined when mixed/unknown. */
 /** Statically known to hold more than one item (types known, not a singleton). */
 function isCollection(state: StaticState): boolean {
   return state.types !== undefined && !state.single
 }
 
+/** The behavior kind shared by every candidate type, or undefined when mixed/unknown. */
 function kindOf(state: StaticState): ValueKind | undefined {
   if (state.types === undefined || state.types.length === 0) {
     return undefined

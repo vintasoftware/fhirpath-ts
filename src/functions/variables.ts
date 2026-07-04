@@ -1,7 +1,7 @@
 import { withFrame } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import { singleton } from '../values/collection.ts'
-import { SYSTEM_STRING, type TypedValue } from '../values/typed-value.ts'
+import { SYSTEM_STRING, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
 import { argAt, registerFunction } from './registry.ts'
 
 /**
@@ -14,7 +14,7 @@ registerFunction('defineVariable', {
   maxArity: 2,
   evaluate: (context, input, args, evaluateNode) => {
     const nameValue = singleton(evaluateNode(argAt(args, 0), context, input))
-    if (nameValue === undefined || nameValue.type !== SYSTEM_STRING) {
+    if (nameValue === undefined || systemTypeOf(nameValue) !== SYSTEM_STRING) {
       throw new FhirPathTypeError('defineVariable() expects a String name')
     }
     const name = nameValue.value as string

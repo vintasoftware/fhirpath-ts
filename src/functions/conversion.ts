@@ -311,7 +311,7 @@ const toQuantityImpl: FhirPathFunction['evaluate'] = (context, input, args, eval
   }
   if (args.length === 1) {
     const unitArg = singleton(evaluateNode(args[0] as NonNullable<(typeof args)[0]>, context, input))
-    if (unitArg === undefined || unitArg.type !== SYSTEM_STRING) {
+    if (unitArg === undefined || systemTypeOf(unitArg) !== SYSTEM_STRING) {
       throw new FhirPathTypeError('toQuantity() expects a String unit argument')
     }
     const quantity = converted.value as QuantityValue

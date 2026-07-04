@@ -15,20 +15,73 @@ const FHIR_QUANTITY_TYPES = new Set([
 ])
 
 /**
+ * One row per calendar duration keyword — the single source the calendar-unit
+ * lookups below are all derived from, so they cannot disagree.
+ *
+ * - `family`: year/month measure in months, week-and-below measure in seconds;
+ *   the two families never convert into each other (`1 year` has no value in days).
+ * - `factor`: exact multiplier to the family's base unit (months or seconds).
+ * - `ucum`: the UCUM twin. Week-and-below (`exact`) twins are exact durations, so
+ *   they compare *equal* to the calendar word (`7 days = 1 'wk'`); year/month are
+ *   only *equivalent* (`~`) to `a`/`mo`, never equal (spec §6.1 / official suite).
+ */
+interface CalendarUnit {
+  plural: string
+  family: 'month' | 'second'
+  factor: string
+  ucum: string
+  exact: boolean
+}
+
+const CALENDAR_UNITS: Readonly<Record<string, CalendarUnit>> = {
+  year: { plural: 'years', family: 'month', factor: '12', ucum: 'a', exact: false },
+  month: { plural: 'months', family: 'month', factor: '1', ucum: 'mo', exact: false },
+  week: { plural: 'weeks', family: 'second', factor: '604800', ucum: 'wk', exact: true },
+  day: { plural: 'days', family: 'second', factor: '86400', ucum: 'd', exact: true },
+  hour: { plural: 'hours', family: 'second', factor: '3600', ucum: 'h', exact: true },
+  minute: { plural: 'minutes', family: 'second', factor: '60', ucum: 'min', exact: true },
+  second: { plural: 'seconds', family: 'second', factor: '1', ucum: 's', exact: true },
+  millisecond: { plural: 'milliseconds', family: 'second', factor: '0.001', ucum: 'ms', exact: true },
+}
+
+const CALENDAR_UNIT_ENTRIES = Object.entries(CALENDAR_UNITS)
+
+/** Plural keyword → singular (`years` → `year`). */
+const SINGULAR_CALENDAR_UNITS: Readonly<Record<string, string>> = Object.fromEntries(
+  CALENDAR_UNIT_ENTRIES.map(([singular, unit]) => [unit.plural, singular])
+)
+
+/** Year/month family, factor in months. */
+const MONTH_FAMILY: Readonly<Record<string, string>> = Object.fromEntries(
+  CALENDAR_UNIT_ENTRIES.filter(([, unit]) => unit.family === 'month').map(([singular, unit]) => [singular, unit.factor])
+)
+
+/** Week-and-below family, factor in seconds (all exact). */
+const SECOND_FAMILY: Readonly<Record<string, string>> = Object.fromEntries(
+  CALENDAR_UNIT_ENTRIES.filter(([, unit]) => unit.family === 'second').map(([singular, unit]) => [
+    singular,
+    unit.factor,
+  ])
+)
+
+/** Calendar words that equal their UCUM twin (week and below). */
+const CALENDAR_TO_UCUM_EXACT: Readonly<Record<string, string>> = Object.fromEntries(
+  CALENDAR_UNIT_ENTRIES.filter(([, unit]) => unit.exact).map(([singular, unit]) => [singular, unit.ucum])
+)
+
+/** Every calendar word to its UCUM twin (equivalence-only for year/month). */
+const CALENDAR_TO_UCUM_LOOSE: Readonly<Record<string, string>> = Object.fromEntries(
+  CALENDAR_UNIT_ENTRIES.map(([singular, unit]) => [singular, unit.ucum])
+)
+
+/**
  * FHIR Quantities with UCUM time-valued codes convert to calendar duration
  * keywords (FHIR fhirpath page, "Use of FHIR Quantity"): a Duration of 1 'a'
  * behaves as `1 year`.
  */
-const UCUM_TIME_TO_CALENDAR: Readonly<Record<string, string>> = {
-  a: 'year',
-  mo: 'month',
-  wk: 'week',
-  d: 'day',
-  h: 'hour',
-  min: 'minute',
-  s: 'second',
-  ms: 'millisecond',
-}
+const UCUM_TIME_TO_CALENDAR: Readonly<Record<string, string>> = Object.fromEntries(
+  CALENDAR_UNIT_ENTRIES.map(([singular, unit]) => [unit.ucum, singular])
+)
 
 const UCUM_SYSTEM = 'http://unitsofmeasure.org'
 
@@ -87,60 +140,9 @@ export function coerceQuantityPair(a: TypedValue, b: TypedValue): [QuantityValue
   return undefined
 }
 
-const SINGULAR_CALENDAR_UNITS: Readonly<Record<string, string>> = {
-  years: 'year',
-  months: 'month',
-  weeks: 'week',
-  days: 'day',
-  hours: 'hour',
-  minutes: 'minute',
-  seconds: 'second',
-  milliseconds: 'millisecond',
-}
-
 /** `4 days` and `1 day` use the same unit; plurals normalize to the singular word. */
 export function normalizeCalendarUnit(unit: string): string {
   return SINGULAR_CALENDAR_UNITS[unit] ?? unit
-}
-
-/**
- * Calendar durations form two families that never mix: year/month (in months) and
- * week and below (in seconds, all exact). `1 year = 12 months` holds; `1 year` in
- * days does not exist.
- */
-const MONTH_FAMILY: Readonly<Record<string, string>> = { year: '12', month: '1' }
-const SECOND_FAMILY: Readonly<Record<string, string>> = {
-  week: '604800',
-  day: '86400',
-  hour: '3600',
-  minute: '60',
-  second: '1',
-  millisecond: '0.001',
-}
-
-/**
- * Calendar words at or below `week` are exact durations, so they equal their UCUM
- * twins (`7 days = 1 'wk'` in the official suite). Year and month stay equivalence-only.
- */
-const CALENDAR_TO_UCUM_EXACT: Readonly<Record<string, string>> = {
-  week: 'wk',
-  day: 'd',
-  hour: 'h',
-  minute: 'min',
-  second: 's',
-  millisecond: 'ms',
-}
-
-/** Calendar words above `second` are only *equivalent* (`~`) to these UCUM units, never equal. */
-const CALENDAR_TO_UCUM_LOOSE: Readonly<Record<string, string>> = {
-  year: 'a',
-  month: 'mo',
-  week: 'wk',
-  day: 'd',
-  hour: 'h',
-  minute: 'min',
-  second: 's',
-  millisecond: 'ms',
 }
 
 function calendarFamily(unit: string): { family: 'month' | 'second'; factor: Decimal } | undefined {

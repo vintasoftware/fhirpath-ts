@@ -75,6 +75,17 @@ describe('primitive extensions', () => {
     expect(evaluate("Patient.extension('http://example.org/flag').value", patient, options)).toEqual([true])
   })
 
+  it('accepts a FHIR-primitive string as the url argument, not only System.String', () => {
+    // implicitRules is a FHIR.uri (System type String); the argument check must
+    // go through systemTypeOf, not a strict item.type === System.String.
+    const resource = {
+      resourceType: 'Patient',
+      implicitRules: 'http://example.org/flag',
+      extension: [{ url: 'http://example.org/flag', valueBoolean: true }],
+    }
+    expect(evaluate('Patient.extension(Patient.implicitRules).value', resource, options)).toEqual([true])
+  })
+
   it('id and extension navigate from the _field sibling', () => {
     expect(evaluate('Patient.birthDate.id', patient, options)).toEqual(['bd'])
     expect(evaluate('Patient.birthDate.extension.url', patient, options)).toEqual([

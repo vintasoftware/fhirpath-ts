@@ -248,13 +248,16 @@ function optionalNumber(text: string | undefined): number | undefined {
 }
 
 /**
- * Days in a month (1-based). The +400 shift keeps the proleptic Gregorian rule
- * exact for years 1–99, where `Date.UTC` would otherwise map them to 1900–1999
- * (the shift is a no-op for the leap rule but avoids that remapping); see
- * temporal-compare.ts for the same technique.
+ * Offset added to a FHIRPath year before handing it to `Date.UTC`, which maps
+ * years 0–99 to 1900–1999. Shifting by a whole multiple of 400 preserves the
+ * proleptic Gregorian leap rule exactly while moving small years out of that
+ * remapped range, so date math on years 1–99 stays correct.
  */
+export const GREGORIAN_UTC_YEAR_OFFSET = 400
+
+/** Days in a month (1-based), correct across the full FHIRPath year range. */
 export function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year + 400, month, 0)).getUTCDate()
+  return new Date(Date.UTC(year + GREGORIAN_UTC_YEAR_OFFSET, month, 0)).getUTCDate()
 }
 
 function inRange(value: number | undefined, min: number, max: number): boolean {

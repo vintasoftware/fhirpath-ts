@@ -4,7 +4,7 @@ import { Decimal } from '../values/decimal.ts'
 import { SYSTEM_DATE, SYSTEM_DECIMAL, SYSTEM_INTEGER, SYSTEM_TIME, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
-function temporalInput(_name: string, input: TypedValue[]): Temporal | undefined {
+function temporalInput(input: TypedValue[]): Temporal | undefined {
   const item = singleton(input)
   if (item === undefined || !(item.value instanceof Temporal)) {
     // Component extraction from a non-temporal value is not applicable → empty.
@@ -19,7 +19,7 @@ function componentFunction(name: string, extract: (value: Temporal) => number | 
     minArity: 0,
     maxArity: 0,
     evaluate: (_context, input) => {
-      const temporal = temporalInput(name, input)
+      const temporal = temporalInput(input)
       if (temporal === undefined) {
         return []
       }
@@ -43,7 +43,7 @@ registerFunction('timezoneOffsetOf', {
   minArity: 0,
   maxArity: 0,
   evaluate: (_context, input) => {
-    const temporal = temporalInput('timezoneOffsetOf', input)
+    const temporal = temporalInput(input)
     if (temporal === undefined || temporal.timezoneOffsetMinutes === undefined) {
       return []
     }
@@ -58,7 +58,7 @@ registerFunction('dateOf', {
   minArity: 0,
   maxArity: 0,
   evaluate: (_context, input) => {
-    const temporal = temporalInput('dateOf', input)
+    const temporal = temporalInput(input)
     if (temporal === undefined || temporal.kind === 'time') {
       return []
     }
@@ -72,7 +72,7 @@ registerFunction('timeOf', {
   minArity: 0,
   maxArity: 0,
   evaluate: (_context, input) => {
-    const temporal = temporalInput('timeOf', input)
+    const temporal = temporalInput(input)
     if (temporal === undefined || temporal.kind !== 'dateTime' || temporal.hour === undefined) {
       return []
     }

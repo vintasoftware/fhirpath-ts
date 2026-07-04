@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { readJson } from '@medplum/definitions'
+import type { GeneratedElement, GeneratedType } from '../src/r4/model-data.ts'
 
 const GENERATED_DIR = resolve(import.meta.dirname, '../src/r4/generated')
 
@@ -30,21 +31,6 @@ interface StructureDefinition {
 
 interface Bundle {
   entry: { resource: StructureDefinition }[]
-}
-
-export interface GeneratedElement {
-  /** Element types; several entries for choice elements (`value[x]`). */
-  t: string[]
-  /** Present (1) when max cardinality is above 1. */
-  a?: 1
-  /** Present (1) for choice elements: JSON keys carry a type suffix (valueQuantity). */
-  c?: 1
-}
-
-export interface GeneratedType {
-  /** Base type local name, absent for the roots (Base, Element). */
-  b?: string
-  e: Record<string, GeneratedElement>
 }
 
 const SYSTEM_TYPE_URL_PREFIX = 'http://hl7.org/fhirpath/System.'

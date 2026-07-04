@@ -1,4 +1,4 @@
-import type { Temporal } from './datetime.ts'
+import { GREGORIAN_UTC_YEAR_OFFSET, type Temporal } from './datetime.ts'
 
 /**
  * Precision levels for comparison. Seconds and milliseconds are one level: the spec
@@ -48,7 +48,7 @@ function comparisonLevel(value: Temporal): number {
  * 400 years, so ordering and equality are unaffected.
  */
 function rank(value: Temporal, level: number): number {
-  const year = (value.year ?? 1970) + 400
+  const year = (value.year ?? 1970) + GREGORIAN_UTC_YEAR_OFFSET
   const month = level >= 1 ? (value.month ?? 1) : 1
   const day = level >= 2 ? (value.day ?? 1) : 1
   const hour = level >= 3 ? (value.hour ?? 0) : 0

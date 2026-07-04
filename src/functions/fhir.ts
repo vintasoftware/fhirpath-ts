@@ -14,7 +14,7 @@ registerFunction('extension', {
     if (urlValue === undefined) {
       return []
     }
-    if (urlValue.type !== SYSTEM_STRING) {
+    if (systemTypeOf(urlValue) !== SYSTEM_STRING) {
       throw new FhirPathTypeError('extension() expects a String url argument')
     }
     const url = urlValue.value as string

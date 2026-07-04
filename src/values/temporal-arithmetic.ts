@@ -1,5 +1,5 @@
 import { FhirPathRuntimeError } from '../errors.ts'
-import { daysInMonth, Temporal, type TemporalPrecision } from './datetime.ts'
+import { daysInMonth, GREGORIAN_UTC_YEAR_OFFSET, Temporal, type TemporalPrecision } from './datetime.ts'
 import { normalizeCalendarUnit } from './quantity.ts'
 import type { QuantityValue } from './typed-value.ts'
 
@@ -152,7 +152,7 @@ function addMilliseconds(temporal: Temporal, deltaMs: number): Temporal | undefi
   }
   const shifted = new Date(
     Date.UTC(
-      (temporal.year as number) + 400,
+      (temporal.year as number) + GREGORIAN_UTC_YEAR_OFFSET,
       (temporal.month ?? 1) - 1,
       temporal.day ?? 1,
       temporal.hour ?? 0,

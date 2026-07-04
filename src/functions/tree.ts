@@ -69,7 +69,12 @@ registerFunction('descendants', {
   minArity: 0,
   maxArity: 0,
   evaluate: (context, input) => {
-    // repeat(children()): collect transitively, excluding the input itself.
+    // repeat(children()): collect transitively, excluding the input itself. This
+    // looks like repeat()'s loop but the dedup granularity differs on purpose and
+    // is pinned by the official suites: descendants() keeps `=`-equal siblings
+    // produced in the same round (a batch filter against prior rounds only), where
+    // repeat() collapses them (incremental within-round dedup). They cannot share
+    // one closure without breaking one or the other.
     const collected: TypedValue[] = []
     let current = input.flatMap(item => childrenOf(item, context.model))
     while (current.length > 0) {

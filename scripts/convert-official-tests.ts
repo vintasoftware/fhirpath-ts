@@ -8,27 +8,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { XMLParser } from 'fast-xml-parser'
-
-export interface OfficialOutput {
-  type: string
-  value: string
-}
-
-export interface OfficialTest {
-  name: string
-  inputfile?: string
-  expression: string
-  invalid?: string
-  predicate?: boolean
-  mode?: string
-  outputs: OfficialOutput[]
-}
-
-export interface OfficialGroup {
-  name: string
-  description?: string
-  tests: OfficialTest[]
-}
+import type { OfficialGroup, OfficialTest } from '../src/testing/official-harness.ts'
 
 const parser = new XMLParser({
   ignoreAttributes: false,
