@@ -28,6 +28,11 @@ export class Decimal {
     }
     let scale = fraction.length
     const exponent = exponentText === undefined ? 0 : Number.parseInt(exponentText, 10)
+    // JS numbers never stringify past e±308; a larger exponent can only come from
+    // hostile input and would allocate a giant BigInt.
+    if (Math.abs(exponent) > 400) {
+      return undefined
+    }
     if (exponent > 0) {
       const shift = Math.min(exponent, scale)
       scale -= shift

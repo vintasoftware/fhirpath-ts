@@ -12,9 +12,17 @@ const KEYWORDS_USABLE_AS_IDENTIFIERS: ReadonlySet<string> = new Set(['as', 'cont
 
 const TYPE_OPERATORS: ReadonlySet<string> = new Set(['is', 'as'])
 
+/**
+ * Nesting far beyond anything a real expression uses. Without a cap, adversarial
+ * input like ((((…)))) overflows the call stack as a native RangeError instead of
+ * the FhirPathSyntaxError callers rely on catching.
+ */
+const MAX_DEPTH = 500
+
 class Parser {
   private readonly tokens: Token[]
   private pos = 0
+  private depth = 0
   /** Parenthesized nodes can no longer take call parentheses: `(a)(b)` is not grammatical. */
   private readonly parenthesized = new WeakSet<AstNode>()
 
@@ -32,16 +40,23 @@ class Parser {
   }
 
   private parseExpression(minBindingPower: number): AstNode {
-    let left = this.parsePrefix()
-    for (;;) {
-      const token = this.peek()
-      const key = token.kind === 'operator' || token.kind === 'punct' || token.kind === 'keyword' ? token.text : ''
-      const bindingPower = INFIX_BINDING_POWER[key]
-      if (bindingPower === undefined || bindingPower <= minBindingPower) {
-        return left
+    if (++this.depth > MAX_DEPTH) {
+      throw this.error(`Expression nesting exceeds ${MAX_DEPTH} levels`, this.peek())
+    }
+    try {
+      let left = this.parsePrefix()
+      for (;;) {
+        const token = this.peek()
+        const key = token.kind === 'operator' || token.kind === 'punct' || token.kind === 'keyword' ? token.text : ''
+        const bindingPower = INFIX_BINDING_POWER[key]
+        if (bindingPower === undefined || bindingPower <= minBindingPower) {
+          return left
+        }
+        this.advance()
+        left = this.parseInfix(left, token, bindingPower)
       }
-      this.advance()
-      left = this.parseInfix(left, token, bindingPower)
+    } finally {
+      this.depth--
     }
   }
 

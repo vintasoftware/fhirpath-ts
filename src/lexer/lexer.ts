@@ -310,19 +310,25 @@ class Lexer {
     }
   }
 
+  // Tokens are emitted in source order, so line/column advance incrementally from
+  // the previous span instead of rescanning from offset 0 (which made tokenizing
+  // quadratic in expression length).
+  private lineCursor = 0
+  private cursorLine = 1
+  private cursorColumn = 1
+
   /** Span from `start` to the current position; line/column point at `start`. */
   private spanFrom(start: number): SourceSpan {
-    let line = 1
-    let column = 1
-    for (let i = 0; i < start; i++) {
+    for (let i = this.lineCursor; i < start; i++) {
       if (this.source[i] === '\n') {
-        line += 1
-        column = 1
+        this.cursorLine += 1
+        this.cursorColumn = 1
       } else {
-        column += 1
+        this.cursorColumn += 1
       }
     }
-    return { start, end: this.pos, line, column }
+    this.lineCursor = Math.max(this.lineCursor, start)
+    return { start, end: this.pos, line: this.cursorLine, column: this.cursorColumn }
   }
 }
 

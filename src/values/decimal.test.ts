@@ -48,6 +48,14 @@ describe('parsing and printing', () => {
     expect(decimal('2.5e-1').toString()).toBe('0.25')
   })
 
+  it('rejects exponents beyond what JS numbers produce', () => {
+    // JSON numbers never stringify past e±308; anything bigger is hostile input
+    // that would allocate a giant BigInt.
+    expect(Decimal.fromString('1e100000000')).toBeUndefined()
+    expect(Decimal.fromString('1e-100000000')).toBeUndefined()
+    expect(decimal('1e308').toString()).toMatch(/^1(0){308}$/)
+  })
+
   it('converts from JS numbers', () => {
     expect(Decimal.fromNumber(0.1)?.toString()).toBe('0.1')
     expect(Decimal.fromNumber(1e21)?.toString()).toBe('1000000000000000000000')

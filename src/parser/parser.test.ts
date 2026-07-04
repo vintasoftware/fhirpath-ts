@@ -280,6 +280,16 @@ describe('syntax errors', () => {
       expect((error as FhirPathSyntaxError).span.column).toBe(14)
     }
   })
+
+  it('adversarial nesting throws a syntax error, not a native stack overflow', () => {
+    const depth = 20_000
+    expect(() => parse(`${'('.repeat(depth)}5${')'.repeat(depth)}`)).toThrow(FhirPathSyntaxError)
+    expect(() => parse(`${'-'.repeat(depth)}5`)).toThrow(FhirPathSyntaxError)
+    expect(() => parse(`${'a['.repeat(depth)}0${']'.repeat(depth)}`)).toThrow(FhirPathSyntaxError)
+    expect(() => parse(`${'iif(true,'.repeat(depth)}1${',2)'.repeat(depth)}`)).toThrow(FhirPathSyntaxError)
+    // Realistic nesting is far below the cap.
+    expect(() => parse(`${'('.repeat(80)}5${')'.repeat(80)}`)).not.toThrow()
+  })
 })
 
 describe('spans', () => {

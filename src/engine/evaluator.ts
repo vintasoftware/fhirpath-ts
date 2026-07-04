@@ -85,9 +85,18 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
 
 function evaluateNumberLiteral(text: string, isDecimal: boolean): TypedValue {
   if (isDecimal) {
-    return { type: SYSTEM_DECIMAL, value: Decimal.fromString(text) as Decimal }
+    return { type: SYSTEM_DECIMAL, value: parseDecimalLiteral(text) }
   }
   return { type: SYSTEM_INTEGER, value: Number.parseInt(text, 10) }
+}
+
+function parseDecimalLiteral(text: string): Decimal {
+  const parsed = Decimal.fromString(text)
+  /* v8 ignore next 3 -- the lexer only emits parseable decimal literals */
+  if (parsed === undefined) {
+    throw new FhirPathRuntimeError(`Invalid decimal literal ${text}`)
+  }
+  return parsed
 }
 
 function parseTemporalLiteral(kind: 'date' | 'dateTime' | 'time', text: string): Temporal {
@@ -107,7 +116,7 @@ function evaluateQuantityLiteral(value: string, unit: string, unitKind: 'ucum' |
   return {
     type: SYSTEM_QUANTITY,
     value: {
-      value: Decimal.fromString(value) as Decimal,
+      value: parseDecimalLiteral(value),
       unit,
       calendar: unitKind === 'calendar',
     },
