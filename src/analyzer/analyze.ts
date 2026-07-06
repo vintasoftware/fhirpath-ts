@@ -165,7 +165,14 @@ class Analyzer {
     }
     if (found.length === 0) {
       if (this.model) {
-        this.report('unknown-element', `Element '${node.name}' is not defined on ${input.types.join(' | ')}`, node.span)
+        const hint = this.isChoiceKeyMisuse(input.types, node.name)
+          ? '; choice elements use their stem name'
+          : ''
+        this.report(
+          'unknown-element',
+          `Element '${node.name}' is not defined on ${input.types.join(' | ')}${hint}`,
+          node.span
+        )
       }
       return UNKNOWN
     }
@@ -177,6 +184,29 @@ class Analyzer {
       return elementType
     }
     return this.model?.resolveType(elementType) ?? elementType
+  }
+
+  /**
+   * True for `valueQuantity`-style keys whose stem is a choice element on one of the
+   * input types — the same test the evaluator uses (engine/navigation.ts), so the
+   * static diagnostic and the runtime error carry the same guidance.
+   */
+  private isChoiceKeyMisuse(types: string[], name: string): boolean {
+    if (!this.model) {
+      return false
+    }
+    for (const type of types) {
+      for (let position = 1; position < name.length; position++) {
+        if (!/[A-Z]/.test(name[position] as string)) {
+          continue
+        }
+        const stem = name.slice(0, position)
+        if (this.model.getElement(type, stem)?.isChoice === true) {
+          return true
+        }
+      }
+    }
+    return false
   }
 
   private walkCall(node: AstNode & { kind: 'call' }, input: StaticState): StaticState {
