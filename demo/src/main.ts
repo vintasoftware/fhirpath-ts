@@ -117,12 +117,25 @@ function paintTrace(state: 'ok' | 'warn' | 'error', columnRatio: number) {
 
 function renderResults(
   results: { type: string; text: string }[] | null,
-  runtimeError: string | null
+  runtimeError: string | null,
+  caughtStatically: boolean
 ) {
   if (runtimeError) {
-    resultCountEl.textContent = 'throws'
     resultEl.className = 'result is-throw'
-    resultEl.innerHTML = `<p class="throw-head">This throws at runtime</p><p class="throw-msg">${escapeHtml(runtimeError)}</p>`
+    if (caughtStatically) {
+      // The analyzer already flagged this above — the throw is what you avoided,
+      // not the only way to find it. Say so, so runtime doesn't look like the gate.
+      resultCountEl.textContent = 'caught first'
+      resultEl.innerHTML =
+        `<p class="throw-head throw-head-caught">Caught above, before you ran it</p>` +
+        `<p class="throw-note">The analyzer flagged this statically. Run it anyway and it throws:</p>` +
+        `<p class="throw-msg">${escapeHtml(runtimeError)}</p>`
+    } else {
+      resultCountEl.textContent = 'throws'
+      resultEl.innerHTML =
+        `<p class="throw-head">Only surfaces at runtime</p>` +
+        `<p class="throw-msg">${escapeHtml(runtimeError)}</p>`
+    }
     return
   }
   resultEl.className = 'result'
@@ -189,7 +202,7 @@ function evaluate() {
     })
   )
 
-  renderResults(results, runtimeError)
+  renderResults(results, runtimeError, hasError)
 }
 
 // --- Boot -------------------------------------------------------------------
