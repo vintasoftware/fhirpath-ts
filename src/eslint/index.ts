@@ -28,7 +28,7 @@ function receiverRoot(callee: MemberLike): string | undefined {
  * literal FHIRPath expression with the spec §11 analyzer and the R4 model.
  *
  * Usage:
- *   import fhirpathPlugin from '@vinta-bb/fhirpath/eslint'
+ *   import fhirpathPlugin from 'fhirpath-ts/eslint'
  *   export default [{ plugins: { fhirpath: fhirpathPlugin }, rules: { 'fhirpath/no-invalid-expressions': 'error' } }]
  */
 const noInvalidExpressions: Rule.RuleModule = {
@@ -88,7 +88,7 @@ const noInvalidExpressions: Rule.RuleModule = {
 }
 
 const plugin = {
-  meta: { name: '@vinta-bb/fhirpath', version: '0.1.0' },
+  meta: { name: 'fhirpath-ts', version: '0.1.0' },
   rules: {
     'no-invalid-expressions': noInvalidExpressions,
   },

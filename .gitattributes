@@ -1,0 +1,8 @@
+# Collapse generated and vendored files in GitHub diffs.
+src/r4/generated/** linguist-generated
+test-data/** linguist-generated
+
+# Vendored test corpora are kept byte-for-byte from upstream (the official suites
+# ship with CRLF line endings). Preserve them verbatim and don't run whitespace
+# checks on them — normalizing would obscure their provenance.
+test-data/official/**/*.xml -text -whitespace

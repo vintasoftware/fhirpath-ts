@@ -12,7 +12,7 @@ export const CALL_NAMES: ReadonlySet<string> = new Set(['fhirpath', 'compile', '
 export const TAG_NAME = 'fhirpath'
 
 /** Imports from this package (any subpath) are the real FHIRPath API, never foreign. */
-export const PACKAGE_PREFIX = '@vinta-bb/fhirpath'
+export const PACKAGE_PREFIX = 'fhirpath-ts'
 
 /**
  * Given the local names bound by non-package imports, decide whether a call whose

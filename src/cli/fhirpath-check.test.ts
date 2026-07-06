@@ -8,7 +8,7 @@ import { findExpressionSites } from './expression-sites.ts'
 describe('expression site extraction', () => {
   it('finds tags and literal call arguments with positions', () => {
     const source = [
-      "import { fhirpath, compile, evaluate } from '@vinta-bb/fhirpath'",
+      "import { fhirpath, compile, evaluate } from 'fhirpath-ts'",
       'const a = fhirpath`Patient.name.given`',
       "const b = compile('Patient.birthDate')",
       "const c = evaluate('Patient.active', input)",
@@ -31,7 +31,7 @@ describe('expression site extraction', () => {
     const source = [
       "import { compile } from 'handlebars'",
       "import fhirpath from 'some-other-fhirpath'",
-      "import { evaluate } from '@vinta-bb/fhirpath'",
+      "import { evaluate } from 'fhirpath-ts'",
       "const template = compile('not a [fhirpath] expression')",
       'const other = fhirpath`Patient.nope`',
       "const checked = evaluate('Patient.active', input)",

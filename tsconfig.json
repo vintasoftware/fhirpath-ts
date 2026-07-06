@@ -1,10 +1,39 @@
 {
-  "extends": "../../tsconfig.json",
+  "$schema": "http://json.schemastore.org/tsconfig",
   "compilerOptions": {
+    "target": "esnext",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM"],
     "types": ["vitest/globals", "node"],
-    "allowImportingTsExtensions": true
+
+    "newLine": "lf",
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "strict": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+    "erasableSyntaxOnly": true,
+    "noImplicitOverride": true,
+    "noErrorTruncation": true,
+
+    "noUncheckedIndexedAccess": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "exactOptionalPropertyTypes": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "**/node_modules", "**/dist", "**/build"]
 }

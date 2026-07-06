@@ -1,4 +1,4 @@
-# @vinta-bb/fhirpath
+# fhirpath-ts
 
 A TypeScript-native [FHIRPath](https://hl7.org/fhirpath/) engine with zero runtime
 dependencies, verified against the official HL7 conformance suites, plus two things no
@@ -13,7 +13,7 @@ other implementation offers together:
 
 ## Why this engine
 
-| | **@vinta-bb/fhirpath** | fhirpath.js | fhirpath-py | fhirpath-rs | Medplum |
+| | **fhirpath-ts** | fhirpath.js | fhirpath-py | fhirpath-rs | Medplum |
 |---|---|---|---|---|---|
 | Runtime deps | zero | ANTLR runtime, ucum-lhc, … | ANTLR runtime | Rust crates | none (large SDK) |
 | Decimal arithmetic | exact, always on | floats (opt-in precise mode) | Python decimal | Rust decimal | floats |
@@ -41,8 +41,8 @@ trade-offs live in [Gaps and deferred features](#gaps-and-deferred-features).
 ## Quick start
 
 ```ts
-import { evaluate, compile, fhirpath } from '@vinta-bb/fhirpath'
-import { r4Model } from '@vinta-bb/fhirpath/r4'
+import { evaluate, compile, fhirpath } from 'fhirpath-ts'
+import { r4Model } from 'fhirpath-ts/r4'
 
 // One-off evaluation (LRU-cached parse), untyped results:
 evaluate('Patient.name.given', patient, { model: r4Model }) // unknown[]
@@ -69,7 +69,7 @@ misuse (`Observation.valueQuantity`). Without a model the engine navigates raw J
 
 | Option | Meaning |
 | --- | --- |
-| `model` | A `ModelProvider`; use `r4Model` from `@vinta-bb/fhirpath/r4` |
+| `model` | A `ModelProvider`; use `r4Model` from `fhirpath-ts/r4` |
 | `env` | Environment variables: `{ myVar: 5 }` resolves `%myVar` |
 | `now` | Evaluation clock for `now()`/`today()`/`timeOfDay()` (deterministic tests) |
 | `trace` | Sink for `trace()` calls — see the PHI note below |
@@ -120,20 +120,20 @@ Three layers, from cheapest to most thorough:
    Anything else degrades to `unknown[]` — never a type error.
 2. **`fhirpath-check` CLI** — scans sources for `` fhirpath`...` `` tags and literal
    `fhirpath()/compile()/evaluate()` arguments, and runs the analyzer over each with
-   the R4 model: `pnpm --filter @vinta-bb/fhirpath exec fhirpath-check src/**/*.ts`.
+   the R4 model: `pnpm exec fhirpath-check src/**/*.ts`.
    There is no Biome rule because Biome cannot run one: its plugin system is
    GritQL pattern matching and cannot execute the analyzer. The CLI is the
    equivalent CI hook for Biome repos like this one (`check:fhirpath` script).
 3. **ESLint rule** for repos that lint with ESLint:
 
    ```js
-   import fhirpathPlugin from '@vinta-bb/fhirpath/eslint'
+   import fhirpathPlugin from 'fhirpath-ts/eslint'
    export default [
      { plugins: { fhirpath: fhirpathPlugin }, rules: { 'fhirpath/no-invalid-expressions': 'error' } },
    ]
    ```
 
-The analyzer (`@vinta-bb/fhirpath/analyzer`, `analyzeExpression(expr, { model, inputType })`)
+The analyzer (`fhirpath-ts/analyzer`, `analyzeExpression(expr, { model, inputType })`)
 implements the spec's strict-mode rules: singleton misuse on inputs, operands and
 arguments; wrong operand/argument types; equality that can never hold; unknown
 elements (including choice-key misuse like `Observation.valueQuantity`), functions,
@@ -241,10 +241,10 @@ future redistribution (npm, OSS extraction). In short:
 ## Development
 
 ```bash
-pnpm --filter @vinta-bb/fhirpath test        # full suite incl. official conformance
-pnpm --filter @vinta-bb/fhirpath coverage    # with enforced thresholds
-pnpm --filter @vinta-bb/fhirpath typecheck
-pnpm --filter @vinta-bb/fhirpath generate:r4 # regenerate model data (offline)
+pnpm test        # full suite incl. official conformance
+pnpm coverage    # with enforced thresholds
+pnpm typecheck
+pnpm generate:r4 # regenerate model data (offline)
 node packages/fhirpath/scripts/bench.ts      # parse/eval micro-benchmarks
 ```
 

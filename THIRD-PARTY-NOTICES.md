@@ -1,6 +1,6 @@
 # Third-party notices
 
-This package (`@vinta-bb/fhirpath`) has **zero runtime dependencies**, but it
+This package (`fhirpath-ts`) has **zero runtime dependencies**, but it
 contains material adapted from, or vendored out of, the projects below. This
 file consolidates their notices so any future redistribution of the package
 (npm publication, OSS extraction) carries them along. Today the package is
