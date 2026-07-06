@@ -41,9 +41,10 @@
         <p class="eyebrow">TypeScript-native FHIRPath engine</p>
         <h1>Catch the mistake<br />before the data does.</h1>
         <p class="lede">
-          Every other engine finds out your path was wrong when it returns nothing. This one
-          reads the expression against the FHIR model first — and tells you what's broken, where,
-          before a single record is touched. Type below and watch.
+          Most FHIRPath engines catch a wrong path only when they run it — usually a silent empty
+          result, at best an opt-in runtime error. This one reads the expression against the FHIR
+          model first, so a typo or a type slip is a build-time failure, not a surprise in
+          production. Type below and watch.
         </p>
       </section>
 

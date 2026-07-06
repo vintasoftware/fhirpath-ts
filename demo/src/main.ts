@@ -110,9 +110,7 @@ function paintTrace(state: 'ok' | 'warn' | 'error', columnRatio: number) {
   } else {
     shape = `M0 ${y} H${W}`
   }
-  traceEl.innerHTML =
-    `<path class="trace-base" d="${shape}" />` +
-    (state === 'ok' ? `<path class="trace-sweep" d="${shape}" />` : '')
+  traceEl.innerHTML = `<path class="trace-base" d="${shape}" />`
 }
 
 // --- Results ----------------------------------------------------------------

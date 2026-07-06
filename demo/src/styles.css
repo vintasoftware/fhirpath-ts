@@ -334,37 +334,16 @@ code {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.32;
+  opacity: 0.9;
   transition: stroke 0.2s;
-}
-
-.trace-sweep {
-  fill: none;
-  stroke: var(--pulse);
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  stroke-dasharray: 60 540;
-  stroke-dashoffset: 600;
-  animation: sweep 2.6s linear infinite;
-}
-
-@keyframes sweep {
-  from {
-    stroke-dashoffset: 600;
-  }
-  to {
-    stroke-dashoffset: -60;
-  }
 }
 
 [data-state="error"] .trace-base {
   stroke: var(--flag-ink);
-  opacity: 0.95;
 }
 
 [data-state="warn"] .trace-base {
   stroke: var(--caution);
-  opacity: 0.95;
 }
 
 .readout-line {
@@ -679,12 +658,6 @@ code {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .trace-sweep {
-    animation: none;
-    stroke-dasharray: none;
-    stroke-dashoffset: 0;
-  }
-
   * {
     transition-duration: 0.01ms !important;
   }
