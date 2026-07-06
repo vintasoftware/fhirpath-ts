@@ -620,6 +620,106 @@ code {
   color: var(--screen-ink);
 }
 
+/* --- Layers: where a mistake gets caught --------------------------------- */
+
+.layers {
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: 30px 24px 20px;
+}
+
+.layers-title {
+  margin: 0 0 12px;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.layers-lede {
+  margin: 0 0 30px;
+  max-width: 62ch;
+  color: var(--muted);
+}
+
+.layer {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+  padding: 22px 0;
+  border-top: 1px solid var(--line);
+}
+
+.layer:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.layer-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* the accent rail encodes "how early": pulse for the checks, caution for the last resort */
+  border-left: 2px solid var(--pulse-deep);
+  padding-left: 14px;
+}
+
+.layer-late .layer-head {
+  border-left-color: var(--caution);
+}
+
+.layer-when {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pulse-deep);
+}
+
+.layer-late .layer-when {
+  color: #a06a12;
+}
+
+.layer-tool {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.layer-name {
+  margin: 6px 0 0;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.15rem;
+}
+
+.layer-body {
+  min-width: 0;
+}
+
+.layer-code {
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  background: var(--screen);
+  border: 1px solid var(--screen-line);
+  border-radius: 10px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--screen-ink);
+}
+
+.layer-note {
+  margin: 0;
+  max-width: 68ch;
+  font-size: 0.94rem;
+  color: var(--muted);
+}
+
+.layer-note code {
+  color: var(--ink);
+}
+
 /* --- Colophon ------------------------------------------------------------ */
 
 .colophon {
@@ -656,6 +756,11 @@ code {
   .proof-grid {
     grid-template-columns: 1fr;
     gap: 26px;
+  }
+
+  .layer {
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
 
   .spec-labels {
