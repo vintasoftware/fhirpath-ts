@@ -8,6 +8,7 @@ import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
 import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, SYSTEM_LONG, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
 import { testDataPath } from './test-data.ts'
+import { recordedTerminology } from './tx-fixtures.ts'
 
 export interface OfficialOutput {
   type: string
@@ -66,8 +67,8 @@ export function skipEntryMatchesSomething(entry: SkipEntry, suites: Record<Suite
   return suites[entry.suite].some(group => group.tests.some(test => skipMatches(entry, entry.suite, group, test)))
 }
 
-/** Run one official case; returns undefined on pass, a failure message otherwise. */
-export function runOfficialTest(suite: SuiteName, test: OfficialTest): string | undefined {
+/** Run one official case; resolves to undefined on pass, a failure message otherwise. */
+export async function runOfficialTest(suite: SuiteName, test: OfficialTest): Promise<string | undefined> {
   const input = test.inputfile === undefined ? undefined : loadFixture(suite, test.inputfile)
   if (test.invalid !== undefined) {
     try {
@@ -81,7 +82,14 @@ export function runOfficialTest(suite: SuiteName, test: OfficialTest): string | 
   }
   let results: TypedValue[]
   try {
-    results = new CompiledExpression(test.expression).evaluateTyped(input, { model: r4Model })
+    const compiled = new CompiledExpression(test.expression)
+    // tx-mode tests exercise %terminologies against recorded tx.fhir.org
+    // responses (re-record with `pnpm record:tx`); everything else runs the
+    // plain sync path.
+    results =
+      test.mode === 'tx'
+        ? await compiled.evaluateTypedAsync(input, { model: r4Model, terminology: recordedTerminology })
+        : compiled.evaluateTyped(input, { model: r4Model })
   } catch (error) {
     return `evaluation failed: ${(error as Error).message}`
   }

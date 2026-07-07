@@ -107,7 +107,9 @@ otherwise a CodeSystem `$lookup` of the `itemWeight` property), and the
 `translate`). A provider answer the engine cannot interpret — an unknown value
 set, a `Parameters` without a boolean `result` — yields empty, the spec's
 "cannot determine" outcome. Under the sync `evaluate()` these functions fail
-with a pointer to `evaluateAsync()`.
+with a pointer to `evaluateAsync()`. The official R5 terminology tests run
+through this exact machinery against recorded tx.fhir.org responses (see
+Conformance).
 
 The engine core stays synchronous: `evaluateAsync()` runs it, and when a
 function needs a provider answer the evaluation suspends, awaits it, and
@@ -125,15 +127,17 @@ converted to JSON offline, and run in vitest on every test run:
 | Suite | Pass | Skipped (with reasons) | Failing |
 | --- | --- | --- | --- |
 | R4 (`tests-fhir-r4.xml`) | 923 | 12 | 0 |
-| R5 (`tests-fhir-r5.xml`) | 1,026 | 25 | 0 |
+| R5 (`tests-fhir-r5.xml`) | 1,029 | 22 | 0 |
 
-**100% of non-skipped cases pass.** Every skip is listed in
-`test-data/official/skip-manifest.ts` with a reason, and a hygiene test fails if an
-entry stops matching. Skip categories: terminology mode (needs a live terminology
-service — the `options.terminology` hook is unit-tested with a stub provider
-instead), CDA mode (needs a CDA model), lenient-polymorphics mode, strict-mode
-static-typing cases (enforced by the analyzer instead of the evaluator), R5-only
-elements (this package ships the R4 model), and four documented suite oddities.
+**100% of non-skipped cases pass.** The terminology-mode cases run against
+recorded [tx.fhir.org](https://tx.fhir.org) responses
+(`test-data/official/r5/tx-fixtures.json`, committed so the suite stays
+offline; `pnpm record:tx` re-records them from the live server). Every skip is
+listed in `test-data/official/skip-manifest.ts` with a reason, and a hygiene
+test fails if an entry stops matching. Skip categories: CDA mode (needs a CDA
+model), lenient-polymorphics mode, strict-mode static-typing cases (enforced by
+the analyzer instead of the evaluator), R5-only elements (this package ships
+the R4 model), and four documented suite oddities.
 
 The reference implementations' own corpora run too (`src/fhirpathjs.test.ts`):
 
