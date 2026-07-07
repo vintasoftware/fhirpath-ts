@@ -31,10 +31,7 @@ registerFunction('memberOf', {
     if (coded === undefined) {
       throw new FhirPathTypeError('memberOf() expects a code, Coding, or CodeableConcept input')
     }
-    const validateVS = providerMethod(context, 'memberOf()', 'validateVS')
-    const response = requestAsync(context, 'memberOf()', requestKey('validateVS', url, coded), () =>
-      validateVS(url, coded)
-    )
+    const response = callProvider(context, 'memberOf()', 'validateVS', [url, coded])
     const result = parameterValue(response, 'result')
     return typeof result === 'boolean' ? wrapBoolean(result) : []
   },
@@ -103,15 +100,12 @@ function codingSubsumes(
   if (inputCodings.length === 0 || argCodings.length === 0) {
     return []
   }
-  const subsumes = providerMethod(context, `${name}()`, 'subsumes')
   for (const a of inputCodings) {
     for (const b of argCodings) {
       if (typeof a.system !== 'string' || a.system !== b.system) {
         continue
       }
-      const outcome = requestAsync(context, `${name}()`, requestKey('subsumes', a.system, a, b), () =>
-        subsumes(a.system, a, b)
-      )
+      const outcome = callProvider(context, `${name}()`, 'subsumes', [a.system, a, b])
       if (accepts(outcome)) {
         return wrapBoolean(true)
       }
@@ -128,7 +122,6 @@ function serviceSubsumes(
   evaluateNode: EvaluateNode
 ): TypedValue[] {
   requireArity('subsumes', args, 3, 4)
-  const subsumes = providerMethod(context, 'subsumes()', 'subsumes')
   const system = stringArgument('subsumes', 'a String system', evaluateNode(argAt(args, 0), context, input))
   const coded1 = codedValueOf(singleton(evaluateNode(argAt(args, 1), context, input)))
   const coded2 = codedValueOf(singleton(evaluateNode(argAt(args, 2), context, input)))
@@ -136,8 +129,11 @@ function serviceSubsumes(
   if (system === undefined || coded1 === undefined || coded2 === undefined) {
     return []
   }
-  const outcome = requestAsync(context, 'subsumes()', requestKey('subsumes', system, coded1, coded2, params), () =>
-    subsumes(system, coded1, coded2, params)
+  const outcome = callProvider(
+    context,
+    'subsumes()',
+    'subsumes',
+    params === undefined ? [system, coded1, coded2] : [system, coded1, coded2, params]
   )
   return typeof outcome === 'string' ? [{ type: SYSTEM_STRING, value: outcome }] : []
 }
@@ -155,7 +151,6 @@ function registerServiceFunction(name: keyof TerminologyProvider, requiredArgs: 
       if (!isTerminologyService(input)) {
         throw new FhirPathTypeError(`${name}() is only available on %terminologies`)
       }
-      const method = providerMethod(context, `${name}()`, name)
       const values: unknown[] = []
       for (let index = 0; index < requiredArgs; index++) {
         const value = singleton(evaluateNode(argAt(args, index), context, input))?.value
@@ -168,7 +163,9 @@ function registerServiceFunction(name: keyof TerminologyProvider, requiredArgs: 
       if (params !== undefined) {
         values.push(params)
       }
-      const response = requestAsync(context, `${name}()`, requestKey(name, ...values), () => method(...values))
+      // The one dynamic caller: the loop builds the tuple positionally, so the
+      // per-method arg typing callProvider gives static callers is asserted here.
+      const response = callProvider(context, `${name}()`, name, values as ProviderArgs<typeof name>)
       return toCollection(response)
     },
   })
@@ -224,11 +221,8 @@ function weightOf(context: EvaluationContext, item: TypedValue): Decimal | undef
     if (typeof coding.system !== 'string' || typeof coding.code !== 'string') {
       continue
     }
-    const lookup = providerMethod(context, 'weight()', 'lookup')
     const { system, code } = coding
-    const response = requestAsync(context, 'weight()', requestKey('lookup', system, code), () =>
-      lookup({ system, code }, 'property=itemWeight')
-    )
+    const response = callProvider(context, 'weight()', 'lookup', [{ system, code }, 'property=itemWeight'])
     const property = lookupProperty(response, 'itemWeight')
     if (property !== undefined) {
       return toDecimal(property)
@@ -257,15 +251,21 @@ function toDecimal(value: unknown): Decimal | undefined {
 
 // ---- shared helpers ----
 
+type ProviderArgs<K extends keyof TerminologyProvider> = Parameters<NonNullable<TerminologyProvider[K]>>
+
 /**
- * The provider method behind a terminology function, with the two configuration
- * failures named: no provider at all, or a provider without this operation.
+ * One terminology-provider call: the async request is cached by exactly
+ * (method, arguments) — the same rendering the tx fixture recorder uses — so
+ * identical requests from different functions share one provider round-trip
+ * and cache keys cannot drift per call site. The two configuration failures
+ * are named: no provider at all, or a provider without this operation.
  */
-function providerMethod(
+function callProvider<K extends keyof TerminologyProvider>(
   context: EvaluationContext,
   what: string,
-  method: keyof TerminologyProvider
-): (...args: unknown[]) => Promise<unknown> {
+  method: K,
+  args: ProviderArgs<K>
+): unknown {
   const provider = context.terminology
   if (!provider) {
     throw new FhirPathRuntimeError(`${what} needs a terminology provider (pass options.terminology)`)
@@ -274,7 +274,9 @@ function providerMethod(
   if (!impl) {
     throw new FhirPathRuntimeError(`the terminology provider does not implement ${method}()`)
   }
-  return (impl as (...args: unknown[]) => Promise<unknown>).bind(provider)
+  return requestAsync(context, what, `${method}|${JSON.stringify(args)}`, () =>
+    (impl as (...callArgs: unknown[]) => Promise<unknown>).apply(provider, args)
+  )
 }
 
 /**
@@ -308,7 +310,9 @@ function codingsOf(value: unknown): CodedElement[] {
   if (Array.isArray(element.coding)) {
     return element.coding.filter(isObject) as CodedElement[]
   }
-  return 'code' in element || 'system' in element ? [element] : []
+  // A Coding proper: `code`/`system` are strings. A resource that merely has a
+  // `code` element (e.g. Observation) is not one, and yields no codings.
+  return typeof element.code === 'string' || typeof element.system === 'string' ? [element] : []
 }
 
 interface ParameterEntry {
@@ -390,15 +394,6 @@ function requireArity(name: string, args: AstNode[], min: number, max: number): 
   if (args.length < min || args.length > max) {
     throw new FhirPathTypeError(`Function '${name}' expects ${describeArity(min, max)}, got ${args.length} arguments`)
   }
-}
-
-/**
- * Cache key for one provider request. Arguments are input-JSON fragments and
- * strings, so JSON.stringify is stable across the replay passes of one
- * evaluation (the same objects serialize the same way every pass).
- */
-function requestKey(operation: string, ...parts: unknown[]): string {
-  return `${operation}|${JSON.stringify(parts)}`
 }
 
 function isObject(value: unknown): value is object {

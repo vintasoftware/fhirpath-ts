@@ -5,9 +5,10 @@
  * server: node scripts/record-tx-fixtures.ts
  *
  * The requests are not hand-listed: the script runs every tx-mode test from
- * the vendored suite through evaluateTypedAsync() with a provider that maps
- * each TerminologyProvider call onto the server's REST API and records the
- * (call, response) pair. New tx tests are picked up automatically.
+ * the vendored suite through evaluateTypedAsync() with a recording txProvider()
+ * wrapper around a live REST provider, so the recorded (operation, args) keys
+ * are exactly what the engine asks for and new tx tests are picked up
+ * automatically.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -15,7 +16,7 @@ import { CompiledExpression } from '../src/api/compile.ts'
 import { valueToString } from '../src/functions/conversion.ts'
 import { r4Model } from '../src/r4/index.ts'
 import type { TerminologyProvider } from '../src/terminology/provider.ts'
-import type { TxFixtureEntry, TxFixtureFile } from '../src/testing/tx-fixtures.ts'
+import { type TxFixtureEntry, type TxFixtureFile, txProvider } from '../src/testing/tx-fixtures.ts'
 
 const SERVER = process.env.TX_SERVER ?? 'https://tx.fhir.org/r5'
 const DATA_DIR = resolve(import.meta.dirname, '../test-data/official/r5')
@@ -41,7 +42,7 @@ function asString(value: unknown, what: string): string {
 }
 
 /** query-string params for a coded value: a bare code string, a Coding, or a CodeableConcept with one coding. */
-function codedParams(coded: unknown): Record<string, string> {
+function codedParams(coded: unknown): { code: string; system?: string; inferSystem?: string } {
   if (typeof coded === 'string') {
     // A bare FHIR `code` has no system of its own; the server infers it from the value set.
     return { code: coded, inferSystem: 'true' }
@@ -74,57 +75,35 @@ async function inferSystem(conceptMap: string, code: string): Promise<string> {
   return system
 }
 
-function recordingProvider(entries: TxFixtureEntry[]): TerminologyProvider {
-  async function record(operation: string, args: unknown[], run: () => Promise<unknown>): Promise<unknown> {
-    const response = await run()
-    entries.push({ operation, args, response })
-    console.log(`  recorded ${operation}(${JSON.stringify(args).slice(1, -1)})`)
-    return response
-  }
-  const params = (extra?: string) => Object.fromEntries(new URLSearchParams(extra ?? ''))
-  return {
-    expand: (valueSet, extra) =>
-      record('expand', [valueSet, extra ?? null], () =>
-        get('ValueSet/$expand', { url: asString(valueSet, 'valueSet'), ...params(extra) })
-      ),
-    lookup: (coded, extra) =>
-      record('lookup', [coded, extra ?? null], () =>
-        get('CodeSystem/$lookup', { ...codedParams(coded), ...params(extra) })
-      ),
-    validateVS: (valueSet, coded, extra) =>
-      record('validateVS', [valueSet, coded, extra ?? null], () =>
-        get('ValueSet/$validate-code', { url: asString(valueSet, 'valueSet'), ...codedParams(coded), ...params(extra) })
-      ),
-    validateCS: (codeSystem, coded, extra) =>
-      record('validateCS', [codeSystem, coded, extra ?? null], () =>
-        get('CodeSystem/$validate-code', {
-          url: asString(codeSystem, 'codeSystem'),
-          ...codedParams(coded),
-          ...params(extra),
-        })
-      ),
-    subsumes: (system, coded1, coded2, extra) =>
-      record('subsumes', [system, coded1, coded2, extra ?? null], () =>
-        get('CodeSystem/$subsumes', {
-          system,
-          codeA: codedParams(coded1).code as string,
-          codeB: codedParams(coded2).code as string,
-          ...params(extra),
-        })
-      ),
-    translate: (conceptMap, coded, extra) =>
-      record('translate', [conceptMap, coded, extra ?? null], async () => {
-        const url = asString(conceptMap, 'conceptMap')
-        const source =
-          typeof coded === 'string' ? { system: await inferSystem(url, coded), code: coded } : codedParams(coded)
-        return get('ConceptMap/$translate', {
-          url,
-          sourceCode: source.code as string,
-          system: source.system as string,
-          ...params(extra),
-        })
-      }),
-  }
+/** Maps each TerminologyProvider operation onto the server's REST API. */
+const live: Required<TerminologyProvider> = {
+  expand: (valueSet, extra) => get('ValueSet/$expand', { url: asString(valueSet, 'valueSet'), ...params(extra) }),
+  lookup: (coded, extra) => get('CodeSystem/$lookup', { ...codedParams(coded), ...params(extra) }),
+  validateVS: (valueSet, coded, extra) =>
+    get('ValueSet/$validate-code', { url: asString(valueSet, 'valueSet'), ...codedParams(coded), ...params(extra) }),
+  validateCS: (codeSystem, coded, extra) =>
+    get('CodeSystem/$validate-code', {
+      url: asString(codeSystem, 'codeSystem'),
+      ...codedParams(coded),
+      ...params(extra),
+    }),
+  subsumes: (system, coded1, coded2, extra) =>
+    get('CodeSystem/$subsumes', {
+      system,
+      codeA: codedParams(coded1).code,
+      codeB: codedParams(coded2).code,
+      ...params(extra),
+    }),
+  translate: async (conceptMap, coded, extra) => {
+    const url = asString(conceptMap, 'conceptMap')
+    const source =
+      typeof coded === 'string' ? { system: await inferSystem(url, coded), code: coded } : codedParams(coded)
+    return get('ConceptMap/$translate', { url, sourceCode: source.code, system: source.system ?? '', ...params(extra) })
+  },
+}
+
+function params(extra?: string): Record<string, string> {
+  return Object.fromEntries(new URLSearchParams(extra ?? ''))
 }
 
 interface SuiteTest {
@@ -139,10 +118,20 @@ const txTests = groups.flatMap(group => group.tests.filter(test => test.mode ===
 console.log(`Recording ${txTests.length} tx-mode tests against ${SERVER}`)
 
 const entries: TxFixtureEntry[] = []
-const terminology = recordingProvider(entries)
+const terminology = txProvider(async (operation, args) => {
+  const impl = live[operation as keyof TerminologyProvider] as (...callArgs: unknown[]) => Promise<unknown>
+  const response = await impl(...args)
+  entries.push({ operation, args, response })
+  console.log(`  recorded ${operation}(${JSON.stringify(args).slice(1, -1)})`)
+  return response
+})
+
 for (const test of txTests) {
   console.log(`${test.name}: ${test.expression}`)
-  const inputFile = (test.inputfile as string).replace(/\.xml$/, '.json')
+  if (test.inputfile === undefined) {
+    throw new Error(`tx test ${test.name} has no inputfile`)
+  }
+  const inputFile = test.inputfile.replace(/\.xml$/, '.json')
   const input: unknown = JSON.parse(readFileSync(resolve(DATA_DIR, 'fixtures', inputFile), 'utf8'))
   const results = await new CompiledExpression(test.expression).evaluateTypedAsync(input, {
     model: r4Model,

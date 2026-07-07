@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { runOfficialTest } from './official-harness.ts'
-import { recordedTerminology } from './tx-fixtures.ts'
 
 // The harness's own failure paths, exercised with synthetic cases.
 describe('official harness', () => {
@@ -114,16 +113,5 @@ describe('tx-mode cases', () => {
         outputs: [],
       })
     ).resolves.toContain('No recorded tx.fhir.org response for expand')
-  })
-})
-
-describe('recorded terminology provider', () => {
-  it('every operation reports unrecorded requests', async () => {
-    const provider = recordedTerminology
-    await expect(provider.lookup?.({ system: 's', code: 'c' })).rejects.toThrow('No recorded tx.fhir.org response')
-    await expect(provider.validateCS?.('http://cs', 'c')).rejects.toThrow('No recorded tx.fhir.org response')
-    await expect(provider.subsumes?.('s', 'a', 'b')).rejects.toThrow('No recorded tx.fhir.org response')
-    await expect(provider.translate?.('http://cm', 'c', 'p=1')).rejects.toThrow('No recorded tx.fhir.org response')
-    await expect(provider.validateVS?.('http://vs', 'c')).rejects.toThrow('No recorded tx.fhir.org response')
   })
 })

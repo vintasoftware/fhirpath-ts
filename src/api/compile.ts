@@ -1,4 +1,4 @@
-import { AsyncSuspension } from '../engine/async.ts'
+import { resolveSuspensions } from '../engine/async.ts'
 import { createContext } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import type { ModelProvider } from '../model/provider.ts'
@@ -50,15 +50,7 @@ export class CompiledExpression<Expr extends string = string> {
   /** Evaluate keeping the internal typed representation (types, Decimal, Temporal). */
   evaluateTyped(input?: unknown, options?: EvaluateOptions): TypedValue[] {
     const root = toCollection(input)
-    const context = createContext({
-      root,
-      env: options?.env,
-      model: options?.model,
-      now: options?.now,
-      trace: options?.trace,
-      terminology: options?.terminology,
-    })
-    return evaluateNode(this.ast, context, root)
+    return evaluateNode(this.ast, contextFor(root, options), root)
   }
 
   /**
@@ -71,52 +63,64 @@ export class CompiledExpression<Expr extends string = string> {
   }
 
   /**
-   * Async twin of evaluateTyped(), via suspend-and-replay: the sync evaluator
-   * runs until a function needs an async provider result the cache lacks, the
-   * missing value is awaited, and the evaluation replays. Replays are invisible:
-   * the clock is fixed up front and trace output is buffered so only the
-   * successful pass reaches the caller's sink. Each replay resolves one request
-   * the cache did not have, so the loop terminates — a deterministic evaluation
-   * can only suspend finitely often. Provider results are cached by request, so
-   * repeated identical calls (and every replay) hit the provider once.
+   * Async twin of evaluateTyped(), via suspend-and-replay (engine/async.ts):
+   * the sync evaluator runs until a function needs an async provider result the
+   * cache lacks, the missing value is awaited, and the evaluation replays.
+   * Replays are invisible: the clock is fixed up front and trace output is
+   * buffered so only the successful pass reaches the caller's sink. Provider
+   * results are cached by request, so repeated identical calls (and every
+   * replay) hit the provider once.
    */
   async evaluateTypedAsync(input?: unknown, options?: EvaluateOptions): Promise<TypedValue[]> {
     const root = toCollection(input)
     const now = options?.now ?? new Date()
-    const asyncCache = new Map<string, unknown>()
     const sink = options?.trace
-    for (;;) {
+    return resolveSuspensions(asyncCache => {
       const traces: [string, TypedValue[]][] = []
-      const context = createContext({
-        root,
-        env: options?.env,
-        model: options?.model,
+      const context = contextFor(root, options, {
         now,
         trace: sink && ((name, values) => traces.push([name, values])),
-        terminology: options?.terminology,
         asyncCache,
       })
-      try {
-        const result = evaluateNode(this.ast, context, root)
-        if (sink) {
-          for (const [name, values] of traces) {
-            sink(name, values)
-          }
+      const result = evaluateNode(this.ast, context, root)
+      if (sink) {
+        for (const [name, values] of traces) {
+          sink(name, values)
         }
-        return result
-      } catch (error) {
-        if (!(error instanceof AsyncSuspension)) {
-          throw error
-        }
-        asyncCache.set(error.key, await error.run())
       }
-    }
+      return result
+    })
   }
 
   /** The canonical form of the expression. */
   toString(): string {
     return printExpression(this.ast)
   }
+}
+
+/**
+ * The one options-to-context mapping, shared by both evaluate paths. The replay
+ * loop overrides the clock (fixed across replays), the trace sink (buffered per
+ * attempt), and supplies the async-request cache.
+ */
+function contextFor(
+  root: TypedValue[],
+  options: EvaluateOptions | undefined,
+  replay?: {
+    now: Date
+    trace: ((name: string, values: TypedValue[]) => void) | undefined
+    asyncCache: Map<string, unknown>
+  }
+) {
+  return createContext({
+    root,
+    env: options?.env,
+    model: options?.model,
+    terminology: options?.terminology,
+    now: replay ? replay.now : options?.now,
+    trace: replay ? replay.trace : options?.trace,
+    asyncCache: replay?.asyncCache,
+  })
 }
 
 /** Parse an expression once for reuse. Unlike `evaluate()`, does not touch the parse cache. */

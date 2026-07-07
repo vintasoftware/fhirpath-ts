@@ -6,9 +6,7 @@ import { testDataPath } from './test-data.ts'
  * Recorded tx.fhir.org responses backing the official suite's tx-mode tests.
  * The file is committed so the suite stays hermetic — no network in tests;
  * `pnpm record:tx` (scripts/record-tx-fixtures.ts) re-records it against the
- * live server. Entries are keyed by the exact TerminologyProvider call
- * (operation + JSON-rendered arguments), so the replaying provider below is a
- * faithful stand-in for the server the suite was authored against.
+ * live server.
  */
 export interface TxFixtureFile {
   server: string
@@ -20,6 +18,20 @@ export interface TxFixtureEntry {
   operation: string
   args: unknown[]
   response: unknown
+}
+
+const TX_OPERATIONS = ['expand', 'lookup', 'validateVS', 'validateCS', 'subsumes', 'translate'] as const
+
+/**
+ * A TerminologyProvider whose methods all funnel into `handle(operation, args)`
+ * with the argument list exactly as the engine passed it. Recorder and replayer
+ * are both built from this factory, so the fixture lookup key — operation plus
+ * JSON-rendered args — is derived in one place and cannot drift between them.
+ */
+export function txProvider(handle: (operation: string, args: unknown[]) => Promise<unknown>): TerminologyProvider {
+  return Object.fromEntries(
+    TX_OPERATIONS.map(operation => [operation, (...args: unknown[]) => handle(operation, args)])
+  ) as TerminologyProvider
 }
 
 let cached: TxFixtureFile | undefined
@@ -39,11 +51,4 @@ async function respond(operation: string, args: unknown[]): Promise<unknown> {
 }
 
 /** Replays the recorded tx.fhir.org responses as a TerminologyProvider. */
-export const recordedTerminology: TerminologyProvider = {
-  expand: (valueSet, params) => respond('expand', [valueSet, params ?? null]),
-  lookup: (coded, params) => respond('lookup', [coded, params ?? null]),
-  validateVS: (valueSet, coded, params) => respond('validateVS', [valueSet, coded, params ?? null]),
-  validateCS: (codeSystem, coded, params) => respond('validateCS', [codeSystem, coded, params ?? null]),
-  subsumes: (system, coded1, coded2, params) => respond('subsumes', [system, coded1, coded2, params ?? null]),
-  translate: (conceptMap, coded, params) => respond('translate', [conceptMap, coded, params ?? null]),
-}
+export const recordedTerminology: TerminologyProvider = txProvider(respond)
