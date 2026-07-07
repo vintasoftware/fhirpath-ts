@@ -1,5 +1,5 @@
 import { run } from './engine.ts'
-import { type Tab, TABS } from './examples.ts'
+import { TABS, type Tab } from './examples.ts'
 import './styles.css'
 
 const $ = <T extends Element>(sel: string) => document.querySelector<T>(sel)!
@@ -20,14 +20,14 @@ const traceEl = $<SVGSVGElement>('[data-trace]')
 let activeTab: Tab = TABS[0]!
 
 function escapeHtml(s: string): string {
-  return s.replace(/[&<>]/g, (c) => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'))
+  return s.replace(/[&<>]/g, c => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'))
 }
 
 // --- Chrome: tabs, chips, resource -----------------------------------------
 
 function renderTabs() {
   tabsEl.replaceChildren(
-    ...TABS.map((tab) => {
+    ...TABS.map(tab => {
       const b = document.createElement('button')
       b.type = 'button'
       b.role = 'tab'
@@ -42,7 +42,7 @@ function renderTabs() {
 
 function renderChips() {
   chipsEl.replaceChildren(
-    ...activeTab.examples.map((ex) => {
+    ...activeTab.examples.map(ex => {
       const b = document.createElement('button')
       b.type = 'button'
       b.className = 'chip'
@@ -87,7 +87,9 @@ function paintHighlight(expr: string, spans: Array<{ start: number; end: number;
   for (const s of ordered) {
     const start = Math.max(cursor, Math.min(s.start, expr.length))
     const end = Math.max(start, Math.min(s.end, expr.length))
-    if (start > cursor) html += escapeHtml(expr.slice(cursor, start))
+    if (start > cursor) {
+      html += escapeHtml(expr.slice(cursor, start))
+    }
     html += `<mark class="mk-${s.severity}">${escapeHtml(expr.slice(start, end)) || '&nbsp;'}</mark>`
     cursor = end
   }
@@ -133,8 +135,7 @@ function renderResults(
     } else {
       resultCountEl.textContent = 'throws'
       resultEl.innerHTML =
-        `<p class="throw-head">Only surfaces at runtime</p>` +
-        `<p class="throw-msg">${escapeHtml(runtimeError)}</p>`
+        `<p class="throw-head">Only surfaces at runtime</p>` + `<p class="throw-msg">${escapeHtml(runtimeError)}</p>`
     }
     return
   }
@@ -146,7 +147,7 @@ function renderResults(
   }
   resultCountEl.textContent = `${results.length} ${results.length === 1 ? 'value' : 'values'}`
   resultEl.replaceChildren(
-    ...results.map((r) => {
+    ...results.map(r => {
       const row = document.createElement('div')
       row.className = 'result-row'
       row.innerHTML = `<span class="type-badge">${escapeHtml(r.type)}</span><span class="value">${escapeHtml(r.text)}</span>`
@@ -175,10 +176,10 @@ function evaluate() {
 
   const { diagnostics, results, runtimeError } = run(expr, activeTab.resourceType, activeTab.resource)
 
-  const spans = diagnostics.map((d) => ({ start: d.span.start, end: d.span.end, severity: d.severity }))
+  const spans = diagnostics.map(d => ({ start: d.span.start, end: d.span.end, severity: d.severity }))
   paintHighlight(expr, spans)
 
-  const hasError = diagnostics.some((d) => d.severity === 'error')
+  const hasError = diagnostics.some(d => d.severity === 'error')
   const hasWarn = !hasError && diagnostics.length > 0
   const state = hasError ? 'error' : hasWarn ? 'warn' : 'ok'
   const first = diagnostics[0]
@@ -194,7 +195,7 @@ function evaluate() {
   }
 
   diagsEl.replaceChildren(
-    ...diagnostics.map((d) => {
+    ...diagnostics.map(d => {
       const li = document.createElement('li')
       li.className = `diag diag-${d.severity}`
       li.innerHTML = `<code class="diag-code">${escapeHtml(d.code)}</code><span class="diag-msg">${escapeHtml(d.message)}</span>`

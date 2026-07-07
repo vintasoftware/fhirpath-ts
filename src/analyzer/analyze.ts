@@ -165,7 +165,14 @@ class Analyzer {
     }
     if (found.length === 0) {
       if (this.model) {
-        this.report('unknown-element', `Element '${node.name}' is not defined on ${input.types.join(' | ')}`, node.span)
+        const hint = this.isChoiceKeyMisuse(input.types, node.name)
+          ? '; choice elements use their stem name'
+          : didYouMean(node.name, this.elementNames(input.types))
+        this.report(
+          'unknown-element',
+          `Element '${node.name}' is not defined on ${input.types.join(' | ')}${hint}`,
+          node.span
+        )
       }
       return UNKNOWN
     }
@@ -179,10 +186,52 @@ class Analyzer {
     return this.model?.resolveType(elementType) ?? elementType
   }
 
+  /**
+   * True for `valueQuantity`-style keys whose stem is a choice element on one of the
+   * input types — the same test the evaluator uses (engine/navigation.ts), so the
+   * static diagnostic and the runtime error carry the same guidance.
+   */
+  private isChoiceKeyMisuse(types: string[], name: string): boolean {
+    if (!this.model) {
+      return false
+    }
+    for (const type of types) {
+      for (let position = 1; position < name.length; position++) {
+        if (!/[A-Z]/.test(name[position] as string)) {
+          continue
+        }
+        const stem = name.slice(0, position)
+        if (this.model.getElement(type, stem)?.isChoice === true) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  /** Every element name the input types can offer, for typo suggestions. */
+  private elementNames(types: string[]): string[] {
+    if (this.model?.listElements === undefined) {
+      return []
+    }
+    const names: string[] = []
+    for (const type of types) {
+      const elements = this.model.listElements(type)
+      if (elements !== undefined) {
+        names.push(...elements)
+      }
+    }
+    return names
+  }
+
   private walkCall(node: AstNode & { kind: 'call' }, input: StaticState): StaticState {
     const registered = functions.get(node.name)
     if (!registered) {
-      this.report('unknown-function', `Unrecognized function '${node.name}'`, node.span)
+      this.report(
+        'unknown-function',
+        `Unrecognized function '${node.name}'${didYouMean(node.name, functions.keys())}`,
+        node.span
+      )
       for (const argument of node.args) {
         this.walk(argument, input)
       }
@@ -206,7 +255,7 @@ class Analyzer {
       if (signature.input.singleton && input.types !== undefined && !input.single) {
         this.report(
           'singleton-required',
-          `${node.name}() expects a collection with a single item as input (spec §11)`,
+          `${node.name}() expects a single item as input, but this is a collection (spec §11)${NARROW_HINT}`,
           node.span
         )
       }
@@ -237,7 +286,7 @@ class Analyzer {
         if (argState.types !== undefined && !argState.single) {
           this.report(
             'argument-singleton',
-            `${node.name}() expects a single ${spec} argument (spec §11)`,
+            `${node.name}() expects a single ${spec} argument, but this is a collection (spec §11)${NARROW_HINT}`,
             argument.span
           )
         } else {
@@ -345,7 +394,7 @@ class Analyzer {
   /** Report a singleton violation when the state is statically known to be a collection. */
   private requireSingle(state: StaticState, span: SourceSpan, message: string): void {
     if (isCollection(state)) {
-      this.report('singleton-required', message, span)
+      this.report('singleton-required', `${message}${NARROW_HINT}`, span)
     }
   }
 
@@ -369,7 +418,7 @@ class Analyzer {
 
   private checkArithmetic(operator: string, left: StaticState, right: StaticState, span: SourceSpan): void {
     if (isCollection(left) || isCollection(right)) {
-      this.report('singleton-required', `Operator '${operator}' expects single-item operands`, span)
+      this.report('singleton-required', `Operator '${operator}' expects single-item operands${NARROW_HINT}`, span)
       return
     }
     const leftKind = kindOf(left)
@@ -409,7 +458,7 @@ class Analyzer {
       return
     }
     if (leftKind !== rightKind) {
-      this.report('equality-incompatible', 'Equality operands can never be of the same type here (spec §11)', span)
+      this.report('equality-incompatible', `${leftKind} and ${rightKind} operands can never be equal (spec §11)`, span)
     }
   }
 
@@ -442,6 +491,9 @@ const SYSTEM_TYPE_NAMES = new Set([
   'Quantity',
 ])
 
+/** Appended to singleton-misuse messages so the fix is spelled out, not just the rule. */
+const NARROW_HINT = ' — narrow it to one item with first(), last(), or single()'
+
 /** Statically known to hold more than one item (types known, not a singleton). */
 function isCollection(state: StaticState): boolean {
   return state.types !== undefined && !state.single
@@ -472,4 +524,73 @@ function typeSpecifierParts(node: AstNode): string[] | undefined {
     return [node.left.name, node.right.name]
   }
   return undefined
+}
+
+/**
+ * `— did you mean 'X'?` for a mistyped name, or `''` when nothing is close enough.
+ * A suggestion only fires within a small edit budget scaled to the name's length,
+ * so a genuine typo (`gven` → `given`, `lengthx` → `length`) is caught while an
+ * unrelated name (`nope`) stays unsuggested.
+ */
+function didYouMean(target: string, candidates: Iterable<string>): string {
+  // Budget grows with the name: 1 edit for short names (<=4), up to 3 for long ones.
+  // Keeps suggestions high-precision — a real typo, not any name that happens to be near.
+  const budget = Math.min(3, Math.ceil(target.length / 4))
+  let best: string | undefined
+  let bestDistance = budget + 1
+  for (const candidate of candidates) {
+    if (candidate === target) {
+      continue
+    }
+    // Only a strictly better distance matters, so the cap tightens as matches are found.
+    const limit = bestDistance - 1
+    const distance = boundedEditDistance(target, candidate, limit)
+    if (distance <= limit) {
+      bestDistance = distance
+      best = candidate
+      if (bestDistance === 1) {
+        break // Unbeatable: distance 0 would mean an exact match, which is skipped.
+      }
+    }
+  }
+  return best === undefined ? '' : ` — did you mean '${best}'?`
+}
+
+/**
+ * Levenshtein distance capped at `limit`: exact when the distance is <= limit,
+ * otherwise returns limit + 1. Only the |i - j| <= limit diagonal band of each
+ * DP row is computed (cells outside it can never end <= limit), and the scan
+ * bails as soon as a whole row exceeds the cap — so a non-match costs
+ * O(limit^2) instead of a full O(len(a) * len(b)) table.
+ */
+function boundedEditDistance(a: string, b: string, limit: number): number {
+  if (Math.abs(a.length - b.length) > limit) {
+    return limit + 1
+  }
+  const previous: number[] = new Array(b.length + 1)
+  for (let j = 0; j <= b.length; j++) {
+    previous[j] = j
+  }
+  for (let i = 1; i <= a.length; i++) {
+    const from = Math.max(1, i - limit)
+    const to = Math.min(b.length, i + limit)
+    let diagonal = previous[from - 1] as number
+    previous[from - 1] = from === 1 ? i : limit + 1
+    let rowBest = previous[from - 1] as number
+    for (let j = from; j <= to; j++) {
+      // The cell above sits outside the previous row's band when j = i + limit.
+      const above = j > i - 1 + limit ? limit + 1 : (previous[j] as number)
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      const value = Math.min(above + 1, (previous[j - 1] as number) + 1, diagonal + cost)
+      previous[j] = value
+      diagonal = above
+      if (value < rowBest) {
+        rowBest = value
+      }
+    }
+    if (rowBest > limit) {
+      return limit + 1
+    }
+  }
+  return Math.min(previous[b.length] as number, limit + 1)
 }
