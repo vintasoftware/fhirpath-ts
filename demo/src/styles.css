@@ -767,12 +767,12 @@ code {
   padding: 1px 6px;
 }
 
-/* Long values scroll sideways inside the row instead of wrapping the panel. */
+/* Panel rows wrap; only the editor scrolls horizontally. */
 .pg-msg {
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-family: var(--mono);
   color: var(--screen-ink);
 }
