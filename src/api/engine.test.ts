@@ -3,7 +3,8 @@ import { FhirPathRuntimeError } from '../errors.ts'
 import type { Bundle, FhirResource, Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
-import { BoundExpression, FhirPathEngine, type Projection } from './engine.ts'
+import { BoundExpression, FhirPathEngine } from './engine.ts'
+import type { Projection } from './project.ts'
 
 const patient: Patient = {
   resourceType: 'Patient',
@@ -177,6 +178,13 @@ describe('FhirPathEngine.filter', () => {
   it('filters a Bundle by its entry resources', () => {
     expect(r4.filter(searchset, "gender = 'female'")).toEqual([otherPatient])
   })
+
+  it('does not unwrap an item that is itself a Bundle', () => {
+    // Unlike test(), per-item criteria see the item raw — no Bundle transparency,
+    // no ambiguity throw — so bundles inside an array (or a bundle of bundles)
+    // can be filtered by their own elements.
+    expect(r4.filter([searchset], "type = 'searchset'")).toEqual([searchset])
+  })
 })
 
 describe('FhirPathEngine.project', () => {
@@ -216,9 +224,7 @@ describe('FhirPathEngine.project', () => {
       family: 'Patient.name.family.first()',
       given: { path: 'Patient.name.given', collection: true },
     })
-    expectTypeOf(fromBundle).toEqualTypeOf<
-      { id: string | undefined; family: string | undefined; given: string[] }[]
-    >()
+    expectTypeOf(fromBundle).toEqualTypeOf<{ id: string | undefined; family: string | undefined; given: string[] }[]>()
     expect(fromBundle).toEqual([
       { id: 'example', family: 'Chalmers', given: ['Peter', 'James', 'Jim'] },
       { id: 'other', family: undefined, given: [] },
@@ -282,7 +288,7 @@ describe('FhirPathEngine.checkConstraints', () => {
   it('reports a broken expression as a failed issue instead of throwing', () => {
     const result = r4.checkConstraints(patient, [{ key: 'bad', expression: '1 +' }])
     expect(result.valid).toBe(false)
-    expect(result.issues[0]?.error).toMatch(/./)
+    expect(result.issues[0]?.error).toContain('Unexpected end of expression')
     expect(result.toOperationOutcome().issue[0]?.diagnostics).toContain('1 +')
     expect(result.toOperationOutcome().issue[0]?.details.text).toBe('Constraint bad failed')
   })

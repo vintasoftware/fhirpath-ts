@@ -6,6 +6,7 @@ import { parse } from '../parser/parser.ts'
 import { printExpression } from '../parser/printer.ts'
 import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
 import { type TypedValue, toCollection, unwrap } from '../values/typed-value.ts'
+import { LruCache } from './cache.ts'
 
 export interface EvaluateOptions {
   /** Environment variables (`%name`), keyed with or without the leading `%`. */
@@ -61,4 +62,25 @@ export class CompiledExpression<Expr extends string = string> {
 /** Parse an expression once for reuse. Unlike `evaluate()`, does not touch the parse cache. */
 export function compile<const Expr extends string>(expression: Expr): CompiledExpression<Expr> {
   return new CompiledExpression(expression)
+}
+
+/** An expression as text or already compiled, with any literal type. */
+// biome-ignore lint/suspicious/noExplicitAny: accepts any literal-typed CompiledExpression
+export type AnyExpression = string | CompiledExpression<any>
+
+const PARSE_CACHE_CAPACITY = 500
+
+const parseCache = new LruCache<CompiledExpression>(PARSE_CACHE_CAPACITY)
+
+/** The shared expression → CompiledExpression LRU, used by `evaluate()` and `FhirPathEngine`. */
+export function cachedCompile(expression: AnyExpression): CompiledExpression<string> {
+  if (typeof expression !== 'string') {
+    return expression
+  }
+  let cached = parseCache.get(expression)
+  if (!cached) {
+    cached = new CompiledExpression(expression)
+    parseCache.set(expression, cached)
+  }
+  return cached
 }
