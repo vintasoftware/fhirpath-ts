@@ -2,7 +2,7 @@ import './styles.css'
 
 import { run } from './engine.ts'
 import { type Tab, TABS } from './examples.ts'
-import { highlightBlocks, highlightTs } from './highlight.ts'
+import { highlightBlocks } from './highlight.ts'
 
 const $ = <T extends Element>(sel: string) => document.querySelector<T>(sel)!
 
@@ -210,40 +210,19 @@ function evaluate() {
 
 // --- Boot -------------------------------------------------------------------
 
-$<HTMLPreElement>('[data-quickstart]').innerHTML = highlightTs(`import { r4, r4Model } from 'fhirpath-ts/r4'
-import { analyzeExpression } from 'fhirpath-ts/analyzer'
-
-// The R4 model is already bound; result types are inferred by tsc — no plugin:
-r4.evaluate('Patient.name.given', patient)         // string[]
-r4.first('Patient.name.family', patient)           // string | undefined
-
-// Helpers for FHIRPath's main jobs — Bundles and arrays work transparently:
-r4.filter(searchset, 'birthDate < @1990-01-01')    // matching entry resources
-r4.project(searchset, { id: 'Patient.id', family: 'Patient.name.family.first()' })
-r4.checkConstraints(patient, patientInvariants)    // .valid / .toOperationOutcome()
-
-// Check an expression before it ships:
-analyzeExpression('Observation.valueQuantity', { model: r4Model, inputType: 'Observation' })
-// -> [{ code: 'unknown-element', message: "...use the choice stem 'value'...", ... }]`)
-
 // Highlight the static example blocks in the "Where a mistake gets caught" section.
 highlightBlocks('.layer-code')
 
 // The playground pulls in Monaco (heavy), so load it only once the section is
 // near the viewport rather than blocking the initial page.
 const playgroundEl = $<HTMLDivElement>('[data-playground]')
-const pgEditorEl = $<HTMLDivElement>('[data-pg-editor]')
-const pgProblemsEl = $<HTMLDivElement>('[data-pg-problems]')
 const observer = new IntersectionObserver(
   entries => {
     if (!entries.some(e => e.isIntersecting)) {
       return
     }
     observer.disconnect()
-    void import('./playground.ts').then(m => {
-      pgEditorEl.replaceChildren()
-      m.mountPlayground(pgEditorEl, pgProblemsEl)
-    })
+    void import('./playground.ts').then(m => m.mountPlayground(playgroundEl))
   },
   { rootMargin: '400px' }
 )
