@@ -1,7 +1,7 @@
 import { FhirPathError } from '../errors.ts'
 import { booleanSingleton } from '../values/collection.ts'
 import { isBundle, toSubjects } from './bundle.ts'
-import { cachedCompile, type EvaluateOptions } from './compile.ts'
+import { cachedCompile, type EvaluateOptions, type ParseCache } from './compile.ts'
 
 /** An invariant to check, shaped like FHIR's `ElementDefinition.constraint`. */
 export interface FhirConstraint {
@@ -53,7 +53,8 @@ export interface ConstraintCheckResult {
 export function evaluateConstraints(
   input: unknown,
   constraints: readonly FhirConstraint[],
-  options: EvaluateOptions
+  options: EvaluateOptions,
+  cache?: ParseCache
 ): ConstraintCheckResult {
   const bundle = isBundle(input)
   const issues: ConstraintIssue[] = []
@@ -67,7 +68,9 @@ export function evaluateConstraints(
         ...(subject.index === undefined ? {} : { index: subject.index }),
       }
       try {
-        if (booleanSingleton(cachedCompile(constraint.expression).evaluateTyped(subject.value, options)) !== true) {
+        if (
+          booleanSingleton(cachedCompile(constraint.expression, cache).evaluateTyped(subject.value, options)) !== true
+        ) {
           issues.push(issue)
         }
       } catch (error) {

@@ -1,13 +1,13 @@
 export type { BundleLike } from './api/bundle.ts'
 export type { AnyExpression, EvaluateOptions } from './api/compile.ts'
-export { CompiledExpression, compile } from './api/compile.ts'
+export { CompiledExpression, compile, DEFAULT_PARSE_CACHE_SIZE } from './api/compile.ts'
 export type {
   ConstraintCheckResult,
   ConstraintIssue,
   FhirConstraint,
   OperationOutcome,
 } from './api/constraints.ts'
-export type { EngineInput } from './api/engine.ts'
+export type { EngineInput, EngineOptions } from './api/engine.ts'
 export { BoundExpression, FhirPathEngine } from './api/engine.ts'
 export { evaluate } from './api/evaluate.ts'
 export type { Projection, ProjectionColumn, ProjectionColumns } from './api/project.ts'
