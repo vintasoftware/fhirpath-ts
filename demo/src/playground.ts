@@ -543,6 +543,11 @@ export function mountPlayground(root: HTMLElement): void {
     outputs = []
     runBtn.hidden = !sample.runnable
     model.setValue(sample.code)
+    // Drop the previous tab's output and stale markers right away; lint() and the
+    // TS worker repopulate diagnostics for the new code.
+    monaco.editor.setModelMarkers(model, 'typescript', [])
+    lint()
+    render(panelEl, model, outputs)
     renderTabs(tabsEl, sample.id, select)
   }
   select(first)
