@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>fhirpath.ts — a FHIRPath engine that answers back before it runs</title>
+    <meta
+      name="description"
+      content="An interactive playground for fhirpath-ts: a zero-dependency, TypeScript-native FHIRPath engine that statically catches expression mistakes before you run them."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230D1512'/%3E%3Cpath d='M4 17h7l3-8 4 14 3-6h7' fill='none' stroke='%2319C37D' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="wordmark" href="#" aria-label="fhirpath dot ts">
+        <svg class="wordmark-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M4 17h7l3-8 4 14 3-6h7" />
+        </svg>
+        <span>fhirpath<b>.ts</b></span>
+      </a>
+      <div class="spec-labels" aria-hidden="true">
+        <span>R4 model</span>
+        <span>zero deps</span>
+        <span>§11 analyzer</span>
+      </div>
+      <nav class="masthead-nav">
+        <a href="https://github.com/vintasoftware/fhirpath-ts">GitHub</a>
+        <a href="https://hl7.org/fhirpath/">FHIRPath spec</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <p class="eyebrow">TypeScript-native FHIRPath engine</p>
+        <h1>Catch the mistake<br />before even testing.</h1>
+        <p class="lede">
+          A safer FHIRPath engine. Catch expression errors at build-time.<br/>
+          No tests that should be type checks. No surprises in production.<br/>
+          Type below and watch.
+        </p>
+      </section>
+
+      <section class="instrument" aria-label="FHIRPath playground">
+        <div class="bezel">
+          <div class="probe">
+            <div class="panel-head">
+              <span class="panel-label">Expression</span>
+              <span class="panel-meta" data-input-type></span>
+            </div>
+            <div class="editor" data-editor>
+              <div class="editor-highlight" data-highlight aria-hidden="true"></div>
+              <textarea
+                class="editor-input"
+                data-expr
+                name="fhirpath-expression"
+                spellcheck="false"
+                autocomplete="off"
+                autocapitalize="off"
+                rows="1"
+                aria-label="FHIRPath expression"
+              ></textarea>
+            </div>
+            <div class="chips" data-chips></div>
+          </div>
+
+          <div class="readout" data-readout>
+            <svg class="trace" data-trace viewBox="0 0 600 44" preserveAspectRatio="none" aria-hidden="true"></svg>
+            <p class="readout-line" data-readout-line aria-live="polite"></p>
+            <ul class="diags" data-diags></ul>
+          </div>
+
+          <div class="screens">
+            <div class="screen">
+              <div class="panel-head">
+                <div class="tabs" role="tablist" data-tabs></div>
+              </div>
+              <pre class="resource" data-resource></pre>
+            </div>
+            <div class="screen">
+              <div class="panel-head">
+                <span class="panel-label">Result</span>
+                <span class="panel-meta" data-result-count></span>
+              </div>
+              <div class="result" data-result></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="proof">
+        <h2 class="proof-title">What you just used</h2>
+        <div class="proof-grid">
+          <article>
+            <h3>The analyzer, spec §11</h3>
+            <p>
+              Unknown elements, wrong types, singleton misuse, and equalities that can never hold —
+              flagged statically. Ships as a CLI and an ESLint rule for CI.
+            </p>
+          </article>
+          <article>
+            <h3>Types from plain <code>tsc</code></h3>
+            <p>
+              <code>compile('Patient.name.given')</code> evaluates to <code>string[]</code>. No plugin,
+              no codegen — the result type falls out of the expression literal.
+            </p>
+          </article>
+          <article>
+            <h3>Exact by construction</h3>
+            <p>
+              BigInt-scaled decimals mean <code>0.1 + 0.2 = 0.3</code> holds. Zero runtime
+              dependencies, verified against the official HL7 R4 and R5 suites.
+            </p>
+          </article>
+        </div>
+
+        <div class="quickstart">
+          <div class="panel-head"><span class="panel-label">Install it in your own code</span></div>
+          <pre data-quickstart></pre>
+        </div>
+      </section>
+
+      <section class="layers">
+        <h2 class="layers-title">Where a mistake gets caught</h2>
+        <p class="layers-lede">
+          The same broken path can surface at three different moments. The earlier it does, the
+          cheaper it is to fix — so fhirpath-ts pushes as many checks as it can up toward the
+          keystroke, and leaves as little as possible for production.
+        </p>
+
+        <article class="layer layer-early">
+          <div class="layer-head">
+            <span class="layer-when">As you type</span>
+            <span class="layer-tool">tsc · no plugin</span>
+            <h3 class="layer-name">Type error</h3>
+          </div>
+          <div class="layer-body">
+            <pre class="layer-code">const given = compile('Patient.name.given')   // string[]
+
+given.evaluate(observation)             // won't compile: expects a Patient
+given.evaluate(patient)[0].toFixed(1)   // won't compile: it's a string</pre>
+            <p class="layer-note">
+              The input and result types are inferred straight from the expression literal, in plain
+              TypeScript. Pass the wrong resource, or misuse the result, and your editor flags it
+              before you save. It's the narrowest net — expressions outside the supported subset fall
+              back to <code>unknown[]</code> rather than a false error — but it costs nothing to run.
+            </p>
+          </div>
+        </article>
+
+        <article class="layer layer-early">
+          <div class="layer-head">
+            <span class="layer-when">Before you run</span>
+            <span class="layer-tool">CLI · ESLint · in CI</span>
+            <h3 class="layer-name">Static analysis error</h3>
+          </div>
+          <div class="layer-body">
+            <pre class="layer-code">analyzeExpression('Observation.valueQuantity', opts)
+// Element 'valueQuantity' is not defined on FHIR.Observation
+
+analyzeExpression('Patient.name.given.substring(1)', opts)
+// substring() expects a collection with a single item as input (spec §11)</pre>
+            <p class="layer-note">
+              Typos, choice-key misuse, singleton misuse, equality that can never hold — the whole
+              class TypeScript's type system can't express. The §11 analyzer reads the expression
+              against the FHIR model and reports them without touching data. Wire it into CI as a CLI
+              or ESLint rule and they fail the build. This is the layer the playground above runs live.
+            </p>
+          </div>
+        </article>
+
+        <article class="layer layer-late">
+          <div class="layer-head">
+            <span class="layer-when">Only when it runs</span>
+            <span class="layer-tool">against real data</span>
+            <h3 class="layer-name">Runtime error</h3>
+          </div>
+          <div class="layer-body">
+            <pre class="layer-code">evaluate('Patient.namee.given', patient)   // []  — no error, just empty</pre>
+            <p class="layer-note">
+              This is what the two checks above exist to shrink. Against real data most mistakes
+              don't throw — an unknown path just returns nothing, and you learn about it from a failing
+              test or a blank field, not an exception. A few hard cases genuinely throw (choice-key
+              misuse, an unconvertible unit), but the silent empty result is the one that reaches
+              production, which is why fhirpath-ts turns as much of it as it can into the two errors
+              you can catch first.
+            </p>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer class="colophon">
+      <p>
+        A demo of <a href="https://github.com/vintasoftware/fhirpath-ts">fhirpath-ts</a>, running
+        entirely in your browser — no server, no network call. Sample data is synthetic.
+      </p>
+      <p class="fine">FHIR® is a registered trademark of HL7. Engine licensed Apache-2.0.</p>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": [],
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "fhirpath-ts": ["../src/index.ts"],
+      "fhirpath-ts/r4": ["../src/r4/index.ts"],
+      "fhirpath-ts/analyzer": ["../src/analyzer/analyze.ts"]
+    }
+  },
+  "include": ["src"]
+}
