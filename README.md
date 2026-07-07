@@ -41,6 +41,96 @@ trade-offs live in [Gaps and deferred features](#gaps-and-deferred-features).
 ## Quick start
 
 ```ts
+import { r4 } from 'fhirpath-ts/r4'
+
+// One import: a FhirPathEngine with the R4 model already bound.
+r4.evaluate('Patient.name.given', patient) // string[] — compile + evaluate in one call
+r4.first('Patient.name.family', patient)   // string | undefined — the scalar 90% case
+
+// Compile once for hot paths; the engine's defaults stay bound:
+const given = r4.compile('Patient.name.given')
+given.evaluate(patient) // string[] — and `patient` must be a Patient
+
+// Bundles and resource arrays work transparently — a searchset behaves as its
+// entry resources, and expressions rooted at Bundle still see the bundle itself:
+r4.evaluate('Patient.name.given', searchset)   // string[] across every Patient entry
+r4.evaluate('Bundle.entry.count()', searchset) // the bundle, because the root is Bundle
+r4.evaluate('Bundle.type', [searchset])        // wrap in an array to force one-resource treatment
+r4.evaluate('entry.count()', searchset)        // throws: a bare Bundle element is ambiguous —
+                                               // start at Bundle, or wrap the input in an array
+```
+
+Engine methods parse on demand (LRU-cached by expression text) and infer result
+and input types from literal expressions in plain `tsc` — see
+[Static checking](#static-checking-official-spec-11). The bound model gives
+FHIR-aware evaluation: choice elements by stem name (`Observation.value`),
+primitive `_field` extensions, and type checks (`is`/`as`/`ofType`). Unknown
+elements navigate to empty like the reference engines (typos are the static
+analyzer's job); the one runtime semantic error is choice-key misuse
+(`Observation.valueQuantity`).
+
+Need different defaults — `%env` variables, a fixed clock, a trace sink, another
+model? Construct your own engine; per-call options override its defaults field
+by field:
+
+```ts
+import { FhirPathEngine } from 'fhirpath-ts'
+import { r4Model } from 'fhirpath-ts/r4'
+
+const fp = new FhirPathEngine({ model: r4Model, env: { threshold: 5 } })
+fp.evaluate('%threshold + 1') // [6]
+```
+
+### The main FHIRPath jobs, as helpers
+
+FHIRPath earns its keep in FHIR doing a few specific jobs — extracting values,
+checking invariants, filtering by criteria, shaping data — and the engine has a
+helper for each:
+
+```ts
+// Criteria — the boolean semantics FHIR invariants, Subscription criteria, and
+// Questionnaire enableWhen share (spec §4.5): empty → false, one boolean → itself.
+r4.test(patient, "name.family = 'Chalmers'")   // boolean
+r4.filter(patients, 'birthDate < @1990-01-01') // Patient[] — arrays and Bundles alike
+
+// Invariants, shaped exactly like ElementDefinition.constraint:
+const result = r4.checkConstraints(patient, [
+  { key: 'pat-1', severity: 'error', human: 'Contact needs a name or telecom',
+    expression: 'contact.all(name.exists() or telecom.exists())' },
+])
+result.valid                // false only if an error-severity constraint failed
+result.issues               // the failed constraints, echoing their definitions
+result.toOperationOutcome() // FHIR-native report (issue.code = 'invariant')
+
+// Shape a resource into a typed row, following SQL-on-FHIR ViewDefinition column
+// semantics: columns are scalars, several values is a loud error (append first()
+// or opt into collection: true). Each column's type is inferred from its expression.
+r4.project(patient, {
+  id: 'Patient.id',                                         // string | undefined
+  family: 'Patient.name.family.first()',                    // string | undefined
+  given: { path: 'Patient.name.given', collection: true },  // string[]
+})
+r4.project(searchset, { id: 'Patient.id' }) // arrays and Bundles: one row per resource
+```
+
+Arrays and Bundles flow through all of these: `filter` and `project` iterate the
+resources, and `checkConstraints` checks each one — its issues then carry the
+failing position as `index`, and for Bundles the OperationOutcome points at
+`Bundle.entry[i].resource`. A Bundle is validated as a resource in its own right
+(e.g. against the `bdl-*` invariants) by wrapping it: `checkConstraints([bundle], …)`.
+
+Two scope notes, so the names don't overpromise: `checkConstraints` evaluates
+constraint *expressions* only — it is not full profile validation (no cardinality,
+bindings, or slicing). And `project` shapes values *out of* a resource;
+structure-to-structure mapping is the FHIR Mapping Language / StructureMap's job,
+where FHIRPath is just the expression component.
+
+### Low-level API
+
+The engine wraps a smaller stateless layer that stays public — the same options,
+passed per call:
+
+```ts
 import { evaluate, compile, fhirpath } from 'fhirpath-ts'
 import { r4Model } from 'fhirpath-ts/r4'
 
@@ -48,8 +138,7 @@ import { r4Model } from 'fhirpath-ts/r4'
 evaluate('Patient.name.given', patient, { model: r4Model }) // unknown[]
 
 // Compile once, reuse; literal expressions infer result and input types:
-const given = compile('Patient.name.given')
-given.evaluate(patient, { model: r4Model }) // string[] — and `patient` must be a Patient
+compile('Patient.name.given').evaluate(patient, { model: r4Model }) // string[]
 
 // The fhirpath() call form is equivalent; the tag form works but stays untyped
 // because TypeScript cannot carry literal types through tagged templates (TS#33304):
@@ -57,15 +146,12 @@ fhirpath('Patient.name.given').evaluate(patient, { model: r4Model }) // string[]
 fhirpath`Patient.name.given`.evaluate(patient, { model: r4Model }) // unknown[]
 ```
 
-Pass `{ model: r4Model }` for FHIR-aware evaluation: choice elements by stem name
-(`Observation.value`), primitive `_field` extensions, and type checks
-(`is`/`as`/`ofType`). Unknown elements navigate to empty like the reference engines
-(typos are the static analyzer's job); the one runtime semantic error is choice-key
-misuse (`Observation.valueQuantity`). Without a model the engine navigates raw JSON.
+Without a model (engine default or per-call), the engine navigates raw JSON.
 
 ### Options
 
-`evaluate(expr, input, options)` / `compiled.evaluate(input, options)` accept:
+`new FhirPathEngine(defaults)` and every evaluate-family call's trailing
+`options` argument accept the same fields (per-call wins):
 
 | Option | Meaning |
 | --- | --- |
@@ -74,8 +160,9 @@ misuse (`Observation.valueQuantity`). Without a model the engine navigates raw J
 | `now` | Evaluation clock for `now()`/`today()`/`timeOfDay()` (deterministic tests) |
 | `trace` | Sink for `trace()` calls — see the PHI note below |
 
-`compiled.evaluateTyped(...)` returns the internal `TypedValue[]` (type names plus
-`Decimal`/`Temporal` value objects) instead of unwrapped JS values.
+`evaluateTyped(...)` (on the engine, bound expressions, and compiled expressions)
+returns the internal `TypedValue[]` (type names plus `Decimal`/`Temporal` value
+objects) instead of unwrapped JS values.
 
 ## Conformance
 
