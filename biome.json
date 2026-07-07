@@ -96,7 +96,7 @@
   },
   "overrides": [
     {
-      "includes": ["**/scripts/**/*.{ts,mts,cts,js,mjs,cjs}"],
+      "includes": ["**/scripts/**/*.{ts,mts,cts,js,mjs,cjs}", "**/benchmarks/**/*.{ts,mts,cts,js,mjs,cjs}"],
       "linter": {
         "rules": {
           "suspicious": {
