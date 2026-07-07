@@ -38,8 +38,8 @@ const patient = {
 const given = r4.evaluate('Patient.name.given', patient)   // string[]
 const family = r4.first('Patient.name.family', patient)    // string | undefined
 
-// Type error: 'given' is string[], so given[0] is a string — no .toFixed().
-given[0].toFixed(1)
+// Type error: Patient.name is HumanName[], not string[] — the misassignment is caught.
+const names: string[] = r4.evaluate('Patient.name', patient)
 
 // Type error: this path expects a Patient, but here it's handed an Observation.
 const weight = { resourceType: 'Observation' as const, status: 'final' }
