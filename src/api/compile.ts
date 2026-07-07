@@ -1,6 +1,7 @@
 import { resolveSuspensions } from '../engine/async.ts'
 import { createContext } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
+import type { ReferenceResolver } from '../fhir/reference-resolver.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
@@ -26,6 +27,14 @@ export interface EvaluateOptions {
    * evaluateAsync(); under the sync evaluate() they fail with a pointer to it.
    */
   terminology?: TerminologyProvider
+  /**
+   * Resolver for external references: resolve() handles contained (`#id`) and
+   * Bundle-internal references itself and hands anything else — absolute urls,
+   * relative Type/id references outside the Bundle — to this callback. Async,
+   * so it requires evaluateAsync(); under the sync evaluate() an external
+   * reference fails with a pointer to it.
+   */
+  resolver?: ReferenceResolver
 }
 
 /**
@@ -117,6 +126,7 @@ function contextFor(
     env: options?.env,
     model: options?.model,
     terminology: options?.terminology,
+    resolver: options?.resolver,
     now: replay ? replay.now : options?.now,
     trace: replay ? replay.trace : options?.trace,
     asyncCache: replay?.asyncCache,

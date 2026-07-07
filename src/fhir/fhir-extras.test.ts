@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EvaluateOptions } from '../api/compile.ts'
-import { evaluate } from '../api/evaluate.ts'
+import { evaluate, evaluateAsync } from '../api/evaluate.ts'
 import { r4Model } from '../r4/index.ts'
 import { validateNarrative } from './html-checks.ts'
 
@@ -138,6 +138,92 @@ describe('resolve()', () => {
     expect(evaluate("'Patient/elsewhere'.resolve()", patient, options)).toEqual([])
     expect(evaluate("'#missing'.resolve()", patient, options)).toEqual([])
     expect(evaluate('name.first().resolve()', patient, options)).toEqual([])
+  })
+
+  describe('external references via options.resolver', () => {
+    const registry: Record<string, unknown> = {
+      'https://ehr.example.org/Organization/acme': { resourceType: 'Organization', id: 'acme', name: 'ACME Remote' },
+      'Practitioner/dr-a': { resourceType: 'Practitioner', id: 'dr-a' },
+    }
+    function stubResolver() {
+      const calls: string[] = []
+      const resolver = async (reference: string) => {
+        calls.push(reference)
+        return registry[reference]
+      }
+      return { calls, resolver }
+    }
+    const subject = {
+      ...patient,
+      managingOrganization: { reference: 'https://ehr.example.org/Organization/acme' },
+      generalPractitioner: [{ reference: 'Practitioner/dr-a' }],
+    }
+
+    it('resolves absolute and relative references through the resolver', async () => {
+      const { calls, resolver } = stubResolver()
+      await expect(
+        evaluateAsync('Patient.managingOrganization.resolve().name', subject, { ...options, resolver })
+      ).resolves.toEqual(['ACME Remote'])
+      await expect(
+        evaluateAsync('Patient.generalPractitioner.resolve().id', subject, { ...options, resolver })
+      ).resolves.toEqual(['dr-a'])
+      expect(calls).toEqual(['https://ehr.example.org/Organization/acme', 'Practitioner/dr-a'])
+    })
+
+    it('local resolution wins: contained and Bundle references never reach the resolver', async () => {
+      const { calls, resolver } = stubResolver()
+      await expect(
+        evaluateAsync('Patient.managingOrganization.resolve().name', patient, { ...options, resolver })
+      ).resolves.toEqual(['ACME'])
+      // Fragment misses are internal by definition, so they stay empty too.
+      await expect(evaluateAsync("'#missing'.resolve()", patient, { ...options, resolver })).resolves.toEqual([])
+      expect(calls).toEqual([])
+    })
+
+    it('asks the resolver once per distinct reference', async () => {
+      const { calls, resolver } = stubResolver()
+      await expect(
+        evaluateAsync(
+          'Patient.managingOrganization.resolve().name | Patient.managingOrganization.resolve().id',
+          subject,
+          { ...options, resolver }
+        )
+      ).resolves.toEqual(['ACME Remote', 'acme'])
+      expect(calls).toEqual(['https://ehr.example.org/Organization/acme'])
+    })
+
+    it('unresolvable and non-resource answers are empty', async () => {
+      const { resolver } = stubResolver()
+      await expect(evaluateAsync("'Patient/elsewhere'.resolve()", subject, { ...options, resolver })).resolves.toEqual(
+        []
+      )
+      const stringResolver = async () => 'not a resource'
+      await expect(
+        evaluateAsync('Patient.generalPractitioner.resolve()', subject, { ...options, resolver: stringResolver })
+      ).resolves.toEqual([])
+    })
+
+    it('requires evaluateAsync() when an external reference actually needs the resolver', () => {
+      const { resolver } = stubResolver()
+      expect(() => evaluate('Patient.generalPractitioner.resolve()', subject, { ...options, resolver })).toThrow(
+        'resolve() of external references is only available with evaluateAsync()'
+      )
+      // Sync stays fine while everything resolves locally.
+      expect(evaluate('Patient.managingOrganization.resolve().name', patient, { ...options, resolver })).toEqual([
+        'ACME',
+      ])
+    })
+
+    it('resolver failures propagate', async () => {
+      const failing = () => Promise.reject(new Error('fhir server unreachable'))
+      await expect(
+        evaluateAsync('Patient.generalPractitioner.resolve()', subject, { ...options, resolver: failing })
+      ).rejects.toThrow('fhir server unreachable')
+    })
+
+    it('without a resolver, external references stay empty under evaluateAsync()', async () => {
+      await expect(evaluateAsync('Patient.generalPractitioner.resolve()', subject, options)).resolves.toEqual([])
+    })
   })
 
   it('a relative reference does not match a fullUrl on a different base', () => {
