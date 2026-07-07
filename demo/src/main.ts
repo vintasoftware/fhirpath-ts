@@ -2,6 +2,7 @@ import './styles.css'
 
 import { run } from './engine.ts'
 import { type Tab, TABS } from './examples.ts'
+import { highlightBlocks, highlightTs } from './highlight.ts'
 
 const $ = <T extends Element>(sel: string) => document.querySelector<T>(sel)!
 
@@ -209,7 +210,7 @@ function evaluate() {
 
 // --- Boot -------------------------------------------------------------------
 
-$<HTMLPreElement>('[data-quickstart]').textContent = `import { r4, r4Model } from 'fhirpath-ts/r4'
+$<HTMLPreElement>('[data-quickstart]').innerHTML = highlightTs(`import { r4, r4Model } from 'fhirpath-ts/r4'
 import { analyzeExpression } from 'fhirpath-ts/analyzer'
 
 // The R4 model is already bound; result types are inferred by tsc — no plugin:
@@ -223,7 +224,10 @@ r4.checkConstraints(patient, patientInvariants)    // .valid / .toOperationOutco
 
 // Check an expression before it ships:
 analyzeExpression('Observation.valueQuantity', { model: r4Model, inputType: 'Observation' })
-// -> [{ code: 'unknown-element', message: "...use the choice stem 'value'...", ... }]`
+// -> [{ code: 'unknown-element', message: "...use the choice stem 'value'...", ... }]`)
+
+// Highlight the static example blocks in the "Where a mistake gets caught" section.
+highlightBlocks('.layer-code')
 
 exprEl.addEventListener('input', evaluate)
 window.addEventListener('resize', autosize)

@@ -559,6 +559,29 @@ code {
   color: var(--screen-ink);
 }
 
+/* --- Syntax tokens (static code blocks) ---------------------------------- */
+
+.tok-comment {
+  color: var(--screen-muted);
+  font-style: italic;
+}
+
+.tok-string {
+  color: var(--pulse);
+}
+
+.tok-keyword {
+  color: #7aa2f7;
+}
+
+.tok-num {
+  color: var(--caution);
+}
+
+.tok-fn {
+  color: #c8b6ff;
+}
+
 /* --- Proof --------------------------------------------------------------- */
 
 .proof {
