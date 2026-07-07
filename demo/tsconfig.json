@@ -17,5 +17,6 @@
       "fhirpath-ts/analyzer": ["../src/analyzer/analyze.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/monaco/*.d.ts"]
 }
