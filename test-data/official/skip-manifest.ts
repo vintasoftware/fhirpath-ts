@@ -21,11 +21,6 @@ export const SKIP_MANIFEST: SkipEntry[] = [
   },
   {
     suite: 'r5',
-    mode: 'tx',
-    reason: 'terminology tests need a terminology service; out of scope for v1 (README: deferred features)',
-  },
-  {
-    suite: 'r5',
     mode: 'html',
     reason: 'the parameters-example-html fixture is only distributed as XML; htmlChecks() is covered by unit tests',
   },

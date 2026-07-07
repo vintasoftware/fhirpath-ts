@@ -24,8 +24,8 @@ for (const suite of ['r4', 'r5'] as const) {
             it.skip(`${title} [${skipReason}]`, () => {})
             return
           }
-          it(title, () => {
-            const failure = runOfficialTest(suite, test)
+          it(title, async () => {
+            const failure = await runOfficialTest(suite, test)
             expect(failure, failure).toBeUndefined()
           })
         })

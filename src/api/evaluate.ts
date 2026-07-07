@@ -18,6 +18,19 @@ export function evaluate(
   return compiled(expression).evaluate(input, options)
 }
 
+/**
+ * Like evaluate(), with async providers (options.terminology) available. Uses
+ * the same parse cache.
+ */
+export async function evaluateAsync(
+  // biome-ignore lint/suspicious/noExplicitAny: accepts any literal-typed CompiledExpression; results here are untyped
+  expression: string | CompiledExpression<any>,
+  input?: unknown,
+  options?: EvaluateOptions
+): Promise<unknown[]> {
+  return compiled(expression).evaluateAsync(input, options)
+}
+
 function compiled(expression: string | CompiledExpression<string>): CompiledExpression<string> {
   if (typeof expression !== 'string') {
     return expression

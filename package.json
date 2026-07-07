@@ -26,6 +26,7 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "generate:r4": "node scripts/generate-r4-model.ts",
+    "record:tx": "node scripts/record-tx-fixtures.ts",
     "check:fhirpath": "node src/cli/fhirpath-check.ts"
   },
   "devDependencies": {
