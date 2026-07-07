@@ -539,30 +539,58 @@ function didYouMean(target: string, candidates: Iterable<string>): string {
   let best: string | undefined
   let bestDistance = budget + 1
   for (const candidate of candidates) {
-    if (candidate === target || Math.abs(candidate.length - target.length) > bestDistance) {
+    if (candidate === target) {
       continue
     }
-    const distance = editDistance(target, candidate)
-    if (distance < bestDistance) {
+    // Only a strictly better distance matters, so the cap tightens as matches are found.
+    const limit = bestDistance - 1
+    const distance = boundedEditDistance(target, candidate, limit)
+    if (distance <= limit) {
       bestDistance = distance
       best = candidate
+      if (bestDistance === 1) {
+        break // Unbeatable: distance 0 would mean an exact match, which is skipped.
+      }
     }
   }
   return best === undefined ? '' : ` — did you mean '${best}'?`
 }
 
-/** Levenshtein distance, capped implicitly by the caller's budget via early length pruning. */
-function editDistance(a: string, b: string): number {
-  const previous = Array.from({ length: b.length + 1 }, (_, index) => index)
+/**
+ * Levenshtein distance capped at `limit`: exact when the distance is <= limit,
+ * otherwise returns limit + 1. Only the |i - j| <= limit diagonal band of each
+ * DP row is computed (cells outside it can never end <= limit), and the scan
+ * bails as soon as a whole row exceeds the cap — so a non-match costs
+ * O(limit^2) instead of a full O(len(a) * len(b)) table.
+ */
+function boundedEditDistance(a: string, b: string, limit: number): number {
+  if (Math.abs(a.length - b.length) > limit) {
+    return limit + 1
+  }
+  const previous: number[] = new Array(b.length + 1)
+  for (let j = 0; j <= b.length; j++) {
+    previous[j] = j
+  }
   for (let i = 1; i <= a.length; i++) {
-    let diagonal = previous[0] as number
-    previous[0] = i
-    for (let j = 1; j <= b.length; j++) {
-      const above = previous[j] as number
+    const from = Math.max(1, i - limit)
+    const to = Math.min(b.length, i + limit)
+    let diagonal = previous[from - 1] as number
+    previous[from - 1] = from === 1 ? i : limit + 1
+    let rowBest = previous[from - 1] as number
+    for (let j = from; j <= to; j++) {
+      // The cell above sits outside the previous row's band when j = i + limit.
+      const above = j > i - 1 + limit ? limit + 1 : (previous[j] as number)
       const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      previous[j] = Math.min(above + 1, (previous[j - 1] as number) + 1, diagonal + cost)
+      const value = Math.min(above + 1, (previous[j - 1] as number) + 1, diagonal + cost)
+      previous[j] = value
       diagonal = above
+      if (value < rowBest) {
+        rowBest = value
+      }
+    }
+    if (rowBest > limit) {
+      return limit + 1
     }
   }
-  return previous[b.length] as number
+  return Math.min(previous[b.length] as number, limit + 1)
 }
