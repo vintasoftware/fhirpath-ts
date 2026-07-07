@@ -210,7 +210,19 @@ describe('FhirPathEngine.project', () => {
       { id: 'other', born: '1994-06-01' },
     ])
 
-    expect(r4.project(searchset, { id: 'Patient.id' })).toEqual([{ id: 'example' }, { id: 'other' }])
+    // The Bundle overload resolves to concrete typed rows, not just the alias:
+    const fromBundle = r4.project(searchset, {
+      id: 'Patient.id',
+      family: 'Patient.name.family.first()',
+      given: { path: 'Patient.name.given', collection: true },
+    })
+    expectTypeOf(fromBundle).toEqualTypeOf<
+      { id: string | undefined; family: string | undefined; given: string[] }[]
+    >()
+    expect(fromBundle).toEqual([
+      { id: 'example', family: 'Chalmers', given: ['Peter', 'James', 'Jim'] },
+      { id: 'other', family: undefined, given: [] },
+    ])
   })
 })
 
