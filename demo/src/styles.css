@@ -661,6 +661,11 @@ code {
   color: var(--screen-muted);
 }
 
+.pg-tabs {
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
 .pg-editor {
   height: 420px;
   border: 1px solid var(--screen-line);

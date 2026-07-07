@@ -25,7 +25,17 @@ interface MonacoEnvironmentShape {
   },
 }
 
-const SAMPLE = `import { r4 } from 'fhirpath-ts/r4'
+interface Sample {
+  id: string
+  label: string
+  code: string
+}
+
+const SAMPLES: Sample[] = [
+  {
+    id: 'evaluate',
+    label: 'evaluate',
+    code: `import { r4 } from 'fhirpath-ts/r4'
 import { analyzeExpression } from 'fhirpath-ts/analyzer'
 
 const patient = {
@@ -50,7 +60,70 @@ r4.evaluate('Patient.namee.given', patient)
 
 // The analyzer is callable directly, too:
 analyzeExpression('Observation.valueQuantity', { inputType: 'Observation' })
-`
+`,
+  },
+  {
+    id: 'filter',
+    label: 'filter',
+    code: `import { r4 } from 'fhirpath-ts/r4'
+
+// A searchset of resources. filter() keeps the ones whose criteria hold.
+const patients = [
+  { resourceType: 'Patient' as const, birthDate: '1984-11-02', active: true },
+  { resourceType: 'Patient' as const, birthDate: '1991-06-15', active: false },
+]
+
+// filter preserves the element type — 'adults' is Patient[], not unknown[]:
+const adults = r4.filter(patients, 'birthDate < @2000-01-01')
+
+// test() reduces a boolean criteria (the enableWhen / invariant semantics):
+const isActive: boolean = r4.test(patients[0], 'active = true')
+
+// Type error: filter keeps Patient[], which isn't string[].
+const families: string[] = r4.filter(patients, 'active')
+`,
+  },
+  {
+    id: 'project',
+    label: 'project',
+    code: `import { r4 } from 'fhirpath-ts/r4'
+
+const patients = [
+  { resourceType: 'Patient' as const, id: 'p1', name: [{ family: 'Okoro', given: ['Adaeze'] }] },
+]
+
+// project() builds typed rows — each column's type is inferred from its path:
+const rows = r4.project(patients, {
+  id: 'Patient.id',                                        // string | undefined
+  family: 'Patient.name.family.first()',                   // string | undefined
+  given: { path: 'Patient.name.given', collection: true }, // string[]
+})
+
+// Type error: the 'family' column is string | undefined, not number.
+const count: number = rows[0].family
+`,
+  },
+  {
+    id: 'checkConstraints',
+    label: 'checkConstraints',
+    code: `import { r4 } from 'fhirpath-ts/r4'
+
+const patient = { resourceType: 'Patient' as const, gender: 'female', birthDate: '1984-11-02' }
+
+// FHIR invariants as FHIRPath — checkConstraints() runs them and reports failures.
+const result = r4.checkConstraints(patient, [
+  { key: 'pat-1', human: 'gender must be present', expression: 'gender.exists()' },
+  { key: 'pat-2', human: 'born in the past', expression: 'birthDate < today()' },
+])
+
+const ok: boolean = result.valid       // .valid, .issues, or a FHIR OperationOutcome:
+const outcome = result.toOperationOutcome()
+
+// Type error: a constraint's severity is 'error' | 'warning', not 'fatal'.
+r4.checkConstraints(patient, [{ key: 'pat-3', severity: 'fatal', expression: 'name.exists()' }])
+`,
+  },
+]
 
 /** Function names whose first string argument is a FHIRPath expression (mirrors CALL_NAMES). */
 const CALL_NAMES = new Set(['fhirpath', 'compile', 'evaluate', 'analyzeExpression'])
@@ -243,17 +316,39 @@ function renderProblems(model: monaco.editor.ITextModel, into: HTMLElement): voi
   )
 }
 
+/** Render the example tabs; clicking one loads its sample into the editor. */
+function renderTabs(into: HTMLElement, active: string, onSelect: (sample: Sample) => void): void {
+  into.replaceChildren(
+    ...SAMPLES.map(sample => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.role = 'tab'
+      button.className = 'tab'
+      button.textContent = sample.label
+      button.setAttribute('aria-selected', String(sample.id === active))
+      button.addEventListener('click', () => onSelect(sample))
+      return button
+    })
+  )
+}
+
 let mounted = false
 
-/** Build the editor in `editorEl` and stream problems into `problemsEl`. Idempotent. */
-export function mountPlayground(editorEl: HTMLElement, problemsEl: HTMLElement): void {
+/** Build the tabbed editor and stream problems, using the `[data-pg-*]` children of `root`. Idempotent. */
+export function mountPlayground(root: HTMLElement): void {
   if (mounted) {
     return
   }
   mounted = true
   configureTypeScript()
 
-  const model = monaco.editor.createModel(SAMPLE, 'typescript', monaco.Uri.parse('file:///main.ts'))
+  const tabsEl = root.querySelector<HTMLElement>('[data-pg-tabs]')!
+  const editorEl = root.querySelector<HTMLElement>('[data-pg-editor]')!
+  const problemsEl = root.querySelector<HTMLElement>('[data-pg-problems]')!
+  editorEl.replaceChildren()
+
+  const first = SAMPLES[0]!
+  const model = monaco.editor.createModel(first.code, 'typescript', monaco.Uri.parse('file:///main.ts'))
   monaco.editor.create(editorEl, {
     model,
     theme: 'fhirpath-dark',
@@ -301,5 +396,11 @@ export function mountPlayground(editorEl: HTMLElement, problemsEl: HTMLElement):
       renderProblems(model, problemsEl)
     }
   })
+
+  const select = (sample: Sample): void => {
+    model.setValue(sample.code)
+    renderTabs(tabsEl, sample.id, select)
+  }
+  renderTabs(tabsEl, first.id, select)
   lint()
 }
