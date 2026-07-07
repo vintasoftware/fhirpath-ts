@@ -1,7 +1,7 @@
 import { pairEquals } from '../engine/operators/equality.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import { type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, type TypedValue, toTypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
 /**
@@ -75,12 +75,37 @@ registerFunction('descendants', {
     // produced in the same round (a batch filter against prior rounds only), where
     // repeat() collapses them (incremental within-round dedup). They cannot share
     // one closure without breaking one or the other.
+    //
+    // Dedup is `existing.value === item.value || pairEquals(existing, item)` against
+    // prior rounds. A naive `collected.some(...)` scan is O(n²) with a deep
+    // `pairEquals` per pair, which blows up on wide/deep trees. Instead: `seenValues`
+    // (a Set of raw values) resolves the `===` branch in O(1) — and that also fully
+    // covers `pairEquals` for String/Boolean, whose equality *is* `===`. Only the
+    // remaining classes (numeric, temporal, quantity, complex) can be pairEquals-equal
+    // without being `===`-equal, so just those fall back to a scan of same-class prior
+    // items. The index updates only between rounds, preserving the batch semantics.
     const collected: TypedValue[] = []
+    const seenValues = new Set<unknown>()
+    const fallback: TypedValue[] = []
+    const needsFallback = (item: TypedValue): boolean => {
+      const type = systemTypeOf(item)
+      return type !== SYSTEM_STRING && type !== SYSTEM_BOOLEAN
+    }
+    const isDuplicate = (item: TypedValue): boolean => {
+      if (seenValues.has(item.value)) {
+        return true
+      }
+      return needsFallback(item) && fallback.some(existing => pairEquals(existing, item) === true)
+    }
     let current = input.flatMap(item => childrenOf(item, context.model))
     while (current.length > 0) {
-      const fresh = current.filter(
-        item => !collected.some(existing => existing.value === item.value || pairEquals(existing, item) === true)
-      )
+      const fresh = current.filter(item => !isDuplicate(item))
+      for (const item of fresh) {
+        seenValues.add(item.value)
+        if (needsFallback(item)) {
+          fallback.push(item)
+        }
+      }
       collected.push(...fresh)
       current = fresh.flatMap(item => childrenOf(item, context.model))
     }
