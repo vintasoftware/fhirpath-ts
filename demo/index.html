@@ -107,8 +107,8 @@
           <article>
             <h3>Types from plain <code>tsc</code></h3>
             <p>
-              <code>compile('Patient.name.given')</code> evaluates to <code>string[]</code>. No plugin,
-              no codegen — the result type falls out of the expression literal.
+              <code>r4.evaluate('Patient.name.given', patient)</code> is a <code>string[]</code>. No
+              plugin, no codegen — the result type falls out of the expression literal.
             </p>
           </article>
           <article>
@@ -141,7 +141,7 @@
             <h3 class="layer-name">Type error</h3>
           </div>
           <div class="layer-body">
-            <pre class="layer-code">const given = compile('Patient.name.given')   // string[]
+            <pre class="layer-code">const given = r4.compile('Patient.name.given')   // string[]
 
 given.evaluate(observation)             // won't compile: expects a Patient
 given.evaluate(patient)[0].toFixed(1)   // won't compile: it's a string</pre>
@@ -182,7 +182,7 @@ analyzeExpression('Patient.name.given.substring(1)', opts)
             <h3 class="layer-name">Runtime error</h3>
           </div>
           <div class="layer-body">
-            <pre class="layer-code">evaluate('Patient.namee.given', patient)   // []  — no error, just empty</pre>
+            <pre class="layer-code">r4.evaluate('Patient.namee.given', patient)   // []  — no error, just empty</pre>
             <p class="layer-note">
               This is what the two checks above exist to shrink. Against real data most mistakes
               don't throw — an unknown path just returns nothing, and you learn about it from a failing

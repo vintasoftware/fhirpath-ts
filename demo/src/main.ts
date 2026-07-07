@@ -214,6 +214,11 @@ import { analyzeExpression } from 'fhirpath-ts/analyzer'
 r4.evaluate('Patient.name.given', patient)         // string[]
 r4.first('Patient.name.family', patient)           // string | undefined
 
+// Helpers for FHIRPath's main jobs — Bundles and arrays work transparently:
+r4.filter(searchset, 'birthDate < @1990-01-01')    // matching entry resources
+r4.project(searchset, { id: 'Patient.id', family: 'Patient.name.family.first()' })
+r4.checkConstraints(patient, patientInvariants)    // .valid / .toOperationOutcome()
+
 // Check an expression before it ships:
 analyzeExpression('Observation.valueQuantity', { model: r4Model, inputType: 'Observation' })
 // -> [{ code: 'unknown-element', message: "...use the choice stem 'value'...", ... }]`
