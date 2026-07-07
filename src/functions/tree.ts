@@ -69,21 +69,19 @@ registerFunction('descendants', {
   minArity: 0,
   maxArity: 0,
   evaluate: (context, input) => {
-    // repeat(children()): collect transitively, excluding the input itself. This
-    // looks like repeat()'s loop but the dedup granularity differs on purpose and
-    // is pinned by the official suites: descendants() keeps `=`-equal siblings
-    // produced in the same round (a batch filter against prior rounds only), where
-    // repeat() collapses them (incremental within-round dedup). They cannot share
-    // one closure without breaking one or the other.
+    // repeat(children()): collect transitively, excluding the input itself. The
+    // dedup granularity differs from repeat() on purpose and is pinned by the
+    // official suites: descendants() keeps `=`-equal siblings produced in the same
+    // round (a batch filter against prior rounds only), where repeat() collapses
+    // them (incremental within-round dedup). They cannot share one closure.
     //
     // Dedup is `existing.value === item.value || pairEquals(existing, item)` against
-    // prior rounds. A naive `collected.some(...)` scan is O(n²) with a deep
-    // `pairEquals` per pair, which blows up on wide/deep trees. Instead: `seenValues`
-    // (a Set of raw values) resolves the `===` branch in O(1) — and that also fully
-    // covers `pairEquals` for String/Boolean, whose equality *is* `===`. Only the
-    // remaining classes (numeric, temporal, quantity, complex) can be pairEquals-equal
-    // without being `===`-equal, so just those fall back to a scan of same-class prior
-    // items. The index updates only between rounds, preserving the batch semantics.
+    // prior rounds, indexed for O(1) on the common case: `seenValues` (a Set of raw
+    // values) resolves the `===` branch, and it also covers `pairEquals` for
+    // String/Boolean, whose equality *is* `===`. The remaining classes (numeric,
+    // temporal, quantity, complex) can be pairEquals-equal without being `===`-equal,
+    // so those fall back to a scan of same-class prior items. The index updates only
+    // between rounds, preserving the batch semantics.
     const collected: TypedValue[] = []
     const seenValues = new Set<unknown>()
     const fallback: TypedValue[] = []

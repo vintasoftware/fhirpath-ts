@@ -71,14 +71,9 @@ Each harness writes the same per-expression JSON record shape
 (`{name, expression, accepted, parseNs, evalNs, error}`), so `compare.mjs` lines any
 set of result files up by expression name.
 
-## What the benchmark has found
+## What the benchmark shows
 
-The corpus mean was dominated by a handful of `descendants()` expressions costing
-milliseconds each — an O(n²) deep-equality dedup in the tree walk. That hotspot was
-fixed in [#7](https://github.com/vintasoftware/fhirpath-ts/pull/7) (≈4.5–5.9× on
-those expressions, ≈2.9× on the corpus-wide eval mean), with no behavior change.
-
-Current picture (example run; expect ±20% between machines and runs):
+An example run (expect ±20% between machines and runs):
 
 - **Parsing:** fhirpath-ts is several times faster per expression than octofhir.
 - **Eval, apples-to-apples** (both model-unaware): neck and neck — octofhir edges the
