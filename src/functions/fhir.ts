@@ -1,3 +1,4 @@
+import { requestAsync } from '../engine/async.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { validateNarrative } from '../fhir/html-checks.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
@@ -84,13 +85,15 @@ registerFunction('getValue', {
 })
 
 /**
- * Sync resolve() against the evaluation root: contained references (`#id`) and
- * Bundle-internal references (by fullUrl or type/id). References are resolved
- * relative to the root resource — per-item re-rooting to a containing resource is
- * not done yet, so a `#id` that lives inside a Bundle entry resolves to empty
- * rather than reaching into that entry's `contained`. Never touches the network:
- * external references quietly resolve to nothing (the async story is a deferred
- * feature, see the README).
+ * resolve() against the evaluation root: contained references (`#id`) and
+ * Bundle-internal references (by fullUrl or type/id) resolve synchronously.
+ * References are resolved relative to the root resource — per-item re-rooting to
+ * a containing resource is not done yet, so a `#id` that lives inside a Bundle
+ * entry resolves to empty rather than reaching into that entry's `contained`.
+ * The engine itself never touches the network: everything else goes to the
+ * caller's `resolver` option (under evaluateAsync(), since resolvers fetch), and
+ * without one external references quietly resolve to nothing, as before. `#id`
+ * misses never consult the resolver — fragments are internal by definition.
  */
 registerFunction('resolve', {
   minArity: 0,
@@ -106,6 +109,17 @@ registerFunction('resolve', {
       const resolved = resolveReference(reference, scope)
       if (resolved !== undefined) {
         result.push(toTypedValue(resolved))
+        continue
+      }
+      const resolver = context.resolver
+      if (resolver === undefined || reference.startsWith('#')) {
+        continue
+      }
+      const external = requestAsync(context, 'resolve() of external references', `resolve|${reference}`, () =>
+        resolver(reference)
+      )
+      if (typeof external === 'object' && external !== null) {
+        result.push(toTypedValue(external))
       }
     }
     return result

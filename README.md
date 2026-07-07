@@ -74,6 +74,7 @@ misuse (`Observation.valueQuantity`). Without a model the engine navigates raw J
 | `now` | Evaluation clock for `now()`/`today()`/`timeOfDay()` (deterministic tests) |
 | `trace` | Sink for `trace()` calls — see the PHI note below |
 | `terminology` | A `TerminologyProvider` for `memberOf()`, `subsumes()`/`subsumedBy()`, `weight()`, and the `%terminologies` API — see Terminology below |
+| `resolver` | A `ReferenceResolver` for `resolve()` of external references — see below |
 
 `compiled.evaluateTyped(...)` returns the internal `TypedValue[]` (type names plus
 `Decimal`/`Temporal` value objects) instead of unwrapped JS values.
@@ -117,6 +118,26 @@ replays with the answer cached (so a provider is asked exactly once per
 distinct request, and `trace`/`now()` behave as if the evaluation ran once).
 Replays re-run the expression itself, so terminology calls cost one extra
 evaluation pass each — negligible next to the network round-trip they cache.
+
+### resolve() of external references
+
+`resolve()` handles contained (`#id`) and Bundle-internal references
+synchronously by itself. Everything else — absolute urls, relative `Type/id`
+references outside the Bundle — goes to the `resolver` option on the same
+`evaluateAsync()` path, one call per distinct reference:
+
+```ts
+const resolver: ReferenceResolver = async reference => {
+  const response = await fetch(new URL(reference, FHIR_BASE))
+  return response.ok ? response.json() : undefined // undefined -> empty, like any unresolvable ref
+}
+await evaluateAsync('Patient.managingOrganization.resolve().name', patient,
+  { model: r4Model, resolver })
+```
+
+Without a resolver, external references quietly resolve to nothing, exactly as
+before. `#fragment` misses never consult the resolver — fragments are internal
+by definition.
 
 ## Conformance
 
@@ -224,7 +245,8 @@ fallback halves of `??`-style guards on shapes real FHIR data does not produce.
 Current limitations beyond the deferred features below: the R4 model is the only
 one shipped (`model: r5/stu3/dstu2` reference-corpus cases are skipped); the
 engine core is synchronous by design (`evaluateAsync()` wraps it for the
-terminology functions); regex evaluation of **user-authored** expressions
+terminology functions and external `resolve()`); regex evaluation of
+**user-authored** expressions
 is the one unhardened dimension (see Security); and tagged templates stay untyped
 (TS#33304) — use the `fhirpath('...')`/`compile('...')` call forms for inference.
 Behavioral differences from the reference implementations are not gaps but
@@ -235,7 +257,7 @@ error today:
 
 | Feature | Why deferred | Unblocks it |
 | --- | --- | --- |
-| `resolve()` of external references | Only Bundle/contained resolve today | The `evaluateAsync()` path that now powers terminology, plus a pluggable resolver |
+| `resolve()` re-rooting inside Bundle entries | `%resource`/`#id` re-rooting to the containing entry is a spec refinement the official suites do not exercise | Demand |
 | `conformsTo()` beyond base StructureDefinitions | Needs a FHIR profile validator | Profile-aware validation layer |
 | `slice()`, `elementDefinition()`, `checkModifiers()` | Need profile definitions (the reference implementation skips these too) | Profile-aware ModelProvider |
 | Questionnaire answerOption `weight()` | The ordinal lives on the source Questionnaire, not the answer — `weight()` covers extensions and CodeSystem lookups today | SDC-aware questionnaire context |

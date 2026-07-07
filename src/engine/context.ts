@@ -1,4 +1,5 @@
 import { FhirPathTypeError } from '../errors.ts'
+import type { ReferenceResolver } from '../fhir/reference-resolver.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import { type TerminologyProvider, terminologyServiceValue } from '../terminology/provider.ts'
 import { SYSTEM_STRING, type TypedValue, toCollection } from '../values/typed-value.ts'
@@ -33,6 +34,8 @@ export interface EvaluationContext {
   frame: Frame
   /** Terminology service behind memberOf()/subsumes()/%terminologies; consulted via evaluateAsync(). */
   terminology: TerminologyProvider | undefined
+  /** External-reference resolver behind resolve(); consulted via evaluateAsync(). */
+  resolver: ReferenceResolver | undefined
   /**
    * Resolved async-provider results, present only under evaluateAsync(). Shared
    * across the replay passes of one evaluation (see engine/async.ts); its absence
@@ -54,6 +57,7 @@ export function createContext(options: {
   now?: Date | undefined
   trace?: ((name: string, values: TypedValue[]) => void) | undefined
   terminology?: TerminologyProvider | undefined
+  resolver?: ReferenceResolver | undefined
   asyncCache?: Map<string, unknown> | undefined
 }): EvaluationContext {
   const env = new Map<string, TypedValue[]>()
@@ -79,6 +83,7 @@ export function createContext(options: {
     variables: new Map(),
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
     terminology: options.terminology,
+    resolver: options.resolver,
     asyncCache: options.asyncCache,
   }
 }
