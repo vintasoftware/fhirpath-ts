@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 /**
  * Static FHIRPath checking for a codebase: scans the given TypeScript/JavaScript
- * files for expression literals (the fhirpath tag/call, compile(), evaluate())
- * and runs the spec §11 analyzer over each with the R4 model. Exits non-zero
+ * files for expression literals — the fhirpath tag/call, the expression-first
+ * calls (compile(), evaluate(), evaluateTyped(), first(), analyzeExpression()),
+ * and the subject-first FhirPathEngine helpers (test(), filter(), project()
+ * columns, checkConstraints() constraint arrays) — and runs the spec §11
+ * analyzer over each with the R4 model. Exits non-zero
  * when any diagnostic is found. This repo lints with Biome, so this CLI is how
  * CI enforces the checks; ESLint users can use the ./eslint export instead.
  *

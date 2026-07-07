@@ -5,8 +5,37 @@
  * constants and the foreign-binding decision live here to stay in lockstep.
  */
 
-/** Function names whose first string argument is treated as a FHIRPath expression. */
-export const CALL_NAMES: ReadonlySet<string> = new Set(['fhirpath', 'compile', 'evaluate', 'analyzeExpression'])
+/**
+ * How a call site carries its FHIRPath expression(s):
+ * - `expression`: the argument is the expression string itself.
+ * - `columns`: the argument is a `project()` columns object — each property value
+ *   is an expression string or a `{ path }` object.
+ * - `constraints`: the argument is a `checkConstraints()` array of
+ *   `{ expression }` constraint objects.
+ */
+export type CallSiteShape = 'expression' | 'columns' | 'constraints'
+
+export interface CallSitePolicy {
+  /** Which argument holds the expression(s): 0 for expression-first calls, 1 for subject-first helpers. */
+  argIndex: number
+  shape: CallSiteShape
+}
+
+/** Call names that take FHIRPath expressions, and where/how they take them. */
+export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
+  // Expression-first: the low-level API and the evaluate family of FhirPathEngine.
+  ['fhirpath', { argIndex: 0, shape: 'expression' }],
+  ['compile', { argIndex: 0, shape: 'expression' }],
+  ['evaluate', { argIndex: 0, shape: 'expression' }],
+  ['evaluateTyped', { argIndex: 0, shape: 'expression' }],
+  ['first', { argIndex: 0, shape: 'expression' }],
+  ['analyzeExpression', { argIndex: 0, shape: 'expression' }],
+  // Subject-first FhirPathEngine helpers: the expression(s) come second.
+  ['test', { argIndex: 1, shape: 'expression' }],
+  ['filter', { argIndex: 1, shape: 'expression' }],
+  ['project', { argIndex: 1, shape: 'columns' }],
+  ['checkConstraints', { argIndex: 1, shape: 'constraints' }],
+])
 
 /** The tag name whose no-substitution template holds a FHIRPath expression. */
 export const TAG_NAME = 'fhirpath'

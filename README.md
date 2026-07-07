@@ -213,12 +213,16 @@ Three layers, from cheapest to most thorough:
    `select()` sub-paths, `ofType()/as()`, `exists()/empty()/count()`, choice stems.
    Anything else degrades to `unknown[]` — never a type error.
 2. **`fhirpath-check` CLI** — scans sources for `` fhirpath`...` `` tags and literal
-   `fhirpath()/compile()/evaluate()` arguments, and runs the analyzer over each with
+   expressions at every API entry point: the expression-first calls
+   (`fhirpath()`, `compile()`, `evaluate()`, `evaluateTyped()`, `first()`,
+   `analyzeExpression()`) and the subject-first `FhirPathEngine` helpers
+   (`test()`, `filter()`, `project()` column expressions, `checkConstraints()`
+   constraint expressions), and runs the analyzer over each with
    the R4 model: `pnpm exec fhirpath-check src/**/*.ts`.
    There is no Biome rule because Biome cannot run one: its plugin system is
    GritQL pattern matching and cannot execute the analyzer. The CLI is the
    equivalent CI hook for Biome repos like this one (`check:fhirpath` script).
-3. **ESLint rule** for repos that lint with ESLint:
+3. **ESLint rule** for repos that lint with ESLint (same call-site policy as the CLI):
 
    ```js
    import fhirpathPlugin from 'fhirpath-ts/eslint'

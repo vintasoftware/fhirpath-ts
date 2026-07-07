@@ -1,5 +1,11 @@
 import ts from 'typescript'
-import { CALL_NAMES, isForeignCall, isForeignModule, TAG_NAME } from '../analyzer/expression-policy.ts'
+import {
+  CALL_SITES,
+  type CallSiteShape,
+  isForeignCall,
+  isForeignModule,
+  TAG_NAME,
+} from '../analyzer/expression-policy.ts'
 
 export interface ExpressionSite {
   expression: string
@@ -11,8 +17,11 @@ export interface ExpressionSite {
 
 /**
  * Find FHIRPath expression literals in a TypeScript source file: `` fhirpath`...` ``
- * tags plus literal first arguments to fhirpath()/compile()/evaluate(). Dynamic
- * expressions cannot be checked statically and are left alone.
+ * tags, literal expression arguments to the call names in `CALL_SITES` (the
+ * low-level fhirpath()/compile()/evaluate() plus the FhirPathEngine helpers —
+ * including expressions inside project() columns objects and checkConstraints()
+ * constraint arrays). Dynamic expressions cannot be checked statically and are
+ * left alone.
  */
 export function findExpressionSites(sourceText: string, fileName: string): ExpressionSite[] {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
@@ -22,27 +31,85 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
     const { line, character } = source.getLineAndCharacterOfPosition(literalStart)
     sites.push({ expression: text, start: literalStart, line: line + 1, column: character + 1 })
   }
+  const recordLiteral = (literal: ts.StringLiteralLike): void => {
+    record(literal.text, literal.getStart(source) + 1)
+  }
   const visit = (node: ts.Node): void => {
     if (ts.isTaggedTemplateExpression(node) && nameOf(node.tag) === TAG_NAME && !foreign.has(TAG_NAME)) {
       if (ts.isNoSubstitutionTemplateLiteral(node.template)) {
         record(node.template.text, node.template.getStart(source) + 1)
       }
-    } else if (ts.isCallExpression(node) && node.arguments.length > 0) {
+    } else if (ts.isCallExpression(node)) {
       const callee = nameOf(node.expression)
-      const first = node.arguments[0] as ts.Expression
+      const policy = callee === undefined ? undefined : CALL_SITES.get(callee)
+      const argument = policy && (node.arguments[policy.argIndex] as ts.Expression | undefined)
       if (
         callee !== undefined &&
-        CALL_NAMES.has(callee) &&
-        ts.isStringLiteralLike(first) &&
+        policy !== undefined &&
+        argument !== undefined &&
         !isForeignCall(foreign, callee, receiverRoot(node.expression))
       ) {
-        record(first.text, first.getStart(source) + 1)
+        recordArgument(argument, policy.shape, recordLiteral)
       }
     }
     ts.forEachChild(node, visit)
   }
   visit(source)
   return sites
+}
+
+/** Extract the expression literal(s) an argument holds, per the call site's shape. */
+function recordArgument(
+  argument: ts.Expression,
+  shape: CallSiteShape,
+  recordLiteral: (literal: ts.StringLiteralLike) => void
+): void {
+  if (shape === 'expression') {
+    if (ts.isStringLiteralLike(argument)) {
+      recordLiteral(argument)
+    }
+  } else if (shape === 'columns') {
+    // project() columns: { name: 'expr' } or { name: { path: 'expr', collection: true } }.
+    if (ts.isObjectLiteralExpression(argument)) {
+      for (const property of argument.properties) {
+        if (!ts.isPropertyAssignment(property)) {
+          continue
+        }
+        if (ts.isStringLiteralLike(property.initializer)) {
+          recordLiteral(property.initializer)
+        } else if (ts.isObjectLiteralExpression(property.initializer)) {
+          recordProperty(property.initializer, 'path', recordLiteral)
+        }
+      }
+    }
+  } else {
+    // checkConstraints() constraints: [{ key, expression: 'expr', ... }].
+    if (ts.isArrayLiteralExpression(argument)) {
+      for (const element of argument.elements) {
+        if (ts.isObjectLiteralExpression(element)) {
+          recordProperty(element, 'expression', recordLiteral)
+        }
+      }
+    }
+  }
+}
+
+/** Record an object literal's `name` property when it is a string literal. */
+function recordProperty(
+  object: ts.ObjectLiteralExpression,
+  name: string,
+  recordLiteral: (literal: ts.StringLiteralLike) => void
+): void {
+  for (const property of object.properties) {
+    if (
+      ts.isPropertyAssignment(property) &&
+      (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) &&
+      property.name.text === name &&
+      ts.isStringLiteralLike(property.initializer)
+    ) {
+      recordLiteral(property.initializer)
+    }
+  }
 }
 
 /**
