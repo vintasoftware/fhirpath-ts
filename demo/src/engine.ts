@@ -1,5 +1,5 @@
 import { compile, Decimal, FhirPathError, type QuantityValue, Temporal } from 'fhirpath-ts'
-import { analyzeExpression, type AnalyzerDiagnostic } from 'fhirpath-ts/analyzer'
+import { type AnalyzerDiagnostic, analyzeExpression } from 'fhirpath-ts/analyzer'
 import { r4Model } from 'fhirpath-ts/r4'
 
 export interface ResultItem {
@@ -23,7 +23,7 @@ export function run(expr: string, inputType: string, resource: unknown): RunOutc
   let runtimeError: string | null = null
   try {
     const typed = compile(expr).evaluateTyped(resource, { model: r4Model })
-    results = typed.map((tv) => ({ type: localType(tv.type), text: format(tv.value) }))
+    results = typed.map(tv => ({ type: localType(tv.type), text: format(tv.value) }))
   } catch (error) {
     runtimeError = error instanceof FhirPathError ? error.message : String(error)
   }

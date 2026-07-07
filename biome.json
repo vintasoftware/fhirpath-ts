@@ -18,6 +18,7 @@
       "**/*.json",
       "**/*.jsonc",
       "!**/node_modules",
+      "!.claude",
       "!**/dist",
       "!**/build",
       "!**/coverage",
@@ -101,6 +102,16 @@
         "rules": {
           "suspicious": {
             "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["demo/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
           }
         }
       }
