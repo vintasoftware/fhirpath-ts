@@ -24,19 +24,26 @@ other implementation offers together:
 | Terminology / async / `%factory` | deferred (see Gaps) | yes | partial | `%factory` | no |
 | FHIR models | R4 (provider interface) | DSTU2–R5 | DSTU2–R5 | R5 | R4 |
 
-Three things are genuinely different here. **Expressions are checked before they
-run**: the spec has had §11 for years, but the reference engines treat it as at most
-a runtime mode — here a typo like `Observation.valueQuantity` or a singleton misuse
-is a build failure (type inference in `tsc`, the `fhirpath-check` CLI, or the ESLint
-rule), not a production empty-result. **Correctness is demonstrated against everyone
-else's tests, not just ours**: 100% of the non-skipped official suites plus the
-fhirpath.js/fhirpath-py corpora, with every intentional divergence carrying its
-spec citation — a process that caught reference-implementation bugs this engine
-refused to inherit (Medplum's `(0).not() = true` contradicts the official suite;
-fhirpath.js treats `1 month = 30 days` as true). **The engineering shape fits this
-repo**: zero dependencies, source-consumed, hardened against hostile expressions,
-and model-agnostic behind a provider interface so R5/CDA are additive. The
-trade-offs live in [Gaps and deferred features](#gaps-and-deferred-features).
+Three things set this engine apart.
+
+**Expressions are checked before they run.** The spec has had §11 for years, but the
+reference engines treat it as at most a runtime mode. Here a typo like
+`Observation.valueQuantity` or a singleton misuse is a build failure — caught by type
+inference in `tsc`, the `fhirpath-check` CLI, or the ESLint rule — instead of an empty
+result in production.
+
+**Correctness is demonstrated against everyone else's tests, not just ours.** The
+engine passes 100% of the non-skipped official suites plus the fhirpath.js and
+fhirpath-py corpora, and every intentional divergence carries its spec citation. That
+process caught reference-implementation bugs this engine refused to inherit: Medplum's
+`(0).not() = true` contradicts the official suite, and fhirpath.js treats
+`1 month = 30 days` as true.
+
+**The engineering fits this repo.** Zero dependencies, consumed from source, hardened
+against hostile expressions, and model-agnostic behind a provider interface, so R5 and
+CDA are additive.
+
+The trade-offs live in [Gaps and deferred features](#gaps-and-deferred-features).
 
 ## Quick start
 
@@ -103,7 +110,7 @@ result.issues               // the failed constraints, echoing their definitions
 result.toOperationOutcome() // FHIR-native report (issue.code = 'invariant')
 
 // Shape a resource into a typed row, following SQL-on-FHIR ViewDefinition column
-// semantics: columns are scalars, several values is a loud error (append first()
+// semantics: columns are scalars; more than one value is an error (append first()
 // or opt into collection: true). Each column's type is inferred from its expression.
 r4.project(patient, {
   id: 'Patient.id',                                         // string | undefined
