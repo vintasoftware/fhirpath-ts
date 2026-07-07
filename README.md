@@ -241,6 +241,18 @@ treatment on the static side: `AnalyzeOptions.variables` declares the `%vars`
 the host will pass (optionally with their types), so the analyzer can check
 them instead of flagging `unknown-variable`.
 
+### Parse caching
+
+A second constructor argument sets construction-time options — currently
+`cacheSize`, the capacity of the engine's private parse-cache LRU (default
+`DEFAULT_PARSE_CACHE_SIZE`, 500; `0` effectively disables reuse). Each engine
+caches independently of other engines and of the free `evaluate()`. Expressions
+you `compile()` yourself bypass the cache entirely.
+
+```ts
+const fp = new FhirPathEngine({ model: r4Model }, { cacheSize: 2000 })
+```
+
 ## Conformance
 
 The official test suites from

@@ -92,19 +92,49 @@ export function compile<const Expr extends string>(expression: Expr): CompiledEx
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts any literal-typed CompiledExpression
 export type AnyExpression = string | CompiledExpression<any>
 
-const PARSE_CACHE_CAPACITY = 500
+/** Default parse-cache capacity, matching Firely's FhirPathCompilerCache default. */
+export const DEFAULT_PARSE_CACHE_SIZE = 500
 
-const parseCache = new LruCache<CompiledExpression>(PARSE_CACHE_CAPACITY)
+/** A parse cache: expression text → its CompiledExpression. */
+export interface ParseCache {
+  get(expression: string): CompiledExpression | undefined
+  set(expression: string, compiled: CompiledExpression): void
+}
 
-/** The shared expression → CompiledExpression LRU, used by `evaluate()` and `FhirPathEngine`. */
-export function cachedCompile(expression: AnyExpression): CompiledExpression<string> {
+const disabledParseCache: ParseCache = {
+  get: () => undefined,
+  set: () => {},
+}
+
+/** Build a parse cache. `size` 0 disables reuse. */
+export function createParseCache(size: number = DEFAULT_PARSE_CACHE_SIZE): ParseCache {
+  if (!Number.isInteger(size) || size < 0) {
+    throw new RangeError(`Parse cache size must be a non-negative integer, got ${size}`)
+  }
+  if (size === 0) {
+    return disabledParseCache
+  }
+  return new LruCache<CompiledExpression>(size)
+}
+
+const defaultParseCache = createParseCache()
+
+/**
+ * Parse an expression, reusing the result from `cache` when present. Pass an
+ * engine's private cache to isolate it; omit for the shared module-level cache
+ * used by the free `evaluate()`. An already-compiled expression is returned as-is.
+ */
+export function cachedCompile(
+  expression: AnyExpression,
+  cache: ParseCache = defaultParseCache
+): CompiledExpression<string> {
   if (typeof expression !== 'string') {
     return expression
   }
-  let cached = parseCache.get(expression)
+  let cached = cache.get(expression)
   if (!cached) {
     cached = new CompiledExpression(expression)
-    parseCache.set(expression, cached)
+    cache.set(expression, cached)
   }
   return cached
 }
