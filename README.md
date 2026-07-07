@@ -21,7 +21,7 @@ other implementation offers together:
 | Runs the other engines' suites | yes, with evidence for each divergence | no | no | no | no |
 | Compile-time result types | yes (plain `tsc`) | no | no | no | no |
 | Spec §11 as dev tooling | CLI + ESLint + API | no | no | runtime analyzer | no |
-| Terminology / async / `%factory` | deferred (see Gaps) | yes | partial | `%factory` | no |
+| Terminology / async / `%factory` | pluggable provider + `evaluateAsync()` (`%factory` deferred) | yes | partial | `%factory` | no |
 | FHIR models | R4 (provider interface) | DSTU2–R5 | DSTU2–R5 | R5 | R4 |
 
 Three things are genuinely different here. **Expressions are checked before they
@@ -73,9 +73,48 @@ misuse (`Observation.valueQuantity`). Without a model the engine navigates raw J
 | `env` | Environment variables: `{ myVar: 5 }` resolves `%myVar` |
 | `now` | Evaluation clock for `now()`/`today()`/`timeOfDay()` (deterministic tests) |
 | `trace` | Sink for `trace()` calls — see the PHI note below |
+| `terminology` | A `TerminologyProvider` for `memberOf()`, `subsumes()`/`subsumedBy()`, `weight()`, and the `%terminologies` API — see Terminology below |
 
 `compiled.evaluateTyped(...)` returns the internal `TypedValue[]` (type names plus
 `Decimal`/`Temporal` value objects) instead of unwrapped JS values.
+
+### Terminology
+
+Terminology answers live on a server, so the terminology functions are async:
+use `evaluateAsync(expr, input, options)` / `compiled.evaluateAsync(...)`
+(`evaluateTypedAsync` for typed results) and pass a `TerminologyProvider` —
+an object mirroring the spec's
+[terminology service API](https://hl7.org/fhir/fhirpath.html#txapi) with only
+the methods you need (`validateVS`, `validateCS`, `subsumes`, `expand`,
+`lookup`, `translate`), each returning a promise of the plain JSON resource:
+
+```ts
+const terminology: TerminologyProvider = {
+  async validateVS(valueSet, coded) {
+    const response = await fetch(`${TX_SERVER}/ValueSet/$validate-code?...`)
+    return response.json() // a Parameters resource
+  },
+}
+await evaluateAsync("code.memberOf('http://hl7.org/fhir/ValueSet/observation-vitalsignresult')",
+  observation, { model: r4Model, terminology }) // [true]
+await evaluateAsync('%terminologies.expand(%vs)', ..., { terminology, env: { vs } })
+```
+
+This unlocks `memberOf()` (via `validateVS`), `subsumes()`/`subsumedBy()` (via
+`subsumes`), `weight()` (itemWeight/ordinalValue extensions answer synchronously;
+otherwise a CodeSystem `$lookup` of the `itemWeight` property), and the
+`%terminologies` API (`validateVS`, `validateCS`, `subsumes`, `expand`, `lookup`,
+`translate`). A provider answer the engine cannot interpret — an unknown value
+set, a `Parameters` without a boolean `result` — yields empty, the spec's
+"cannot determine" outcome. Under the sync `evaluate()` these functions fail
+with a pointer to `evaluateAsync()`.
+
+The engine core stays synchronous: `evaluateAsync()` runs it, and when a
+function needs a provider answer the evaluation suspends, awaits it, and
+replays with the answer cached (so a provider is asked exactly once per
+distinct request, and `trace`/`now()` behave as if the evaluation ran once).
+Replays re-run the expression itself, so terminology calls cost one extra
+evaluation pass each — negligible next to the network round-trip they cache.
 
 ## Conformance
 
@@ -90,8 +129,9 @@ converted to JSON offline, and run in vitest on every test run:
 
 **100% of non-skipped cases pass.** Every skip is listed in
 `test-data/official/skip-manifest.ts` with a reason, and a hygiene test fails if an
-entry stops matching. Skip categories: terminology mode (needs a terminology
-service), CDA mode (needs a CDA model), lenient-polymorphics mode, strict-mode
+entry stops matching. Skip categories: terminology mode (needs a live terminology
+service — the `options.terminology` hook is unit-tested with a stub provider
+instead), CDA mode (needs a CDA model), lenient-polymorphics mode, strict-mode
 static-typing cases (enforced by the analyzer instead of the evaluator), R5-only
 elements (this package ships the R4 model), and four documented suite oddities.
 
@@ -179,7 +219,8 @@ fallback halves of `??`-style guards on shapes real FHIR data does not produce.
 
 Current limitations beyond the deferred features below: the R4 model is the only
 one shipped (`model: r5/stu3/dstu2` reference-corpus cases are skipped); the
-engine is synchronous by design; regex evaluation of **user-authored** expressions
+engine core is synchronous by design (`evaluateAsync()` wraps it for the
+terminology functions); regex evaluation of **user-authored** expressions
 is the one unhardened dimension (see Security); and tagged templates stay untyped
 (TS#33304) — use the `fhirpath('...')`/`compile('...')` call forms for inference.
 Behavioral differences from the reference implementations are not gaps but
@@ -190,11 +231,10 @@ error today:
 
 | Feature | Why deferred | Unblocks it |
 | --- | --- | --- |
-| `memberOf()`, `subsumes()`, `subsumedBy()`, `%terminologies` | Need a terminology service | A pluggable async `TerminologyProvider` + `evaluateAsync()` |
-| `resolve()` of external references | Sync engine; only Bundle/contained resolve today | Same async path |
+| `resolve()` of external references | Only Bundle/contained resolve today | The `evaluateAsync()` path that now powers terminology, plus a pluggable resolver |
 | `conformsTo()` beyond base StructureDefinitions | Needs a FHIR profile validator | Profile-aware validation layer |
 | `slice()`, `elementDefinition()`, `checkModifiers()` | Need profile definitions (the reference implementation skips these too) | Profile-aware ModelProvider |
-| `weight()` | Needs code-system itemWeight lookups | Terminology provider |
+| Questionnaire answerOption `weight()` | The ordinal lives on the source Questionnaire, not the answer — `weight()` covers extensions and CodeSystem lookups today | SDC-aware questionnaire context |
 | `%factory` type-factory API | R5 draft, maturity 0 | Demand |
 | CDA mode | Different data model | A CDA ModelProvider (the interface already allows it) |
 | Full UCUM | The built-in subset covers the official suites | Swap `values/ucum.ts` internals for `@lhncbc/ucum-lhc` |

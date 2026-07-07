@@ -11,10 +11,14 @@ const INTENTIONALLY_UNSIGNED = [
   'slice',
   'elementDefinition',
   'checkModifiers',
-  'memberOf',
+  // Dual-form (Coding.subsumes → Boolean, %terminologies.subsumes → code), so its result stays unknown.
   'subsumes',
-  'subsumedBy',
-  'weight',
+  // The %terminologies API returns resource-shaped values the analyzer cannot type.
+  'expand',
+  'lookup',
+  'validateVS',
+  'validateCS',
+  'translate',
 ]
 
 describe('analyzer signature table', () => {

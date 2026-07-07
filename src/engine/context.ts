@@ -1,5 +1,6 @@
 import { FhirPathTypeError } from '../errors.ts'
 import type { ModelProvider } from '../model/provider.ts'
+import { type TerminologyProvider, terminologyServiceValue } from '../terminology/provider.ts'
 import { SYSTEM_STRING, type TypedValue, toCollection } from '../values/typed-value.ts'
 
 /** `$this` / `$index` / `$total` bindings; iteration functions push one frame per element. */
@@ -30,6 +31,14 @@ export interface EvaluationContext {
    */
   variables: Map<string, TypedValue[]>
   frame: Frame
+  /** Terminology service behind memberOf()/subsumes()/%terminologies; consulted via evaluateAsync(). */
+  terminology: TerminologyProvider | undefined
+  /**
+   * Resolved async-provider results, present only under evaluateAsync(). Shared
+   * across the replay passes of one evaluation (see engine/async.ts); its absence
+   * is how requestAsync() knows to fail with the use-evaluateAsync message.
+   */
+  asyncCache: Map<string, unknown> | undefined
 }
 
 const BUILTIN_CONSTANTS: ReadonlyMap<string, string> = new Map([
@@ -44,6 +53,8 @@ export function createContext(options: {
   model?: ModelProvider | undefined
   now?: Date | undefined
   trace?: ((name: string, values: TypedValue[]) => void) | undefined
+  terminology?: TerminologyProvider | undefined
+  asyncCache?: Map<string, unknown> | undefined
 }): EvaluationContext {
   const env = new Map<string, TypedValue[]>()
   for (const [name, url] of BUILTIN_CONSTANTS) {
@@ -53,6 +64,9 @@ export function createContext(options: {
   // FHIR-defined variables; contained-resource re-rooting is a later refinement.
   env.set('resource', options.root)
   env.set('rootResource', options.root)
+  if (options.terminology) {
+    env.set('terminologies', [terminologyServiceValue])
+  }
   for (const [name, value] of Object.entries(options.env ?? {})) {
     env.set(name.startsWith('%') ? name.slice(1) : name, toCollection(value))
   }
@@ -64,6 +78,8 @@ export function createContext(options: {
     trace: options.trace ?? (() => {}),
     variables: new Map(),
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
+    terminology: options.terminology,
+    asyncCache: options.asyncCache,
   }
 }
 

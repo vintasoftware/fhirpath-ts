@@ -95,6 +95,11 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   htmlChecks: { input: { singleton: true }, result: BOOLEAN },
   comparable: { input: { kind: 'Quantity', singleton: true }, args: ['Quantity'], result: BOOLEAN },
   conformsTo: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
+  memberOf: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
+  // subsumes is deliberately absent: it is dual-form (Coding.subsumes(coded) → Boolean,
+  // %terminologies.subsumes(system, c1, c2) → code), so its result stays unknown.
+  subsumedBy: { input: { singleton: true }, args: ['any'], result: BOOLEAN },
+  weight: { result: () => ({ types: ['System.Decimal'], single: false }) },
 
   length: { input: { kind: 'String', singleton: true }, result: INTEGER },
   indexOf: { ...STRING_FN, result: INTEGER },

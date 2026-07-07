@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EvaluateOptions } from '../api/compile.ts'
 import { evaluate } from '../api/evaluate.ts'
-import { FhirPathRuntimeError } from '../errors.ts'
 import { r4Model } from '../r4/index.ts'
 import { validateNarrative } from './html-checks.ts'
 
@@ -198,7 +197,9 @@ describe('FHIR equivalence', () => {
   })
 
   it('deferred functions fail with clear messages', () => {
-    expect(() => evaluate("code.memberOf('http://vs')", observation, options)).toThrow(FhirPathRuntimeError)
+    expect(() => evaluate("code.memberOf('http://vs')", observation, options)).toThrow(
+      'memberOf() needs a terminology provider'
+    )
     expect(() => evaluate("conformsTo('http://profile')", observation, options)).toThrow(
       'only supports base StructureDefinition urls'
     )
@@ -208,7 +209,7 @@ describe('FHIR equivalence', () => {
     expect(evaluate("conformsTo('http://hl7.org/fhir/StructureDefinition/Patient')", observation, options)).toEqual([
       false,
     ])
-    expect(() => evaluate('weight()', observation, options)).toThrow('not supported in v1')
+    expect(() => evaluate('checkModifiers()', observation, options)).toThrow('not supported in v1')
   })
 })
 

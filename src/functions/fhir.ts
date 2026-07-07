@@ -242,10 +242,6 @@ function unsupported(name: string, minArity: number, maxArity: number, reason: s
   })
 }
 
-unsupported('memberOf', 1, 1, 'terminology functions need a terminology service')
-unsupported('subsumes', 1, 1, 'terminology functions need a terminology service')
-unsupported('subsumedBy', 1, 1, 'terminology functions need a terminology service')
 unsupported('slice', 2, 2, 'profile slicing needs profile definitions')
 unsupported('elementDefinition', 0, 0, 'element definitions need profile definitions')
 unsupported('checkModifiers', 0, 1, 'modifier checking needs profile definitions')
-unsupported('weight', 0, 0, 'item weights need code-system lookups')
