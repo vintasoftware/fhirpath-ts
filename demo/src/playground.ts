@@ -121,11 +121,10 @@ const patients = [
   { resourceType: 'Patient' as const, id: 'p2', name: [{ family: 'Chen', given: ['Wei', 'Lin'] }] },
 ]
 
-// project() builds typed rows — each column's type is inferred from its path.
+// project() builds a typed row per resource, one column per FHIRPath expression.
 const rows = r4.project(patients, {
-  id: 'Patient.id',                                        // string | undefined
-  family: 'Patient.name.family.first()',                   // string | undefined
-  given: { path: 'Patient.name.given', collection: true }, // string[]
+  id: 'Patient.id',
+  name: "(Patient.name.family + ' ' + Patient.name.given.join(' ')).trim()",
 })
 
 console.log(rows)
