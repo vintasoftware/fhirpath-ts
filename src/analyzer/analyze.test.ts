@@ -8,6 +8,10 @@ function codes(expression: string, analyzeOptions: Parameters<typeof analyzeExpr
   return analyzeExpression(expression, analyzeOptions).map(diagnostic => diagnostic.code)
 }
 
+function messages(expression: string, analyzeOptions: Parameters<typeof analyzeExpression>[1] = options): string[] {
+  return analyzeExpression(expression, analyzeOptions).map(diagnostic => diagnostic.message)
+}
+
 describe('clean expressions produce no diagnostics', () => {
   it.each([
     ["Patient.name.where(use = 'official').given.first()"],
@@ -42,6 +46,35 @@ describe('spec §11 rules', () => {
       'unknown-element',
     ])
     expect(codes('Patient.name.gven')).toEqual(['unknown-element'])
+  })
+
+  it('suggests the closest name for a mistyped element', () => {
+    expect(messages('Patient.name.gven')).toEqual([
+      "Element 'gven' is not defined on FHIR.HumanName — did you mean 'given'?",
+    ])
+    expect(messages('Patient.nome')).toEqual(["Element 'nome' is not defined on FHIR.Patient — did you mean 'name'?"])
+    // No suggestion when nothing is a plausible typo, and the choice hint wins over it.
+    expect(messages('Patient.nope')).toEqual(["Element 'nope' is not defined on FHIR.Patient"])
+    expect(messages('Observation.valueQuantity', { model: r4Model, inputType: 'Observation' })).toEqual([
+      "Element 'valueQuantity' is not defined on FHIR.Observation; choice elements use their stem name",
+    ])
+  })
+
+  it('suggests the closest name for a mistyped function', () => {
+    expect(messages('Patient.name.given.lengthx()')).toEqual([
+      "Unrecognized function 'lengthx' — did you mean 'length'?",
+    ])
+    expect(messages('Patient.name.frobnicate()')).toEqual(["Unrecognized function 'frobnicate'"])
+  })
+
+  it('spells out how to fix a singleton misuse', () => {
+    expect(messages('Patient.name.given.substring(1)')).toEqual([
+      'substring() expects a single item as input, but this is a collection (spec §11) — narrow it to one item with first(), last(), or single()',
+    ])
+  })
+
+  it('names both types in an incompatible equality', () => {
+    expect(messages('Patient.gender = 5')).toEqual(['String and Numeric operands can never be equal (spec §11)'])
   })
 
   it('flags unknown functions and wrong arity', () => {
