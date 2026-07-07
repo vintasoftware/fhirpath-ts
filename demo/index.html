@@ -126,11 +126,14 @@
             <span class="panel-label">Edit it — checked live, in your browser</span>
             <span class="panel-meta">tsc types + analyzer · no server</span>
           </div>
-          <div class="tabs pg-tabs" role="tablist" data-pg-tabs></div>
+          <div class="pg-toolbar">
+            <div class="tabs pg-tabs" role="tablist" data-pg-tabs></div>
+            <button type="button" class="pg-run" data-pg-run hidden>Run ▸</button>
+          </div>
           <div class="pg-editor" data-pg-editor>
             <p class="pg-loading">Loading the editor…</p>
           </div>
-          <div class="pg-problems" data-pg-problems></div>
+          <div class="pg-panel" data-pg-panel></div>
         </div>
       </section>
 

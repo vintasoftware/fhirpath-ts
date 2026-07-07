@@ -627,26 +627,6 @@ code {
   color: var(--ink);
 }
 
-.quickstart {
-  background: var(--screen);
-  border: 1px solid var(--screen-line);
-  border-radius: 10px;
-  padding: 14px 16px 16px;
-}
-
-.quickstart .panel-label {
-  color: var(--screen-muted);
-}
-
-.quickstart pre {
-  margin: 0;
-  overflow-x: auto;
-  font-family: var(--mono);
-  font-size: 0.84rem;
-  line-height: 1.62;
-  color: var(--screen-ink);
-}
-
 /* --- Playground (Monaco editor) ------------------------------------------ */
 
 .playground {
@@ -661,9 +641,43 @@ code {
   color: var(--screen-muted);
 }
 
-.pg-tabs {
+.pg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 10px;
+}
+
+.pg-tabs {
+  flex: 1;
+  min-width: 0;
   flex-wrap: wrap;
+}
+
+.pg-run {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--screen);
+  background: var(--pulse);
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
+}
+
+.pg-run:hover {
+  background: #2fd98f;
+}
+
+.pg-run:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .pg-editor {
@@ -688,7 +702,7 @@ code {
   color: var(--screen-muted);
 }
 
-.pg-problems {
+.pg-panel {
   margin-top: 12px;
   display: flex;
   flex-direction: column;
@@ -702,7 +716,7 @@ code {
   color: var(--pulse);
 }
 
-.pg-problem {
+.pg-row {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -710,6 +724,27 @@ code {
   border-radius: 8px;
   border-left: 3px solid transparent;
   font-size: 0.86rem;
+}
+
+/* Run output, in gray — shown above any diagnostics. */
+.pg-out {
+  background: rgba(124, 141, 133, 0.09);
+  border-left-color: var(--screen-line);
+}
+
+.pg-out .pg-msg {
+  color: var(--screen-muted);
+}
+
+.pg-out-throw,
+.pg-out-error {
+  background: rgba(255, 93, 115, 0.09);
+  border-left-color: var(--flag);
+}
+
+.pg-out-throw .pg-msg,
+.pg-out-error .pg-msg {
+  color: var(--screen-ink);
 }
 
 .pg-problem-error {
@@ -732,7 +767,12 @@ code {
   padding: 1px 6px;
 }
 
+/* Long values scroll sideways inside the row instead of wrapping the panel. */
 .pg-msg {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: pre;
   font-family: var(--mono);
   color: var(--screen-ink);
 }

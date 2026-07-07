@@ -1,15 +1,19 @@
 /**
- * The "Try it in your own code" playground. A Monaco editor whose built-in
+ * The "Edit it — checked live" playground. A Monaco editor whose built-in
  * TypeScript worker type-checks the code against fhirpath-ts's real declarations
  * (bundled into src/monaco/*.d.ts), so the inferred result types and the input
  * mismatches surface exactly as they would in your editor. On top of that we run
  * the §11 analyzer over the FHIRPath literals the code contains — the same check
- * the fhirpath-check CLI and the ESLint rule run — and show both as markers and
- * in a problems list. Everything runs client-side; nothing leaves the browser.
+ * the fhirpath-check CLI and the ESLint rule run.
+ *
+ * Runnable tabs also execute: Monaco transpiles the buffer to JS, which we run in
+ * a `new Function` sandbox with a `require` shim that hands back the real bundled
+ * engine and a captured `console`. It is the user's own code, running in their own
+ * browser against synthetic data — nothing leaves the page.
  */
 
 import { analyzeExpression } from 'fhirpath-ts/analyzer'
-import { r4Model } from 'fhirpath-ts/r4'
+import { r4, r4Model } from 'fhirpath-ts/r4'
 import * as monaco from 'monaco-editor'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
@@ -28,13 +32,16 @@ interface MonacoEnvironmentShape {
 interface Sample {
   id: string
   label: string
+  /** Runnable samples get a Run button; the analyze tab is a static error showcase. */
+  runnable: boolean
   code: string
 }
 
 const SAMPLES: Sample[] = [
   {
-    id: 'evaluate',
-    label: 'evaluate',
+    id: 'analyze',
+    label: 'analyze',
+    runnable: false,
     code: `import { r4 } from 'fhirpath-ts/r4'
 import { analyzeExpression } from 'fhirpath-ts/analyzer'
 
@@ -63,52 +70,75 @@ analyzeExpression('Observation.valueQuantity', { inputType: 'Observation' })
 `,
   },
   {
-    id: 'filter',
-    label: 'filter',
+    id: 'evaluate',
+    label: 'evaluate',
+    runnable: true,
     code: `import { r4 } from 'fhirpath-ts/r4'
 
-// A searchset of resources. filter() keeps the ones whose criteria hold.
+const patient = {
+  resourceType: 'Patient' as const,
+  name: [{ family: 'Okoro', given: ['Adaeze', 'Ngozi'] }],
+  telecom: [{ system: 'phone', value: '+1-555-0142' }],
+  birthDate: '1984-11-02',
+}
+
+// Result types are inferred from the expression literal — and these actually run.
+// Hover a call to see its type, then press Run to see the value.
+console.log(r4.evaluate('Patient.name.given', patient))                    // string[]
+console.log(r4.first('Patient.name.family', patient))                      // string | undefined
+console.log(r4.evaluate("Patient.telecom.where(system = 'phone').value", patient))  // string[]
+console.log(r4.first('Patient.name.given.count()', patient))               // number | undefined
+`,
+  },
+  {
+    id: 'filter',
+    label: 'filter',
+    runnable: true,
+    code: `import { r4 } from 'fhirpath-ts/r4'
+
+// A searchset of resources. filter() keeps the ones whose criteria hold, and
+// preserves the element type — 'adults' is Patient[], not unknown[].
 const patients = [
-  { resourceType: 'Patient' as const, birthDate: '1984-11-02', active: true },
-  { resourceType: 'Patient' as const, birthDate: '1991-06-15', active: false },
+  { resourceType: 'Patient' as const, id: 'p1', birthDate: '1984-11-02', active: true },
+  { resourceType: 'Patient' as const, id: 'p2', birthDate: '1991-06-15', active: false },
 ]
 
-// filter preserves the element type — 'adults' is Patient[], not unknown[]:
-const adults = r4.filter(patients, 'birthDate < @2000-01-01')
+const adults = r4.filter(patients, 'birthDate < @1990-01-01')
+console.log('matched:', adults.map(p => p.id))
 
 // test() reduces a boolean criteria (the enableWhen / invariant semantics):
-const isActive: boolean = r4.test(patients[0], 'active = true')
-
-// Type error: filter keeps Patient[], which isn't string[].
-const families: string[] = r4.filter(patients, 'active')
+console.log('p1 active:', r4.test(patients[0], 'active = true'))
 `,
   },
   {
     id: 'project',
     label: 'project',
+    runnable: true,
     code: `import { r4 } from 'fhirpath-ts/r4'
 
 const patients = [
   { resourceType: 'Patient' as const, id: 'p1', name: [{ family: 'Okoro', given: ['Adaeze'] }] },
+  { resourceType: 'Patient' as const, id: 'p2', name: [{ family: 'Chen', given: ['Wei', 'Lin'] }] },
 ]
 
-// project() builds typed rows — each column's type is inferred from its path:
+// project() builds typed rows — each column's type is inferred from its path.
 const rows = r4.project(patients, {
   id: 'Patient.id',                                        // string | undefined
   family: 'Patient.name.family.first()',                   // string | undefined
   given: { path: 'Patient.name.given', collection: true }, // string[]
 })
 
-// Type error: the 'family' column is string | undefined, not number.
-const count: number = rows[0].family
+console.log(rows)
 `,
   },
   {
     id: 'checkConstraints',
     label: 'checkConstraints',
+    runnable: true,
     code: `import { r4 } from 'fhirpath-ts/r4'
 
-const patient = { resourceType: 'Patient' as const, gender: 'female', birthDate: '1984-11-02' }
+// A patient with a birthDate in the future — pat-2 should fail.
+const patient = { resourceType: 'Patient' as const, gender: 'female', birthDate: '2100-01-01' }
 
 // FHIR invariants as FHIRPath — checkConstraints() runs them and reports failures.
 const result = r4.checkConstraints(patient, [
@@ -116,11 +146,8 @@ const result = r4.checkConstraints(patient, [
   { key: 'pat-2', human: 'born in the past', expression: 'birthDate < today()' },
 ])
 
-const ok: boolean = result.valid       // .valid, .issues, or a FHIR OperationOutcome:
-const outcome = result.toOperationOutcome()
-
-// Type error: a constraint's severity is 'error' | 'warning', not 'fatal'.
-r4.checkConstraints(patient, [{ key: 'pat-3', severity: 'fatal', expression: 'name.exists()' }])
+console.log('valid:', result.valid)   // boolean
+console.log(result.issues)            // the failing constraints, in order
 `,
   },
 ]
@@ -243,10 +270,13 @@ function configureTypeScript(): void {
   const ts = monaco.languages.typescript
   ts.typescriptDefaults.setCompilerOptions({
     target: ts.ScriptTarget.ESNext,
-    module: ts.ModuleKind.ESNext,
+    // CommonJS so the transpiled buffer runs in a `new Function` sandbox (imports
+    // become `require(...)` calls we can intercept); inference is unaffected.
+    module: ts.ModuleKind.CommonJS,
     moduleResolution: ts.ModuleResolutionKind.NodeJs,
     strict: true,
-    noEmit: true,
+    noEmit: false,
+    esModuleInterop: true,
     allowNonTsExtensions: true,
     skipLibCheck: true,
     lib: ['esnext', 'dom'],
@@ -284,36 +314,120 @@ function configureTypeScript(): void {
   })
 }
 
-/** Render the combined tsc + analyzer problem list under the editor. */
-function renderProblems(model: monaco.editor.ITextModel, into: HTMLElement): void {
+// The only modules the sandbox can import: the real bundled engine and analyzer.
+const MODULES: Record<string, Record<string, unknown>> = {
+  'fhirpath-ts/r4': { r4, r4Model },
+  'fhirpath-ts/analyzer': { analyzeExpression },
+}
+
+type OutputLevel = 'log' | 'warn' | 'error' | 'throw'
+interface OutputLine {
+  level: OutputLevel
+  text: string
+}
+
+function formatArg(value: unknown): string {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (value === undefined) {
+    return 'undefined'
+  }
+  const json = JSON.stringify(value)
+  return json ?? String(value)
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** Transpile the buffer with Monaco's TS worker and run it, capturing console output. */
+async function runCode(model: monaco.editor.ITextModel): Promise<OutputLine[]> {
+  const out: OutputLine[] = []
+  let js: string
+  try {
+    const getWorker = await monaco.languages.typescript.getTypeScriptWorker()
+    const client = await getWorker(model.uri)
+    const emit = await client.getEmitOutput(model.uri.toString())
+    js = emit.outputFiles.find(f => f.name.endsWith('.js'))?.text ?? ''
+  } catch (error) {
+    out.push({ level: 'throw', text: `Could not compile: ${errorText(error)}` })
+    return out
+  }
+
+  const sandboxConsole = {
+    log: (...args: unknown[]) => out.push({ level: 'log', text: args.map(formatArg).join(' ') }),
+    info: (...args: unknown[]) => out.push({ level: 'log', text: args.map(formatArg).join(' ') }),
+    warn: (...args: unknown[]) => out.push({ level: 'warn', text: args.map(formatArg).join(' ') }),
+    error: (...args: unknown[]) => out.push({ level: 'error', text: args.map(formatArg).join(' ') }),
+  }
+  const requireShim = (specifier: string): Record<string, unknown> => {
+    const mod = MODULES[specifier]
+    if (!mod) {
+      throw new Error(`Cannot import '${specifier}' in the playground`)
+    }
+    return mod
+  }
+  const moduleObj = { exports: {} as Record<string, unknown> }
+  try {
+    // The buffer is the user's own code, transpiled above; running it is the point.
+    const fn = new Function('require', 'exports', 'module', 'console', js)
+    fn(requireShim, moduleObj.exports, moduleObj, sandboxConsole)
+  } catch (error) {
+    out.push({ level: 'throw', text: errorText(error) })
+  }
+  if (out.length === 0) {
+    out.push({ level: 'log', text: '(ran with no console output)' })
+  }
+  return out
+}
+
+function outputRow(line: OutputLine): HTMLElement {
+  const row = document.createElement('div')
+  row.className = `pg-row pg-out pg-out-${line.level}`
+  const badge = document.createElement('span')
+  badge.className = 'pg-at'
+  badge.textContent = line.level === 'throw' ? 'throws' : line.level
+  const msg = document.createElement('span')
+  msg.className = 'pg-msg'
+  msg.textContent = line.text
+  row.append(badge, msg)
+  return row
+}
+
+function problemRow(marker: monaco.editor.IMarker): HTMLElement {
+  const isError = marker.severity === monaco.MarkerSeverity.Error
+  const source = marker.owner === 'fhirpath' ? 'analyzer' : 'tsc'
+  const row = document.createElement('div')
+  row.className = `pg-row pg-problem-${isError ? 'error' : 'warning'}`
+  const badge = document.createElement('span')
+  badge.className = 'pg-at'
+  badge.textContent = `${source} · ${marker.startLineNumber}:${marker.startColumn}`
+  const msg = document.createElement('span')
+  msg.className = 'pg-msg'
+  // tsc messages nest onto several lines; the first line is the summary
+  // (the full text stays on the editor hover).
+  msg.textContent = marker.message.split('\n')[0] ?? marker.message
+  row.append(badge, msg)
+  return row
+}
+
+/** Render run output first (gray), then the tsc + analyzer problems, into the panel. */
+function render(panelEl: HTMLElement, model: monaco.editor.ITextModel, outputs: OutputLine[]): void {
   const markers = monaco.editor
     .getModelMarkers({ resource: model.uri })
     .filter(m => m.severity === monaco.MarkerSeverity.Error || m.severity === monaco.MarkerSeverity.Warning)
     .sort((a, b) => a.startLineNumber - b.startLineNumber || a.startColumn - b.startColumn)
 
-  if (markers.length === 0) {
-    into.innerHTML = `<p class="pg-clean">No problems. tsc and the analyzer are both happy.</p>`
+  const rows = [...outputs.map(outputRow), ...markers.map(problemRow)]
+  if (rows.length === 0) {
+    const clean = document.createElement('p')
+    clean.className = 'pg-clean'
+    clean.textContent = 'No problems. Press Run to see output, or edit the code.'
+    panelEl.replaceChildren(clean)
     return
   }
-
-  into.replaceChildren(
-    ...markers.map(m => {
-      const isError = m.severity === monaco.MarkerSeverity.Error
-      const source = m.owner === 'fhirpath' ? 'analyzer' : 'tsc'
-      const row = document.createElement('div')
-      row.className = `pg-problem pg-problem-${isError ? 'error' : 'warning'}`
-      const at = document.createElement('span')
-      at.className = 'pg-at'
-      at.textContent = `${source} · ${m.startLineNumber}:${m.startColumn}`
-      const msg = document.createElement('span')
-      msg.className = 'pg-msg'
-      // tsc messages nest onto several lines; the first line is the summary
-      // (the full text stays on the editor hover).
-      msg.textContent = m.message.split('\n')[0] ?? m.message
-      row.append(at, msg)
-      return row
-    })
-  )
+  panelEl.replaceChildren(...rows)
 }
 
 /** Render the example tabs; clicking one loads its sample into the editor. */
@@ -334,7 +448,7 @@ function renderTabs(into: HTMLElement, active: string, onSelect: (sample: Sample
 
 let mounted = false
 
-/** Build the tabbed editor and stream problems, using the `[data-pg-*]` children of `root`. Idempotent. */
+/** Build the tabbed, runnable editor using the `[data-pg-*]` children of `root`. Idempotent. */
 export function mountPlayground(root: HTMLElement): void {
   if (mounted) {
     return
@@ -344,12 +458,13 @@ export function mountPlayground(root: HTMLElement): void {
 
   const tabsEl = root.querySelector<HTMLElement>('[data-pg-tabs]')!
   const editorEl = root.querySelector<HTMLElement>('[data-pg-editor]')!
-  const problemsEl = root.querySelector<HTMLElement>('[data-pg-problems]')!
+  const panelEl = root.querySelector<HTMLElement>('[data-pg-panel]')!
+  const runBtn = root.querySelector<HTMLButtonElement>('[data-pg-run]')!
   editorEl.replaceChildren()
 
   const first = SAMPLES[0]!
   const model = monaco.editor.createModel(first.code, 'typescript', monaco.Uri.parse('file:///main.ts'))
-  monaco.editor.create(editorEl, {
+  const editor = monaco.editor.create(editorEl, {
     model,
     theme: 'fhirpath-dark',
     fontFamily: '"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace',
@@ -361,11 +476,14 @@ export function mountPlayground(root: HTMLElement): void {
     padding: { top: 14, bottom: 14 },
     renderLineHighlight: 'none',
     overviewRulerLanes: 0,
+    // Long lines scroll horizontally rather than wrapping.
+    wordWrap: 'off',
     scrollbar: { alwaysConsumeMouseWheel: false },
-    wordWrap: 'on',
     tabSize: 2,
     fixedOverflowWidgets: true,
   })
+
+  let outputs: OutputLine[] = []
 
   const lint = (): void => {
     const markers: monaco.editor.IMarkerData[] = []
@@ -389,18 +507,43 @@ export function mountPlayground(root: HTMLElement): void {
   let timer: ReturnType<typeof setTimeout>
   model.onDidChangeContent(() => {
     clearTimeout(timer)
-    timer = setTimeout(lint, 150)
+    timer = setTimeout(lint, 200)
   })
   monaco.editor.onDidChangeMarkers(uris => {
     if (uris.some(u => u.toString() === model.uri.toString())) {
-      renderProblems(model, problemsEl)
+      render(panelEl, model, outputs)
+    }
+  })
+
+  let running = false
+  const doRun = async (): Promise<void> => {
+    if (running) {
+      return
+    }
+    running = true
+    runBtn.disabled = true
+    runBtn.textContent = 'Running…'
+    try {
+      outputs = await runCode(model)
+      render(panelEl, model, outputs)
+    } finally {
+      running = false
+      runBtn.disabled = false
+      runBtn.textContent = 'Run ▸'
+    }
+  }
+  runBtn.addEventListener('click', () => void doRun())
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+    if (!runBtn.hidden) {
+      void doRun()
     }
   })
 
   const select = (sample: Sample): void => {
+    outputs = []
+    runBtn.hidden = !sample.runnable
     model.setValue(sample.code)
     renderTabs(tabsEl, sample.id, select)
   }
-  renderTabs(tabsEl, first.id, select)
-  lint()
+  select(first)
 }
