@@ -207,13 +207,12 @@ function evaluate() {
 
 // --- Boot -------------------------------------------------------------------
 
-$<HTMLPreElement>('[data-quickstart]').textContent = `import { compile, evaluate } from 'fhirpath-ts'
-import { r4Model } from 'fhirpath-ts/r4'
+$<HTMLPreElement>('[data-quickstart]').textContent = `import { r4, r4Model } from 'fhirpath-ts/r4'
 import { analyzeExpression } from 'fhirpath-ts/analyzer'
 
-// Result type is inferred by tsc — no plugin:
-const given = compile('Patient.name.given')
-given.evaluate(patient, { model: r4Model })        // string[]
+// The R4 model is already bound; result types are inferred by tsc — no plugin:
+r4.evaluate('Patient.name.given', patient)         // string[]
+r4.first('Patient.name.family', patient)           // string | undefined
 
 // Check an expression before it ships:
 analyzeExpression('Observation.valueQuantity', { model: r4Model, inputType: 'Observation' })

@@ -15,10 +15,14 @@ export function evaluate(
   input?: unknown,
   options?: EvaluateOptions
 ): unknown[] {
-  return compiled(expression).evaluate(input, options)
+  return cachedCompile(expression).evaluate(input, options)
 }
 
-function compiled(expression: string | CompiledExpression<string>): CompiledExpression<string> {
+/** The shared expression → CompiledExpression LRU, used by `evaluate()` and `FhirPathEngine`. */
+export function cachedCompile(
+  // biome-ignore lint/suspicious/noExplicitAny: accepts any literal-typed CompiledExpression
+  expression: string | CompiledExpression<any>
+): CompiledExpression<string> {
   if (typeof expression !== 'string') {
     return expression
   }

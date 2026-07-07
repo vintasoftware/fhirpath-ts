@@ -1,5 +1,17 @@
 export type { EvaluateOptions } from './api/compile.ts'
 export { CompiledExpression, compile } from './api/compile.ts'
+export type {
+  BundleLike,
+  ConstraintCheckResult,
+  ConstraintIssue,
+  EngineInput,
+  FhirConstraint,
+  OperationOutcome,
+  Projection,
+  ProjectionColumn,
+  ProjectionColumns,
+} from './api/engine.ts'
+export { BoundExpression, FhirPathEngine } from './api/engine.ts'
 export { evaluate } from './api/evaluate.ts'
 export { fhirpath } from './api/tagged.ts'
 export type { SourceSpan } from './errors.ts'

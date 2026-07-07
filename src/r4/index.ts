@@ -1,3 +1,4 @@
+import { FhirPathEngine } from '../api/engine.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import { R4_RESOURCES } from './generated/resources-data.ts'
 import { R4_DATA_TYPES } from './generated/types-data.ts'
@@ -96,3 +97,6 @@ export const r4Model: ModelProvider = {
     return false
   },
 }
+
+/** A ready-made engine with the R4 model bound: `r4.evaluate('Patient.name.given', patient)`. */
+export const r4 = new FhirPathEngine({ model: r4Model })
