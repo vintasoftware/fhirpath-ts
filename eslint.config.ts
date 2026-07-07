@@ -22,6 +22,7 @@ export default tseslint.config(
       '**/build/**',
       '**/coverage/**',
       'src/r4/generated/**',
+      'demo/src/monaco/**',
       'test-data/**',
       '.claude/**',
     ],

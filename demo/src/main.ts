@@ -229,6 +229,26 @@ analyzeExpression('Observation.valueQuantity', { model: r4Model, inputType: 'Obs
 // Highlight the static example blocks in the "Where a mistake gets caught" section.
 highlightBlocks('.layer-code')
 
+// The playground pulls in Monaco (heavy), so load it only once the section is
+// near the viewport rather than blocking the initial page.
+const playgroundEl = $<HTMLDivElement>('[data-playground]')
+const pgEditorEl = $<HTMLDivElement>('[data-pg-editor]')
+const pgProblemsEl = $<HTMLDivElement>('[data-pg-problems]')
+const observer = new IntersectionObserver(
+  entries => {
+    if (!entries.some(e => e.isIntersecting)) {
+      return
+    }
+    observer.disconnect()
+    void import('./playground.ts').then(m => {
+      pgEditorEl.replaceChildren()
+      m.mountPlayground(pgEditorEl, pgProblemsEl)
+    })
+  },
+  { rootMargin: '400px' }
+)
+observer.observe(playgroundEl)
+
 exprEl.addEventListener('input', evaluate)
 window.addEventListener('resize', autosize)
 renderTabs()
