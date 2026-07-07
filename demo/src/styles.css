@@ -372,6 +372,10 @@ code {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* Reserve one diagnostic row's height so the clean → error transition
+     doesn't push the output screens down. A single .diag renders at ~42.4px
+     (9px×2 padding around the badge + its border); 43px covers it exactly. */
+  min-height: 43px;
 }
 
 .diag {
