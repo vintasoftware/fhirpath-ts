@@ -357,8 +357,12 @@ describe('variable tracking', () => {
     expect(codes("(defineVariable('n1').active | %n1)")).toEqual(['unknown-variable'])
     // A variable defined inside a function argument does not leak out.
     expect(codes("select(defineVariable('inner').active).where(%inner)")).toEqual(['unknown-variable'])
-    // Dynamic names cannot be tracked, so nothing is registered or flagged.
+    // Dynamic names cannot be tracked: nothing is registered, and undefined-variable
+    // errors are muted for the rest of that chain (the dynamic name may have bound one).
     expect(codes('defineVariable(name.family.first()).count() > 0')).toEqual([])
+    expect(codes('defineVariable(name.family.first()).select(%whatever)')).toEqual([])
+    // The muting is scoped: a sibling operand still gets the error.
+    expect(codes('defineVariable(name.family.first()).active | %whatever')).toEqual(['unknown-variable'])
   })
 })
 

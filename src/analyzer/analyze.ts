@@ -1,5 +1,6 @@
 import '../functions/install.ts'
 
+import { BUILTIN_ENV_VARIABLE_NAMES } from '../engine/context.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { describeArity, functions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
@@ -44,8 +45,22 @@ const UNKNOWN: StaticState = { types: undefined, single: undefined }
  * analyzed state of its value. Mirrors the runtime's scoping exactly: dots
  * thread one scope along the chain, while operator operands and function
  * arguments each analyze against a copy (compare EvaluationContext.variables).
+ * A defineVariable() whose name is not a string literal sets `hasDynamic`,
+ * muting undefined-variable errors for the rest of that chain — the analyzer
+ * cannot know which name it bound.
  */
-type VariableScope = Map<string, StaticState>
+interface VariableScope {
+  vars: Map<string, StaticState>
+  hasDynamic: boolean
+}
+
+function emptyScope(): VariableScope {
+  return { vars: new Map(), hasDynamic: false }
+}
+
+function forkScope(scope: VariableScope): VariableScope {
+  return { vars: new Map(scope.vars), hasDynamic: scope.hasDynamic }
+}
 
 export interface AnalysisDetails {
   diagnostics: AnalyzerDiagnostic[]
@@ -83,7 +98,7 @@ export function analyzeExpressionDetailed(expression: string, options?: AnalyzeO
     }
   }
   const analyzer = new Analyzer(options?.model, options?.inputType)
-  analyzer.walk(ast, analyzer.rootState(), new Map())
+  analyzer.walk(ast, analyzer.rootState(), emptyScope())
   return { diagnostics: analyzer.diagnostics, elementDependencies: [...analyzer.dependencies] }
 }
 
@@ -169,7 +184,7 @@ class Analyzer {
    * analyzer (AnalyzeOptions is the place this will grow).
    */
   private walkExternal(node: AstNode & { kind: 'external' }, scope: VariableScope): StaticState {
-    const defined = scope.get(node.name)
+    const defined = scope.vars.get(node.name)
     if (defined !== undefined) {
       return defined
     }
@@ -190,7 +205,11 @@ class Analyzer {
     if (node.name.startsWith('vs-') || node.name.startsWith('ext-')) {
       return { types: ['System.String'], single: true }
     }
-    this.report('unknown-variable', `Undefined environment variable %${node.name}`, node.span)
+    // A dynamically-named defineVariable() earlier in the chain may have bound
+    // this name — soundness over precision, so no error then.
+    if (!scope.hasDynamic) {
+      this.report('unknown-variable', `Undefined environment variable %${node.name}`, node.span)
+    }
     return UNKNOWN
   }
 
@@ -304,7 +323,7 @@ class Analyzer {
         node.span
       )
       for (const argument of node.args) {
-        this.walk(argument, input, new Map(scope))
+        this.walk(argument, input, forkScope(scope))
       }
       return UNKNOWN
     }
@@ -318,7 +337,7 @@ class Analyzer {
     const signature = FUNCTION_SIGNATURES[node.name]
     if (!signature) {
       for (const argument of node.args) {
-        this.walk(argument, input, new Map(scope))
+        this.walk(argument, input, forkScope(scope))
       }
       return UNKNOWN
     }
@@ -351,7 +370,7 @@ class Analyzer {
         const body =
           spec === 'sort-key' && argument.kind === 'unary' && argument.operator === '-' ? argument.operand : argument
         this.frames.push({ types: input.types, single: true })
-        const state = this.walk(body, { types: input.types, single: true }, new Map(scope))
+        const state = this.walk(body, { types: input.types, single: true }, forkScope(scope))
         this.frames.pop()
         argStates.push(state)
         if (spec === 'condition') {
@@ -371,7 +390,7 @@ class Analyzer {
         return
       }
       // Value arguments evaluate against $this, mirroring the runtime.
-      const argState = this.walk(argument, this.frames.at(-1) ?? this.rootState(), new Map(scope))
+      const argState = this.walk(argument, this.frames.at(-1) ?? this.rootState(), forkScope(scope))
       argStates.push(argState)
       if (spec !== undefined && spec !== 'any') {
         if (argState.types !== undefined && argState.single === false) {
@@ -410,19 +429,20 @@ class Analyzer {
   ): void {
     const nameNode = node.args[0]
     if (nameNode === undefined || nameNode.kind !== 'string') {
+      scope.hasDynamic = true
       return
     }
     const name = nameNode.value
-    if (BUILTIN_VARIABLE_NAMES.has(name)) {
+    if (BUILTIN_ENV_VARIABLE_NAMES.has(name)) {
       this.report('variable-override', `Cannot override the environment variable %${name}`, nameNode.span)
       return
     }
-    if (scope.has(name)) {
+    if (scope.vars.has(name)) {
       this.report('variable-redefined', `Variable %${name} is already defined in this scope`, nameNode.span)
       return
     }
     // Without a value expression the variable holds the function's input.
-    scope.set(name, argStates[1] ?? input)
+    scope.vars.set(name, argStates[1] ?? input)
   }
 
   /**
@@ -496,8 +516,8 @@ class Analyzer {
   private walkBinary(node: AstNode & { kind: 'binary' }, input: StaticState, scope: VariableScope): StaticState {
     // Operator operands are separate chains: each analyzes against its own scope
     // copy, so defineVariable() in one side is invisible to the other (runtime parity).
-    const left = this.walk(node.left, input, new Map(scope))
-    const right = this.walk(node.right, input, new Map(scope))
+    const left = this.walk(node.left, input, forkScope(scope))
+    const right = this.walk(node.right, input, forkScope(scope))
     switch (node.operator) {
       case '+':
       case '-':
@@ -660,9 +680,6 @@ class Analyzer {
     this.diagnostics.push({ severity, code, message, span })
   }
 }
-
-/** Environment variables the engine always defines; defineVariable() cannot shadow them. */
-const BUILTIN_VARIABLE_NAMES = new Set(['context', 'resource', 'rootResource', 'ucum', 'sct', 'loinc'])
 
 const SYSTEM_TYPE_NAMES = new Set([
   'Any',
