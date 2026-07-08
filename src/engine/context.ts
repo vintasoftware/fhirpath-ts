@@ -38,6 +38,18 @@ const BUILTIN_CONSTANTS: ReadonlyMap<string, string> = new Map([
   ['loinc', 'http://loinc.org'],
 ])
 
+/**
+ * Environment variables every evaluation defines. The static analyzer resolves
+ * and protects exactly these names, so keep this list next to the code that
+ * seeds them (createContext) — a builtin added here is known there for free.
+ */
+export const BUILTIN_ENV_VARIABLE_NAMES: ReadonlySet<string> = new Set([
+  ...BUILTIN_CONSTANTS.keys(),
+  'context',
+  'resource',
+  'rootResource',
+])
+
 export function createContext(options: {
   root: TypedValue[]
   env?: Record<string, unknown> | undefined
