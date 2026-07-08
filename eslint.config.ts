@@ -35,10 +35,10 @@ export default tseslint.config(
   {
     plugins: { 'simple-import-sort': simpleImportSort },
     rules: {
-      // Import organization, replacing Biome's organizeImports assist.
+      // Sort imports and exports.
       'simple-import-sort/imports': 'warn',
       'simple-import-sort/exports': 'warn',
-      // The former Biome ruleset, mapped to ESLint / typescript-eslint equivalents.
+      // Project correctness and style rules.
       'no-debugger': 'error',
       'no-console': 'warn',
       curly: ['error', 'all'],
