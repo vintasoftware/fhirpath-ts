@@ -1,5 +1,6 @@
+export type { ArgSpec, CustomFunctionSignature } from './analyzer/signatures.ts'
 export type { BundleLike } from './api/bundle.ts'
-export type { AnyExpression, EvaluateOptions } from './api/compile.ts'
+export type { AnyExpression, CustomFunction, EvaluateOptions } from './api/compile.ts'
 export { compile, CompiledExpression } from './api/compile.ts'
 export type { ConstraintCheckResult, ConstraintIssue, FhirConstraint, OperationOutcome } from './api/constraints.ts'
 export type { EngineInput } from './api/engine.ts'

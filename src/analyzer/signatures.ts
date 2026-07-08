@@ -49,7 +49,19 @@ export function singleAnd(a: boolean | undefined, b: boolean | undefined): boole
  * - `type-name`: a type specifier, checked against the model.
  * - `any` / a ValueKind: a value argument, optionally kind-checked.
  */
-type ArgSpec = 'expression' | 'condition' | 'sort-key' | 'type-name' | 'any' | ValueKind
+export type ArgSpec = 'expression' | 'condition' | 'sort-key' | 'type-name' | 'any' | ValueKind
+
+/**
+ * The declarative static-typing leg of a host-supplied function (HAPI's
+ * checkFunction): what input it accepts, how its arguments are treated, and
+ * what it returns. Result `types` use model or System names ('Patient',
+ * 'System.String'); omitting them keeps the result an unknown region.
+ */
+export interface CustomFunctionSignature {
+  input?: { kind?: ValueKind; singleton?: boolean }
+  args?: ArgSpec[]
+  result?: { types?: string[]; single?: boolean }
+}
 
 export interface FunctionSignature {
   input?: { kind?: ValueKind; singleton?: boolean }

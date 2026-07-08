@@ -169,10 +169,39 @@ Without a model (engine default or per-call), the engine navigates raw JSON.
 | `env` | Environment variables: `{ myVar: 5 }` resolves `%myVar` |
 | `now` | Evaluation clock for `now()`/`today()`/`timeOfDay()` (deterministic tests) |
 | `trace` | Sink for `trace()` calls — see the PHI note below |
+| `functions` | Host-supplied functions — see Custom functions below |
 
 `evaluateTyped(...)` (on the engine, bound expressions, and compiled expressions)
 returns the internal `TypedValue[]` (type names plus `Decimal`/`Temporal` value
 objects) instead of unwrapped JS values.
+
+### Custom functions
+
+A custom function is a HAPI-style triple on one record — resolve (name +
+arity), check (optional `signature`, for the analyzer), execute (`fn`).
+Plain JS values cross the boundary in both directions, arguments are eager,
+and built-in names cannot be overridden:
+
+```ts
+const functions = {
+  initials: {
+    minArity: 0,
+    maxArity: 0,
+    // The static-typing leg: without it, expressions using initials() analyze
+    // as unknown regions (still sound, just unchecked past the call).
+    signature: { input: { kind: 'String' }, result: { types: ['System.String'], single: false } },
+    fn: (input: unknown[]) => input.map(v => String(v).charAt(0)),
+  },
+} satisfies Record<string, CustomFunction>
+
+evaluate('name.given.initials()', patient, { functions })
+analyzeExpression('name.given.initials()', { model: r4Model, inputType: 'Patient', functions })
+```
+
+The same record works for both calls. Environment variables get the matching
+treatment on the static side: `AnalyzeOptions.variables` declares the `%vars`
+the host will pass (optionally with their types), so the analyzer can check
+them instead of flagging `unknown-variable`.
 
 ## Conformance
 
