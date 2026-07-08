@@ -206,6 +206,23 @@ describe('FhirPathEngine.project', () => {
     })
   })
 
+  it('column type annotations declare what inference cannot see', () => {
+    const row = r4.project(patient, {
+      // Outside the inference subset (operators, join/trim) → unknown without a declared type.
+      inferred: "(Patient.name.family + ' ' + Patient.name.given.join(' ')).trim()",
+      name: { path: "(Patient.name.family + ' ' + Patient.name.given.join(' ')).trim()", type: 'string' },
+      initials: { path: 'Patient.name.given.select(substring(0, 1))', collection: true, type: 'string' },
+    })
+    expectTypeOf(row.inferred).toEqualTypeOf<unknown>()
+    expectTypeOf(row.name).toEqualTypeOf<string | undefined>()
+    expectTypeOf(row.initials).toEqualTypeOf<string[]>()
+    expect(row).toEqual({
+      inferred: 'Chalmers Peter James Jim',
+      name: 'Chalmers Peter James Jim',
+      initials: ['P', 'J', 'J'],
+    })
+  })
+
   it('throws when a scalar column yields several values (SQL-on-FHIR column rule)', () => {
     expect(() => r4.project(patient, { given: 'Patient.name.given' })).toThrow(/column 'given' yielded 3 values/)
   })
