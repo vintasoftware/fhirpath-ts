@@ -42,5 +42,7 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test
-        run: pnpm test
+      # Coverage thresholds (vitest.config.ts) only guarantee anything if CI
+      # actually measures coverage, so the test step runs `pnpm coverage`.
+      - name: Test (with coverage thresholds)
+        run: pnpm coverage

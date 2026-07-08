@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { SKIP_MANIFEST } from '../test-data/official/skip-manifest.ts'
+import { PHASE_OVERRIDES, SKIP_MANIFEST } from '../test-data/official/skip-manifest.ts'
 import {
+  casesMatching,
   findSkipReason,
   loadOfficialSuite,
   runOfficialTest,
-  skipEntryMatchesSomething,
   type SuiteName,
 } from './testing/official-harness.ts'
 
@@ -26,7 +26,7 @@ for (const suite of ['r4', 'r5'] as const) {
             return
           }
           it(title, () => {
-            const failure = runOfficialTest(suite, test)
+            const failure = runOfficialTest(suite, test, group.name)
             expect(failure, failure).toBeUndefined()
           })
         })
@@ -38,7 +38,14 @@ for (const suite of ['r4', 'r5'] as const) {
 describe('skip manifest hygiene', () => {
   it('every skip entry matches at least one case', () => {
     for (const entry of SKIP_MANIFEST) {
-      expect(skipEntryMatchesSomething(entry, suites), entry.reason).toBe(true)
+      expect(casesMatching(entry, suites).length, entry.reason).toBeGreaterThan(0)
+    }
+  })
+
+  it('every phase override matches an invalid case', () => {
+    for (const entry of PHASE_OVERRIDES) {
+      const matches = casesMatching(entry, suites).filter(({ test }) => test.invalid !== undefined)
+      expect(matches.length, `${entry.suite}/${entry.group}/${entry.test}: ${entry.reason}`).toBeGreaterThan(0)
     }
   })
 })
