@@ -1,9 +1,16 @@
 import { FhirPathRuntimeError } from '../errors.ts'
+import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathResult } from '../typed/infer.ts'
 import { cachedCompile, type EvaluateOptions } from './compile.ts'
 
-/** One column of a `project()` call: an expression, or `{ path, collection: true }` to keep all values. */
-export type ProjectionColumn = string | { path: string; collection?: boolean }
+/**
+ * One column of a `project()` call: an expression, or an object form with
+ * `collection: true` to keep all values and/or `type` to declare the column's
+ * FHIR type (mirroring SQL-on-FHIR ViewDefinition `column.type`) when the
+ * expression is outside the inference subset. A declared `type` is a
+ * compile-time assertion only — it is not checked at runtime.
+ */
+export type ProjectionColumn = string | { path: string; collection?: boolean; type?: keyof R4TypeOf }
 
 export type ProjectionColumns = Record<string, ProjectionColumn>
 
@@ -13,9 +20,14 @@ type ColumnPath<Column extends ProjectionColumn> = Column extends string
     ? Path
     : never
 
+/** A declared `type` wins; otherwise the type is inferred from the expression. */
+type ColumnValues<Column extends ProjectionColumn> = Column extends { type: infer T extends keyof R4TypeOf }
+  ? R4TypeOf[T][]
+  : FhirpathResult<ColumnPath<Column>>
+
 type ColumnResult<Column extends ProjectionColumn> = Column extends { collection: true }
-  ? FhirpathResult<ColumnPath<Column>>
-  : FhirpathResult<ColumnPath<Column>>[number] | undefined
+  ? ColumnValues<Column>
+  : ColumnValues<Column>[number] | undefined
 
 /** The row shape `project()` produces: each column's type inferred from its expression. */
 export type Projection<Columns extends ProjectionColumns> = {

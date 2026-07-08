@@ -111,11 +111,14 @@ result.toOperationOutcome() // FHIR-native report (issue.code = 'invariant')
 
 // Shape a resource into a typed row, following SQL-on-FHIR ViewDefinition column
 // semantics: columns are scalars; more than one value is an error (append first()
-// or opt into collection: true). Each column's type is inferred from its expression.
+// or opt into collection: true). Each column's type is inferred from its expression;
+// when the expression is outside the inference subset, declare it with `type`
+// (mirroring ViewDefinition column.type — a compile-time assertion, unchecked at runtime).
 r4.project(patient, {
   id: 'Patient.id',                                         // string | undefined
   family: 'Patient.name.family.first()',                    // string | undefined
   given: { path: 'Patient.name.given', collection: true },  // string[]
+  name: { path: "Patient.name.given.join(' ')", type: 'string' },  // string | undefined
 })
 r4.project(searchset, { id: 'Patient.id' }) // arrays and Bundles: one row per resource
 ```
