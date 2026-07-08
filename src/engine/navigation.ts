@@ -1,6 +1,6 @@
 import { FhirPathTypeError } from '../errors.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
-import { OBJECT_TYPE, type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import { OBJECT_TYPE, toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import type { EvaluationContext } from './context.ts'
 
 /**

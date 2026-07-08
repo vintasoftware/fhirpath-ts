@@ -1,4 +1,5 @@
 import { RuleTester } from 'eslint'
+
 import plugin from './index.ts'
 
 const R4_IMPORT = "import { r4 } from 'fhirpath-ts/r4'; "
@@ -51,6 +52,14 @@ tester.run('no-invalid-expressions', plugin.rules['no-invalid-expressions'], {
     { code: "import { compile } from 'handlebars'; const t = compile('not [fhirpath]')" },
     { code: "import fhirpath from 'other-lib'; const t = fhirpath`Patient.nope`" },
     { code: "import _ from 'lodash'; const t = _.filter(users, 'not [fhirpath]')" },
+    // By default a relative import is foreign, so an in-repo `compile` is skipped
+    // even if the expression is invalid...
+    { code: "import { compile } from '../api/compile.ts'; const t = compile('Patient.frobnicate()')" },
+    // ...and `localImports` does not resurrect genuinely foreign package imports.
+    {
+      code: "import { compile } from 'handlebars'; const t = compile('Patient.frobnicate()')",
+      options: [{ localImports: true }],
+    },
   ],
   invalid: [
     {
@@ -102,6 +111,24 @@ tester.run('no-invalid-expressions', plugin.rules['no-invalid-expressions'], {
       // A new FhirPathEngine local is an engine receiver, even when used above its declaration.
       code: "import { FhirPathEngine } from 'fhirpath-ts'; function f(p) { return engine.test(p, 'name..bad') } const engine = new FhirPathEngine({})",
       errors: [{ message: /syntax/ }],
+    },
+    // localImports: relative imports of the API are checked — how the package
+    // dogfoods this rule on its own source.
+    {
+      code: "import { compile } from '../api/compile.ts'; const t = compile('Patient.frobnicate()')",
+      options: [{ localImports: true }],
+      errors: [{ message: /unknown-function/ }],
+    },
+    {
+      code: "import { r4 } from '../r4/index.ts'; const t = r4.filter(patients, 'Patient.nope')",
+      options: [{ localImports: true }],
+      errors: [{ message: /unknown-element/ }],
+    },
+    // packages: extra import sources counted as the FHIRPath API.
+    {
+      code: "import { compile } from '@myorg/fhir'; const t = compile('Patient.frobnicate()')",
+      options: [{ packages: ['@myorg/fhir'] }],
+      errors: [{ message: /unknown-function/ }],
     },
   ],
 })

@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
 import '../functions/install.ts'
+
+import { describe, expect, it } from 'vitest'
+
 import { functions } from '../functions/registry.ts'
 import { FUNCTION_SIGNATURES } from './signatures.ts'
 

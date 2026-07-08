@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
+
 import { defineConfig } from 'vite'
 
 const src = (p: string) => fileURLToPath(new URL(`../src/${p}`, import.meta.url))

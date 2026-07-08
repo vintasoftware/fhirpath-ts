@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { FhirPathSyntaxError } from '../errors.ts'
 import { stripSpans } from '../testing/strip-spans.ts'
 import { parse } from './parser.ts'

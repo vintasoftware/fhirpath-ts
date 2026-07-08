@@ -1,5 +1,6 @@
 import { Linter } from 'eslint'
 import { describe, expect, it } from 'vitest'
+
 import { findExpressionSites } from '../cli/expression-sites.ts'
 import eslintPlugin from '../eslint/index.ts'
 

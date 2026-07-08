@@ -1,6 +1,7 @@
+import '../functions/install.ts'
+
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { describeArity, functions } from '../functions/registry.ts'
-import '../functions/install.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode, TypeSpecifier } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'

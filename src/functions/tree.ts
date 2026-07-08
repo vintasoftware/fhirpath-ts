@@ -1,7 +1,7 @@
 import { pairEquals } from '../engine/operators/equality.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
 /**

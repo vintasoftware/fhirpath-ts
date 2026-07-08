@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+
 import { r4Model } from '../r4/index.ts'
-import { type AnalyzerDiagnostic, analyzeExpression } from './analyze.ts'
+import { analyzeExpression, type AnalyzerDiagnostic } from './analyze.ts'
 
 const options = { model: r4Model, inputType: 'Patient' }
 
