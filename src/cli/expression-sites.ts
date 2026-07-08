@@ -39,24 +39,26 @@ function propertyKeyName(name: ts.PropertyName): string | undefined {
  * Find FHIRPath expression literals in a TypeScript source file: `` fhirpath`...` ``
  * tags plus literal expression arguments to the call names in `CALL_SITES` —
  * including expressions inside project() columns objects and checkConstraints()
- * constraint arrays. Which calls count is the shared policy's decision
- * (`isCheckedCall`): foreign imports are skipped, and the common-name engine
- * helpers (test/filter/first/project) fire only on receivers bound to this
- * package or to a `new FhirPathEngine(...)` local. Dynamic expressions cannot
- * be checked statically and are left alone.
+ * constraint arrays. Which calls count, and which are skipped, is the shared
+ * policy's decision — see src/analyzer/expression-policy.ts. Dynamic expressions
+ * cannot be checked statically and are left alone.
  */
 export function findExpressionSites(sourceText: string, fileName: string): ExpressionSite[] {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
   const bindings = collectBindings(source)
   const sites: ExpressionSite[] = []
-  const record = (text: string, literalStart: number): void => {
+  // A site points at the first character inside the quote/backtick (node start
+  // + 1), so fhirpath-check can add a diagnostic's span offsets directly. The
+  // ESLint rule reports on the literal node itself, one column earlier.
+  const record = (text: string, literalNode: ts.Node): void => {
+    const literalStart = literalNode.getStart(source) + 1
     const { line, character } = source.getLineAndCharacterOfPosition(literalStart)
     sites.push({ expression: text, start: literalStart, line: line + 1, column: character + 1 })
   }
   const visit = (node: ts.Node): void => {
     if (ts.isTaggedTemplateExpression(node) && nameOf(node.tag) === TAG_NAME && !bindings.foreign.has(TAG_NAME)) {
       if (ts.isNoSubstitutionTemplateLiteral(node.template)) {
-        record(node.template.text, node.template.getStart(source) + 1)
+        record(node.template.text, node.template)
       }
     } else if (ts.isCallExpression(node)) {
       const callee = nameOf(node.expression)
@@ -69,7 +71,7 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
         isCheckedCall(policy, callee, receiverRoot(node.expression), bindings)
       ) {
         for (const entry of expressionEntries<ts.Node>(argument, policy.shape, tsAst)) {
-          record(entry.expression, entry.node.getStart(source) + 1)
+          record(entry.expression, entry.node)
         }
       }
     }
@@ -88,12 +90,12 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
  */
 function collectBindings(source: ts.SourceFile): SourceBindings {
   const foreign = new Set<string>()
-  const engines = new Set<string>()
+  const trusted = new Set<string>()
   for (const statement of source.statements) {
     if (!(ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier))) {
       continue
     }
-    const names = isForeignModule(statement.moduleSpecifier.text) ? foreign : engines
+    const names = isForeignModule(statement.moduleSpecifier.text) ? foreign : trusted
     const clause = statement.importClause
     if (!clause) {
       continue
@@ -111,7 +113,7 @@ function collectBindings(source: ts.SourceFile): SourceBindings {
       }
     }
   }
-  const bindings = { foreign, engines }
+  const bindings = { foreign, trusted }
   const collectEngineLocals = (node: ts.Node): void => {
     if (
       ts.isVariableDeclaration(node) &&
@@ -121,7 +123,7 @@ function collectBindings(source: ts.SourceFile): SourceBindings {
       ts.isIdentifier(node.initializer.expression) &&
       constructsEngine(node.initializer.expression.text, bindings)
     ) {
-      engines.add(node.name.text)
+      trusted.add(node.name.text)
     }
     ts.forEachChild(node, collectEngineLocals)
   }

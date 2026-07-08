@@ -15,6 +15,13 @@ import eslintPlugin from '../eslint/index.ts'
  * then comparable one-to-one with the CLI extraction positions. The CLI records
  * the first character inside the quote; ESLint reports the literal node at the
  * quote, one column earlier.
+ *
+ * Why two walkers at all, instead of the ESLint rule reusing the CLI walker on
+ * the raw source text: the rule must work with whatever AST the configured
+ * ESLint parser produced (vue-eslint-parser SFC blocks, processor-generated
+ * virtual files), and reusing the CLI walker would also make `typescript` a
+ * runtime dependency of the `./eslint` export. This suite is the price of that
+ * decision: parity is enforced here rather than by construction.
  */
 const corpus: { name: string; code: string; expected: number }[] = [
   {

@@ -1,7 +1,9 @@
 import type { Rule } from 'eslint'
+import type * as ESTree from 'estree'
 import { analyzeExpression } from '../analyzer/analyze.ts'
 import {
   CALL_SITES,
+  type CallSitePolicy,
   constructsEngine,
   type ExpressionAst,
   expressionEntries,
@@ -12,146 +14,51 @@ import {
 } from '../analyzer/expression-policy.ts'
 import { r4Model } from '../r4/index.ts'
 
-// Minimal shape of the ESTree nodes we walk; @types/estree is not a dependency.
-interface NodeLike {
-  type: string
-  loc?: { start: { line: number; column: number }; end: { line: number; column: number } } | null
-  // Identifiers and literals.
-  name?: string
-  value?: unknown
-  // Member expressions.
-  object?: NodeLike
-  computed?: boolean
-  // Object/array literals and their properties.
-  key?: NodeLike
-  properties?: NodeLike[]
-  elements?: (NodeLike | null)[]
-  // Imports and variable declarations, for binding collection.
-  body?: NodeLike[]
-  source?: NodeLike
-  specifiers?: NodeLike[]
-  local?: NodeLike
-  id?: NodeLike
-  init?: NodeLike
-  callee?: NodeLike
-}
-
-function isNodeLike(value: unknown): value is NodeLike {
-  return typeof value === 'object' && value !== null && typeof (value as { type?: unknown }).type === 'string'
-}
-
-function isStringLiteral(node: NodeLike | null | undefined): node is NodeLike & { value: string } {
-  return node?.type === 'Literal' && typeof node.value === 'string'
+function isStringLiteral(node: ESTree.Node): node is ESTree.SimpleLiteral & { value: string } {
+  return node.type === 'Literal' && typeof node.value === 'string'
 }
 
 /** Statically-known property key (`path` in `{ path: ... }` or `{ 'path': ... }`), undefined when computed. */
-function propertyKeyName(property: NodeLike): string | undefined {
+function propertyKeyName(property: ESTree.Property): string | undefined {
   if (property.computed) {
     return undefined
   }
-  if (property.key?.type === 'Identifier') {
+  if (property.key.type === 'Identifier') {
     return property.key.name
   }
   return isStringLiteral(property.key) ? property.key.value : undefined
 }
 
 /** How the shared shape extractor reads ESTree nodes. */
-const estreeAst: ExpressionAst<NodeLike> = {
+const estreeAst: ExpressionAst<ESTree.Node> = {
   string: node => (isStringLiteral(node) ? { node, expression: node.value } : undefined),
   properties: node =>
     node.type === 'ObjectExpression'
-      ? (node.properties ?? []).flatMap(property =>
-          property.type === 'Property' && isNodeLike(property.value)
-            ? [{ name: propertyKeyName(property), value: property.value }]
-            : []
+      ? node.properties.flatMap(property =>
+          property.type === 'Property' ? [{ name: propertyKeyName(property), value: property.value }] : []
         )
       : undefined,
-  elements: node =>
-    node.type === 'ArrayExpression'
-      ? (node.elements ?? []).filter((element): element is NodeLike => element !== null)
-      : undefined,
+  elements: node => (node.type === 'ArrayExpression' ? node.elements.filter(element => element !== null) : undefined),
 }
 
 /** Leftmost identifier of a member-expression callee (`Handlebars` in `Handlebars.compile`). */
-function receiverRoot(callee: NodeLike): string | undefined {
+function receiverRoot(callee: ESTree.Expression | ESTree.Super): string | undefined {
   if (callee.type !== 'MemberExpression') {
     return undefined
   }
-  let current: NodeLike | undefined = callee.object
-  while (current?.type === 'MemberExpression') {
+  let current: ESTree.Expression | ESTree.Super = callee.object
+  while (current.type === 'MemberExpression') {
     current = current.object
   }
-  return current?.type === 'Identifier' ? current.name : undefined
-}
-
-/** Depth-first walk over an ESTree subtree, skipping parent back-references and token lists. */
-function walkTree(node: NodeLike, visit: (node: NodeLike) => void): void {
-  visit(node)
-  for (const [key, value] of Object.entries(node)) {
-    if (key === 'parent' || key === 'tokens' || key === 'comments') {
-      continue
-    }
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (isNodeLike(item)) {
-          walkTree(item, visit)
-        }
-      }
-    } else if (isNodeLike(value)) {
-      walkTree(value, visit)
-    }
-  }
+  return current.type === 'Identifier' ? current.name : undefined
 }
 
 /**
- * Collect the file's name bindings before any call is checked: foreign-import
- * and package-import names from the top-level import statements, then engine
- * locals (`const engine = new FhirPathEngine(...)`) from the whole tree — a
- * separate pass so use-before-declaration (a module-scope engine used by an
- * earlier function) still counts, matching the CLI walker.
- */
-function collectBindings(program: NodeLike): SourceBindings {
-  const foreign = new Set<string>()
-  const engines = new Set<string>()
-  const bindings = { foreign, engines }
-  for (const statement of program.body ?? []) {
-    if (statement.type !== 'ImportDeclaration' || typeof statement.source?.value !== 'string') {
-      continue
-    }
-    const names = isForeignModule(statement.source.value) ? foreign : engines
-    for (const specifier of statement.specifiers ?? []) {
-      if (specifier.local?.name !== undefined) {
-        names.add(specifier.local.name)
-      }
-    }
-  }
-  walkTree(program, node => {
-    if (
-      node.type === 'VariableDeclarator' &&
-      node.id?.type === 'Identifier' &&
-      node.id.name !== undefined &&
-      node.init?.type === 'NewExpression' &&
-      node.init.callee?.type === 'Identifier' &&
-      node.init.callee.name !== undefined &&
-      constructsEngine(node.init.callee.name, bindings)
-    ) {
-      engines.add(node.id.name)
-    }
-  })
-  return bindings
-}
-
-/**
- * ESLint flat-config plugin for consumers whose repos lint with ESLint
- * (this repo itself uses Biome plus the fhirpath-check CLI). Checks every
- * literal FHIRPath expression with the spec §11 analyzer and the R4 model:
- * the fhirpath tag, the expression-first calls (compile, evaluate, ...), and
- * the FhirPathEngine helpers (test, filter, project, checkConstraints)
- * including expressions inside columns objects and constraint arrays. Which
- * calls count is the shared policy's decision (`isCheckedCall`): foreign
- * imports are skipped, and the common-name helpers (test/filter/first/project)
- * fire only on receivers bound to this package or to a
- * `new FhirPathEngine(...)` local.
+ * ESLint flat-config plugin for consumers whose repos lint with ESLint (this
+ * repo itself uses Biome plus the fhirpath-check CLI). Checks every literal
+ * FHIRPath expression with the spec §11 analyzer and the R4 model. Which call
+ * sites carry expressions, and which are skipped, is the shared policy's
+ * decision — see src/analyzer/expression-policy.ts.
  *
  * Usage:
  *   import fhirpathPlugin from 'fhirpath-ts/eslint'
@@ -166,29 +73,53 @@ const noInvalidExpressions: Rule.RuleModule = {
     schema: [],
   },
   create(context) {
-    let bindings: SourceBindings = { foreign: new Set(), engines: new Set() }
-    const checkAt = (node: NodeLike, expression: string): void => {
+    // Candidate sites are collected during ESLint's own traversal and decided in
+    // Program:exit, because the bindings that gate them (imports, engine locals)
+    // can appear after the calls they gate — a module-scope engine used by an
+    // earlier function.
+    const foreign = new Set<string>()
+    const trusted = new Set<string>()
+    const engineLocals: { localName: string; className: string }[] = []
+    const tags: { literal: ESTree.TemplateLiteral; expression: string }[] = []
+    const calls: {
+      policy: CallSitePolicy
+      name: string
+      receiverRoot: string | undefined
+      argument: ESTree.Node
+    }[] = []
+    const checkAt = (node: ESTree.Node, expression: string): void => {
       for (const diagnostic of analyzeExpression(expression, { model: r4Model })) {
-        if (node.loc) {
-          context.report({ loc: node.loc, message: `[${diagnostic.code}] ${diagnostic.message}` })
-        }
+        context.report({ node, message: `[${diagnostic.code}] ${diagnostic.message}` })
       }
     }
     return {
-      Program(node) {
-        bindings = collectBindings(node as unknown as NodeLike)
+      ImportDeclaration(node) {
+        if (typeof node.source.value !== 'string') {
+          return
+        }
+        const names = isForeignModule(node.source.value) ? foreign : trusted
+        for (const specifier of node.specifiers) {
+          names.add(specifier.local.name)
+        }
+      },
+      VariableDeclarator(node) {
+        if (
+          node.id.type === 'Identifier' &&
+          node.init?.type === 'NewExpression' &&
+          node.init.callee.type === 'Identifier'
+        ) {
+          engineLocals.push({ localName: node.id.name, className: node.init.callee.name })
+        }
       },
       TaggedTemplateExpression(node) {
-        const tag = node.tag
-        const name = tag.type === 'Identifier' ? tag.name : undefined
         if (
-          name === TAG_NAME &&
-          !bindings.foreign.has(name) &&
+          node.tag.type === 'Identifier' &&
+          node.tag.name === TAG_NAME &&
           node.quasi.expressions.length === 0 &&
           node.quasi.quasis[0]
         ) {
           // Report on the template literal, like the call shapes report on their literals.
-          checkAt(node.quasi as unknown as NodeLike, node.quasi.quasis[0].value.cooked ?? '')
+          tags.push({ literal: node.quasi, expression: node.quasi.quasis[0].value.cooked ?? '' })
         }
       },
       CallExpression(node) {
@@ -200,17 +131,32 @@ const noInvalidExpressions: Rule.RuleModule = {
               ? callee.property.name
               : undefined
         const policy = name === undefined ? undefined : CALL_SITES.get(name)
-        const argument = policy && (node.arguments[policy.argIndex] as NodeLike | undefined)
-        if (
-          name === undefined ||
-          policy === undefined ||
-          argument === undefined ||
-          !isCheckedCall(policy, name, receiverRoot(callee as NodeLike), bindings)
-        ) {
+        const argument = policy && node.arguments[policy.argIndex]
+        if (name === undefined || policy === undefined || argument === undefined) {
           return
         }
-        for (const entry of expressionEntries(argument, policy.shape, estreeAst)) {
-          checkAt(entry.node, entry.expression)
+        calls.push({ policy, name, receiverRoot: receiverRoot(callee), argument })
+      },
+      'Program:exit'() {
+        const bindings: SourceBindings = { foreign, trusted }
+        // All imports are known now; resolve engine locals in source order, like the CLI walker.
+        for (const { localName, className } of engineLocals) {
+          if (constructsEngine(className, bindings)) {
+            trusted.add(localName)
+          }
+        }
+        if (!foreign.has(TAG_NAME)) {
+          for (const tag of tags) {
+            checkAt(tag.literal, tag.expression)
+          }
+        }
+        for (const call of calls) {
+          if (!isCheckedCall(call.policy, call.name, call.receiverRoot, bindings)) {
+            continue
+          }
+          for (const entry of expressionEntries(call.argument, call.policy.shape, estreeAst)) {
+            checkAt(entry.node, entry.expression)
+          }
         }
       },
     }

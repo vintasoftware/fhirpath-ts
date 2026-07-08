@@ -26,8 +26,9 @@ export interface CallSitePolicy {
    * What the callee's receiver must be for the call to be checked:
    * - `any`: checked unless the name is bound by a foreign import — right for
    *   distinctive names (`fhirpath`, `analyzeExpression`) that rarely collide.
-   * - `engine`: checked only when the receiver root is a known engine binding
-   *   (imported from this package, or a `new FhirPathEngine(...)` local).
+   * - `engine`: checked only when the receiver root is a trusted binding
+   *   (imported from this package, or a `new FhirPathEngine(...)` local —
+   *   see `SourceBindings.trusted`).
    *   Required for `test`/`filter`/`first`/`project`: they exist only as engine
    *   methods, and the names are so common (knex `db.first('col')`, lodash
    *   `_.filter(...)`) that flag-by-default would report other libraries' code.
@@ -59,23 +60,34 @@ export const TAG_NAME = 'fhirpath'
 /** Imports from this package (any subpath) are the real FHIRPath API, never foreign. */
 export const PACKAGE_PREFIX = 'fhirpath-ts'
 
-/** The engine class name: `new FhirPathEngine(...)` locals are engine bindings. */
+/** The engine class name: `new FhirPathEngine(...)` locals are trusted bindings. */
 export const ENGINE_CLASS_NAME = 'FhirPathEngine'
 
 /**
- * Name bindings a walker collects from a source file before extracting sites:
- * - `foreign`: local names bound by imports from modules other than this package
- *   (`compile` from handlebars is not a FHIRPath entry point).
- * - `engines`: receiver roots known to be FHIRPath objects — names imported from
- *   this package (`r4`, a namespace import) plus locals initialized with
- *   `new FhirPathEngine(...)` (see `constructsEngine`).
+ * Name bindings a walker collects from a source file before extracting sites.
  * Files without imports (scripts, snippets) have both sets empty: `receiver: 'any'`
  * names are then always checked, `receiver: 'engine'` names only via a
  * `new FhirPathEngine(...)` local.
  */
 export interface SourceBindings {
+  /**
+   * Local names bound by imports from modules other than this package
+   * (`compile` from handlebars is not a FHIRPath entry point).
+   */
   foreign: ReadonlySet<string>
-  engines: ReadonlySet<string>
+  /**
+   * Receiver roots trusted to be this package's API objects: every local name
+   * bound by a package import (`r4`, a namespace import), plus locals declared
+   * with `new FhirPathEngine(...)` (see `constructsEngine`). Trusted is wider
+   * than "engine" on purpose: any package import counts, so
+   * `r4Model.filter(rows, '...')` is analyzed even though `r4Model` is not an
+   * engine — a hand-maintained list of which exports are engines would drift.
+   * It is also narrower than the runtime: an engine reached through an
+   * untracked alias (`this.engine`, a function parameter) or bound by
+   * assignment rather than declaration (`let e; e = new FhirPathEngine()`)
+   * is not tracked.
+   */
+  trusted: ReadonlySet<string>
 }
 
 /**
@@ -92,18 +104,18 @@ export function isCheckedCall(
   bindings: SourceBindings
 ): boolean {
   if (policy.receiver === 'engine') {
-    return receiverRoot !== undefined && bindings.engines.has(receiverRoot)
+    return receiverRoot !== undefined && bindings.trusted.has(receiverRoot)
   }
   return !bindings.foreign.has(receiverRoot ?? calleeName)
 }
 
 /**
- * Whether `new className(...)` yields an engine binding: any class imported from
+ * Whether `new className(...)` yields a trusted binding: any class imported from
  * this package counts, and the bare `FhirPathEngine` name also counts in files
  * whose imports don't claim it — so import-less snippets stay checkable.
  */
 export function constructsEngine(className: string, bindings: SourceBindings): boolean {
-  return bindings.engines.has(className) || (className === ENGINE_CLASS_NAME && !bindings.foreign.has(className))
+  return bindings.trusted.has(className) || (className === ENGINE_CLASS_NAME && !bindings.foreign.has(className))
 }
 
 /** Whether an import specifier's module is foreign (not this package). */
