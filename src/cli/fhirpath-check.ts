@@ -35,10 +35,15 @@ for (const file of files) {
   }
   for (const site of findExpressionSites(text, file)) {
     for (const diagnostic of analyzeExpression(site.expression, { model: r4Model })) {
-      failures += 1
+      // Warnings print but only errors fail the run.
+      if (diagnostic.severity === 'error') {
+        failures += 1
+      }
       const line = site.line + (diagnostic.span.line - 1)
       const column = diagnostic.span.line === 1 ? site.column + diagnostic.span.column - 1 : diagnostic.span.column
-      console.error(`${file}:${line}:${column} [${diagnostic.code}] ${diagnostic.message}`)
+      console.error(
+        `${file}:${line}:${column} [${diagnostic.severity === 'warning' ? 'warning:' : ''}${diagnostic.code}] ${diagnostic.message}`
+      )
     }
   }
 }

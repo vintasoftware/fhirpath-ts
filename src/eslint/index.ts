@@ -145,8 +145,13 @@ const noInvalidExpressions: Rule.RuleModule = {
       argument: ESTree.Node
     }[] = []
     const checkAt = (node: ESTree.Node, expression: string): void => {
+      // ESLint severity comes from the rule's configuration, not per report, so
+      // only error-severity diagnostics are reported; analyzer warnings (style
+      // and possible-mistake findings) don't fail a lint run.
       for (const diagnostic of analyzeExpression(expression, { model: r4Model })) {
-        context.report({ node, message: `[${diagnostic.code}] ${diagnostic.message}` })
+        if (diagnostic.severity === 'error') {
+          context.report({ node, message: `[${diagnostic.code}] ${diagnostic.message}` })
+        }
       }
     }
     return {

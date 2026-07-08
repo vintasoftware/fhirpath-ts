@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { r4Model } from '../r4/index.ts'
-import { analyzeExpression, type AnalyzerDiagnostic } from './analyze.ts'
+import { analyzeExpression, analyzeExpressionDetailed, type AnalyzerDiagnostic } from './analyze.ts'
 
 const options = { model: r4Model, inputType: 'Patient' }
 
@@ -142,7 +142,7 @@ describe('spec §11 rules', () => {
 
   it('unknown regions mute checks until narrowed, as the spec prescribes', () => {
     expect(codes('Patient.children().nope')).toEqual([])
-    expect(codes('%var.anything.goes')).toEqual([])
+    expect(codes("children().defineVariable('var').select(%var.anything.goes)")).toEqual([])
     expect(codes('Patient.descendants().ofType(HumanName).given.first().length()')).toEqual([])
   })
 
@@ -211,7 +211,7 @@ describe('analyzer edge branches', () => {
   })
 
   it('conversion signature results flow onward', () => {
-    expect(codes("'5'.toLong() > %x")).toEqual([])
+    expect(codes("'5'.toLong() > 4")).toEqual([])
     expect(codes("'2014'.toDate() < today()")).toEqual([])
     expect(codes("'2014'.toDateTime().monthOf()")).toEqual([])
     expect(codes("'10:00'.toTime().hourOf()")).toEqual([])
@@ -250,7 +250,7 @@ describe('coverage completion', () => {
     expect(codes('1.is(exists().x)')).toEqual(['unknown-type'])
     expect(codes('1.ofType(a.exists())')).toEqual(['unknown-type'])
     expect(codes('1 is Nope.Thing')).toEqual(['unknown-type'])
-    expect(codes('%v is Patient')).toEqual([])
+    expect(codes("defineVariable('v').select(%v is Patient)")).toEqual([])
   })
 
   it('contains demands a single right operand', () => {
@@ -265,5 +265,127 @@ describe('coverage completion', () => {
 
   it('boolean comparisons are flagged', () => {
     expect(codes('true < false')).toEqual(['operand-type'])
+  })
+})
+
+describe('type narrowing (ofType/as)', () => {
+  it('ofType() narrows to the named type so checks resume', () => {
+    expect(codes('Patient.deceased.ofType(boolean).not()')).toEqual([])
+    expect(codes('Patient.deceased.ofType(dateTime).yearOf()')).toEqual([])
+    expect(codes('Patient.deceased.ofType(boolean).nope')).toEqual(['unknown-element'])
+  })
+
+  it('narrowing an unknown region resumes checking without claiming a cardinality', () => {
+    expect(codes('Patient.children().ofType(HumanName).nope')).toEqual(['unknown-element'])
+    // Cardinality after children() is unknown, so no singleton diagnostic either way.
+    expect(codes('Patient.children().ofType(HumanName).use.single().length()')).toEqual([])
+  })
+
+  it('the as operator and function intersect with the known candidates', () => {
+    expect(codes('(Patient.deceased as dateTime).yearOf()')).toEqual([])
+    expect(codes('Patient.deceased.as(dateTime).yearOf()')).toEqual([])
+    expect(codes('(Patient.deceased as dateTime).nope')).toEqual(['unknown-element'])
+  })
+
+  it('an impossible narrowing warns that the result is always empty', () => {
+    const diagnostics = analyzeExpression('Patient.name.first().ofType(Quantity)', options)
+    expect(diagnostics.map(d => [d.severity, d.code])).toEqual([['warning', 'always-empty']])
+    expect(codes('(Patient.birthDate as Quantity)')).toEqual(['always-empty'])
+  })
+})
+
+describe('lambda result typing', () => {
+  it('select() returns the projection type', () => {
+    expect(codes('Patient.name.select(given.first()).substring(1)')).toEqual(['singleton-required'])
+    expect(codes('Patient.name.first().select(family).substring(1)')).toEqual([])
+    expect(codes('Patient.name.select(nope)')).toEqual(['unknown-element'])
+  })
+
+  it('iif() returns the union of its branch types', () => {
+    expect(codes("iif(Patient.active, 'yes', 'no').length()")).toEqual([])
+    expect(codes("iif(Patient.active, 'yes', 'no') + 1")).toEqual(['operand-type'])
+    // Mixed-kind branches mute kind checks, exactly like a mixed union.
+    expect(codes("iif(Patient.active, 1, 'no') + 1")).toEqual([])
+    // A missing else-branch contributes empty, which any operand accepts.
+    expect(codes('iif(Patient.active, 1) + 1')).toEqual([])
+  })
+
+  it('iif() checks its criterion for cardinality and Boolean-ness', () => {
+    expect(codes('iif(Patient.name.given, 1, 2)')).toEqual(['singleton-required'])
+    expect(codes("iif('nope', 1, 2)")).toEqual(['operand-type'])
+    expect(codes('iif({} | true, 1, 2)')).toEqual([])
+  })
+
+  it('coalesce() returns the union of its arguments', () => {
+    expect(codes("coalesce(Patient.name.family.first(), 'unknown').length()")).toEqual([])
+  })
+
+  it('sort() keys accept a top-level descending minus on any type', () => {
+    expect(codes('Patient.name.sort(-family, given.first()).first().use')).toEqual([])
+    expect(codes('Patient.name.sort(-nope)')).toEqual(['unknown-element'])
+  })
+})
+
+describe('variable tracking', () => {
+  it('flags undefined environment variables like the runtime does', () => {
+    expect(codes('%nope.value')).toEqual(['unknown-variable'])
+  })
+
+  it('resolves built-in variables with their types', () => {
+    expect(codes('%resource.name.given')).toEqual([])
+    expect(codes('%resource.nope')).toEqual(['unknown-element'])
+    expect(codes("%ucum = 'http://unitsofmeasure.org' and %sct.length() > 0 and %loinc.exists()")).toEqual([])
+    expect(codes('%`vs-administrative-gender`.length() > 0')).toEqual([])
+    expect(codes('%`ext-patient-birthTime`.length() > 0')).toEqual([])
+  })
+
+  it('defineVariable() bindings carry the analyzed state of their value', () => {
+    expect(codes("Patient.name.first().defineVariable('n').select(%n.family.substring(1))")).toEqual([])
+    expect(codes("defineVariable('given', Patient.name.first().given).select(%given.substring(1))")).toEqual([
+      'singleton-required',
+    ])
+    expect(codes("defineVariable('x', name.first()).select(%x.nope)")).toEqual(['unknown-element'])
+  })
+
+  it('flags redefinition and overriding environment variables', () => {
+    expect(codes("defineVariable('v').defineVariable('v')")).toEqual(['variable-redefined'])
+    expect(codes("defineVariable('context', 'oops')")).toEqual(['variable-override'])
+  })
+
+  it('scopes variables to their chain, like the runtime', () => {
+    // A variable defined in one union operand is not visible in the other.
+    expect(codes("(defineVariable('n1').active | %n1)")).toEqual(['unknown-variable'])
+    // A variable defined inside a function argument does not leak out.
+    expect(codes("select(defineVariable('inner').active).where(%inner)")).toEqual(['unknown-variable'])
+    // Dynamic names cannot be tracked, so nothing is registered or flagged.
+    expect(codes('defineVariable(name.family.first()).count() > 0')).toEqual([])
+  })
+})
+
+describe('warnings and details', () => {
+  it('a collection passed where a singleton argument is expected is a warning', () => {
+    const diagnostics = analyzeExpression('Patient.name.first().family.startsWith(Patient.name.given)', options)
+    expect(diagnostics.map(d => [d.severity, d.code])).toEqual([['warning', 'argument-singleton']])
+  })
+
+  it('quantity arithmetic yields quantities', () => {
+    expect(codes("(4.0 'g' / 2.0 'm') = 2 'g/m'")).toEqual([])
+    expect(codes("(2 'mg' * 3) = 6 'mg'")).toEqual([])
+    expect(codes('(4.0 / 2.0) = 2.0')).toEqual([])
+  })
+
+  it('reports the element paths an expression touches', () => {
+    const { elementDependencies } = analyzeExpressionDetailed('Patient.name.where(use = %v1).given.first()', {
+      model: r4Model,
+      inputType: 'Patient',
+    })
+    expect(elementDependencies).toEqual(['Patient.name', 'HumanName.use', 'HumanName.given'])
+  })
+
+  it('detailed analysis carries the diagnostics too', () => {
+    const details = analyzeExpressionDetailed('Patient.nope', options)
+    expect(details.diagnostics.map(d => d.code)).toEqual(['unknown-element'])
+    expect(analyzeExpressionDetailed('1 +').diagnostics.map(d => d.code)).toEqual(['syntax'])
+    expect(analyzeExpressionDetailed('1 +').elementDependencies).toEqual([])
   })
 })
