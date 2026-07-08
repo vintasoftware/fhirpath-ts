@@ -1278,6 +1278,9 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
         t: ['Reference'],
         a: 1,
       },
+      deleted: {
+        t: ['boolean'],
+      },
       extension: {
         t: ['Extension'],
         a: 1,

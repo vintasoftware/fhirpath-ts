@@ -11777,6 +11777,10 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
         t: ['HealthcareService.notAvailable'],
         a: 1,
       },
+      offeredIn: {
+        t: ['Reference'],
+        a: 1,
+      },
       photo: {
         t: ['Attachment'],
       },

@@ -635,6 +635,7 @@ export interface Meta extends Element {
   accounts?: Reference[]
   author?: Reference
   compartment?: Reference[]
+  deleted?: boolean
   extension?: Extension[]
   id?: string
   lastUpdated?: string
@@ -4890,6 +4891,7 @@ export interface HealthcareService extends DomainResource {
   modifierExtension?: Extension[]
   name?: string
   notAvailable?: HealthcareServiceNotAvailable[]
+  offeredIn?: Reference[]
   photo?: Attachment
   program?: CodeableConcept[]
   providedBy?: Reference
@@ -6638,8 +6640,7 @@ export interface MedicinalProductPharmaceuticalRouteOfAdministrationTargetSpecie
   withdrawalPeriod?: MedicinalProductPharmaceuticalRouteOfAdministrationTargetSpeciesWithdrawalPeriod[]
 }
 
-export interface MedicinalProductPharmaceuticalRouteOfAdministrationTargetSpeciesWithdrawalPeriod
-  extends BackboneElement {
+export interface MedicinalProductPharmaceuticalRouteOfAdministrationTargetSpeciesWithdrawalPeriod extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -11110,6 +11111,7 @@ export interface R4Elements {
     accounts: { t: 'Reference'; a: true }
     author: { t: 'Reference'; a: false }
     compartment: { t: 'Reference'; a: true }
+    deleted: { t: 'boolean'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     lastUpdated: { t: 'instant'; a: false }
@@ -14983,6 +14985,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
     notAvailable: { t: 'HealthcareService.notAvailable'; a: true }
+    offeredIn: { t: 'Reference'; a: true }
     photo: { t: 'Attachment'; a: false }
     program: { t: 'CodeableConcept'; a: true }
     providedBy: { t: 'Reference'; a: false }
