@@ -41,6 +41,36 @@ const estreeAst: ExpressionAst<ESTree.Node> = {
   elements: node => (node.type === 'ArrayExpression' ? node.elements.filter(element => element !== null) : undefined),
 }
 
+/** Add every identifier a binding pattern declares (`x`, `{ r4 }`, `[a, ...rest]`, `x = 1`). */
+function addPatternNames(pattern: ESTree.Pattern, into: Set<string>): void {
+  switch (pattern.type) {
+    case 'Identifier':
+      into.add(pattern.name)
+      return
+    case 'ObjectPattern':
+      for (const property of pattern.properties) {
+        addPatternNames(property.type === 'RestElement' ? property.argument : property.value, into)
+      }
+      return
+    case 'ArrayPattern':
+      for (const element of pattern.elements) {
+        if (element) {
+          addPatternNames(element, into)
+        }
+      }
+      return
+    case 'AssignmentPattern':
+      addPatternNames(pattern.left, into)
+      return
+    case 'RestElement':
+      addPatternNames(pattern.argument, into)
+      return
+    default:
+      // A MemberExpression target does not declare a new name.
+      return
+  }
+}
+
 /** Leftmost identifier of a member-expression callee (`Handlebars` in `Handlebars.compile`). */
 function receiverRoot(callee: ESTree.Expression | ESTree.Super): string | undefined {
   if (callee.type !== 'MemberExpression') {
@@ -79,7 +109,16 @@ const noInvalidExpressions: Rule.RuleModule = {
     // earlier function.
     const foreign = new Set<string>()
     const trusted = new Set<string>()
+    const rebound = new Set<string>()
     const engineLocals: { localName: string; className: string }[] = []
+    const reboundFunction = (node: { id?: ESTree.Identifier | null | undefined; params: ESTree.Pattern[] }): void => {
+      if (node.id) {
+        rebound.add(node.id.name)
+      }
+      for (const param of node.params) {
+        addPatternNames(param, rebound)
+      }
+    }
     const tags: { literal: ESTree.TemplateLiteral; expression: string }[] = []
     const calls: {
       policy: CallSitePolicy
@@ -109,6 +148,26 @@ const noInvalidExpressions: Rule.RuleModule = {
           node.init.callee.type === 'Identifier'
         ) {
           engineLocals.push({ localName: node.id.name, className: node.init.callee.name })
+        } else {
+          addPatternNames(node.id, rebound)
+        }
+      },
+      FunctionDeclaration: reboundFunction,
+      FunctionExpression: reboundFunction,
+      ArrowFunctionExpression: reboundFunction,
+      ClassDeclaration(node) {
+        if (node.id) {
+          rebound.add(node.id.name)
+        }
+      },
+      ClassExpression(node) {
+        if (node.id) {
+          rebound.add(node.id.name)
+        }
+      },
+      CatchClause(node) {
+        if (node.param) {
+          addPatternNames(node.param, rebound)
         }
       },
       TaggedTemplateExpression(node) {
@@ -138,11 +197,14 @@ const noInvalidExpressions: Rule.RuleModule = {
         calls.push({ policy, name, receiverRoot: receiverRoot(callee), argument })
       },
       'Program:exit'() {
-        const bindings: SourceBindings = { foreign, trusted }
-        // All imports are known now; resolve engine locals in source order, like the CLI walker.
+        const bindings: SourceBindings = { foreign, trusted, rebound }
+        // All imports are known now; resolve engine locals in source order, like
+        // the CLI walker. A `new` local of some other class is a re-binding.
         for (const { localName, className } of engineLocals) {
           if (constructsEngine(className, bindings)) {
             trusted.add(localName)
+          } else {
+            rebound.add(localName)
           }
         }
         if (!foreign.has(TAG_NAME)) {

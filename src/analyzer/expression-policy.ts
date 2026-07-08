@@ -65,7 +65,7 @@ export const ENGINE_CLASS_NAME = 'FhirPathEngine'
 
 /**
  * Name bindings a walker collects from a source file before extracting sites.
- * Files without imports (scripts, snippets) have both sets empty: `receiver: 'any'`
+ * Files without imports (scripts, snippets) have all sets empty: `receiver: 'any'`
  * names are then always checked, `receiver: 'engine'` names only via a
  * `new FhirPathEngine(...)` local.
  */
@@ -88,6 +88,20 @@ export interface SourceBindings {
    * is not tracked.
    */
   trusted: ReadonlySet<string>
+  /**
+   * Names the file re-binds by anything other than a package import or an
+   * engine construction: parameters (including destructuring and catch
+   * clauses), other variable declarations, and function/class names. Trust is
+   * name-based, not scope-based, so a trusted name that is also re-bound loses
+   * `receiver: 'engine'` trust for the whole file — otherwise a
+   * `function query(r4)` parameter would have its `r4.filter(rows, '...')`
+   * read as FHIRPath. Demotion over-corrects on purpose (a legitimate
+   * module-scope `r4.filter(...)` in the same file is skipped too): a missed
+   * check is the documented tradeoff, a false positive on valid code is not.
+   * Distinctive `receiver: 'any'` names are unaffected — they are checked
+   * even with no binding at all.
+   */
+  rebound: ReadonlySet<string>
 }
 
 /**
@@ -104,7 +118,7 @@ export function isCheckedCall(
   bindings: SourceBindings
 ): boolean {
   if (policy.receiver === 'engine') {
-    return receiverRoot !== undefined && bindings.trusted.has(receiverRoot)
+    return receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot)
   }
   return !bindings.foreign.has(receiverRoot ?? calleeName)
 }

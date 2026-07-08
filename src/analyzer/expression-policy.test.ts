@@ -112,6 +112,21 @@ const corpus: { name: string; code: string; expected: number }[] = [
     ].join('\n'),
     expected: 1,
   },
+  {
+    name: 'trusted names re-bound in the file are demoted',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "import * as fp from 'fhirpath-ts/r4'",
+      "import { FhirPathEngine } from 'fhirpath-ts'",
+      "function query(r4) { return r4.filter(rows, 'x..1') }", // parameter shadows the import
+      'const engine = new FhirPathEngine({})',
+      "function b(engine) { return engine.filter(rows, 'x..2') }", // parameter shadows the engine local
+      "function c({ fp }) { return fp.r4.filter(rows, 'x..3') }", // destructured parameter shadows the namespace
+      'const still = new FhirPathEngine({})',
+      "const ok = still.test(patient, 'x..4')", // demotion does not spread to other trusted names
+    ].join('\n'),
+    expected: 1,
+  },
 ]
 
 const linter = new Linter()

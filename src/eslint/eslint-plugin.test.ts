@@ -42,6 +42,11 @@ tester.run('no-invalid-expressions', plugin.rules['no-invalid-expressions'], {
     {
       code: "import { FhirPathEngine } from 'some-other-fhirpath'; const e = new FhirPathEngine(); const q = e.test(x, 'not ours')",
     },
+    // A trusted name the file re-binds loses engine trust file-wide.
+    { code: `${R4_IMPORT}function query(r4) { return r4.filter(rows, 'created_at > ?') }` },
+    {
+      code: "import { FhirPathEngine } from 'fhirpath-ts'; function a() { const e = new FhirPathEngine({}); return e } function b(e) { return e.filter(rows, 'created_at > ?') }",
+    },
     // Names imported from other modules are not FHIRPath entry points.
     { code: "import { compile } from 'handlebars'; const t = compile('not [fhirpath]')" },
     { code: "import fhirpath from 'other-lib'; const t = fhirpath`Patient.nope`" },

@@ -223,7 +223,9 @@ Three layers, from cheapest to most thorough:
    helpers (`test`, `filter`, `first`, `project`) fire only on receivers the file
    binds to this package — an import like `r4`, or a `new FhirPathEngine(...)`
    local — so other libraries' `.filter()`/`.first()` calls are never analyzed
-   as FHIRPath. The flip side: an engine reached through an untracked alias
+   as FHIRPath. A trusted name the file also re-binds (a `function query(r4)`
+   parameter) loses that trust for the whole file, again favoring silence over
+   false positives. The flip side: an engine reached through an untracked alias
    (`this.engine`, a function parameter) is not statically checked.
    There is no Biome rule because Biome cannot run one: its plugin system is
    GritQL pattern matching and cannot execute the analyzer. The CLI is the

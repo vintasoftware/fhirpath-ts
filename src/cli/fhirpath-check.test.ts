@@ -117,6 +117,26 @@ describe('expression site extraction', () => {
     expect(findExpressionSites(source, 'sample.ts').map(site => site.expression)).toEqual(['active'])
   })
 
+  it('demotes a trusted name the file re-binds, file-wide', () => {
+    // Trust is name-based, not scope-based: a parameter named like a trusted
+    // binding would otherwise have its free-text arguments read as FHIRPath.
+    // Demotion prefers a missed check over a false positive on valid code.
+    const shadowedImport = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "function query(r4) { return r4.filter(rows, 'created_at > ?') }",
+      "const alsoSkipped = r4.test(patient, 'active')", // module-scope use loses trust too
+      "function g() { try {} catch (r4) { return r4.first('oops', y) } }",
+    ].join('\n')
+    expect(findExpressionSites(shadowedImport, 'sample.ts')).toEqual([])
+
+    const shadowedEngineLocal = [
+      "import { FhirPathEngine } from 'fhirpath-ts'",
+      'function a() { const engine = new FhirPathEngine({}); return engine }',
+      "function b(engine) { return engine.filter(rows, 'created_at > ?') }",
+    ].join('\n')
+    expect(findExpressionSites(shadowedEngineLocal, 'sample.ts')).toEqual([])
+  })
+
   it('does not treat a foreign FhirPathEngine as an engine', () => {
     const source = [
       "import { FhirPathEngine } from 'some-other-fhirpath'",

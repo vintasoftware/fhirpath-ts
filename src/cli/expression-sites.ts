@@ -84,13 +84,15 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
 /**
  * Collect the file's name bindings before extraction: foreign-import names and
  * package-import names from the top-level import statements, then engine locals
- * (`const engine = new FhirPathEngine(...)`) from the whole tree — a separate
- * pass so use-before-declaration (a module-scope engine used by an earlier
- * function) still counts.
+ * (`const engine = new FhirPathEngine(...)`) and re-bound names (parameters,
+ * other declarations — see `SourceBindings.rebound`) from the whole tree — a
+ * separate pass so use-before-declaration (a module-scope engine used by an
+ * earlier function) still counts.
  */
 function collectBindings(source: ts.SourceFile): SourceBindings {
   const foreign = new Set<string>()
   const trusted = new Set<string>()
+  const rebound = new Set<string>()
   for (const statement of source.statements) {
     if (!(ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier))) {
       continue
@@ -113,22 +115,49 @@ function collectBindings(source: ts.SourceFile): SourceBindings {
       }
     }
   }
-  const bindings = { foreign, trusted }
-  const collectEngineLocals = (node: ts.Node): void => {
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.initializer !== undefined &&
-      ts.isNewExpression(node.initializer) &&
-      ts.isIdentifier(node.initializer.expression) &&
-      constructsEngine(node.initializer.expression.text, bindings)
+  const bindings = { foreign, trusted, rebound }
+  const collectLocals = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node)) {
+      if (
+        ts.isIdentifier(node.name) &&
+        node.initializer !== undefined &&
+        ts.isNewExpression(node.initializer) &&
+        ts.isIdentifier(node.initializer.expression)
+      ) {
+        const set = constructsEngine(node.initializer.expression.text, bindings) ? trusted : rebound
+        set.add(node.name.text)
+      } else {
+        // Catch clauses reach here too: `catch (r4)` is a VariableDeclaration.
+        addBindingNames(node.name, rebound)
+      }
+    } else if (ts.isParameter(node)) {
+      addBindingNames(node.name, rebound)
+    } else if (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isFunctionExpression(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isClassExpression(node)) &&
+      node.name !== undefined
     ) {
-      trusted.add(node.name.text)
+      rebound.add(node.name.text)
     }
-    ts.forEachChild(node, collectEngineLocals)
+    ts.forEachChild(node, collectLocals)
   }
-  collectEngineLocals(source)
+  collectLocals(source)
   return bindings
+}
+
+/** Add every identifier a binding name declares (`x`, `{ r4 }`, `[a, ...rest]`). */
+function addBindingNames(name: ts.BindingName, into: Set<string>): void {
+  if (ts.isIdentifier(name)) {
+    into.add(name.text)
+    return
+  }
+  for (const element of name.elements) {
+    if (ts.isBindingElement(element)) {
+      addBindingNames(element.name, into)
+    }
+  }
 }
 
 function nameOf(node: ts.Expression): string | undefined {
