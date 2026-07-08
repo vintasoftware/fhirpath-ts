@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { fileURLToPath } from 'node:url'
+
 import { compile } from '../src/index.ts'
 import { r4Model } from '../src/r4/index.ts'
 

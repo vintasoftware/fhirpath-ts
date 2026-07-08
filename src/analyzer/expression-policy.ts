@@ -132,9 +132,32 @@ export function constructsEngine(className: string, bindings: SourceBindings): b
   return bindings.trusted.has(className) || (className === ENGINE_CLASS_NAME && !bindings.foreign.has(className))
 }
 
-/** Whether an import specifier's module is foreign (not this package). */
-export function isForeignModule(moduleSpecifier: string): boolean {
-  return !moduleSpecifier.startsWith(PACKAGE_PREFIX)
+/** Which import sources count as the real FHIRPath API rather than a foreign module. */
+export interface LocalModuleOptions {
+  /** Import-source prefixes that are the FHIRPath API. Defaults to `['fhirpath-ts']`. */
+  packages?: readonly string[]
+  /**
+   * Also treat relative imports (`./`, `../`) as the FHIRPath API. Off by default
+   * (a consumer's relative `compile` is not FHIRPath); turn it on so the package
+   * can dogfood the rule on its own source, which imports its API relatively.
+   */
+  localImports?: boolean
+}
+
+/**
+ * Whether an import specifier's module is foreign (not the FHIRPath API). By
+ * default only `fhirpath-ts` (any subpath) is local; `options` widens that to
+ * extra package prefixes and/or relative imports.
+ */
+export function isForeignModule(moduleSpecifier: string, options: LocalModuleOptions = {}): boolean {
+  const packages = options.packages ?? [PACKAGE_PREFIX]
+  if (packages.some(prefix => moduleSpecifier.startsWith(prefix))) {
+    return false
+  }
+  if (options.localImports === true && moduleSpecifier.startsWith('.')) {
+    return false
+  }
+  return true
 }
 
 /** An extracted expression literal: the AST node (for reporting) and its text. */

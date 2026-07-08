@@ -4,15 +4,16 @@
  * files for FHIRPath expression literals and runs the spec §11 analyzer over
  * each with the R4 model. Which call sites carry expressions, and which are
  * skipped, is the shared policy's decision — see src/analyzer/expression-policy.ts.
- * Exits non-zero when any diagnostic is found. This repo lints with Biome, so
- * this CLI is how CI enforces the checks; ESLint users can use the ./eslint
- * export instead.
+ * Exits non-zero when any diagnostic is found. It is the standalone equivalent of
+ * the ./eslint rule, for repos that do not lint with ESLint (e.g. Biome repos).
+ * This repo itself dogfoods the ./eslint rule, so its own CI enforces the checks
+ * through `pnpm lint`.
  *
  * Usage: fhirpath-check <file...>
  */
 /* v8 ignore file -- covered end-to-end as a subprocess in fhirpath-check.test.ts */
-/** biome-ignore-all lint/suspicious/noConsole: a CLI reports through the console */
 import { readFileSync } from 'node:fs'
+
 import { analyzeExpression } from '../analyzer/analyze.ts'
 import { r4Model } from '../r4/index.ts'
 import { findExpressionSites } from './expression-sites.ts'

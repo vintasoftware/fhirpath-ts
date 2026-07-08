@@ -143,15 +143,13 @@ export class Temporal {
       timezoneOffsetMinutes?: number | undefined
     }
   ): Temporal | undefined {
-    if (
-      !(
-        inRange(fields.month, 1, 12) &&
-        inRange(fields.day, 1, 31) &&
-        inRange(fields.hour, 0, 23) &&
-        inRange(fields.minute, 0, 59) &&
-        inRange(fields.second, 0, 60)
-      )
-    ) {
+    if (!(
+      inRange(fields.month, 1, 12) &&
+      inRange(fields.day, 1, 31) &&
+      inRange(fields.hour, 0, 23) &&
+      inRange(fields.minute, 0, 59) &&
+      inRange(fields.second, 0, 60)
+    )) {
       return undefined
     }
     // @2019-02-29 is not a date; timezone offsets only exist within -12:00..+14:00.

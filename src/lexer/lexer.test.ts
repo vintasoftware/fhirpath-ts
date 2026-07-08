@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { FhirPathSyntaxError } from '../errors.ts'
 import { tokenize } from './lexer.ts'
 import type { Token, TokenKind } from './tokens.ts'
@@ -259,26 +260,14 @@ describe('special variables', () => {
 })
 
 describe('operators and punctuation', () => {
-  it.each([
-    ['='],
-    ['~'],
-    ['<'],
-    ['>'],
-    ['+'],
-    ['-'],
-    ['*'],
-    ['/'],
-    ['|'],
-    ['&'],
-    ['!='],
-    ['!~'],
-    ['<='],
-    ['>='],
-  ])('lexes operator %s', source => {
-    const token = single(source)
-    expect(token.kind).toBe('operator')
-    expect(token.value).toBe(source)
-  })
+  it.each([['='], ['~'], ['<'], ['>'], ['+'], ['-'], ['*'], ['/'], ['|'], ['&'], ['!='], ['!~'], ['<='], ['>=']])(
+    'lexes operator %s',
+    source => {
+      const token = single(source)
+      expect(token.kind).toBe('operator')
+      expect(token.value).toBe(source)
+    }
+  )
 
   it.each([['('], [')'], ['['], [']'], ['{'], ['}'], ['.'], [','], ['%']])('lexes punctuation %s', source => {
     const token = single(source)

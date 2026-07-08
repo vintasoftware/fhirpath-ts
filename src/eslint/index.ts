@@ -1,5 +1,6 @@
 import type { Rule } from 'eslint'
 import type * as ESTree from 'estree'
+
 import { analyzeExpression } from '../analyzer/analyze.ts'
 import {
   CALL_SITES,
@@ -9,6 +10,7 @@ import {
   expressionEntries,
   isCheckedCall,
   isForeignModule,
+  type LocalModuleOptions,
   type SourceBindings,
   TAG_NAME,
 } from '../analyzer/expression-policy.ts'
@@ -84,11 +86,17 @@ function receiverRoot(callee: ESTree.Expression | ESTree.Super): string | undefi
 }
 
 /**
- * ESLint flat-config plugin for consumers whose repos lint with ESLint (this
- * repo itself uses Biome plus the fhirpath-check CLI). Checks every literal
- * FHIRPath expression with the spec §11 analyzer and the R4 model. Which call
- * sites carry expressions, and which are skipped, is the shared policy's
- * decision — see src/analyzer/expression-policy.ts.
+ * ESLint flat-config plugin that checks every literal FHIRPath expression with
+ * the spec §11 analyzer and the R4 model. Which call sites carry expressions,
+ * and which are skipped, is the shared policy's decision — see
+ * src/analyzer/expression-policy.ts.
+ *
+ * By default only the FHIRPath API imported from `fhirpath-ts` — or used bare,
+ * without an import — is checked, so a local `compile` from another module is
+ * left alone. Two options widen that:
+ *   - `packages`: extra import-source prefixes to treat as the FHIRPath API.
+ *   - `localImports`: also treat relative imports as the FHIRPath API, so the
+ *     package can dogfood this rule on its own source (which imports relatively).
  *
  * Usage:
  *   import fhirpathPlugin from 'fhirpath-ts/eslint'
@@ -100,9 +108,19 @@ const noInvalidExpressions: Rule.RuleModule = {
     docs: {
       description: 'check FHIRPath expression literals with the static analyzer',
     },
-    schema: [],
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          packages: { type: 'array', items: { type: 'string' } },
+          localImports: { type: 'boolean' },
+        },
+        additionalProperties: false,
+      },
+    ],
   },
   create(context) {
+    const options = (context.options[0] ?? {}) as LocalModuleOptions
     // Candidate sites are collected during ESLint's own traversal and decided in
     // Program:exit, because the bindings that gate them (imports, engine locals)
     // can appear after the calls they gate — a module-scope engine used by an
@@ -136,7 +154,7 @@ const noInvalidExpressions: Rule.RuleModule = {
         if (typeof node.source.value !== 'string') {
           return
         }
-        const names = isForeignModule(node.source.value) ? foreign : trusted
+        const names = isForeignModule(node.source.value, options) ? foreign : trusted
         for (const specifier of node.specifiers) {
           names.add(specifier.local.name)
         }

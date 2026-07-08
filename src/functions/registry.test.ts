@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { FhirPathTypeError } from '../errors.ts'
 import { type FhirPathFunction, lookupFunction, registerFunction } from './registry.ts'
 

@@ -1,7 +1,7 @@
 import type { ModelProvider } from '../model/provider.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
-import { FHIR_PRIMITIVE_TO_SYSTEM, type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import { FHIR_PRIMITIVE_TO_SYSTEM, toTypedValue, type TypedValue } from '../values/typed-value.ts'
 
 export function isFhirPrimitiveType(typeName: string): boolean {
   return FHIR_PRIMITIVE_TO_SYSTEM[typeName] !== undefined

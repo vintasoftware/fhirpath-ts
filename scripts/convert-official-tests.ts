@@ -7,7 +7,9 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+
 import { XMLParser } from 'fast-xml-parser'
+
 import type { OfficialGroup, OfficialTest } from '../src/testing/official-harness.ts'
 
 const parser = new XMLParser({

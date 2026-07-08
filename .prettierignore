@@ -1,0 +1,19 @@
+# Paths that are generated, vendored, or otherwise not ours to format.
+node_modules
+dist
+build
+coverage
+src/r4/generated
+test-data
+.claude
+pnpm-lock.yaml
+demo/package-lock.json
+THIRD-PARTY-NOTICES.md
+
+# Match the former Biome scope: code + JSON only. Markdown, HTML, CSS and YAML
+# were never auto-formatted in this repo and stay hand-maintained.
+*.md
+*.html
+*.css
+*.yml
+*.yaml

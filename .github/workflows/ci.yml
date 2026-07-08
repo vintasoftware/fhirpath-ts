@@ -33,7 +33,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      # `pnpm lint` runs ESLint — including the dogfooded
+      # fhirpath/no-invalid-expressions rule, i.e. the spec §11 analyzer over the
+      # library source — followed by a Prettier format check.
+      - name: Lint (ESLint + FHIRPath analyzer + Prettier)
         run: pnpm lint
 
       - name: Typecheck

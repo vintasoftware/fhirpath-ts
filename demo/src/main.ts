@@ -1,6 +1,7 @@
-import { run } from './engine.ts'
-import { TABS, type Tab } from './examples.ts'
 import './styles.css'
+
+import { run } from './engine.ts'
+import { type Tab, TABS } from './examples.ts'
 
 const $ = <T extends Element>(sel: string) => document.querySelector<T>(sel)!
 
