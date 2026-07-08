@@ -1,6 +1,26 @@
 import { FhirPathTypeError } from '../errors.ts'
+import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import { SYSTEM_STRING, toCollection, type TypedValue } from '../values/typed-value.ts'
+
+/**
+ * A host-supplied function's runtime legs: arity and implementation. The API
+ * layer's CustomFunction (api/compile.ts) adds the optional static-typing leg
+ * for the analyzer; this module only needs what evaluation uses.
+ */
+export interface HostFunction {
+  /** Inclusive argument count range, checked before invocation. Defaults: 0 to unlimited. */
+  minArity?: number
+  maxArity?: number
+  /**
+   * The implementation. `input` is the unwrapped input collection; each
+   * argument is eagerly evaluated against `$this` — the enclosing context
+   * item, like built-in value arguments — and arrives as an unwrapped
+   * collection. Return a plain value, an array of plain values, or undefined
+   * for empty — the engine converts back to its typed representation.
+   */
+  fn: (input: unknown[], ...args: unknown[][]) => unknown
+}
 
 /** `$this` / `$index` / `$total` bindings; iteration functions push one frame per element. */
 export interface Frame {
@@ -29,6 +49,8 @@ export interface EvaluationContext {
    * iteration frames evaluate against a copy (see forkVariables).
    */
   variables: Map<string, TypedValue[]>
+  /** Host-supplied functions by name; never contains a built-in name (createContext rejects overrides). */
+  functions: ReadonlyMap<string, HostFunction>
   frame: Frame
 }
 
@@ -56,6 +78,7 @@ export function createContext(options: {
   model?: ModelProvider | undefined
   now?: Date | undefined
   trace?: ((name: string, values: TypedValue[]) => void) | undefined
+  functions?: Record<string, HostFunction> | undefined
 }): EvaluationContext {
   const env = new Map<string, TypedValue[]>()
   for (const [name, url] of BUILTIN_CONSTANTS) {
@@ -68,6 +91,14 @@ export function createContext(options: {
   for (const [name, value] of Object.entries(options.env ?? {})) {
     env.set(name.startsWith('%') ? name.slice(1) : name, toCollection(value))
   }
+  const hostFunctions = new Map<string, HostFunction>()
+  for (const [name, fn] of Object.entries(options.functions ?? {})) {
+    // Overriding a built-in would silently change spec behavior — fail loudly.
+    if (builtinFunctions.has(name)) {
+      throw new FhirPathTypeError(`Cannot override the built-in function '${name}'`)
+    }
+    hostFunctions.set(name, fn)
+  }
   return {
     root: options.root,
     env,
@@ -75,6 +106,7 @@ export function createContext(options: {
     now: options.now ?? new Date(),
     trace: options.trace ?? (() => {}),
     variables: new Map(),
+    functions: hostFunctions,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
 }

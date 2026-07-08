@@ -1,4 +1,5 @@
-import { createContext } from '../engine/context.ts'
+import type { CustomFunctionSignature } from '../analyzer/signatures.ts'
+import { createContext, type HostFunction } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
@@ -7,6 +8,18 @@ import { printExpression } from '../parser/printer.ts'
 import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
+
+/**
+ * A host-supplied FHIRPath function, HAPI-style triple: `minArity`/`maxArity`
+ * resolve it, the optional `signature` lets the static analyzer check it
+ * (pass the same record to AnalyzeOptions.functions), and `fn` executes it.
+ * Plain JS values cross the boundary in both directions; arguments are eager.
+ * Built-in names cannot be overridden.
+ */
+export interface CustomFunction extends HostFunction {
+  /** Static-typing leg: without it, expressions using this function analyze as unknown regions. */
+  signature?: CustomFunctionSignature
+}
 
 export interface EvaluateOptions {
   /** Environment variables (`%name`), keyed with or without the leading `%`. */
@@ -19,6 +32,8 @@ export interface EvaluateOptions {
    * patient data, so sending them anywhere is an explicit choice.
    */
   trace?: (name: string, values: TypedValue[]) => void
+  /** Host-supplied functions by name. Declare them to the analyzer too via AnalyzeOptions.functions. */
+  functions?: Record<string, CustomFunction>
 }
 
 /**
@@ -49,6 +64,7 @@ export class CompiledExpression<Expr extends string = string> {
       model: options?.model,
       now: options?.now,
       trace: options?.trace,
+      functions: options?.functions,
     })
     return evaluateNode(this.ast, context, root)
   }

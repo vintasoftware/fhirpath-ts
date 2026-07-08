@@ -1,7 +1,7 @@
 import type { Rule } from 'eslint'
 import type * as ESTree from 'estree'
 
-import { analyzeExpression } from '../analyzer/analyze.ts'
+import { analyzeExpression, type DeclaredFunction, type DeclaredVariable } from '../analyzer/analyze.ts'
 import {
   CALL_SITES,
   type CallSitePolicy,
@@ -114,13 +114,20 @@ const noInvalidExpressions: Rule.RuleModule = {
         properties: {
           packages: { type: 'array', items: { type: 'string' } },
           localImports: { type: 'boolean' },
+          // Host-supplied environment variables and functions the checked code
+          // passes at runtime — AnalyzeOptions.variables / AnalyzeOptions.functions.
+          variables: { type: 'object' },
+          functions: { type: 'object' },
         },
         additionalProperties: false,
       },
     ],
   },
   create(context) {
-    const options = (context.options[0] ?? {}) as LocalModuleOptions
+    const options = (context.options[0] ?? {}) as LocalModuleOptions & {
+      variables?: Record<string, DeclaredVariable>
+      functions?: Record<string, DeclaredFunction>
+    }
     // Candidate sites are collected during ESLint's own traversal and decided in
     // Program:exit, because the bindings that gate them (imports, engine locals)
     // can appear after the calls they gate — a module-scope engine used by an
@@ -148,7 +155,12 @@ const noInvalidExpressions: Rule.RuleModule = {
       // ESLint severity comes from the rule's configuration, not per report, so
       // only error-severity diagnostics are reported; analyzer warnings (style
       // and possible-mistake findings) don't fail a lint run.
-      for (const diagnostic of analyzeExpression(expression, { model: r4Model })) {
+      const diagnostics = analyzeExpression(expression, {
+        model: r4Model,
+        ...(options.variables !== undefined && { variables: options.variables }),
+        ...(options.functions !== undefined && { functions: options.functions }),
+      })
+      for (const diagnostic of diagnostics) {
         if (diagnostic.severity === 'error') {
           context.report({ node, message: `[${diagnostic.code}] ${diagnostic.message}` })
         }

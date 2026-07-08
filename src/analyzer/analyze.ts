@@ -7,7 +7,14 @@ import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
-import { FUNCTION_SIGNATURES, singleAnd, type ValueKind, valueKindOfTypeName } from './signatures.ts'
+import {
+  type CustomFunctionSignature,
+  FUNCTION_SIGNATURES,
+  type FunctionSignature,
+  singleAnd,
+  type ValueKind,
+  valueKindOfTypeName,
+} from './signatures.ts'
 
 export interface AnalyzerDiagnostic {
   severity: 'error' | 'warning'
@@ -17,10 +24,39 @@ export interface AnalyzerDiagnostic {
   span: SourceSpan
 }
 
+/**
+ * A host-supplied variable declared to the analyzer (HAPI's
+ * resolveConstantType): the host will pass it at evaluation via
+ * EvaluateOptions.env, so `%name` is not an unknown-variable error. Types are
+ * optional — an untyped declaration stays an unknown region.
+ */
+export interface DeclaredVariable {
+  /** Candidate type names ('Patient', 'System.String'); omit to leave the type unknown. */
+  types?: string[]
+  /** True when the variable always holds at most one item. */
+  single?: boolean
+}
+
+/**
+ * A host-supplied function declared to the analyzer (HAPI's resolveFunction +
+ * checkFunction): the name and arities resolve calls, and the optional
+ * signature type-checks them. A CustomFunction (EvaluateOptions.functions)
+ * satisfies this shape, so the same record can be passed to both.
+ */
+export interface DeclaredFunction {
+  minArity?: number
+  maxArity?: number
+  signature?: CustomFunctionSignature
+}
+
 export interface AnalyzeOptions {
   model?: ModelProvider
   /** Canonical type of the input the expression will run against, e.g. `FHIR.Patient` or `Patient`. */
   inputType?: string
+  /** Host-supplied functions by name — EvaluateOptions.functions can be passed as-is. */
+  functions?: Record<string, DeclaredFunction>
+  /** Host-supplied environment variables by name (with or without the leading `%`). */
+  variables?: Record<string, DeclaredVariable>
 }
 
 /**
@@ -97,7 +133,7 @@ export function analyzeExpressionDetailed(expression: string, options?: AnalyzeO
       elementDependencies: [],
     }
   }
-  const analyzer = new Analyzer(options?.model, options?.inputType)
+  const analyzer = new Analyzer(options)
   analyzer.walk(ast, analyzer.rootState(), emptyScope())
   return { diagnostics: analyzer.diagnostics, elementDependencies: [...analyzer.dependencies] }
 }
@@ -108,10 +144,20 @@ class Analyzer {
   private readonly model: ModelProvider | undefined
   private readonly inputType: string | undefined
   private readonly frames: StaticState[] = []
+  private readonly customFunctions: ReadonlyMap<string, DeclaredFunction>
+  private readonly declaredVariables: ReadonlyMap<string, DeclaredVariable>
 
-  constructor(model: ModelProvider | undefined, inputType: string | undefined) {
-    this.model = model
+  constructor(options: AnalyzeOptions | undefined) {
+    this.model = options?.model
+    const inputType = options?.inputType
     this.inputType = inputType === undefined ? undefined : (this.model?.resolveType(inputType) ?? inputType)
+    this.customFunctions = new Map(Object.entries(options?.functions ?? {}))
+    this.declaredVariables = new Map(
+      Object.entries(options?.variables ?? {}).map(([name, variable]) => [
+        name.startsWith('%') ? name.slice(1) : name,
+        variable,
+      ])
+    )
   }
 
   rootState(): StaticState {
@@ -187,6 +233,10 @@ class Analyzer {
     const defined = scope.vars.get(node.name)
     if (defined !== undefined) {
       return defined
+    }
+    const declared = this.declaredVariables.get(node.name)
+    if (declared !== undefined) {
+      return { types: declared.types?.map(type => this.canonicalize(type)), single: declared.single }
     }
     switch (node.name) {
       case 'context':
@@ -316,10 +366,12 @@ class Analyzer {
 
   private walkCall(node: AstNode & { kind: 'call' }, input: StaticState, scope: VariableScope): StaticState {
     const registered = functions.get(node.name)
-    if (!registered) {
+    // Built-ins win: EvaluateOptions.functions cannot override them either.
+    const custom = registered === undefined ? this.customFunctions.get(node.name) : undefined
+    if (registered === undefined && custom === undefined) {
       this.report(
         'unknown-function',
-        `Unrecognized function '${node.name}'${didYouMean(node.name, functions.keys())}`,
+        `Unrecognized function '${node.name}'${didYouMean(node.name, [...functions.keys(), ...this.customFunctions.keys()])}`,
         node.span
       )
       for (const argument of node.args) {
@@ -327,14 +379,16 @@ class Analyzer {
       }
       return UNKNOWN
     }
-    if (node.args.length < registered.minArity || node.args.length > registered.maxArity) {
+    const minArity = registered?.minArity ?? custom?.minArity ?? 0
+    const maxArity = registered?.maxArity ?? custom?.maxArity ?? Number.POSITIVE_INFINITY
+    if (node.args.length < minArity || node.args.length > maxArity) {
       this.report(
         'wrong-arity',
-        `Function '${node.name}' expects ${describeArity(registered.minArity, registered.maxArity)}, got ${node.args.length}`,
+        `Function '${node.name}' expects ${describeArity(minArity, maxArity)}, got ${node.args.length}`,
         node.span
       )
     }
-    const signature = FUNCTION_SIGNATURES[node.name]
+    const signature = registered !== undefined ? FUNCTION_SIGNATURES[node.name] : this.toSignature(custom?.signature)
     if (!signature) {
       for (const argument of node.args) {
         this.walk(argument, input, forkScope(scope))
@@ -433,7 +487,7 @@ class Analyzer {
       return
     }
     const name = nameNode.value
-    if (BUILTIN_ENV_VARIABLE_NAMES.has(name)) {
+    if (BUILTIN_ENV_VARIABLE_NAMES.has(name) || this.declaredVariables.has(name)) {
       this.report('variable-override', `Cannot override the environment variable %${name}`, nameNode.span)
       return
     }
@@ -443,6 +497,23 @@ class Analyzer {
     }
     // Without a value expression the variable holds the function's input.
     scope.vars.set(name, argStates[1] ?? input)
+  }
+
+  /**
+   * A host function's declared signature as the analyzer's internal shape:
+   * result type names canonicalize once, and an omitted result stays unknown.
+   */
+  private toSignature(declared: CustomFunctionSignature | undefined): FunctionSignature | undefined {
+    if (declared === undefined) {
+      return undefined
+    }
+    const types = declared.result?.types?.map(type => this.canonicalize(type))
+    const single = declared.result?.single
+    return {
+      ...(declared.input !== undefined && { input: declared.input }),
+      ...(declared.args !== undefined && { args: declared.args }),
+      result: () => ({ types, single }),
+    }
   }
 
   /**

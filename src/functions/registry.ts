@@ -65,5 +65,8 @@ export function describeArity(minArity: number, maxArity: number): string {
   if (minArity === maxArity) {
     return minArity === 1 ? '1 argument' : `${minArity} arguments`
   }
+  if (maxArity === Number.POSITIVE_INFINITY) {
+    return minArity === 1 ? 'at least 1 argument' : `at least ${minArity} arguments`
+  }
   return `${minArity} to ${maxArity} arguments`
 }

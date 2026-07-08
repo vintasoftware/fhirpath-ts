@@ -1,7 +1,7 @@
 import '../functions/install.ts'
 
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
-import { lookupFunction } from '../functions/registry.ts'
+import { describeArity, lookupFunction } from '../functions/registry.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { singleton } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
@@ -16,9 +16,11 @@ import {
   SYSTEM_QUANTITY,
   SYSTEM_STRING,
   SYSTEM_TIME,
+  toCollection,
   type TypedValue,
+  unwrap,
 } from '../values/typed-value.ts'
-import { type EvaluationContext, forkVariables, resolveEnvironmentVariable } from './context.ts'
+import { type EvaluationContext, forkVariables, type HostFunction, resolveEnvironmentVariable } from './context.ts'
 import { navigateIdentifier } from './navigation.ts'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
 
@@ -28,6 +30,29 @@ function evaluateArgument(node: AstNode, context: EvaluationContext, _input: Typ
   // Patient. Lambda-style functions bind their own frame first, so they see each item.
   const forked = forkVariables(context)
   return evaluateNode(node, forked, forked.frame.thisValue)
+}
+
+/**
+ * Call a host-supplied function (EvaluateOptions.functions): arity-check, then
+ * eagerly evaluate every argument and unwrap both input and arguments to plain
+ * JS values — the host boundary — and convert the plain result back.
+ */
+function evaluateHostFunction(
+  name: string,
+  host: HostFunction,
+  args: AstNode[],
+  context: EvaluationContext,
+  input: TypedValue[]
+): TypedValue[] {
+  const minArity = host.minArity ?? 0
+  const maxArity = host.maxArity ?? Number.POSITIVE_INFINITY
+  if (args.length < minArity || args.length > maxArity) {
+    throw new FhirPathTypeError(
+      `Function '${name}' expects ${describeArity(minArity, maxArity)}, got ${args.length} arguments`
+    )
+  }
+  const argValues = args.map(node => evaluateArgument(node, context, input).map(unwrap))
+  return toCollection(host.fn(input.map(unwrap), ...argValues))
 }
 
 /** Evaluate one AST node against an input collection. */
@@ -63,9 +88,14 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
       return evaluateNode(node.right, context, evaluateNode(node.left, context, input))
     case 'indexer':
       return evaluateIndexer(node.target, node.index, context, input)
-    case 'call':
+    case 'call': {
+      const host = context.functions.get(node.name)
+      if (host !== undefined) {
+        return evaluateHostFunction(node.name, host, node.args, context, input)
+      }
       // Each function argument evaluates in its own defineVariable() scope.
       return lookupFunction(node.name, node.args.length).evaluate(context, input, node.args, evaluateArgument)
+    }
     case 'unary':
       return evaluateUnary(context, node.operator, evaluateNode(node.operand, context, input))
     case 'binary':
