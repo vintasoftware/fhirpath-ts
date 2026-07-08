@@ -346,7 +346,7 @@ describe('final coverage sweep', () => {
     const { analyzeExpression } = await import('../analyzer/analyze.ts')
     expect(analyzeExpression("subsumedBy('x')", { model: r4Model, inputType: 'Patient' })).toEqual([])
     expect(analyzeExpression('1 as System.Integer', { model: r4Model })).toEqual([])
-    expect(analyzeExpression('%v | 1', { model: r4Model })).toEqual([])
+    expect(analyzeExpression('%resource | 1', { model: r4Model })).toEqual([])
     expect(analyzeExpression('(4 / 2) = 2.0', { model: r4Model })).toEqual([])
   })
 

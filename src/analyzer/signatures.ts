@@ -27,25 +27,62 @@ export function valueKindOfTypeName(canonical: string): ValueKind {
 
 interface StaticStateLike {
   types: string[] | undefined
-  single: boolean
+  /** True: at most one item. False: may hold several. Undefined: cardinality unknown. */
+  single: boolean | undefined
 }
 
-type ArgSpec = 'expression' | 'type-name' | 'any' | ValueKind
+/** Cardinality of a value combined from two parts: single only when both are. */
+export function singleAnd(a: boolean | undefined, b: boolean | undefined): boolean | undefined {
+  if (a === false || b === false) {
+    return false
+  }
+  return a === true && b === true ? true : undefined
+}
+
+/**
+ * How the analyzer treats one argument position:
+ * - `expression`: a lambda evaluated per item ($this bound); its analyzed state
+ *   is captured for the `result` callback.
+ * - `condition`: an `expression` that must be a single Boolean (iif's criterion).
+ * - `sort-key`: an `expression` where a top-level unary `-` marks descending
+ *   order on any type, mirroring sort()'s runtime reading of the AST.
+ * - `type-name`: a type specifier, checked against the model.
+ * - `any` / a ValueKind: a value argument, optionally kind-checked.
+ */
+type ArgSpec = 'expression' | 'condition' | 'sort-key' | 'type-name' | 'any' | ValueKind
 
 export interface FunctionSignature {
   input?: { kind?: ValueKind; singleton?: boolean }
   args?: ArgSpec[]
-  result: (input: StaticStateLike) => StaticStateLike
+  /**
+   * Result state from the input state and the analyzed argument states
+   * (undefined for `type-name` positions and missing optional arguments).
+   */
+  result: (input: StaticStateLike, args: readonly (StaticStateLike | undefined)[]) => StaticStateLike
 }
 
 const BOOLEAN = (): StaticStateLike => ({ types: ['System.Boolean'], single: true })
 const INTEGER = (): StaticStateLike => ({ types: ['System.Integer'], single: true })
 const STRING = (): StaticStateLike => ({ types: ['System.String'], single: true })
 const DECIMAL = (): StaticStateLike => ({ types: ['System.Decimal'], single: true })
-const UNKNOWN = (): StaticStateLike => ({ types: undefined, single: false })
+const UNKNOWN = (): StaticStateLike => ({ types: undefined, single: undefined })
 const SAME = (input: StaticStateLike): StaticStateLike => input
 const ITEM = (input: StaticStateLike): StaticStateLike => ({ types: input.types, single: true })
-const COLLECTION = (input: StaticStateLike): StaticStateLike => ({ types: input.types, single: false })
+/**
+ * The union of several alternative states (iif branches, coalesce arguments):
+ * all candidate types, single only when every alternative is.
+ */
+function unionOf(states: (StaticStateLike | undefined)[]): StaticStateLike {
+  const present = states.filter((state): state is StaticStateLike => state !== undefined)
+  const single = present.length > 0 ? present.map(state => state.single).reduce(singleAnd, true) : undefined
+  if (present.length === 0 || present.some(state => state.types === undefined)) {
+    return { types: undefined, single }
+  }
+  return {
+    types: [...new Set(present.flatMap(state => state.types as string[]))],
+    single,
+  }
+}
 
 const STRING_FN: FunctionSignature = { input: { kind: 'String', singleton: true }, args: ['String'], result: STRING }
 const MATH_FN: FunctionSignature = { input: { kind: 'Numeric', singleton: true }, result: DECIMAL }
@@ -67,24 +104,41 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   isDistinct: { result: BOOLEAN },
   subsetOf: { args: ['any'], result: BOOLEAN },
   supersetOf: { args: ['any'], result: BOOLEAN },
-  where: { args: ['expression'], result: COLLECTION },
-  select: { args: ['expression'], result: UNKNOWN },
+  // Filters cannot grow their input, so cardinality is preserved: filtering a
+  // single item yields at most one item.
+  where: { args: ['expression'], result: SAME },
+  select: {
+    args: ['expression'],
+    // The projection's analyzed type, collection-ized: single only when both the
+    // input and the projection body are single (Samurai's Lambda<R, Single<T>> → R).
+    result: (input, args) => ({
+      types: args[0]?.types,
+      single: singleAnd(input.single, args[0]?.single),
+    }),
+  },
   repeat: { args: ['expression'], result: UNKNOWN },
+  // ofType/as results narrow to the named type; the analyzer computes that with
+  // the model (walkCall), so their table results are never consulted.
   ofType: { args: ['type-name'], result: UNKNOWN },
   is: { input: { singleton: true }, args: ['type-name'], result: BOOLEAN },
   as: { input: { singleton: true }, args: ['type-name'], result: UNKNOWN },
   single: { result: ITEM },
   first: { result: ITEM },
   last: { result: ITEM },
-  tail: { result: COLLECTION },
-  skip: { args: ['Numeric'], result: COLLECTION },
-  take: { args: ['Numeric'], result: COLLECTION },
-  intersect: { args: ['any'], result: COLLECTION },
-  exclude: { args: ['any'], result: COLLECTION },
-  union: { args: ['any'], result: UNKNOWN },
-  combine: { args: ['any'], result: UNKNOWN },
-  iif: { args: ['expression', 'expression', 'expression'], result: UNKNOWN },
-  not: { input: { kind: 'Boolean', singleton: true }, result: BOOLEAN },
+  tail: { result: SAME },
+  skip: { args: ['Numeric'], result: SAME },
+  take: { args: ['Numeric'], result: SAME },
+  intersect: { args: ['any'], result: SAME },
+  exclude: { args: ['any'], result: SAME },
+  union: { args: ['any'], result: (input, args) => ({ types: unionOf([input, args[0]]).types, single: false }) },
+  combine: { args: ['any'], result: (input, args) => ({ types: unionOf([input, args[0]]).types, single: false }) },
+  iif: {
+    args: ['condition', 'expression', 'expression'],
+    // The union of the branch types; a missing else-branch contributes empty.
+    result: (_input, args) => unionOf([args[1], args[2] ?? { types: [], single: true }]),
+  },
+  // not() takes anything a Boolean test accepts (0/1, single items), so no kind pin.
+  not: { input: { singleton: true }, result: BOOLEAN },
   trace: { args: ['String', 'expression'], result: SAME },
   children: { result: UNKNOWN },
   descendants: { result: UNKNOWN },
@@ -140,7 +194,7 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   min: { input: { kind: 'Numeric' }, result: UNKNOWN },
   max: { input: { kind: 'Numeric' }, result: UNKNOWN },
   avg: { input: { kind: 'Numeric' }, result: DECIMAL },
-  sort: { args: ['expression'], result: SAME },
+  sort: { args: ['sort-key'], result: SAME },
 
   toBoolean: { input: { singleton: true }, result: BOOLEAN },
   toInteger: { input: { singleton: true }, result: INTEGER },
@@ -183,7 +237,8 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   precision: { input: { singleton: true }, result: INTEGER },
   defineVariable: { args: ['String', 'expression'], result: SAME },
   // Variadic: the analyzer repeats the last arg spec for every position, so one
-  // 'expression' entry covers all of coalesce's arguments.
-  coalesce: { args: ['expression'], result: UNKNOWN },
+  // 'expression' entry covers all of coalesce's arguments. The result is the
+  // first non-empty argument, hence the union of all of them.
+  coalesce: { args: ['expression'], result: (_input, args) => unionOf([...args]) },
   type: { result: UNKNOWN },
 }

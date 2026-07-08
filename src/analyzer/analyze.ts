@@ -3,9 +3,10 @@ import '../functions/install.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { describeArity, functions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import type { AstNode, TypeSpecifier } from '../parser/ast.ts'
+import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
-import { FUNCTION_SIGNATURES, type ValueKind, valueKindOfTypeName } from './signatures.ts'
+import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
+import { FUNCTION_SIGNATURES, singleAnd, type ValueKind, valueKindOfTypeName } from './signatures.ts'
 
 export interface AnalyzerDiagnostic {
   severity: 'error' | 'warning'
@@ -26,21 +27,47 @@ export interface AnalyzeOptions {
  * cardinality. `types: undefined` means unknown — after children()/descendants()/
  * resolve(), external constants, or anything the analyzer cannot see through —
  * and mutes further checks on that branch, exactly as spec §11 prescribes
- * (authors narrow with `as`/`ofType()`).
+ * (authors narrow with `as`/`ofType()`). `single` is a tri-state: true (at most
+ * one item), false (may hold several — what the singleton checks fire on), or
+ * undefined (unknown, e.g. after narrowing an unknown region, which must not
+ * pretend to know the cardinality).
  */
 interface StaticState {
   types: string[] | undefined
-  single: boolean
+  single: boolean | undefined
 }
 
-const UNKNOWN: StaticState = { types: undefined, single: false }
+const UNKNOWN: StaticState = { types: undefined, single: undefined }
+
+/**
+ * The `defineVariable()` bindings visible at a point of the walk, each with the
+ * analyzed state of its value. Mirrors the runtime's scoping exactly: dots
+ * thread one scope along the chain, while operator operands and function
+ * arguments each analyze against a copy (compare EvaluationContext.variables).
+ */
+type VariableScope = Map<string, StaticState>
+
+export interface AnalysisDetails {
+  diagnostics: AnalyzerDiagnostic[]
+  /**
+   * `Type.element` paths the expression reads (local type names), deduped in
+   * first-visit order — HAPI's `elementDependencies`. Lets callers know which
+   * elements an expression depends on, e.g. for change tracking or editors.
+   */
+  elementDependencies: string[]
+}
 
 /**
  * Statically check one expression against the model: spec §11's strict-mode rules
  * (singleton misuse, wrong operand and argument types, incomparable equality)
- * plus unknown elements, functions, arities, and type names.
+ * plus unknown elements, functions, arities, type names, and variables.
  */
 export function analyzeExpression(expression: string, options?: AnalyzeOptions): AnalyzerDiagnostic[] {
+  return analyzeExpressionDetailed(expression, options).diagnostics
+}
+
+/** `analyzeExpression` plus the element paths the expression touches. */
+export function analyzeExpressionDetailed(expression: string, options?: AnalyzeOptions): AnalysisDetails {
   let ast: AstNode
   try {
     ast = parse(expression)
@@ -50,15 +77,19 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
       throw error
     }
     /* v8 ignore stop */
-    return [{ severity: 'error', code: 'syntax', message: error.message, span: error.span }]
+    return {
+      diagnostics: [{ severity: 'error', code: 'syntax', message: error.message, span: error.span }],
+      elementDependencies: [],
+    }
   }
   const analyzer = new Analyzer(options?.model, options?.inputType)
-  analyzer.walk(ast, analyzer.rootState())
-  return analyzer.diagnostics
+  analyzer.walk(ast, analyzer.rootState(), new Map())
+  return { diagnostics: analyzer.diagnostics, elementDependencies: [...analyzer.dependencies] }
 }
 
 class Analyzer {
   readonly diagnostics: AnalyzerDiagnostic[] = []
+  readonly dependencies = new Set<string>()
   private readonly model: ModelProvider | undefined
   private readonly inputType: string | undefined
   private readonly frames: StaticState[] = []
@@ -72,7 +103,7 @@ class Analyzer {
     return this.inputType === undefined ? UNKNOWN : { types: [this.inputType], single: true }
   }
 
-  walk(node: AstNode, input: StaticState): StaticState {
+  walk(node: AstNode, input: StaticState, scope: VariableScope): StaticState {
     switch (node.kind) {
       case 'null':
         // The empty literal `{}` is statically at most one item, so it satisfies
@@ -96,30 +127,32 @@ class Analyzer {
       case 'quantity':
         return { types: ['System.Quantity'], single: true }
       case 'external':
-        return UNKNOWN
+        return this.walkExternal(node, scope)
       case 'special':
         return this.walkSpecial(node.name)
       case 'identifier':
         return this.walkIdentifier(node, input)
       case 'dot':
-        return this.walk(node.right, this.walk(node.left, input))
+        // One scope threads the whole chain, so defineVariable() in an earlier
+        // link is visible to later links — exactly like the runtime.
+        return this.walk(node.right, this.walk(node.left, input, scope), scope)
       case 'indexer': {
-        const target = this.walk(node.target, input)
-        const index = this.walk(node.index, input)
+        const target = this.walk(node.target, input, scope)
+        const index = this.walk(node.index, input, scope)
         this.requireKind(index, 'Numeric', node.index.span, 'the indexer expects a single Integer')
         return { types: target.types, single: true }
       }
       case 'call':
-        return this.walkCall(node, input)
+        return this.walkCall(node, input, scope)
       case 'unary': {
-        const operand = this.walk(node.operand, input)
+        const operand = this.walk(node.operand, input, scope)
         this.requireKind(operand, 'Numeric', node.operand.span, `unary '${node.operator}' expects a single number`)
         return operand
       }
       case 'binary':
-        return this.walkBinary(node, input)
+        return this.walkBinary(node, input, scope)
       case 'typeOp':
-        return this.walkTypeOp(node, input)
+        return this.walkTypeOp(node, input, scope)
       /* v8 ignore start -- exhaustiveness guard */
       default: {
         const unreachable: never = node
@@ -127,6 +160,38 @@ class Analyzer {
       }
       /* v8 ignore stop */
     }
+  }
+
+  /**
+   * `%name`: defineVariable() bindings and built-in variables resolve with their
+   * known state; anything else is an undefined variable (spec §9), the same
+   * check the runtime applies. Host-supplied variables must be declared to the
+   * analyzer (AnalyzeOptions is the place this will grow).
+   */
+  private walkExternal(node: AstNode & { kind: 'external' }, scope: VariableScope): StaticState {
+    const defined = scope.get(node.name)
+    if (defined !== undefined) {
+      return defined
+    }
+    switch (node.name) {
+      case 'context':
+      case 'resource':
+      case 'rootResource':
+        // Contained-resource re-rooting is a later refinement, mirroring the runtime.
+        return this.rootState()
+      case 'ucum':
+      case 'sct':
+      case 'loinc':
+        return { types: ['System.String'], single: true }
+      default:
+        break
+    }
+    // FHIR-defined families expand to HL7 urls: %`vs-[name]`, %`ext-[name]`.
+    if (node.name.startsWith('vs-') || node.name.startsWith('ext-')) {
+      return { types: ['System.String'], single: true }
+    }
+    this.report('unknown-variable', `Undefined environment variable %${node.name}`, node.span)
+    return UNKNOWN
   }
 
   private walkSpecial(name: 'this' | 'index' | 'total'): StaticState {
@@ -137,6 +202,10 @@ class Analyzer {
   }
 
   private walkIdentifier(node: AstNode & { kind: 'identifier' }, input: StaticState): StaticState {
+    // Navigating from a statically empty input yields empty — nothing to check.
+    if (input.types !== undefined && input.types.length === 0) {
+      return { types: [], single: true }
+    }
     if (input.types === undefined) {
       // Even with an unknown input, a root identifier naming a model type anchors
       // the state — this is what checks `Patient.nope` without an inputType option.
@@ -158,6 +227,7 @@ class Analyzer {
     for (const type of input.types) {
       const element = this.model?.getElement(type, node.name)
       if (element) {
+        this.dependencies.add(`${typeLocalName(type)}.${node.name}`)
         isCollection = isCollection || element.isCollection
         for (const elementType of element.types) {
           found.push(this.canonicalize(elementType))
@@ -177,7 +247,7 @@ class Analyzer {
       }
       return UNKNOWN
     }
-    return { types: [...new Set(found)], single: input.single && !isCollection }
+    return { types: [...new Set(found)], single: singleAnd(input.single, !isCollection) }
   }
 
   private canonicalize(elementType: string): string {
@@ -225,7 +295,7 @@ class Analyzer {
     return names
   }
 
-  private walkCall(node: AstNode & { kind: 'call' }, input: StaticState): StaticState {
+  private walkCall(node: AstNode & { kind: 'call' }, input: StaticState, scope: VariableScope): StaticState {
     const registered = functions.get(node.name)
     if (!registered) {
       this.report(
@@ -234,7 +304,7 @@ class Analyzer {
         node.span
       )
       for (const argument of node.args) {
-        this.walk(argument, input)
+        this.walk(argument, input, new Map(scope))
       }
       return UNKNOWN
     }
@@ -248,12 +318,12 @@ class Analyzer {
     const signature = FUNCTION_SIGNATURES[node.name]
     if (!signature) {
       for (const argument of node.args) {
-        this.walk(argument, input)
+        this.walk(argument, input, new Map(scope))
       }
       return UNKNOWN
     }
     if (signature.input) {
-      if (signature.input.singleton && input.types !== undefined && !input.single) {
+      if (signature.input.singleton && input.types !== undefined && input.single === false) {
         this.report(
           'singleton-required',
           `${node.name}() expects a single item as input, but this is a collection (spec §11)${NARROW_HINT}`,
@@ -269,64 +339,165 @@ class Analyzer {
         )
       }
     }
+    // Analyzed state per argument (undefined for type-name positions). Each
+    // argument gets its own scope copy, like the runtime's per-argument fork.
+    const argStates: (StaticState | undefined)[] = []
+    let typeTarget: string | undefined
     node.args.forEach((argument, index) => {
       const spec = signature.args?.[index] ?? signature.args?.at(-1)
-      if (spec === 'expression') {
+      if (spec === 'expression' || spec === 'condition' || spec === 'sort-key') {
+        // A top-level unary '-' on a sort key marks descending order (any type),
+        // mirroring how sort() reads the AST; only the key itself is analyzed.
+        const body =
+          spec === 'sort-key' && argument.kind === 'unary' && argument.operator === '-' ? argument.operand : argument
         this.frames.push({ types: input.types, single: true })
-        this.walk(argument, { types: input.types, single: true })
+        const state = this.walk(body, { types: input.types, single: true }, new Map(scope))
         this.frames.pop()
+        argStates.push(state)
+        if (spec === 'condition') {
+          this.requireSingle(state, argument.span, `${node.name}() expects a single Boolean criterion`)
+          if (!isCollection(state)) {
+            this.requireKind(state, 'Boolean', argument.span, `${node.name}() expects a Boolean criterion`)
+          }
+        }
         return
       }
       if (spec === 'type-name') {
-        this.checkTypeArgument(node.name, argument)
+        argStates.push(undefined)
+        const resolved = this.checkTypeArgument(node.name, argument)
+        if (index === 0) {
+          typeTarget = resolved
+        }
         return
       }
       // Value arguments evaluate against $this, mirroring the runtime.
-      const argState = this.walk(argument, this.frames.at(-1) ?? this.rootState())
+      const argState = this.walk(argument, this.frames.at(-1) ?? this.rootState(), new Map(scope))
+      argStates.push(argState)
       if (spec !== undefined && spec !== 'any') {
-        if (argState.types !== undefined && !argState.single) {
+        if (argState.types !== undefined && argState.single === false) {
           this.report(
             'argument-singleton',
             `${node.name}() expects a single ${spec} argument, but this is a collection (spec §11)${NARROW_HINT}`,
-            argument.span
+            argument.span,
+            'warning'
           )
         } else {
           this.requireKind(argState, spec, argument.span, `${node.name}() expects a ${spec} argument`)
         }
       }
     })
-    return signature.result(input)
+    if (node.name === 'defineVariable') {
+      this.registerVariable(node, input, argStates, scope)
+    }
+    // ofType(X) filters and as(X) casts: both narrow to the named type,
+    // intersected with the known candidates.
+    if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
+      return { types: this.narrowTypes(input, typeTarget, node.span), single: input.single }
+    }
+    return signature.result(input, argStates)
   }
 
-  private checkTypeArgument(functionName: string, argument: AstNode): void {
+  /**
+   * Track a defineVariable() binding in the chain's scope, with the same two
+   * rules the runtime enforces: no overriding environment variables, no
+   * redefining a name already in scope. Dynamic names cannot be tracked.
+   */
+  private registerVariable(
+    node: AstNode & { kind: 'call' },
+    input: StaticState,
+    argStates: (StaticState | undefined)[],
+    scope: VariableScope
+  ): void {
+    const nameNode = node.args[0]
+    if (nameNode === undefined || nameNode.kind !== 'string') {
+      return
+    }
+    const name = nameNode.value
+    if (BUILTIN_VARIABLE_NAMES.has(name)) {
+      this.report('variable-override', `Cannot override the environment variable %${name}`, nameNode.span)
+      return
+    }
+    if (scope.has(name)) {
+      this.report('variable-redefined', `Variable %${name} is already defined in this scope`, nameNode.span)
+      return
+    }
+    // Without a value expression the variable holds the function's input.
+    scope.set(name, argStates[1] ?? input)
+  }
+
+  /**
+   * The candidate types that survive narrowing to `target`: subtypes of the
+   * target pass through unchanged, supertypes narrow to the target itself.
+   * Warns when no candidate can ever match — the result is provably empty.
+   */
+  private narrowTypes(input: StaticState, target: string, span: SourceSpan): string[] | undefined {
+    if (input.types === undefined) {
+      return [target]
+    }
+    const survivors = new Set<string>()
+    for (const type of input.types) {
+      if (this.isTypeCompatible(type, target)) {
+        survivors.add(type)
+      } else if (this.isTypeCompatible(target, type)) {
+        survivors.add(target)
+      }
+    }
+    if (survivors.size === 0 && input.types.length > 0) {
+      this.report(
+        'always-empty',
+        `No candidate type (${input.types.join(' | ')}) can be a ${target}, so this is always empty`,
+        span,
+        'warning'
+      )
+    }
+    return [...survivors]
+  }
+
+  /** True when every `type` value is a `base` value, including FHIR-primitive → System subtyping. */
+  private isTypeCompatible(type: string, base: string): boolean {
+    if (type === base || this.model?.isSubtypeOf(type, base) === true) {
+      return true
+    }
+    return base.startsWith('System.') && FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(type)] === base
+  }
+
+  /** Check a type-name argument; returns its canonical name, or undefined when unknown. */
+  private checkTypeArgument(functionName: string, argument: AstNode): string | undefined {
     const parts = typeSpecifierParts(argument)
     if (parts === undefined) {
       this.report('unknown-type', `${functionName}() expects a type name argument`, argument.span)
-      return
+      return undefined
     }
-    this.checkTypeName(parts, argument.span)
+    return this.checkTypeName(parts, argument.span)
   }
 
-  private checkTypeName(parts: string[], span: SourceSpan): void {
+  /** Check a type name; returns its canonical form, or undefined when it was reported unknown. */
+  private checkTypeName(parts: string[], span: SourceSpan): string | undefined {
     if (parts.length === 2 && parts[0] === 'System') {
       if (!SYSTEM_TYPE_NAMES.has(parts[1] as string)) {
         this.report('unknown-type', `Unknown type 'System.${parts[1]}'`, span)
+        return undefined
       }
-      return
+      return `System.${parts[1]}`
     }
     const name = parts.length === 2 ? (parts[1] as string) : (parts[0] as string)
     if (parts.length === 2 && this.model && parts[0] !== this.model.namespace) {
       this.report('unknown-type', `Unknown namespace '${parts[0]}'`, span)
-      return
+      return undefined
     }
-    if (this.model && this.model.resolveType(name) === undefined && !SYSTEM_TYPE_NAMES.has(name)) {
+    const resolved = this.model?.resolveType(name)
+    if (this.model && resolved === undefined && !SYSTEM_TYPE_NAMES.has(name)) {
       this.report('unknown-type', `Unknown type '${parts.join('.')}'`, span)
+      return undefined
     }
+    return resolved ?? (SYSTEM_TYPE_NAMES.has(name) ? `System.${name}` : name)
   }
 
-  private walkBinary(node: AstNode & { kind: 'binary' }, input: StaticState): StaticState {
-    const left = this.walk(node.left, input)
-    const right = this.walk(node.right, input)
+  private walkBinary(node: AstNode & { kind: 'binary' }, input: StaticState, scope: VariableScope): StaticState {
+    // Operator operands are separate chains: each analyzes against its own scope
+    // copy, so defineVariable() in one side is invisible to the other (runtime parity).
+    const left = this.walk(node.left, input, new Map(scope))
+    const right = this.walk(node.right, input, new Map(scope))
     switch (node.operator) {
       case '+':
       case '-':
@@ -335,8 +506,16 @@ class Analyzer {
       case 'div':
       case 'mod': {
         this.checkArithmetic(node.operator, left, right, node.span)
-        const numeric = node.operator === '/' ? 'System.Decimal' : undefined
-        const types = numeric ? [numeric] : (left.types ?? right.types)
+        // Quantity arithmetic yields Quantity (4.0 'g' / 2.0 'm' is 2 'g/m');
+        // plain division yields Decimal; everything else keeps the operand type.
+        const quantity =
+          (node.operator === '*' || node.operator === '/') &&
+          (kindOf(left) === 'Quantity' || kindOf(right) === 'Quantity')
+        const types = quantity
+          ? ['System.Quantity']
+          : node.operator === '/'
+            ? ['System.Decimal']
+            : (left.types ?? right.types)
         return { types, single: true }
       }
       case '&':
@@ -369,11 +548,19 @@ class Analyzer {
         this.requireSingle(right, node.right.span, `'${node.operator}' expects single-item operands`)
         return { types: ['System.Boolean'], single: true }
       }
-      case '|':
+      case '|': {
+        // A statically empty side contributes nothing: `{} | true` is one item.
+        if (left.types?.length === 0) {
+          return right
+        }
+        if (right.types?.length === 0) {
+          return left
+        }
         return {
           types: left.types && right.types ? [...new Set([...left.types, ...right.types])] : undefined,
           single: false,
         }
+      }
       case 'in':
       case 'contains': {
         const singletonSide = node.operator === 'in' ? left : right
@@ -399,22 +586,17 @@ class Analyzer {
     }
   }
 
-  private walkTypeOp(node: AstNode & { kind: 'typeOp' }, input: StaticState): StaticState {
-    const operand = this.walk(node.operand, input)
+  private walkTypeOp(node: AstNode & { kind: 'typeOp' }, input: StaticState, scope: VariableScope): StaticState {
+    const operand = this.walk(node.operand, input, scope)
     this.requireSingle(operand, node.operand.span, `'${node.operator}' expects a single item operand`)
-    this.checkTypeName(node.type.parts, node.type.span)
+    const resolved = this.checkTypeName(node.type.parts, node.type.span)
     if (node.operator === 'is') {
       return { types: ['System.Boolean'], single: true }
     }
-    return { types: [this.resolveSpecifier(node.type)], single: true }
-  }
-
-  private resolveSpecifier(specifier: TypeSpecifier): string {
-    const name = specifier.parts.length === 2 ? (specifier.parts[1] as string) : (specifier.parts[0] as string)
-    if (specifier.parts[0] === 'System') {
-      return `System.${name}`
+    if (resolved === undefined) {
+      return UNKNOWN
     }
-    return this.model?.resolveType(name) ?? name
+    return { types: this.narrowTypes(operand, resolved, node.span), single: true }
   }
 
   private checkArithmetic(operator: string, left: StaticState, right: StaticState, span: SourceSpan): void {
@@ -474,10 +656,13 @@ class Analyzer {
     }
   }
 
-  private report(code: string, message: string, span: SourceSpan): void {
-    this.diagnostics.push({ severity: 'error', code, message, span })
+  private report(code: string, message: string, span: SourceSpan, severity: 'error' | 'warning' = 'error'): void {
+    this.diagnostics.push({ severity, code, message, span })
   }
 }
+
+/** Environment variables the engine always defines; defineVariable() cannot shadow them. */
+const BUILTIN_VARIABLE_NAMES = new Set(['context', 'resource', 'rootResource', 'ucum', 'sct', 'loinc'])
 
 const SYSTEM_TYPE_NAMES = new Set([
   'Any',
@@ -495,9 +680,9 @@ const SYSTEM_TYPE_NAMES = new Set([
 /** Appended to singleton-misuse messages so the fix is spelled out, not just the rule. */
 const NARROW_HINT = ' — narrow it to one item with first(), last(), or single()'
 
-/** Statically known to hold more than one item (types known, not a singleton). */
+/** Statically known to possibly hold more than one item (types known, not a singleton). */
 function isCollection(state: StaticState): boolean {
-  return state.types !== undefined && !state.single
+  return state.types !== undefined && state.single === false
 }
 
 /** The behavior kind shared by every candidate type, or undefined when mixed/unknown. */
