@@ -212,17 +212,14 @@ Three layers, from cheapest to most thorough:
    dotted paths, `[n]`, `first()/last()/single()`, type-preserving `where()`,
    `select()` sub-paths, `ofType()/as()`, `exists()/empty()/count()`, choice stems.
    Anything else degrades to `unknown[]` — never a type error.
-2. **`fhirpath-check` CLI** — scans sources for `` fhirpath`...` `` tags and literal
-   expressions at every API entry point: the expression-first calls
-   (`fhirpath()`, `compile()`, `evaluate()`, `evaluateTyped()`, `first()`,
-   `analyzeExpression()`) and the subject-first `FhirPathEngine` helpers
-   (`test()`, `filter()`, `project()` column expressions, `checkConstraints()`
-   constraint expressions), and runs the analyzer over each with
-   the R4 model: `pnpm exec fhirpath-check src/**/*.ts`.
-   There is no Biome rule because Biome cannot run one: its plugin system is
-   GritQL pattern matching and cannot execute the analyzer. The CLI is the
-   equivalent CI hook for Biome repos like this one (`check:fhirpath` script).
-3. **ESLint rule** for repos that lint with ESLint (same call-site policy as the CLI):
+2. **ESLint rule** (`fhirpath-ts/eslint`) — runs the analyzer as a lint rule over
+   every literal expression at each API entry point: the `` fhirpath`...` `` tag,
+   the expression-first calls (`fhirpath()`, `compile()`, `evaluate()`,
+   `evaluateTyped()`, `first()`, `analyzeExpression()`) and the subject-first
+   `FhirPathEngine` helpers (`test()`, `filter()`, `project()` column expressions,
+   `checkConstraints()` constraint expressions). This repo dogfoods it, so
+   `pnpm lint` — locally, on pre-commit, and in CI — statically checks the
+   library's own expressions alongside the ordinary JS/TS rules:
 
    ```js
    import fhirpathPlugin from 'fhirpath-ts/eslint'
@@ -230,6 +227,17 @@ Three layers, from cheapest to most thorough:
      { plugins: { fhirpath: fhirpathPlugin }, rules: { 'fhirpath/no-invalid-expressions': 'error' } },
    ]
    ```
+
+   By default only the API imported from `fhirpath-ts` (or used bare) is checked.
+   The rule takes options to widen that: `packages` adds import-source prefixes to
+   treat as the FHIRPath API, and `localImports: true` also treats relative imports
+   as the API — which is how this repo dogfoods the rule on its own relatively-imported
+   source (see `eslint.config.ts`).
+
+3. **`fhirpath-check` CLI** — the same analyzer as a standalone command, for repos
+   that do not lint with ESLint (e.g. Biome repos, whose GritQL plugins cannot
+   execute the analyzer): `pnpm exec fhirpath-check src/**/*.ts`. It exits non-zero
+   on the first diagnostic, so it drops into any CI or pre-commit hook.
 
 The analyzer (`fhirpath-ts/analyzer`, `analyzeExpression(expr, { model, inputType })`)
 implements the spec's strict-mode rules: singleton misuse on inputs, operands and

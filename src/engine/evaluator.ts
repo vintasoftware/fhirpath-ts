@@ -1,3 +1,5 @@
+import '../functions/install.ts'
+
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { lookupFunction } from '../functions/registry.ts'
 import type { AstNode } from '../parser/ast.ts'
@@ -19,7 +21,6 @@ import {
 import { type EvaluationContext, forkVariables, resolveEnvironmentVariable } from './context.ts'
 import { navigateIdentifier } from './navigation.ts'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
-import '../functions/install.ts'
 
 function evaluateArgument(node: AstNode, context: EvaluationContext, _input: TypedValue[]): TypedValue[] {
   // Arguments evaluate against $this (the current context item), not the function's

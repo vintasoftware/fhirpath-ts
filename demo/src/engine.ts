@@ -1,5 +1,5 @@
 import { Decimal, FhirPathError, type QuantityValue, Temporal } from 'fhirpath-ts'
-import { type AnalyzerDiagnostic, analyzeExpression } from 'fhirpath-ts/analyzer'
+import { analyzeExpression, type AnalyzerDiagnostic } from 'fhirpath-ts/analyzer'
 import { r4, r4Model } from 'fhirpath-ts/r4'
 
 export interface ResultItem {

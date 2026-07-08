@@ -8,7 +8,9 @@
 import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+
 import { readJson } from '@medplum/definitions'
+
 import type { GeneratedElement, GeneratedType } from '../src/r4/model-data.ts'
 
 const GENERATED_DIR = resolve(import.meta.dirname, '../src/r4/generated')
@@ -312,13 +314,14 @@ function emitTypeMaps(all: Record<string, GeneratedType>, resourceNames: string[
 }
 
 /**
- * Format the freshly written files with Biome so the committed output is
+ * Format the freshly written files with Prettier so the committed output is
  * byte-identical to what the repo's lint-staged hook produces. Without this,
  * regeneration leaves a whitespace-only diff and the "one generator run, no
- * drift" guarantee is false.
+ * drift" guarantee is false. The generated dir is Prettier-ignored for the
+ * normal `format` run, so it is passed explicitly with the ignore file disabled.
  */
 function formatGenerated(): void {
-  execFileSync('pnpm', ['exec', 'biome', 'check', '--write', '--no-errors-on-unmatched', GENERATED_DIR], {
+  execFileSync('pnpm', ['exec', 'prettier', '--write', '--ignore-path', '', GENERATED_DIR], {
     stdio: 'inherit',
   })
 }

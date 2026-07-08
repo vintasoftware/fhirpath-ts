@@ -5,7 +5,7 @@ import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { printExpression } from '../parser/printer.ts'
 import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
-import { type TypedValue, toCollection, unwrap } from '../values/typed-value.ts'
+import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
 
 export interface EvaluateOptions {
@@ -65,7 +65,7 @@ export function compile<const Expr extends string>(expression: Expr): CompiledEx
 }
 
 /** An expression as text or already compiled, with any literal type. */
-// biome-ignore lint/suspicious/noExplicitAny: accepts any literal-typed CompiledExpression
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts any literal-typed CompiledExpression
 export type AnyExpression = string | CompiledExpression<any>
 
 const PARSE_CACHE_CAPACITY = 500

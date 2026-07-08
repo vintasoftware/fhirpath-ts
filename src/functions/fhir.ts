@@ -2,7 +2,7 @@ import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { validateNarrative } from '../fhir/html-checks.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
 import { calendarToUcumLoose, compareQuantities, promoteQuantity } from '../values/quantity.ts'
-import { SYSTEM_QUANTITY, SYSTEM_STRING, systemTypeOf, type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import { SYSTEM_QUANTITY, SYSTEM_STRING, systemTypeOf, toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { argAt, registerFunction } from './registry.ts'
 
 /** extension(url): extensions of each item, including primitive `_field` extensions. */

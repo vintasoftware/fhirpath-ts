@@ -212,7 +212,7 @@ function safeUrl(rawValue: string, attributeName: string): boolean {
     // An unknown entity in the URL (e.g. javascript&colon;) is malformed; reject.
     return false
   }
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control characters is the point
+  // eslint-disable-next-line no-control-regex -- stripping control characters is the point
   const value = decoded.replace(/[\u0000-\u0020]/gu, '')
   const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(value)
   if (!scheme) {

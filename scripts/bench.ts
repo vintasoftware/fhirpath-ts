@@ -4,6 +4,7 @@
  *   node scripts/bench.ts
  */
 import { performance } from 'node:perf_hooks'
+
 import { compile, evaluate } from '../src/index.ts'
 import { r4Model } from '../src/r4/index.ts'
 

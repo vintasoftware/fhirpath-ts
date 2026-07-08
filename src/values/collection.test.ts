@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { FhirPathRuntimeError } from '../errors.ts'
 import { booleanSingleton, singleton, wrapBoolean } from './collection.ts'
 import { Decimal } from './decimal.ts'

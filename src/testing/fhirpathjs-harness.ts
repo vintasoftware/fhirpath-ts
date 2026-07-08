@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+
 import { QUIRK_FAMILIES, type QuirkFamily, SKIPPED_MODELS } from '../../test-data/fhirpathjs/quirk-manifest.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate } from '../api/evaluate.ts'

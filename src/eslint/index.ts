@@ -1,10 +1,12 @@
 import type { Rule } from 'eslint'
+
 import { analyzeExpression } from '../analyzer/analyze.ts'
 import {
   CALL_SITES,
   type CallSiteShape,
   isForeignCall,
   isForeignModule,
+  type LocalModuleOptions,
   TAG_NAME,
 } from '../analyzer/expression-policy.ts'
 import { r4Model } from '../r4/index.ts'
@@ -85,13 +87,18 @@ function namedStringProperties(object: NodeLike, name: string): (NodeLike & { va
 }
 
 /**
- * ESLint flat-config plugin for consumers whose repos lint with ESLint
- * (this repo itself uses Biome plus the fhirpath-check CLI). Checks every
- * literal FHIRPath expression with the spec §11 analyzer and the R4 model:
- * the fhirpath tag, the expression-first calls (compile, evaluate, ...), and
- * the subject-first FhirPathEngine helpers (test, filter, project,
- * checkConstraints) including expressions inside columns objects and
- * constraint arrays.
+ * ESLint flat-config plugin that checks every literal FHIRPath expression with
+ * the spec §11 analyzer and the R4 model: the fhirpath tag, the expression-first
+ * calls (compile, evaluate, ...), and the subject-first FhirPathEngine helpers
+ * (test, filter, project, checkConstraints) including expressions inside columns
+ * objects and constraint arrays.
+ *
+ * By default only the FHIRPath API imported from `fhirpath-ts` — or used bare,
+ * without an import — is checked, so a local `compile` from another module is
+ * left alone. Two options widen that:
+ *   - `packages`: extra import-source prefixes to treat as the FHIRPath API.
+ *   - `localImports`: also treat relative imports as the FHIRPath API, so the
+ *     package can dogfood this rule on its own source (which imports relatively).
  *
  * Usage:
  *   import fhirpathPlugin from 'fhirpath-ts/eslint'
@@ -103,10 +110,20 @@ const noInvalidExpressions: Rule.RuleModule = {
     docs: {
       description: 'check FHIRPath expression literals with the static analyzer',
     },
-    schema: [],
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          packages: { type: 'array', items: { type: 'string' } },
+          localImports: { type: 'boolean' },
+        },
+        additionalProperties: false,
+      },
+    ],
   },
   create(context) {
-    // Local names bound by imports from other modules: `compile` from handlebars
+    const options = (context.options[0] ?? {}) as LocalModuleOptions
+    // Local names bound by imports from foreign modules: `compile` from handlebars
     // is not a FHIRPath expression. Files without imports are always checked.
     const foreign = new Set<string>()
     const check = (node: Rule.Node, expression: string): void => {
@@ -116,7 +133,7 @@ const noInvalidExpressions: Rule.RuleModule = {
     }
     return {
       ImportDeclaration(node) {
-        if (typeof node.source.value !== 'string' || !isForeignModule(node.source.value)) {
+        if (typeof node.source.value !== 'string' || !isForeignModule(node.source.value, options)) {
           return
         }
         for (const specifier of node.specifiers) {

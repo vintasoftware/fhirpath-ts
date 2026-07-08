@@ -2,7 +2,7 @@ import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
 import { booleanSingleton } from '../values/collection.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { type BundleLike, isBundle, normalizeInput, toSubjects } from './bundle.ts'
-import { type AnyExpression, CompiledExpression, cachedCompile, type EvaluateOptions } from './compile.ts'
+import { type AnyExpression, cachedCompile, CompiledExpression, type EvaluateOptions } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
 import { type Projection, type ProjectionColumns, projectOne } from './project.ts'
 
