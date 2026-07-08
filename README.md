@@ -164,6 +164,16 @@ Without a model (engine default or per-call), the engine navigates raw JSON.
 returns the internal `TypedValue[]` (type names plus `Decimal`/`Temporal` value
 objects) instead of unwrapped JS values.
 
+A second constructor argument sets construction-time options — currently
+`cacheSize`, the capacity of the engine's private parse-cache LRU (default
+`DEFAULT_PARSE_CACHE_SIZE`, 500; `0` effectively disables reuse). Each engine
+caches independently of other engines and of the free `evaluate()`. Expressions
+you `compile()` yourself bypass the cache entirely.
+
+```ts
+const fp = new FhirPathEngine({ model: r4Model }, { cacheSize: 2000 })
+```
+
 ## Conformance
 
 The official test suites from
