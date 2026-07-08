@@ -40,6 +40,7 @@ describe('expression site extraction', () => {
       "  quoted: { 'path': 'telecom.value' },",
       '  dynamic: someVariable,',
       '  [computed]: `name.$' + '{part}`,',
+      "  [alsoComputed]: 'name.suffix',", // a computed key names the column; the value is still checkable
       '})',
       'const result = r4.checkConstraints(patient, [',
       "  { key: 'pat-1', expression: 'contact.name.exists()', human: 'contact needs a name' },",
@@ -55,24 +56,72 @@ describe('expression site extraction', () => {
       'name.family.first()',
       'name.given',
       'telecom.value',
+      'name.suffix',
       'contact.name.exists()',
     ])
     const projectSite = sites.find(site => site.expression === 'name.given')
     expect(projectSite?.line).toBe(8)
     const constraintSite = sites.find(site => site.expression === 'contact.name.exists()')
-    expect(constraintSite?.line).toBe(14)
+    expect(constraintSite?.line).toBe(15)
   })
 
   it('leaves non-literal helper arguments and non-object shapes alone', () => {
     const source = [
+      "import { r4 } from 'fhirpath-ts/r4'", // r4 is a known engine, so only the argument shapes decide
       'const a = r4.test(patient)', // no expression argument at all
       'const b = r4.filter(patients, criteriaVariable)',
       'const c = r4.project(patients, columnsVariable)',
       'const d = r4.checkConstraints(patient, constraintsVariable)',
-      'const e = r4.checkConstraints(patient, [constraintVariable, null])',
-      'const f = items.filter(item => item.active)',
-      "const g = pattern.test('some input string')", // regex-style test: expression is arg 1, absent here
+      'const e = r4.checkConstraints(patient, [constraintVariable, null, ...moreConstraints])',
       'const h = r4.project(patients, { ...spreadColumns, shorthand })',
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts')).toEqual([])
+  })
+
+  it('checks common-name helpers only on known engine receivers', () => {
+    // test/filter/first/project exist only as engine methods and collide with
+    // everyday APIs (knex .first(), lodash .filter(), regex .test()), so they
+    // need a positive engine binding — not just "no foreign import".
+    const skipped = [
+      "import knex from 'knex'",
+      'const db = knex({})',
+      "const a = db.first('COUNT(*) as total')", // knex, receiver derived from a foreign import
+      "const b = db.filter(rows, 'created_at > ?')",
+      "const c = validator.test(input, 'some free text')", // untracked local receiver
+      'const d = r4.filter(patients, someCriteria)',
+      "const e = r4.test(patient, 'active')", // no fhirpath-ts import in this file: r4 is unknown
+      'const f = items.filter(item => item.active)',
+      "const g = this.engine.filter(patients, 'active')", // untracked alias: documented gap
+    ].join('\n')
+    expect(findExpressionSites(skipped, 'sample.ts')).toEqual([])
+
+    const checked = [
+      "import { FhirPathEngine } from 'fhirpath-ts'",
+      'const engine = new FhirPathEngine({ model })',
+      "const a = engine.filter(patients, 'birthDate <= @2008-01-01')",
+      "const b = engine.first('Patient.name.family', patient)",
+    ].join('\n')
+    expect(findExpressionSites(checked, 'sample.ts').map(site => site.expression)).toEqual([
+      'birthDate <= @2008-01-01',
+      'Patient.name.family',
+    ])
+  })
+
+  it('treats a new FhirPathEngine local as an engine even without imports, and after use', () => {
+    const source = [
+      "function isActive(patient) { return engine.test(patient, 'active') }", // use before declaration
+      'const engine = new FhirPathEngine({ model })',
+      'const other = new SomethingElse()',
+      "const skipped = other.test(x, 'free text with spaces')",
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => site.expression)).toEqual(['active'])
+  })
+
+  it('does not treat a foreign FhirPathEngine as an engine', () => {
+    const source = [
+      "import { FhirPathEngine } from 'some-other-fhirpath'",
+      'const engine = new FhirPathEngine()',
+      "const skipped = engine.test(x, 'not ours')",
     ].join('\n')
     expect(findExpressionSites(source, 'sample.ts')).toEqual([])
   })
@@ -125,6 +174,7 @@ describe('fhirpath-check CLI', () => {
     writeFileSync(
       dirty,
       [
+        "import { r4 } from 'fhirpath-ts/r4'",
         'const bad = fhirpath`Patient.nope`',
         "const worse = compile('Patient.name.frobnicate()')",
         "const rows = r4.project(patients, { given: 'name..given' })",
@@ -139,12 +189,12 @@ describe('fhirpath-check CLI', () => {
 
     const failed = run([clean, dirty])
     expect(failed.status).toBe(1)
-    expect(failed.output).toContain('dirty.ts:1:')
+    expect(failed.output).toContain('dirty.ts:2:')
     expect(failed.output).toContain('unknown-element')
     expect(failed.output).toContain('unknown-function')
-    expect(failed.output).toContain('dirty.ts:3:')
-    expect(failed.output).toContain('syntax')
     expect(failed.output).toContain('dirty.ts:4:')
+    expect(failed.output).toContain('syntax')
+    expect(failed.output).toContain('dirty.ts:5:')
     expect(failed.output).toContain('4 problem(s) found')
   })
 

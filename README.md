@@ -219,6 +219,12 @@ Three layers, from cheapest to most thorough:
    (`test()`, `filter()`, `project()` column expressions, `checkConstraints()`
    constraint expressions), and runs the analyzer over each with
    the R4 model: `pnpm exec fhirpath-check src/**/*.ts`.
+   Names bound by imports from other packages are skipped, and the common-name
+   helpers (`test`, `filter`, `first`, `project`) fire only on receivers the file
+   binds to this package — an import like `r4`, or a `new FhirPathEngine(...)`
+   local — so other libraries' `.filter()`/`.first()` calls are never analyzed
+   as FHIRPath. The flip side: an engine reached through an untracked alias
+   (`this.engine`, a function parameter) is not statically checked.
    There is no Biome rule because Biome cannot run one: its plugin system is
    GritQL pattern matching and cannot execute the analyzer. The CLI is the
    equivalent CI hook for Biome repos like this one (`check:fhirpath` script).

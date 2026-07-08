@@ -1,9 +1,12 @@
 import ts from 'typescript'
 import {
   CALL_SITES,
-  type CallSiteShape,
-  isForeignCall,
+  constructsEngine,
+  type ExpressionAst,
+  expressionEntries,
+  isCheckedCall,
   isForeignModule,
+  type SourceBindings,
   TAG_NAME,
 } from '../analyzer/expression-policy.ts'
 
@@ -15,27 +18,43 @@ export interface ExpressionSite {
   column: number
 }
 
+/** How the shared shape extractor reads TypeScript AST nodes. */
+const tsAst: ExpressionAst<ts.Node> = {
+  string: node => (ts.isStringLiteralLike(node) ? { node, expression: node.text } : undefined),
+  properties: node =>
+    ts.isObjectLiteralExpression(node)
+      ? node.properties
+          .filter(ts.isPropertyAssignment)
+          .map(property => ({ name: propertyKeyName(property.name), value: property.initializer }))
+      : undefined,
+  elements: node => (ts.isArrayLiteralExpression(node) ? [...node.elements] : undefined),
+}
+
+/** Statically-known property key (`path` in `{ path: ... }` or `{ 'path': ... }`), undefined when computed. */
+function propertyKeyName(name: ts.PropertyName): string | undefined {
+  return ts.isIdentifier(name) || ts.isStringLiteral(name) ? name.text : undefined
+}
+
 /**
  * Find FHIRPath expression literals in a TypeScript source file: `` fhirpath`...` ``
- * tags, literal expression arguments to the call names in `CALL_SITES` (the
- * low-level fhirpath()/compile()/evaluate() plus the FhirPathEngine helpers —
+ * tags plus literal expression arguments to the call names in `CALL_SITES` —
  * including expressions inside project() columns objects and checkConstraints()
- * constraint arrays). Dynamic expressions cannot be checked statically and are
- * left alone.
+ * constraint arrays. Which calls count is the shared policy's decision
+ * (`isCheckedCall`): foreign imports are skipped, and the common-name engine
+ * helpers (test/filter/first/project) fire only on receivers bound to this
+ * package or to a `new FhirPathEngine(...)` local. Dynamic expressions cannot
+ * be checked statically and are left alone.
  */
 export function findExpressionSites(sourceText: string, fileName: string): ExpressionSite[] {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
-  const foreign = foreignBindings(source)
+  const bindings = collectBindings(source)
   const sites: ExpressionSite[] = []
   const record = (text: string, literalStart: number): void => {
     const { line, character } = source.getLineAndCharacterOfPosition(literalStart)
     sites.push({ expression: text, start: literalStart, line: line + 1, column: character + 1 })
   }
-  const recordLiteral = (literal: ts.StringLiteralLike): void => {
-    record(literal.text, literal.getStart(source) + 1)
-  }
   const visit = (node: ts.Node): void => {
-    if (ts.isTaggedTemplateExpression(node) && nameOf(node.tag) === TAG_NAME && !foreign.has(TAG_NAME)) {
+    if (ts.isTaggedTemplateExpression(node) && nameOf(node.tag) === TAG_NAME && !bindings.foreign.has(TAG_NAME)) {
       if (ts.isNoSubstitutionTemplateLiteral(node.template)) {
         record(node.template.text, node.template.getStart(source) + 1)
       }
@@ -47,9 +66,11 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
         callee !== undefined &&
         policy !== undefined &&
         argument !== undefined &&
-        !isForeignCall(foreign, callee, receiverRoot(node.expression))
+        isCheckedCall(policy, callee, receiverRoot(node.expression), bindings)
       ) {
-        recordArgument(argument, policy.shape, recordLiteral)
+        for (const entry of expressionEntries<ts.Node>(argument, policy.shape, tsAst)) {
+          record(entry.expression, entry.node.getStart(source) + 1)
+        }
       }
     }
     ts.forEachChild(node, visit)
@@ -58,74 +79,21 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
   return sites
 }
 
-/** Extract the expression literal(s) an argument holds, per the call site's shape. */
-function recordArgument(
-  argument: ts.Expression,
-  shape: CallSiteShape,
-  recordLiteral: (literal: ts.StringLiteralLike) => void
-): void {
-  if (shape === 'expression') {
-    if (ts.isStringLiteralLike(argument)) {
-      recordLiteral(argument)
-    }
-  } else if (shape === 'columns') {
-    // project() columns: { name: 'expr' } or { name: { path: 'expr', collection: true } }.
-    if (ts.isObjectLiteralExpression(argument)) {
-      for (const property of argument.properties) {
-        if (!ts.isPropertyAssignment(property)) {
-          continue
-        }
-        if (ts.isStringLiteralLike(property.initializer)) {
-          recordLiteral(property.initializer)
-        } else if (ts.isObjectLiteralExpression(property.initializer)) {
-          recordProperty(property.initializer, 'path', recordLiteral)
-        }
-      }
-    }
-  } else {
-    // checkConstraints() constraints: [{ key, expression: 'expr', ... }].
-    if (ts.isArrayLiteralExpression(argument)) {
-      for (const element of argument.elements) {
-        if (ts.isObjectLiteralExpression(element)) {
-          recordProperty(element, 'expression', recordLiteral)
-        }
-      }
-    }
-  }
-}
-
-/** Record an object literal's `name` property when it is a string literal. */
-function recordProperty(
-  object: ts.ObjectLiteralExpression,
-  name: string,
-  recordLiteral: (literal: ts.StringLiteralLike) => void
-): void {
-  for (const property of object.properties) {
-    if (
-      ts.isPropertyAssignment(property) &&
-      (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) &&
-      property.name.text === name &&
-      ts.isStringLiteralLike(property.initializer)
-    ) {
-      recordLiteral(property.initializer)
-    }
-  }
-}
-
 /**
- * Local names bound by imports from modules other than this package. `compile`
- * from handlebars is not a FHIRPath expression, so calls to those names skip
- * the check; files without imports (scripts, snippets) are always scanned.
+ * Collect the file's name bindings before extraction: foreign-import names and
+ * package-import names from the top-level import statements, then engine locals
+ * (`const engine = new FhirPathEngine(...)`) from the whole tree — a separate
+ * pass so use-before-declaration (a module-scope engine used by an earlier
+ * function) still counts.
  */
-function foreignBindings(source: ts.SourceFile): ReadonlySet<string> {
-  const names = new Set<string>()
+function collectBindings(source: ts.SourceFile): SourceBindings {
+  const foreign = new Set<string>()
+  const engines = new Set<string>()
   for (const statement of source.statements) {
     if (!(ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier))) {
       continue
     }
-    if (!isForeignModule(statement.moduleSpecifier.text)) {
-      continue
-    }
+    const names = isForeignModule(statement.moduleSpecifier.text) ? foreign : engines
     const clause = statement.importClause
     if (!clause) {
       continue
@@ -133,13 +101,32 @@ function foreignBindings(source: ts.SourceFile): ReadonlySet<string> {
     if (clause.name) {
       names.add(clause.name.text)
     }
-    if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
-      for (const element of clause.namedBindings.elements) {
-        names.add(element.name.text)
+    if (clause.namedBindings) {
+      if (ts.isNamedImports(clause.namedBindings)) {
+        for (const element of clause.namedBindings.elements) {
+          names.add(element.name.text)
+        }
+      } else {
+        names.add(clause.namedBindings.name.text)
       }
     }
   }
-  return names
+  const bindings = { foreign, engines }
+  const collectEngineLocals = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer !== undefined &&
+      ts.isNewExpression(node.initializer) &&
+      ts.isIdentifier(node.initializer.expression) &&
+      constructsEngine(node.initializer.expression.text, bindings)
+    ) {
+      engines.add(node.name.text)
+    }
+    ts.forEachChild(node, collectEngineLocals)
+  }
+  collectEngineLocals(source)
+  return bindings
 }
 
 function nameOf(node: ts.Expression): string | undefined {
@@ -152,13 +139,13 @@ function nameOf(node: ts.Expression): string | undefined {
   return undefined
 }
 
-/** Leftmost identifier of a property-access callee (`Handlebars` in `Handlebars.compile`). */
+/** Leftmost identifier of a member-access callee (`Handlebars` in `Handlebars.compile`). */
 function receiverRoot(callee: ts.Expression): string | undefined {
   if (!ts.isPropertyAccessExpression(callee)) {
     return undefined
   }
   let current: ts.Expression = callee.expression
-  while (ts.isPropertyAccessExpression(current)) {
+  while (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
     current = current.expression
   }
   return ts.isIdentifier(current) ? current.text : undefined

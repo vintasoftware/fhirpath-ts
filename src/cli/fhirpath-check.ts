@@ -5,9 +5,13 @@
  * calls (compile(), evaluate(), evaluateTyped(), first(), analyzeExpression()),
  * and the subject-first FhirPathEngine helpers (test(), filter(), project()
  * columns, checkConstraints() constraint arrays) — and runs the spec §11
- * analyzer over each with the R4 model. Exits non-zero
- * when any diagnostic is found. This repo lints with Biome, so this CLI is how
- * CI enforces the checks; ESLint users can use the ./eslint export instead.
+ * analyzer over each with the R4 model. Which calls count is the shared
+ * policy's decision (src/analyzer/expression-policy.ts): foreign imports are
+ * skipped, and the common-name helpers (test/filter/first/project) fire only
+ * on receivers bound to this package or to a new FhirPathEngine(...) local.
+ * Exits non-zero when any diagnostic is found. This repo lints with Biome, so
+ * this CLI is how CI enforces the checks; ESLint users can use the ./eslint
+ * export instead.
  *
  * Usage: fhirpath-check <file...>
  */
