@@ -22,6 +22,28 @@ export interface HostFunction {
   fn: (input: unknown[], ...args: unknown[][]) => unknown
 }
 
+/**
+ * A pluggable regular-expression engine for matches()/matchesFull()/
+ * replaceMatches(). The default is the built-in RegExp, which backtracks and
+ * cannot be timed out synchronously — hosts evaluating untrusted expressions
+ * can supply a linear-time engine (e.g. an RE2 binding) here instead.
+ */
+export interface RegexEngine {
+  /**
+   * Compile `pattern` with `flags` (a subset of 's' and 'g'; matchesFull
+   * wraps the pattern in `^(?:...)$` before compiling). Throw on invalid
+   * patterns — the engine converts that to the spec's type error.
+   */
+  compile(
+    pattern: string,
+    flags: string
+  ): {
+    test(subject: string): boolean
+    /** Replace every match (the 'g' flag is passed for replaceMatches). */
+    replace(subject: string, substitution: string): string
+  }
+}
+
 /** `$this` / `$index` / `$total` bindings; iteration functions push one frame per element. */
 export interface Frame {
   parent: Frame | undefined
@@ -51,6 +73,8 @@ export interface EvaluationContext {
   variables: Map<string, TypedValue[]>
   /** Host-supplied functions by name; never contains a built-in name (createContext rejects overrides). */
   functions: ReadonlyMap<string, HostFunction>
+  /** Regex engine for the matches() family; undefined means the built-in RegExp. */
+  regex: RegexEngine | undefined
   frame: Frame
 }
 
@@ -79,6 +103,7 @@ export function createContext(options: {
   now?: Date | undefined
   trace?: ((name: string, values: TypedValue[]) => void) | undefined
   functions?: Record<string, HostFunction> | undefined
+  regex?: RegexEngine | undefined
 }): EvaluationContext {
   const env = new Map<string, TypedValue[]>()
   for (const [name, url] of BUILTIN_CONSTANTS) {
@@ -107,6 +132,7 @@ export function createContext(options: {
     trace: options.trace ?? (() => {}),
     variables: new Map(),
     functions: hostFunctions,
+    regex: options.regex,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
 }

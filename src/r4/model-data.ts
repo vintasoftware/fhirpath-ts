@@ -6,6 +6,8 @@ export interface GeneratedElement {
   a?: 1
   /** Present (1) for choice elements: JSON keys carry a type suffix (valueQuantity). */
   c?: 1
+  /** Resource names a Reference element may point to (targetProfile); absent when unconstrained. */
+  r?: string[]
 }
 
 export interface GeneratedType {

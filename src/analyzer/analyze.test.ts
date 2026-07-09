@@ -393,3 +393,26 @@ describe('warnings and details', () => {
     expect(analyzeExpressionDetailed('1 +').elementDependencies).toEqual([])
   })
 })
+
+describe('resolve() reference-target typing', () => {
+  it('yields the declared target types, so checks resume past resolve()', () => {
+    // Patient.generalPractitioner targets Organization | Practitioner | PractitionerRole.
+    expect(codes('Patient.generalPractitioner.resolve().name')).toEqual([])
+    expect(codes('Patient.generalPractitioner.resolve().nope')).toEqual(['unknown-element'])
+    // Observation.subject is single, so the resolved resource is too.
+    expect(
+      codes('Observation.subject.resolve().id.length() > 0', { model: r4Model, inputType: 'Observation' })
+    ).toEqual([])
+  })
+
+  it('targets survive item selection', () => {
+    expect(codes('Patient.generalPractitioner.first().resolve().nope')).toEqual(['unknown-element'])
+  })
+
+  it('an unconstrained or non-reference input stays an unknown region', () => {
+    // Reference.reference is a plain string; resolve() on strings is unconstrained.
+    expect(codes('Patient.generalPractitioner.reference.resolve().anything')).toEqual([])
+    // Bundle.entry.resource is any resource: no targets, still muted.
+    expect(codes('Bundle.entry.resource.resolve().anything', { model: r4Model, inputType: 'Bundle' })).toEqual([])
+  })
+})

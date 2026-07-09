@@ -268,3 +268,34 @@ describe('sort', () => {
     expect(evaluate('part.sort(a, -b).b', input)).toEqual([9, 2, 1])
   })
 })
+
+describe('pluggable regex engine (EvaluateOptions.regex)', () => {
+  // A stub engine that recognizes exactly one pattern, to prove the hook is used.
+  const stub = {
+    compile(pattern: string, flags: string) {
+      if (pattern.includes('[')) {
+        throw new Error('unsupported')
+      }
+      return {
+        test: (subject: string) => subject === `${pattern}:${flags}`,
+        replace: (subject: string, substitution: string) => `${subject}|${substitution}|${flags}`,
+      }
+    },
+  }
+
+  it('routes matches/matchesFull/replaceMatches through the supplied engine', () => {
+    expect(evaluate("'abc:s'.matches('abc')", undefined, { regex: stub })).toEqual([true])
+    expect(evaluate("'abc'.matches('abc')", undefined, { regex: stub })).toEqual([false])
+    expect(evaluate("'^(?:abc)$:s'.matchesFull('abc')", undefined, { regex: stub })).toEqual([true])
+    expect(evaluate("'x'.replaceMatches('abc', 'y')", undefined, { regex: stub })).toEqual(['x|y|gs'])
+  })
+
+  it('compile failures surface as the spec invalid-regex type error', () => {
+    expect(() => evaluate("'a'.matches('[')", undefined, { regex: stub })).toThrow(FhirPathTypeError)
+    expect(() => evaluate("'a'.matches('[')", undefined, { regex: stub })).toThrow('invalid regular expression')
+  })
+
+  it('without the option, the built-in RegExp still runs', () => {
+    expect(evaluate("'abc'.matches('a.c')")).toEqual([true])
+  })
+})

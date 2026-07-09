@@ -29,6 +29,8 @@ interface StaticStateLike {
   types: string[] | undefined
   /** True: at most one item. False: may hold several. Undefined: cardinality unknown. */
   single: boolean | undefined
+  /** Canonical resource types a Reference state may point to — resolve()'s result. */
+  targets?: string[]
 }
 
 /** Cardinality of a value combined from two parts: single only when both are. */
@@ -79,7 +81,11 @@ const STRING = (): StaticStateLike => ({ types: ['System.String'], single: true 
 const DECIMAL = (): StaticStateLike => ({ types: ['System.Decimal'], single: true })
 const UNKNOWN = (): StaticStateLike => ({ types: undefined, single: undefined })
 const SAME = (input: StaticStateLike): StaticStateLike => input
-const ITEM = (input: StaticStateLike): StaticStateLike => ({ types: input.types, single: true })
+// Reference targets survive item selection so `subject.first().resolve()` stays typed.
+const ITEM = (input: StaticStateLike): StaticStateLike =>
+  input.targets === undefined
+    ? { types: input.types, single: true }
+    : { types: input.types, single: true, targets: input.targets }
 /**
  * The union of several alternative states (iif branches, coalesce arguments):
  * all candidate types, single only when every alternative is.
@@ -154,7 +160,9 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   trace: { args: ['String', 'expression'], result: SAME },
   children: { result: UNKNOWN },
   descendants: { result: UNKNOWN },
-  resolve: { result: UNKNOWN },
+  // A reference resolves to its declared target types (Reference.targetProfile,
+  // HAPI's TypeDetails.targets); an unconstrained reference stays unknown.
+  resolve: { result: input => ({ types: input.targets, single: input.single }) },
   extension: { args: ['String'], result: UNKNOWN },
   hasValue: { input: { singleton: true }, result: BOOLEAN },
   getValue: { input: { singleton: true }, result: UNKNOWN },

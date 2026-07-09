@@ -1,5 +1,5 @@
 import type { CustomFunctionSignature } from '../analyzer/signatures.ts'
-import { createContext, type HostFunction } from '../engine/context.ts'
+import { createContext, type HostFunction, type RegexEngine } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
@@ -34,6 +34,13 @@ export interface EvaluateOptions {
   trace?: (name: string, values: TypedValue[]) => void
   /** Host-supplied functions by name. Declare them to the analyzer too via AnalyzeOptions.functions. */
   functions?: Record<string, CustomFunction>
+  /**
+   * Regex engine for matches()/matchesFull()/replaceMatches(). The default is
+   * the built-in RegExp, which backtracks and cannot be timed out — supply a
+   * linear-time engine (e.g. an RE2 binding) when evaluating untrusted
+   * expressions (see README, Security).
+   */
+  regex?: RegexEngine
 }
 
 /**
@@ -65,6 +72,7 @@ export class CompiledExpression<Expr extends string = string> {
       now: options?.now,
       trace: options?.trace,
       functions: options?.functions,
+      regex: options?.regex,
     })
     return evaluateNode(this.ast, context, root)
   }

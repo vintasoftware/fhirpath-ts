@@ -79,6 +79,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       author: {
         t: ['Reference', 'string'],
         c: 1,
+        r: ['Practitioner', 'Patient', 'RelatedPerson', 'Organization'],
       },
       extension: {
         t: ['Extension'],
@@ -324,6 +325,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Group'],
       },
       type: {
         t: ['code'],
@@ -1205,6 +1207,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
     e: {
       assigner: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       extension: {
         t: ['Extension'],
@@ -1277,6 +1280,9 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       compartment: {
         t: ['Reference'],
         a: 1,
+      },
+      deleted: {
+        t: ['boolean'],
       },
       extension: {
         t: ['Extension'],
@@ -1683,6 +1689,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       },
       onBehalfOf: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'RelatedPerson', 'Patient', 'Device', 'Organization'],
       },
       sigFormat: {
         t: ['code'],
@@ -1699,6 +1706,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       },
       who: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'RelatedPerson', 'Patient', 'Device', 'Organization'],
       },
     },
   },
@@ -1863,6 +1871,7 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       timing: {
         t: ['Timing', 'Reference', 'date', 'dateTime'],
         c: 1,
+        r: ['Schedule'],
       },
       type: {
         t: ['code'],
@@ -1885,6 +1894,15 @@ export const R4_DATA_TYPES: Readonly<Record<string, GeneratedType>> = {
       value: {
         t: ['CodeableConcept', 'Quantity', 'Range', 'Reference'],
         c: 1,
+        r: [
+          'PlanDefinition',
+          'ResearchStudy',
+          'InsurancePlan',
+          'HealthcareService',
+          'Group',
+          'Location',
+          'Organization',
+        ],
       },
     },
   },
