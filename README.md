@@ -26,22 +26,61 @@ other implementation offers together:
 
 Three things set this engine apart.
 
-**Expressions are checked before they run.** The spec has had §11 for years, but the
-reference engines treat it as at most a runtime mode. Here a typo like
-`Observation.valueQuantity` or a singleton misuse is a build failure — caught by type
-inference in `tsc`, the `fhirpath-check` CLI, or the ESLint rule — instead of an empty
-result in production.
+**Expressions are checked before they run — and the checker itself is
+conformance-tested.** The spec has had §11 for years, but the reference engines
+treat it as at most a runtime mode. Here a typo like `Observation.valueQuantity`
+or a singleton misuse is a build failure — caught by type inference in `tsc`,
+the `fhirpath-check` CLI, or the ESLint rule — instead of an empty result in
+production. The analyzer runs against both official suites: every strict-mode
+and semantic-invalid case must produce an error diagnostic, and every valid case
+must produce none, so it cannot drift into false positives. It types
+`resolve()` from `Reference.targetProfile`, tracks `defineVariable()` scopes
+exactly like the runtime, and host-supplied custom functions declare one record
+— arity, signature, implementation — that the evaluator and the analyzer both
+understand, so using a custom function never blinds the checker.
 
 **Correctness is demonstrated against everyone else's tests, not just ours.** The
 engine passes 100% of the non-skipped official suites plus the fhirpath.js and
-fhirpath-py corpora, and every intentional divergence carries its spec citation. That
-process caught reference-implementation bugs this engine refused to inherit: Medplum's
-`(0).not() = true` contradicts the official suite, and fhirpath.js treats
-`1 month = 30 days` as true.
+fhirpath-py corpora, and every intentional divergence carries its spec citation.
+Failing cases must fail in the phase the suite names — syntax at parse, semantic
+as a type error, execution at runtime. On top of the fixed suites, property
+tests check what example-based tests cannot: printer/parser round-trips over
+generated ASTs, exact-decimal arithmetic laws, temporal comparison laws at mixed
+precisions, and generated expressions evaluated differentially against
+fhirpath.js. That process caught reference-implementation bugs this engine
+refused to inherit: Medplum's `(0).not() = true` contradicts the official suite,
+and fhirpath.js treats `1 month = 30 days` as true. A weekly job re-converts the
+suites from `FHIR/fhir-test-cases@master` and flags new or changed cases.
 
-**The engineering fits this repo.** Zero dependencies, consumed from source, hardened
-against hostile expressions, and model-agnostic behind a provider interface, so R5 and
-CDA are additive.
+**The engineering fits this repo.** Zero dependencies, consumed from source,
+hardened against hostile expressions — including two ReDoS answers for
+`matches()`: a static warning on backtracking-prone literal patterns and a
+pluggable linear-time regex engine — and model-agnostic behind a provider
+interface, so R5 and CDA are additive.
+
+### Correctness practices across the field
+
+Beyond the JS-ecosystem table above, the correctness work studied the strongest
+implementations in the field — HAPI (the HL7 Java reference engine),
+[helios-fhirpath](https://github.com/HeliosSoftware/hfs) (Rust),
+[kotlin-fhirpath](https://github.com/ohs-foundation/kotlin-fhirpath) (Kotlin
+Multiplatform), and the analyzer behind
+[HealthSamurai's fhirpath-editor](https://github.com/HealthSamurai/fhirpath-editor)
+— and adopted each practice that survived scrutiny:
+
+| Practice | **fhirpath-ts** | HAPI / HL7 Java | helios-fhirpath | kotlin-fhirpath | HealthSamurai editor |
+|---|---|---|---|---|---|
+| Official suites in CI | R4 + R5, 100% of non-skipped | R4/R5 | R4 + R5, zero-failure | R4 only (6-platform matrix) | none |
+| Failures land in the tagged phase | yes, with documented overrides | yes (the practice's origin) | no | no | — |
+| Static type checking (spec §11) | analyzer + CLI + ESLint rule | `check()` API | inference, display-only | none | editor inference |
+| Static checker tested against the suites | yes, both directions | via phase assertions | no | — | no (curated units only) |
+| Custom functions visible to static checking | yes (one record for both) | yes (resolve/check/execute) | no | no | n/a |
+| `resolve()` typed from targetProfile | yes | yes | no | no | `resolve()` absent |
+| Exact decimals | BigInt mantissa + scale | BigDecimal | loses trailing zeros (documented) | precision 15, open TODO | n/a |
+| Property + differential fuzzing | round-trips, value laws, vs fhirpath.js | none | none | none | none |
+| Upstream suite drift watch | weekly re-convert + diff | no | releases blocked on upstream master | no | no |
+| Skips documented with root causes | hygiene-checked manifests + README classes | — | reason-annotated failure list | skip registry + README table | n/a |
+| ReDoS on `matches()` | static warning + pluggable engine | 500 ms regex timeout | none | none | n/a |
 
 The trade-offs live in [Gaps and deferred features](#gaps-and-deferred-features).
 
