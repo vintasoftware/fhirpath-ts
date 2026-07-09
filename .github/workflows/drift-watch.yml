@@ -1,6 +1,6 @@
 # Upstream drift watch (report-only): re-converts the official FHIRPath suites
 # from FHIR/fhir-test-cases@master and fails this scheduled run when new or
-# changed cases have appeared since the vendored snapshot. It never gates PRs —
+# changed cases have appeared since the vendored snapshot. It never blocks PRs —
 # a red run is the signal to re-vendor (update the XMLs, re-run the converter,
 # and triage new cases through the skip manifests).
 name: Upstream drift watch
