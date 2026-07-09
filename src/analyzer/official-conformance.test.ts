@@ -15,13 +15,14 @@ import {
 import { analyzeExpression } from './analyze.ts'
 
 /**
- * The analyzer's conformance run over the official suites (WS1). The runtime
- * harness skips mode="strict" cases because static typing is the analyzer's job —
- * this file is where that claim is tested:
+ * Runs the static analyzer over the official test suites. The evaluator's
+ * suite run (src/official.test.ts) skips mode="strict" cases because static
+ * typing is the analyzer's job — this file is where that claim is tested:
  *
  * - invalid="syntax"/"semantic" and mode="strict" cases must produce at least one
  *   error-severity diagnostic.
- * - Valid cases must produce none — the false-positive guard.
+ * - Valid cases must produce none, so the analyzer cannot drift into false
+ *   positives.
  * - invalid="execution" cases are exempt either way: they fail only once data
  *   flows, and the analyzer legitimately flags some of them early (e.g. the
  *   singleton misuse in `(1|2).not()`).

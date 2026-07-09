@@ -14,13 +14,13 @@ export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r4',
     group: 'testDollar',
     test: 'testDollarOrderNotAllowed',
-    reason: 'flagging skip() after unordered children() needs ORDERED/UNORDERED collection tracking (deferred, Q3)',
+    reason: 'flagging skip() after unordered children() needs ORDERED/UNORDERED collection tracking, which the analyzer does not do',
   },
   {
     suite: 'r5',
     group: 'testDollar',
     test: 'testDollarOrderNotAllowed',
-    reason: 'flagging skip() after unordered children() needs ORDERED/UNORDERED collection tracking (deferred, Q3)',
+    reason: 'flagging skip() after unordered children() needs ORDERED/UNORDERED collection tracking, which the analyzer does not do',
   },
 
   // --- deliberate strictness: the analyzer flags these valid cases on purpose ---
