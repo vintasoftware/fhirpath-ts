@@ -256,7 +256,7 @@ class Analyzer {
       return { types: ['System.String'], single: true }
     }
     // A dynamically-named defineVariable() earlier in the chain may have bound
-    // this name — soundness over precision, so no error then.
+    // this name, so reporting it as undefined could be wrong — stay quiet.
     if (!scope.hasDynamic) {
       this.report('unknown-variable', `Undefined environment variable %${node.name}`, node.span)
     }
@@ -586,7 +586,8 @@ class Analyzer {
 
   private walkBinary(node: AstNode & { kind: 'binary' }, input: StaticState, scope: VariableScope): StaticState {
     // Operator operands are separate chains: each analyzes against its own scope
-    // copy, so defineVariable() in one side is invisible to the other (runtime parity).
+    // copy, so defineVariable() in one side is invisible to the other, exactly
+    // like the runtime.
     const left = this.walk(node.left, input, forkScope(scope))
     const right = this.walk(node.right, input, forkScope(scope))
     switch (node.operator) {
