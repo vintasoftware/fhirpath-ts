@@ -6,6 +6,7 @@ import type { AstNode } from '../parser/ast.ts'
 import { singleton } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
+import { wrapNumeric } from '../values/numeric.ts'
 import {
   SYSTEM_BOOLEAN,
   SYSTEM_DATE,
@@ -122,7 +123,11 @@ function evaluateNumberLiteral(text: string, isDecimal: boolean): TypedValue {
   if (isDecimal) {
     return { type: SYSTEM_DECIMAL, value: parseDecimalLiteral(text) }
   }
-  return { type: SYSTEM_INTEGER, value: Number.parseInt(text, 10) }
+  // The grammar's NUMBER rule has no digit-count limit, so an integer literal can
+  // exceed 32 bits (or even 64). Widen through wrapNumeric the same way arithmetic
+  // results do, rather than truncating through a JS double (Number.parseInt loses
+  // precision above 2^53 and never reports the overflow).
+  return wrapNumeric(parseDecimalLiteral(text), 'Integer')
 }
 
 function parseDecimalLiteral(text: string): Decimal {
