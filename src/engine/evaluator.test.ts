@@ -44,6 +44,18 @@ describe('literal evaluation', () => {
     expect(evaluate("4.5 'mg'")).toEqual([{ value: 4.5, unit: 'mg' }])
     expect(evaluate('4 days')).toEqual([{ value: 4, unit: 'days' }])
   })
+
+  it('widens out-of-range integer literals instead of losing precision (literal-path companion to PR #24)', () => {
+    expect(evaluate('2147483647')).toEqual([2147483647])
+    expect(evaluate('(2147483647).type().name')).toEqual(['Integer'])
+    expect(evaluate('2147483648')).toEqual([2147483648n])
+    expect(evaluate('(2147483648).type().name')).toEqual(['Long'])
+    expect(evaluate('9223372036854775807')).toEqual([9223372036854775807n])
+    // Regression: these two distinct Longs used to both collapse to the same
+    // imprecise JS double and compare equal.
+    expect(evaluate('9223372036854775806 = 9223372036854775807')).toEqual([false])
+    expect(evaluate('(99999999999999999999999999999999).type().name')).toEqual(['Decimal'])
+  })
 })
 
 describe('path navigation', () => {

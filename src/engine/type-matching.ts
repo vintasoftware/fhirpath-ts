@@ -14,12 +14,26 @@ const SYSTEM_LOCAL_NAMES = new Set([
   'Quantity',
 ])
 
+const SYSTEM_LOCAL_NAMES_LOWER = new Set([...SYSTEM_LOCAL_NAMES].map(name => name.toLowerCase()))
+
+/**
+ * Does the requested type name alias a System type (`string`, `boolean`, ...)? This
+ * is the narrow case the official suite pins `as`/`ofType` to an exact match on
+ * (`Patient.gender.as(string)` is empty even though `code` is a subtype of `string`,
+ * per testFHIRPathAsFunction11's "Contested: code type is a subtype of string").
+ * Structural FHIR names (`DomainResource`, `Element`, `Resource`, ...) are never
+ * ambiguous this way, so they keep normal subtype matching for `as`/`ofType` too.
+ */
+function isSystemAmbiguousName(name: string): boolean {
+  return SYSTEM_LOCAL_NAMES_LOWER.has(name.toLowerCase())
+}
+
 /**
  * Does an item satisfy a type specifier? Shared by `is`/`as`/`ofType()` and the
  * static analyzer. Resolution order per spec §10.1: the context model's types
- * first, then the System namespace. `is` walks subtypes; `as`/`ofType` demand the
- * exact type (the official inheritance tests pin this split: `gender.is(string)`
- * is true for a code, `gender.as(string)` is empty).
+ * first, then the System namespace. `is` always walks subtypes; `as`/`ofType`
+ * do too, except when the requested name aliases a System primitive, where the
+ * official inheritance tests pin an exact match instead (see isSystemAmbiguousName).
  */
 export function itemMatchesType(
   context: EvaluationContext,
@@ -38,11 +52,14 @@ export function itemMatchesType(
   const model = context.model
   if (parts.length === 2) {
     if (model && parts[0] === model.namespace) {
-      const canonical = model.resolveType(parts[1] as string)
+      const typeName = parts[1] as string
+      const canonical = model.resolveType(typeName)
       if (canonical === undefined) {
         return false
       }
-      return exact ? item.type === canonical : model.isSubtypeOf(item.type, canonical)
+      return exact && isSystemAmbiguousName(typeName)
+        ? item.type === canonical
+        : model.isSubtypeOf(item.type, canonical)
     }
     return item.type === parts.join('.')
   }
@@ -54,7 +71,7 @@ export function itemMatchesType(
   if (model) {
     const canonical = model.resolveType(name)
     if (canonical !== undefined) {
-      return exact ? item.type === canonical : model.isSubtypeOf(item.type, canonical)
+      return exact && isSystemAmbiguousName(name) ? item.type === canonical : model.isSubtypeOf(item.type, canonical)
     }
   }
   // Dynamic fallback: resource and complex types match on their local name. The

@@ -10,8 +10,8 @@ export interface NumericOperand {
 
 const INTEGER_MIN = -2147483648n
 const INTEGER_MAX = 2147483647n
-const LONG_MIN = -9223372036854775808n
-const LONG_MAX = 9223372036854775807n
+export const LONG_MIN = -9223372036854775808n
+export const LONG_MAX = 9223372036854775807n
 
 /** Read an Integer/Long/Decimal operand as a Decimal, remembering its kind. */
 export function asNumeric(item: TypedValue): NumericOperand | undefined {
