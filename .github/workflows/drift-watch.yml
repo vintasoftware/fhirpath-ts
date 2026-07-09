@@ -1,0 +1,67 @@
+# Upstream drift watch (report-only): re-converts the official FHIRPath suites
+# from FHIR/fhir-test-cases@master and fails this scheduled run when new or
+# changed cases have appeared since the vendored snapshot. It never gates PRs —
+# a red run is the signal to re-vendor (update the XMLs, re-run the converter,
+# and triage new cases through the skip manifests).
+name: Upstream drift watch
+
+on:
+  schedule:
+    # Weekly, Monday 06:00 UTC.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch upstream suites from FHIR/fhir-test-cases@master
+        run: |
+          curl -fsSL -o test-data/official/r4/tests-fhir-r4.xml \
+            https://raw.githubusercontent.com/FHIR/fhir-test-cases/master/r4/fhirpath/tests-fhir-r4.xml
+          curl -fsSL -o test-data/official/r5/tests-fhir-r5.xml \
+            https://raw.githubusercontent.com/FHIR/fhir-test-cases/master/r5/fhirpath/tests-fhir-r5.xml
+
+      - name: Re-run the converter
+        run: node scripts/convert-official-tests.ts
+
+      - name: Diff against the vendored snapshot
+        run: |
+          if git diff --quiet -- test-data/official; then
+            echo "No upstream drift: the vendored suites match fhir-test-cases@master."
+          else
+            {
+              echo "## Upstream drift detected in FHIR/fhir-test-cases@master"
+              echo
+              echo '```'
+              git diff --stat -- test-data/official
+              echo '```'
+              echo
+              echo "Re-vendor the XMLs, re-run scripts/convert-official-tests.ts, and triage new cases through the skip manifests."
+            } >> "$GITHUB_STEP_SUMMARY"
+            git diff -- test-data/official > upstream-drift.patch
+            exit 1
+          fi
+
+      - name: Upload drift patch
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-drift
+          path: upstream-drift.patch
+          if-no-files-found: ignore
