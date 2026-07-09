@@ -149,8 +149,8 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   where: { args: ['expression'], result: SAME },
   select: {
     args: ['expression'],
-    // The projection's analyzed state, collection-ized: single only when both the
-    // input and the projection body are single (Samurai's Lambda<R, Single<T>> → R).
+    // The projection's analyzed state, collection-ized: single only when both
+    // the input and the projection body are single.
     result: (input, args) => withSingle(args[0] ?? UNKNOWN(), singleAnd(input.single, args[0]?.single)),
   },
   repeat: { args: ['expression'], result: UNKNOWN },
