@@ -128,9 +128,17 @@ describe('conversions', () => {
 
     ['1.toLong()', [1n]],
     ["'9223372036854775807'.toLong()", [9223372036854775807n]],
+    ["'-9223372036854775808'.toLong()", [-9223372036854775808n]],
     ['true.toLong()', [1n]],
     ['1.5.toLong()', []],
     ["'12'.convertsToLong()", [true]],
+    // One past the signed 64-bit range in either direction: neither convertible nor
+    // silently truncated.
+    ["'9223372036854775808'.toLong()", []],
+    ["'9223372036854775808'.convertsToLong()", [false]],
+    ["'-9223372036854775809'.toLong()", []],
+    ["'99999999999999999999999999999'.toLong()", []],
+    ["'99999999999999999999999999999'.convertsToLong()", [false]],
 
     ['1.toDecimal()', [1]],
     ['1.5.toDecimal()', [1.5]],
