@@ -52,6 +52,14 @@ export function singleAnd(a: boolean | undefined, b: boolean | undefined): boole
 export type ArgSpec = 'expression' | 'condition' | 'sort-key' | 'type-name' | 'any' | ValueKind
 
 /**
+ * The argument shapes a host function can declare. Host functions always
+ * receive eagerly evaluated values (HostFunction.fn), so only the eager specs
+ * are offered — declaring a lambda spec like `expression` would make the
+ * analyzer check semantics the runtime does not implement.
+ */
+export type ValueArgSpec = 'any' | ValueKind
+
+/**
  * The declarative static-typing leg of a host-supplied function (HAPI's
  * checkFunction): what input it accepts, how its arguments are treated, and
  * what it returns. Result `types` use model or System names ('Patient',
@@ -59,7 +67,7 @@ export type ArgSpec = 'expression' | 'condition' | 'sort-key' | 'type-name' | 'a
  */
 export interface CustomFunctionSignature {
   input?: { kind?: ValueKind; singleton?: boolean }
-  args?: ArgSpec[]
+  args?: ValueArgSpec[]
   result?: { types?: string[]; single?: boolean }
 }
 

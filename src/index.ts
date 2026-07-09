@@ -1,4 +1,4 @@
-export type { ArgSpec, CustomFunctionSignature } from './analyzer/signatures.ts'
+export type { CustomFunctionSignature, ValueArgSpec, ValueKind } from './analyzer/signatures.ts'
 export type { BundleLike } from './api/bundle.ts'
 export type { AnyExpression, CustomFunction, EvaluateOptions } from './api/compile.ts'
 export { compile, CompiledExpression } from './api/compile.ts'
