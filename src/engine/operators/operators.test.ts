@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { evaluate } from '../../api/evaluate.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../../errors.ts'
+import { r4Model } from '../../r4/index.ts'
 
 /** `{}` for empty, `true`/`false` for booleans — mirrors the spec's truth tables. */
 function triLiteral(value: boolean | undefined): string {
@@ -96,6 +97,29 @@ describe('equality (=, !=)', () => {
   it('compares complex values recursively', () => {
     const patient = { resourceType: 'Patient', name: [{ given: ['A'] }] }
     expect(evaluate('name = name', patient)).toEqual([true])
+  })
+
+  it('ignores id and primitive extensions on nested complex values, same as bare primitives', () => {
+    const patient = {
+      resourceType: 'Patient',
+      communication: [
+        {
+          preferred: true,
+          _preferred: { extension: [{ url: 'http://example.org/mode', valueCode: 'in-writing' }] },
+        },
+        {
+          preferred: true,
+          _preferred: { extension: [{ url: 'http://example.org/mode', valueCode: 'oral' }] },
+        },
+      ],
+    }
+    const options = { model: r4Model }
+    expect(evaluate('communication.first().preferred = communication.last().preferred', patient, options)).toEqual([
+      true,
+    ])
+    expect(evaluate('communication.first() = communication.last()', patient, options)).toEqual([true])
+    expect(evaluate('communication.distinct().count()', patient, options)).toEqual([1])
+    expect(evaluate('communication.isDistinct()', patient, options)).toEqual([false])
   })
 
   it('quantities with the same unit compare by value', () => {
@@ -328,6 +352,28 @@ describe('is / as', () => {
   it('errors on multi-item input', () => {
     expect(() => evaluate('(1 | 2) is Integer')).toThrow(FhirPathRuntimeError)
     expect(() => evaluate('(1 | 2) as Integer')).toThrow(FhirPathRuntimeError)
+  })
+
+  it('as/ofType walk FHIR resource and element inheritance like is does', () => {
+    const options = { model: r4Model }
+    expect(evaluate('Patient is DomainResource', patient, options)).toEqual([true])
+    expect(evaluate('Patient as DomainResource', patient, options)).toEqual([patient])
+    expect(evaluate('Patient.ofType(Resource).count()', patient, options)).toEqual([1])
+    const named = { ...patient, name: [{ family: 'Chalmers' }] }
+    expect(evaluate('Patient.name is Element', named, options)).toEqual([true])
+    expect(evaluate('Patient.name.as(Element).count()', named, options)).toEqual([1])
+    expect(evaluate('Patient.name.ofType(Element).count()', named, options)).toEqual([1])
+  })
+
+  it('as/ofType still demand an exact match for the primitive/System name ambiguity', () => {
+    // testFHIRPathAsFunction11/16 (official suite): "Contested: code type is a
+    // subtype of string" — gender.is(string) is true, but as/ofType stay exact here.
+    const gendered = { ...patient, gender: 'male' }
+    const options = { model: r4Model }
+    expect(evaluate('Patient.gender.is(string)', gendered, options)).toEqual([true])
+    expect(evaluate('Patient.gender.as(string)', gendered, options)).toEqual([])
+    expect(evaluate('Patient.gender.ofType(string)', gendered, options)).toEqual([])
+    expect(evaluate('Patient.gender.as(code)', gendered, options)).toEqual(['male'])
   })
 })
 

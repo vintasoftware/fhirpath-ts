@@ -89,6 +89,12 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     ],
   },
   {
+    name: 'nested-extension-equality',
+    evidence:
+      "fhirpath.js's own equality still recurses into each primitive's raw _field extension wrapper when comparing a containing complex object, even with { model: r4Model } — it only strips extensions when comparing a bare primitive directly (see Bundle.entry[1].resource.name.given[0] = ... above, model-free-field-convention). Spec §6.1.1 excludes extensions from a value's identity at every nesting depth, so this engine's = now matches its own ~ (which already ignored id/extension metadata) and ignores them however deep the comparison goes.",
+    keys: ['6.1_equality.yaml||Bundle.entry[1] != Bundle.entry[2]'],
+  },
+  {
     name: 'year-month-definite-conversions',
     evidence:
       "fhirpath.js refuses UCUM a/mo conversions and duration ratios, and treats calendar month as 30 days. UCUM defines 'a' and 'mo' as definite Julian units, so this engine converts them exactly; the spec keeps calendar year/month indefinite (\u00a74.2.2) and the official suite pins 1 year = 1 'a' as false.",
