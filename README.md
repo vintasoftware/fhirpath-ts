@@ -13,16 +13,18 @@ other implementation offers together:
 
 ## Why this engine
 
-| | **fhirpath-ts** | fhirpath.js | fhirpath-py | fhirpath-rs | Medplum |
-|---|---|---|---|---|---|
-| Runtime deps | zero | ANTLR runtime, ucum-lhc, … | ANTLR runtime | Rust crates | none (large SDK) |
-| Decimal arithmetic | exact, always on | floats (opt-in precise mode) | Python decimal | Rust decimal | floats |
-| Official R4+R5 suites in CI | 100% of non-skipped | not run | not run | regrouped R5 | not run |
-| Runs the other engines' suites | yes, with evidence for each divergence | no | no | no | no |
-| Compile-time result types | yes (plain `tsc`) | no | no | no | no |
-| Spec §11 as dev tooling | CLI + ESLint + API | no | no | runtime analyzer | no |
-| Terminology / async / `%factory` | deferred (see Gaps) | yes | partial | `%factory` | no |
-| FHIR models | R4 (provider interface) | DSTU2–R5 | DSTU2–R5 | R5 | R4 |
+| | **fhirpath-ts** | fhirpath.js | fhirpath-py | fhirpath-rs | Medplum | HAPI / HL7 Java | helios-fhirpath | kotlin-fhirpath | HealthSamurai editor |
+|---|---|---|---|---|---|---|---|---|---|
+| Runtime deps | zero | ANTLR runtime, ucum-lhc, … | ANTLR runtime | Rust crates | none (large SDK) | org.hl7.fhir.core (Java) | Rust crates | ANTLR runtime (KMP) | n/a (block editor) |
+| Decimal arithmetic | exact, always on | floats (opt-in precise mode) | Python decimal | Rust decimal | floats | BigDecimal | loses trailing zeros (documented) | precision 15, open TODO | n/a |
+| Official R4+R5 suites in CI | 100% of non-skipped | not run | not run | regrouped R5 | not run | R4/R5 | R4 + R5, zero-failure | R4 only (6-platform matrix) | none |
+| Runs the other engines' suites | yes, with evidence for each divergence | no | no | no | no | no | no | no | n/a |
+| Compile-time result types | yes (plain `tsc`) | no | no | no | no | no | no | no | n/a |
+| Spec §11 as dev tooling | CLI + ESLint + API | no | no | runtime analyzer | no | `check()` API | inference, display-only | no | editor inference |
+| Terminology / async / `%factory` | deferred (see Gaps) | yes | partial | `%factory` | no | yes | — | — | n/a |
+| FHIR models | R4 (provider interface) | DSTU2–R5 | DSTU2–R5 | R5 | R4 | DSTU2–R5 | R4 + R5 | R4/R4B/R5 (only R4 tested) | — |
+
+(— means not assessed; n/a means out of scope for that tool.)
 
 Three things set this engine apart.
 
@@ -60,27 +62,24 @@ interface, so R5 and CDA are additive.
 
 ### Correctness practices across the field
 
-Beyond the JS-ecosystem table above, the correctness work studied the strongest
-implementations in the field — HAPI (the HL7 Java reference engine),
+The correctness work studied the strongest implementations in the field — HAPI
+(the HL7 Java reference engine),
 [helios-fhirpath](https://github.com/HeliosSoftware/hfs) (Rust),
 [kotlin-fhirpath](https://github.com/ohs-foundation/kotlin-fhirpath) (Kotlin
 Multiplatform), and the analyzer behind
 [HealthSamurai's fhirpath-editor](https://github.com/HealthSamurai/fhirpath-editor)
-— and adopted each practice that survived scrutiny:
+— and adopted each practice that survived scrutiny. Same columns as above:
 
-| Practice | **fhirpath-ts** | HAPI / HL7 Java | helios-fhirpath | kotlin-fhirpath | HealthSamurai editor |
-|---|---|---|---|---|---|
-| Official suites in CI | R4 + R5, 100% of non-skipped | R4/R5 | R4 + R5, zero-failure | R4 only (6-platform matrix) | none |
-| Failures land in the tagged phase | yes, with documented overrides | yes (the practice's origin) | no | no | — |
-| Static type checking (spec §11) | analyzer + CLI + ESLint rule | `check()` API | inference, display-only | none | editor inference |
-| Static checker tested against the suites | yes, both directions | via phase assertions | no | — | no (curated units only) |
-| Custom functions visible to static checking | yes (one record for both) | yes (resolve/check/execute) | no | no | n/a |
-| `resolve()` typed from targetProfile | yes | yes | no | no | `resolve()` absent |
-| Exact decimals | BigInt mantissa + scale | BigDecimal | loses trailing zeros (documented) | precision 15, open TODO | n/a |
-| Property + differential fuzzing | round-trips, value laws, vs fhirpath.js | none | none | none | none |
-| Upstream suite drift watch | weekly re-convert + diff | no | releases blocked on upstream master | no | no |
-| Skips documented with root causes | hygiene-checked manifests + README classes | — | reason-annotated failure list | skip registry + README table | n/a |
-| ReDoS on `matches()` | static warning + pluggable engine | 500 ms regex timeout | none | none | n/a |
+| Practice | **fhirpath-ts** | fhirpath.js | fhirpath-py | fhirpath-rs | Medplum | HAPI / HL7 Java | helios-fhirpath | kotlin-fhirpath | HealthSamurai editor |
+|---|---|---|---|---|---|---|---|---|---|
+| Failures land in the tagged phase | yes, with documented overrides | no | no | no | no | yes (the practice's origin) | no | no | n/a |
+| Static checker tested against the suites | yes, both directions | n/a | n/a | — | n/a | via phase assertions | no | n/a | no (curated units only) |
+| Custom functions visible to static checking | yes (one record for both) | runtime-only table | — | — | — | yes (resolve/check/execute) | no | no | n/a |
+| `resolve()` typed from targetProfile | yes | n/a | n/a | — | n/a | yes | no | n/a | `resolve()` absent |
+| Property + differential fuzzing | round-trips, value laws, vs fhirpath.js | — | — | — | — | none | none | none | none |
+| Upstream suite drift watch | weekly re-convert + diff | — | — | — | — | no | releases blocked on upstream master | no | no |
+| Skips documented with root causes | hygiene-checked manifests + README classes | — | — | — | — | — | reason-annotated failure list | skip registry + README table | n/a |
+| ReDoS on `matches()` | static warning + pluggable engine | — | — | — | — | 500 ms regex timeout | none | none | n/a |
 
 The trade-offs live in [Gaps and deferred features](#gaps-and-deferred-features).
 
