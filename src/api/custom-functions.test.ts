@@ -133,3 +133,12 @@ describe('declared variables in the analyzer', () => {
     expect(analyzeExpression('%pat.nope', options).map(d => d.code)).toEqual(['unknown-element'])
   })
 })
+
+// Type-level guard: host functions receive eagerly evaluated values, so their
+// signatures cannot declare analyzer lambda semantics the runtime won't honor.
+const invalidSignature: CustomFunction = {
+  fn: () => undefined,
+  // @ts-expect-error -- 'expression' is a lambda spec; only 'any' and ValueKinds are eager
+  signature: { args: ['expression'] },
+}
+void invalidSignature
