@@ -214,12 +214,41 @@ converted to JSON offline, and run in vitest on every test run:
 | R4 (`tests-fhir-r4.xml`) | 923 | 12 | 0 |
 | R5 (`tests-fhir-r5.xml`) | 1,026 | 25 | 0 |
 
-**100% of non-skipped cases pass.** Every skip is listed in
-`test-data/official/skip-manifest.ts` with a reason, and a hygiene test fails if an
-entry stops matching. Skip categories: terminology mode (needs a terminology
-service), CDA mode (needs a CDA model), lenient-polymorphics mode, strict-mode
-static-typing cases (enforced by the analyzer instead of the evaluator), R5-only
-elements (this package ships the R4 model), and four documented suite oddities.
+**100% of non-skipped cases pass**, and failing cases must fail in the phase
+the suite names: `invalid="syntax"` raises `FhirPathSyntaxError` at parse,
+`invalid="semantic"` a `FhirPathTypeError`, `invalid="execution"` a runtime or
+type error — with the six deliberate divergences documented in a
+hygiene-enforced `PHASE_OVERRIDES` list. The static analyzer runs its own
+conformance pass over both suites (`src/analyzer/official-conformance.test.ts`):
+strict-mode and semantic cases must produce an error diagnostic, and every
+valid case must produce none.
+
+Every skip is listed in `test-data/official/skip-manifest.ts` with a reason,
+and a hygiene test fails if an entry stops matching. Each category carries its
+root cause:
+
+| Skip category | Root cause | Evidence |
+| --- | --- | --- |
+| Terminology mode (needs a terminology service) | Implementation (deferred feature) | README, deferred features |
+| CDA mode (needs a CDA ModelInfo) | Implementation (deferred feature) | README, deferred features |
+| Lenient-polymorphics mode | Implementation (profile-dependent behavior not offered) | skip-manifest reasons |
+| Strict-mode static-typing cases | By design — enforced by the analyzer's conformance pass instead of the evaluator | `official-conformance.test.ts` |
+| R5-only elements (`DiagnosticReport.composition`, `ConceptMap.target.relationship`) | Implementation (this package ships the R4 model) | skip-manifest reasons |
+| `LowBoundary`/`HighBoundary` decimal-15/16 and DateTime-millisecond cases | Test bug — the suite's expected boundaries contradict the mathematical bounds (worth filing upstream at [fhir-test-cases](https://github.com/FHIR/fhir-test-cases/issues)) | reasons in `skip-manifest.ts` |
+| `testIif6` (R4), `testPlusDate19` (R4) | Spec ambiguity — R5 revised the R4 behavior; this engine follows R5 | skip-manifest reasons |
+
+Two guards watch the suites themselves:
+
+- **Property + differential fuzzing** (none of the reference engines studied
+  have any): printer/parser round-trip over generated ASTs
+  (`src/parser/roundtrip-fuzz.test.ts`), exact-decimal arithmetic laws and
+  temporal comparison laws (`src/values/*-properties.test.ts`), and generated
+  expressions evaluated against both this engine and
+  [fhirpath.js](https://github.com/HL7/fhirpath.js) over the official patient
+  fixture (`src/testing/differential-fuzz.test.ts`).
+- **Upstream drift watch** (`.github/workflows/drift-watch.yml`): a weekly,
+  report-only job re-converts the suites from `FHIR/fhir-test-cases@master`
+  and fails when new or changed cases appear, with the diff as an artifact.
 
 The reference implementations' own corpora run too (`src/fhirpathjs.test.ts`):
 
