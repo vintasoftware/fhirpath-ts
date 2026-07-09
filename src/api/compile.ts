@@ -17,7 +17,7 @@ import { LruCache } from './cache.ts'
  * Built-in names cannot be overridden.
  */
 export interface CustomFunction extends HostFunction {
-  /** Static-typing leg: without it, expressions using this function analyze as unknown regions. */
+  /** Analyzer signature: without it, expressions using this function analyze as unknown regions. */
   signature?: CustomFunctionSignature
 }
 
