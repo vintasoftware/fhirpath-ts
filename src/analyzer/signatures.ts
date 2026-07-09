@@ -60,7 +60,7 @@ export type ArgSpec = 'expression' | 'condition' | 'sort-key' | 'type-name' | 'a
 export type ValueArgSpec = 'any' | ValueKind
 
 /**
- * The declarative static-typing leg of a host-supplied function (HAPI's
+ * The declared analyzer signature of a host-supplied function (HAPI's
  * checkFunction): what input it accepts, how its arguments are treated, and
  * what it returns. Result `types` use model or System names ('Patient',
  * 'System.String'); omitting them keeps the result an unknown region.
