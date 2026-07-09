@@ -60,7 +60,7 @@ export type ArgSpec = 'expression' | 'condition' | 'sort-key' | 'type-name' | 'a
 export type ValueArgSpec = 'any' | ValueKind
 
 /**
- * The declarative static-typing leg of a host-supplied function (HAPI's
+ * The declared analyzer signature of a host-supplied function (HAPI's
  * checkFunction): what input it accepts, how its arguments are treated, and
  * what it returns. Result `types` use model or System names ('Patient',
  * 'System.String'); omitting them keeps the result an unknown region.
@@ -129,8 +129,8 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   where: { args: ['expression'], result: SAME },
   select: {
     args: ['expression'],
-    // The projection's analyzed type, collection-ized: single only when both the
-    // input and the projection body are single (Samurai's Lambda<R, Single<T>> → R).
+    // The projection's analyzed type, collection-ized: single only when both
+    // the input and the projection body are single.
     result: (input, args) => ({
       types: args[0]?.types,
       single: singleAnd(input.single, args[0]?.single),

@@ -27,7 +27,7 @@ export interface OfficialTest {
   invalid?: string
   predicate?: boolean
   mode?: string
-  /** Suite marker: valid to evaluate but not statically checkable; the analyzer guard honors it. */
+  /** Suite marker: valid to evaluate but not statically checkable; the analyzer conformance test skips it. */
   skipStaticCheck?: boolean
   outputs: OfficialOutput[]
 }
