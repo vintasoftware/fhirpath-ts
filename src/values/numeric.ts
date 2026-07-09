@@ -40,11 +40,12 @@ export function widerKind(a: NumericKind, b: NumericKind): NumericKind {
 
 /**
  * Wrap a numeric result as the narrowest type that represents it exactly.
- * Integer (32-bit) and Long (64-bit) arithmetic can produce whole numbers that
- * no longer fit their range; rather than drop the result (empty) or silently
- * wrap it around — as other FHIRPath engines variously do — widen to the next
- * integer type that holds it (Integer → Long → Decimal), never narrower than
- * the operands' own kind. Decimal results pass through unchanged.
+ * Integer is 32-bit and Long is 64-bit, so their arithmetic can produce a whole
+ * number too large for the type. When that happens, widen to the next integer
+ * type that holds the value (Integer → Long → Decimal), but never below the
+ * operands' own kind. This keeps the value exact rather than dropping it (empty)
+ * or wrapping it around the way some engines do. Decimal results pass through
+ * unchanged.
  */
 export function wrapNumeric(value: Decimal, kind: NumericKind): TypedValue {
   if (kind === 'Decimal') {
