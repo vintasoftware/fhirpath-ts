@@ -89,25 +89,39 @@ const STRING = (): StaticStateLike => ({ types: ['System.String'], single: true 
 const DECIMAL = (): StaticStateLike => ({ types: ['System.Decimal'], single: true })
 const UNKNOWN = (): StaticStateLike => ({ types: undefined, single: undefined })
 const SAME = (input: StaticStateLike): StaticStateLike => input
-// Reference targets survive item selection so `subject.first().resolve()` stays typed.
-const ITEM = (input: StaticStateLike): StaticStateLike =>
-  input.targets === undefined
-    ? { types: input.types, single: true }
-    : { types: input.types, single: true, targets: input.targets }
+
 /**
- * The union of several alternative states (iif branches, coalesce arguments):
- * all candidate types, single only when every alternative is.
+ * The input's candidate types and reference targets at a different cardinality
+ * — the composition every selection/projection result goes through, so target
+ * metadata survives by construction instead of by per-function special cases.
  */
-function unionOf(states: (StaticStateLike | undefined)[]): StaticStateLike {
+export function withSingle(input: StaticStateLike, single: boolean | undefined): StaticStateLike {
+  return input.targets === undefined
+    ? { types: input.types, single }
+    : { types: input.types, single, targets: input.targets }
+}
+
+const ITEM = (input: StaticStateLike): StaticStateLike => withSingle(input, true)
+
+/**
+ * The union of several alternative states (iif branches, coalesce arguments,
+ * merged collections): all candidate types, single only when every alternative
+ * is, and reference targets preserved when every non-empty alternative
+ * declares them (a statically empty side contributes nothing).
+ */
+export function unionStates(states: (StaticStateLike | undefined)[]): StaticStateLike {
   const present = states.filter((state): state is StaticStateLike => state !== undefined)
   const single = present.length > 0 ? present.map(state => state.single).reduce(singleAnd, true) : undefined
-  if (present.length === 0 || present.some(state => state.types === undefined)) {
-    return { types: undefined, single }
-  }
-  return {
-    types: [...new Set(present.flatMap(state => state.types as string[]))],
-    single,
-  }
+  const contributing = present.filter(state => state.types === undefined || state.types.length > 0)
+  const targets =
+    contributing.length > 0 && contributing.every(state => state.targets !== undefined)
+      ? [...new Set(contributing.flatMap(state => state.targets as string[]))]
+      : undefined
+  const types =
+    present.length === 0 || present.some(state => state.types === undefined)
+      ? undefined
+      : [...new Set(present.flatMap(state => state.types as string[]))]
+  return targets === undefined ? { types, single } : { types, single, targets }
 }
 
 const STRING_FN: FunctionSignature = { input: { kind: 'String', singleton: true }, args: ['String'], result: STRING }
@@ -135,12 +149,9 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   where: { args: ['expression'], result: SAME },
   select: {
     args: ['expression'],
-    // The projection's analyzed type, collection-ized: single only when both the
+    // The projection's analyzed state, collection-ized: single only when both the
     // input and the projection body are single (Samurai's Lambda<R, Single<T>> → R).
-    result: (input, args) => ({
-      types: args[0]?.types,
-      single: singleAnd(input.single, args[0]?.single),
-    }),
+    result: (input, args) => withSingle(args[0] ?? UNKNOWN(), singleAnd(input.single, args[0]?.single)),
   },
   repeat: { args: ['expression'], result: UNKNOWN },
   // ofType/as results narrow to the named type; the analyzer computes that with
@@ -156,12 +167,12 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   take: { args: ['Numeric'], result: SAME },
   intersect: { args: ['any'], result: SAME },
   exclude: { args: ['any'], result: SAME },
-  union: { args: ['any'], result: (input, args) => ({ types: unionOf([input, args[0]]).types, single: false }) },
-  combine: { args: ['any'], result: (input, args) => ({ types: unionOf([input, args[0]]).types, single: false }) },
+  union: { args: ['any'], result: (input, args) => withSingle(unionStates([input, args[0]]), false) },
+  combine: { args: ['any'], result: (input, args) => withSingle(unionStates([input, args[0]]), false) },
   iif: {
     args: ['condition', 'expression', 'expression'],
-    // The union of the branch types; a missing else-branch contributes empty.
-    result: (_input, args) => unionOf([args[1], args[2] ?? { types: [], single: true }]),
+    // The union of the branch states; a missing else-branch contributes empty.
+    result: (_input, args) => unionStates([args[1], args[2] ?? { types: [], single: true }]),
   },
   // not() takes anything a Boolean test accepts (0/1, single items), so no kind pin.
   not: { input: { singleton: true }, result: BOOLEAN },
@@ -267,6 +278,6 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   // Variadic: the analyzer repeats the last arg spec for every position, so one
   // 'expression' entry covers all of coalesce's arguments. The result is the
   // first non-empty argument, hence the union of all of them.
-  coalesce: { args: ['expression'], result: (_input, args) => unionOf([...args]) },
+  coalesce: { args: ['expression'], result: (_input, args) => unionStates([...args]) },
   type: { result: UNKNOWN },
 }

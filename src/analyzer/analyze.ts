@@ -13,8 +13,10 @@ import {
   FUNCTION_SIGNATURES,
   type FunctionSignature,
   singleAnd,
+  unionStates,
   type ValueKind,
   valueKindOfTypeName,
+  withSingle,
 } from './signatures.ts'
 
 export interface AnalyzerDiagnostic {
@@ -208,7 +210,7 @@ class Analyzer {
         const target = this.walk(node.target, input, scope)
         const index = this.walk(node.index, input, scope)
         this.requireKind(index, 'Numeric', node.index.span, 'the indexer expects a single Integer')
-        return { types: target.types, single: true }
+        return withSingle(target, true)
       }
       case 'call':
         return this.walkCall(node, input, scope)
@@ -385,9 +387,13 @@ class Analyzer {
     return names
   }
 
+  /**
+   * A call: resolve the function (built-ins first — EvaluateOptions.functions
+   * cannot override them either), then hand each concern to its own step:
+   * arity, input shape, arguments, per-function effects, result.
+   */
   private walkCall(node: AstNode & { kind: 'call' }, input: StaticState, scope: VariableScope): StaticState {
     const registered = functions.get(node.name)
-    // Built-ins win: EvaluateOptions.functions cannot override them either.
     const custom = registered === undefined ? this.customFunctions.get(node.name) : undefined
     if (registered === undefined && custom === undefined) {
       this.report(
@@ -395,13 +401,39 @@ class Analyzer {
         `Unrecognized function '${node.name}'${didYouMean(node.name, [...functions.keys(), ...this.customFunctions.keys()])}`,
         node.span
       )
-      for (const argument of node.args) {
-        this.walk(argument, input, forkScope(scope))
-      }
+      this.walkUncheckedArguments(node, input, scope)
       return UNKNOWN
     }
-    const minArity = registered?.minArity ?? custom?.minArity ?? 0
-    const maxArity = registered?.maxArity ?? custom?.maxArity ?? Number.POSITIVE_INFINITY
+    this.checkArity(node, registered ?? custom ?? {})
+    const signature = registered !== undefined ? FUNCTION_SIGNATURES[node.name] : this.toSignature(custom?.signature)
+    if (!signature) {
+      this.walkUncheckedArguments(node, input, scope)
+      return UNKNOWN
+    }
+    this.checkCallInput(node, signature, input)
+    const { argStates, typeTarget } = this.walkArguments(node, signature, input, scope)
+    if (node.name === 'defineVariable') {
+      this.registerVariable(node, input, argStates, scope)
+    }
+    this.checkRegexPattern(node)
+    // ofType(X) filters and as(X) casts: both narrow to the named type,
+    // intersected with the known candidates.
+    if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
+      return { types: this.narrowTypes(input, typeTarget, node.span), single: input.single }
+    }
+    return signature.result(input, argStates)
+  }
+
+  /** Without a signature the arguments still walk (for their own diagnostics), each in a scope fork. */
+  private walkUncheckedArguments(node: AstNode & { kind: 'call' }, input: StaticState, scope: VariableScope): void {
+    for (const argument of node.args) {
+      this.walk(argument, input, forkScope(scope))
+    }
+  }
+
+  private checkArity(node: AstNode & { kind: 'call' }, arity: { minArity?: number; maxArity?: number }): void {
+    const minArity = arity.minArity ?? 0
+    const maxArity = arity.maxArity ?? Number.POSITIVE_INFINITY
     if (node.args.length < minArity || node.args.length > maxArity) {
       this.report(
         'wrong-arity',
@@ -409,32 +441,42 @@ class Analyzer {
         node.span
       )
     }
-    const signature = registered !== undefined ? FUNCTION_SIGNATURES[node.name] : this.toSignature(custom?.signature)
-    if (!signature) {
-      for (const argument of node.args) {
-        this.walk(argument, input, forkScope(scope))
-      }
-      return UNKNOWN
+  }
+
+  /** The signature's input constraints: cardinality and value kind. */
+  private checkCallInput(node: AstNode & { kind: 'call' }, signature: FunctionSignature, input: StaticState): void {
+    if (!signature.input) {
+      return
     }
-    if (signature.input) {
-      if (signature.input.singleton && input.types !== undefined && input.single === false) {
-        this.report(
-          'singleton-required',
-          `${node.name}() expects a single item as input, but this is a collection (spec §11)${NARROW_HINT}`,
-          node.span
-        )
-      }
-      if (signature.input.kind) {
-        this.requireKind(
-          { types: input.types, single: true },
-          signature.input.kind,
-          node.span,
-          `${node.name}() expects a ${signature.input.kind} input`
-        )
-      }
+    if (signature.input.singleton && input.types !== undefined && input.single === false) {
+      this.report(
+        'singleton-required',
+        `${node.name}() expects a single item as input, but this is a collection (spec §11)${NARROW_HINT}`,
+        node.span
+      )
     }
-    // Analyzed state per argument (undefined for type-name positions). Each
-    // argument gets its own scope copy, like the runtime's per-argument fork.
+    if (signature.input.kind) {
+      this.requireKind(
+        { types: input.types, single: true },
+        signature.input.kind,
+        node.span,
+        `${node.name}() expects a ${signature.input.kind} input`
+      )
+    }
+  }
+
+  /**
+   * Walk every argument per its spec — lambdas against a $this frame,
+   * type names against the model, values against $this — collecting the
+   * analyzed state per position (undefined for type-name positions). Each
+   * argument gets its own scope copy, like the runtime's per-argument fork.
+   */
+  private walkArguments(
+    node: AstNode & { kind: 'call' },
+    signature: FunctionSignature,
+    input: StaticState,
+    scope: VariableScope
+  ): { argStates: (StaticState | undefined)[]; typeTarget: string | undefined } {
     const argStates: (StaticState | undefined)[] = []
     let typeTarget: string | undefined
     node.args.forEach((argument, index) => {
@@ -444,8 +486,10 @@ class Analyzer {
         // mirroring how sort() reads the AST; only the key itself is analyzed.
         const body =
           spec === 'sort-key' && argument.kind === 'unary' && argument.operator === '-' ? argument.operand : argument
-        this.frames.push({ types: input.types, single: true })
-        const state = this.walk(body, { types: input.types, single: true }, forkScope(scope))
+        // $this is one item of the input — same candidates and reference targets.
+        const itemState = withSingle(input, true)
+        this.frames.push(itemState)
+        const state = this.walk(body, itemState, forkScope(scope))
         this.frames.pop()
         argStates.push(state)
         if (spec === 'condition') {
@@ -480,28 +524,26 @@ class Analyzer {
         }
       }
     })
-    if (node.name === 'defineVariable') {
-      this.registerVariable(node, input, argStates, scope)
+    return { argStates, typeTarget }
+  }
+
+  /**
+   * The matches() family compiles its pattern with the backtracking JS RegExp,
+   * which cannot be timed out — flag exponential-shaped literal patterns.
+   */
+  private checkRegexPattern(node: AstNode & { kind: 'call' }): void {
+    if (!REGEX_PATTERN_FUNCTIONS.has(node.name)) {
+      return
     }
-    // The matches() family compiles its pattern with the backtracking JS RegExp,
-    // which cannot be timed out — flag exponential-shaped literal patterns here.
-    if (REGEX_PATTERN_FUNCTIONS.has(node.name)) {
-      const pattern = node.args[0]
-      if (pattern?.kind === 'string' && hasNestedUnboundedQuantifier(pattern.value)) {
-        this.report(
-          'regex-backtracking',
-          `The regular expression nests unbounded repetition, which can backtrack catastrophically on non-matching input (ReDoS); rewrite it or supply a linear-time engine via EvaluateOptions.regex`,
-          pattern.span,
-          'warning'
-        )
-      }
+    const pattern = node.args[0]
+    if (pattern?.kind === 'string' && hasNestedUnboundedQuantifier(pattern.value)) {
+      this.report(
+        'regex-backtracking',
+        `The regular expression nests unbounded repetition, which can backtrack catastrophically on non-matching input (ReDoS); rewrite it or supply a linear-time engine via EvaluateOptions.regex`,
+        pattern.span,
+        'warning'
+      )
     }
-    // ofType(X) filters and as(X) casts: both narrow to the named type,
-    // intersected with the known candidates.
-    if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
-      return { types: this.narrowTypes(input, typeTarget, node.span), single: input.single }
-    }
-    return signature.result(input, argStates)
   }
 
   /**
@@ -681,10 +723,7 @@ class Analyzer {
         if (right.types?.length === 0) {
           return left
         }
-        return {
-          types: left.types && right.types ? [...new Set([...left.types, ...right.types])] : undefined,
-          single: false,
-        }
+        return withSingle(unionStates([left, right]), false)
       }
       case 'in':
       case 'contains': {

@@ -405,8 +405,22 @@ describe('resolve() reference-target typing', () => {
     ).toEqual([])
   })
 
-  it('targets survive item selection', () => {
+  it('targets survive the state algebra: selection, filters, projections, unions, indexing', () => {
     expect(codes('Patient.generalPractitioner.first().resolve().nope')).toEqual(['unknown-element'])
+    expect(codes('Patient.generalPractitioner[0].resolve().nope')).toEqual(['unknown-element'])
+    expect(codes('Patient.generalPractitioner.where(reference.exists()).resolve().nope')).toEqual(['unknown-element'])
+    expect(codes('Patient.generalPractitioner.select($this).resolve().nope')).toEqual(['unknown-element'])
+    expect(codes('(Patient.generalPractitioner | Patient.managingOrganization).resolve().nope')).toEqual([
+      'unknown-element',
+    ])
+    expect(codes('Patient.generalPractitioner.union(Patient.managingOrganization).resolve().nope')).toEqual([
+      'unknown-element',
+    ])
+    expect(codes('iif(true, Patient.generalPractitioner, Patient.managingOrganization).resolve().nope')).toEqual([
+      'unknown-element',
+    ])
+    // A union with a non-reference side has no common target set: muted, not wrong.
+    expect(codes('(Patient.generalPractitioner | Patient.name).resolve().anything')).toEqual([])
   })
 
   it('an unconstrained or non-reference input stays an unknown region', () => {
