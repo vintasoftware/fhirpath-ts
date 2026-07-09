@@ -121,6 +121,8 @@ describe('differential fuzz vs fhirpath.js', () => {
           JSON.parse(JSON.stringify(theirs(expression)))
         )
       }),
+      // CI budget: 300 fresh random cases per run (unseeded, so coverage
+      // accumulates across runs); a one-off 5k-run sweep passed before landing.
       { numRuns: 300 }
     )
   })
