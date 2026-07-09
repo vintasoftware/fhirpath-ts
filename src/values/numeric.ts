@@ -8,8 +8,10 @@ export interface NumericOperand {
   value: Decimal
 }
 
-const INTEGER_MIN = -2147483648
-const INTEGER_MAX = 2147483647
+const INTEGER_MIN = -2147483648n
+const INTEGER_MAX = 2147483647n
+const LONG_MIN = -9223372036854775808n
+const LONG_MAX = 9223372036854775807n
 
 /** Read an Integer/Long/Decimal operand as a Decimal, remembering its kind. */
 export function asNumeric(item: TypedValue): NumericOperand | undefined {
@@ -36,18 +38,25 @@ export function widerKind(a: NumericKind, b: NumericKind): NumericKind {
   return 'Integer'
 }
 
-/** Wrap a Decimal result as the given kind; Integer overflow yields empty (undefined). */
-export function wrapNumeric(value: Decimal, kind: NumericKind): TypedValue | undefined {
+/**
+ * Wrap a numeric result as the narrowest type that represents it exactly.
+ * Integer (32-bit) and Long (64-bit) arithmetic can produce whole numbers that
+ * no longer fit their range; rather than drop the result (empty) or silently
+ * wrap it around — as other FHIRPath engines variously do — widen to the next
+ * integer type that holds it (Integer → Long → Decimal), never narrower than
+ * the operands' own kind. Decimal results pass through unchanged.
+ */
+export function wrapNumeric(value: Decimal, kind: NumericKind): TypedValue {
   if (kind === 'Decimal') {
     return { type: SYSTEM_DECIMAL, value }
   }
   const whole = value.trimTrailingZeros()
-  if (kind === 'Long') {
-    return { type: SYSTEM_LONG, value: BigInt(whole.toString()) }
+  const big = BigInt(whole.toString())
+  if (kind === 'Integer' && big >= INTEGER_MIN && big <= INTEGER_MAX) {
+    return { type: SYSTEM_INTEGER, value: Number(big) }
   }
-  const asNumber = whole.toNumber()
-  if (asNumber < INTEGER_MIN || asNumber > INTEGER_MAX) {
-    return undefined
+  if (big >= LONG_MIN && big <= LONG_MAX) {
+    return { type: SYSTEM_LONG, value: big }
   }
-  return { type: SYSTEM_INTEGER, value: asNumber }
+  return { type: SYSTEM_DECIMAL, value: whole }
 }

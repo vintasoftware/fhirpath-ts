@@ -77,8 +77,7 @@ registerFunction('sum', {
     }
     const { values, kind } = numericItems('sum', input)
     const total = values.reduce((acc, value) => acc.add(value), Decimal.zero())
-    const wrapped = wrapNumeric(total, kind)
-    return wrapped === undefined ? [] : [wrapped]
+    return [wrapNumeric(total, kind)]
   },
 })
 
@@ -101,9 +100,7 @@ function extremum(name: string, keep: (comparison: number) => boolean): void {
           best = value
         }
       }
-      const wrapped = wrapNumeric(best, kind)
-      /* v8 ignore next -- min/max of in-range inputs cannot overflow */
-      return wrapped === undefined ? [] : [wrapped]
+      return [wrapNumeric(best, kind)]
     },
   })
 }

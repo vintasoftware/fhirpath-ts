@@ -189,10 +189,16 @@ describe('math', () => {
     ['-5', [-5]],
     ['+5', [5]],
     ['-(1.5)', [-1.5]],
-    ['2147483647 + 1', []],
-    ['-2147483647 - 2', []],
   ])('%s -> %j', (expression, expected) => {
     expect(evaluate(expression)).toEqual(expected)
+  })
+
+  // Kept out of the table above because its '%j' title formatter can't
+  // serialize a bigint: Integer results outside the 32-bit range widen to Long
+  // rather than being dropped.
+  it('integer arithmetic past the 32-bit range widens to Long', () => {
+    expect(evaluate('2147483647 + 1')).toEqual([2147483648n])
+    expect(evaluate('-2147483647 - 2')).toEqual([-2147483649n])
   })
 
   it('rejects string operands for non-concat operators', () => {
