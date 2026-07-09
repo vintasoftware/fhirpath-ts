@@ -347,9 +347,9 @@ class Analyzer {
   }
 
   /**
-   * A Reference-typed element's targets folded into the accumulated set:
-   * sticky-undefined (one unconstrained reference makes the whole set
-   * unknown), otherwise the canonicalized union.
+   * A Reference-typed element's targets folded into the accumulated set.
+   * One unconstrained reference makes the whole set unknown, and unknown
+   * stays unknown; otherwise the result is the canonicalized union.
    */
   private mergeTargets(current: string[] | undefined, element: ElementInfo): string[] | undefined {
     if (current === undefined || element.referenceTargets === undefined) {
