@@ -75,6 +75,9 @@ function convert(release: 'r4' | 'r5'): void {
       if (testNode['@_mode'] !== undefined) {
         test.mode = String(testNode['@_mode'])
       }
+      if (testNode['@_skipStaticCheck'] === 'true') {
+        test.skipStaticCheck = true
+      }
       const invalid =
         typeof expressionNode === 'object' && expressionNode !== null
           ? (expressionNode as Record<string, unknown>)['@_invalid']

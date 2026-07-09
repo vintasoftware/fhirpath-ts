@@ -31,7 +31,7 @@ describe('official harness', () => {
     ).toContain('expected 1 results')
   })
 
-  it('handles invalid expectations and predicates', () => {
+  it('handles invalid expectations', () => {
     expect(runOfficialTest('r5', { name: 'x', expression: '1 +', invalid: 'syntax', outputs: [] })).toBeUndefined()
     expect(runOfficialTest('r5', { name: 'x', expression: '1 + 1', invalid: 'semantic', outputs: [] })).toContain(
       'expected an error'
@@ -39,6 +39,30 @@ describe('official harness', () => {
     expect(
       runOfficialTest('r5', { name: 'x', expression: '(1 | 2).single()', invalid: 'execution', outputs: [] })
     ).toBeUndefined()
+  })
+
+  it('pins the error class to the phase the invalid tag names', () => {
+    // A semantic tag admits only type errors: single() raises a runtime error.
+    expect(
+      runOfficialTest('r5', { name: 'x', expression: '(1 | 2).single()', invalid: 'semantic', outputs: [] })
+    ).toContain('expected a semantic-phase error')
+    // An execution tag admits runtime and type errors, not syntax errors.
+    expect(runOfficialTest('r5', { name: 'x', expression: '1 +', invalid: 'execution', outputs: [] })).toContain(
+      'expected a execution-phase error'
+    )
+    // An unrecognized tag falls back to accepting any engine error.
+    expect(runOfficialTest('r5', { name: 'x', expression: '1 +', invalid: 'true', outputs: [] })).toBeUndefined()
+    // A phase override redirects the expected class (time literals reject offsets at parse).
+    expect(
+      runOfficialTest(
+        'r4',
+        { name: 'testLiteralTimeUTC', expression: '@T14:34:28Z.is(Time)', invalid: 'execution', outputs: [] },
+        'testLiterals'
+      )
+    ).toBeUndefined()
+  })
+
+  it('applies the predicate flag before comparing outputs', () => {
     expect(
       runOfficialTest('r5', {
         name: 'x',

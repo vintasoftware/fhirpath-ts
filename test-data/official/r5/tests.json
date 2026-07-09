@@ -225,7 +225,8 @@
             "value": "value"
           }
         ],
-        "inputfile": "patient-example.xml"
+        "inputfile": "patient-example.xml",
+        "skipStaticCheck": true
       },
       {
         "name": "dvParametersDontColide",

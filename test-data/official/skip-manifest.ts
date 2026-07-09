@@ -13,6 +13,74 @@ export interface SkipEntry {
   reason: string
 }
 
+/** The pipeline phase an official `invalid` tag maps to (HAPI's parse/check/evaluate split). */
+export type PhaseName = 'syntax' | 'semantic' | 'execution'
+
+/**
+ * Cases where this engine fails at a different phase than the suite's `invalid`
+ * tag says, each with the reason the divergence is deliberate. The hygiene test
+ * fails if an entry stops matching an invalid case.
+ */
+export interface PhaseOverride {
+  suite: 'r4' | 'r5'
+  group: string
+  test: string
+  /** The phase whose error class this engine actually raises. */
+  throws: PhaseName
+  reason: string
+}
+
+export const PHASE_OVERRIDES: PhaseOverride[] = [
+  {
+    suite: 'r4',
+    group: 'testLiterals',
+    test: 'testLiteralTimeUTC',
+    throws: 'syntax',
+    reason:
+      'the FHIRPath grammar gives TIME literals no timezone offset, so @T14:34:28Z is rejected at parse; the suite tags it execution',
+  },
+  {
+    suite: 'r5',
+    group: 'testLiterals',
+    test: 'testLiteralTimeUTC',
+    throws: 'syntax',
+    reason:
+      'the FHIRPath grammar gives TIME literals no timezone offset, so @T14:34:28Z is rejected at parse; the suite tags it execution',
+  },
+  {
+    suite: 'r4',
+    group: 'testLiterals',
+    test: 'testLiteralTimeTimezoneOffset',
+    throws: 'syntax',
+    reason:
+      'the FHIRPath grammar gives TIME literals no timezone offset, so @T14:34:28+10:00 is rejected at parse; the suite tags it execution',
+  },
+  {
+    suite: 'r5',
+    group: 'testLiterals',
+    test: 'testLiteralTimeTimezoneOffset',
+    throws: 'syntax',
+    reason:
+      'the FHIRPath grammar gives TIME literals no timezone offset, so @T14:34:28+10:00 is rejected at parse; the suite tags it execution',
+  },
+  {
+    suite: 'r4',
+    group: 'testCollectionBoolean',
+    test: 'testCollectionBoolean1',
+    throws: 'execution',
+    reason:
+      'a multi-item iif criterion breaks the singleton rule while evaluating; this dynamic engine raises it at execution, the suite tags it semantic',
+  },
+  {
+    suite: 'r5',
+    group: 'testCollectionBoolean',
+    test: 'testCollectionBoolean1',
+    throws: 'execution',
+    reason:
+      'a multi-item iif criterion breaks the singleton rule while evaluating; this dynamic engine raises it at execution, the suite tags it semantic',
+  },
+]
+
 export const SKIP_MANIFEST: SkipEntry[] = [
   {
     suite: 'r5',
