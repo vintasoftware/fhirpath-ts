@@ -3,7 +3,7 @@ import '../functions/install.ts'
 import { BUILTIN_ENV_VARIABLE_NAMES } from '../engine/context.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { describeArity, functions } from '../functions/registry.ts'
-import type { ModelProvider } from '../model/provider.ts'
+import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
@@ -313,12 +313,9 @@ class Analyzer {
         isCollection = isCollection || element.isCollection
         for (const elementType of element.types) {
           found.push(this.canonicalize(elementType))
-          if (typeLocalName(elementType) === 'Reference') {
-            targets =
-              targets === undefined || element.referenceTargets === undefined
-                ? undefined
-                : [...targets, ...element.referenceTargets.map(target => this.canonicalize(target))]
-          }
+        }
+        if (element.types.some(elementType => typeLocalName(elementType) === 'Reference')) {
+          targets = this.mergeTargets(targets, element)
         }
       }
     }
@@ -347,6 +344,18 @@ class Analyzer {
       return elementType
     }
     return this.model?.resolveType(elementType) ?? elementType
+  }
+
+  /**
+   * A Reference-typed element's targets folded into the accumulated set:
+   * sticky-undefined (one unconstrained reference makes the whole set
+   * unknown), otherwise the canonicalized union.
+   */
+  private mergeTargets(current: string[] | undefined, element: ElementInfo): string[] | undefined {
+    if (current === undefined || element.referenceTargets === undefined) {
+      return undefined
+    }
+    return [...current, ...element.referenceTargets.map(target => this.canonicalize(target))]
   }
 
   /**
@@ -395,7 +404,8 @@ class Analyzer {
   private walkCall(node: AstNode & { kind: 'call' }, input: StaticState, scope: VariableScope): StaticState {
     const registered = functions.get(node.name)
     const custom = registered === undefined ? this.customFunctions.get(node.name) : undefined
-    if (registered === undefined && custom === undefined) {
+    const resolved = registered ?? custom
+    if (resolved === undefined) {
       this.report(
         'unknown-function',
         `Unrecognized function '${node.name}'${didYouMean(node.name, [...functions.keys(), ...this.customFunctions.keys()])}`,
@@ -404,7 +414,7 @@ class Analyzer {
       this.walkUncheckedArguments(node, input, scope)
       return UNKNOWN
     }
-    this.checkArity(node, registered ?? custom ?? {})
+    this.checkArity(node, resolved)
     const signature = registered !== undefined ? FUNCTION_SIGNATURES[node.name] : this.toSignature(custom?.signature)
     if (!signature) {
       this.walkUncheckedArguments(node, input, scope)
