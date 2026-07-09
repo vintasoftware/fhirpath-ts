@@ -6,8 +6,8 @@ import { Decimal } from './decimal.ts'
 /**
  * Property-based laws for the exact BigInt-mantissa decimal. Addition,
  * subtraction, and multiplication are exact (no rounding step), so the
- * algebraic laws must hold exactly — the guarantee float-based engines
- * cannot make, and the reason 1.58700 keeps its trailing zeros here.
+ * algebraic laws must hold exactly. Float-based engines cannot promise
+ * this, and it is why 1.58700 keeps its trailing zeros here.
  */
 
 const decimalArb = fc
@@ -58,8 +58,8 @@ describe('decimal arithmetic laws (exact operations)', () => {
   })
 
   it('toString/fromString round-trips exactly, trailing zeros included', () => {
-    // The precision guarantee: scale survives the text round-trip, so
-    // 1.58700 stays precision 5 (the case helios-fhirpath documents losing).
+    // Scale survives the text round-trip, so 1.58700 stays precision 5 —
+    // engines that normalize trailing zeros away lose this.
     fc.assert(
       fc.property(decimalArb, decimal => {
         const text = decimal.toString()

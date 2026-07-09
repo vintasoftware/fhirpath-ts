@@ -4,9 +4,9 @@ import type { ModelProvider } from '../model/provider.ts'
 import { SYSTEM_STRING, toCollection, type TypedValue } from '../values/typed-value.ts'
 
 /**
- * A host-supplied function's runtime legs: arity and implementation. The API
- * layer's CustomFunction (api/compile.ts) adds the optional static-typing leg
- * for the analyzer; this module only needs what evaluation uses.
+ * The runtime side of a host-supplied function: arity and implementation.
+ * The API layer's CustomFunction (api/compile.ts) adds the optional analyzer
+ * signature; this module only needs what evaluation uses.
  */
 export interface HostFunction {
   /** Inclusive argument count range, checked before invocation. Defaults: 0 to unlimited. */

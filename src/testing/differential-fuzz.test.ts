@@ -122,7 +122,7 @@ describe('differential fuzz vs fhirpath.js', () => {
         )
       }),
       // CI budget: 300 fresh random cases per run (unseeded, so coverage
-      // accumulates across runs); a one-off 5k-run sweep passed before landing.
+      // accumulates across runs); a one-off 5k-run sweep passed before merge.
       { numRuns: 300 }
     )
   })

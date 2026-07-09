@@ -164,7 +164,7 @@ describe('printer/parser round-trip fuzz', () => {
         expect(stripSpans(reparsed)).toEqual(stripSpans(node))
       }),
       // CI budget: 1000 fresh random cases per run (unseeded, so coverage
-      // accumulates across runs); a one-off 20k-run sweep passed before landing.
+      // accumulates across runs); a one-off 20k-run sweep passed before merge.
       { numRuns: 1000 }
     )
   })
