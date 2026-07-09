@@ -7,6 +7,7 @@ import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
+import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
   type CustomFunctionSignature,
   FUNCTION_SIGNATURES,
@@ -72,6 +73,12 @@ export interface AnalyzeOptions {
 interface StaticState {
   types: string[] | undefined
   single: boolean | undefined
+  /**
+   * Canonical resource types a Reference-valued state may point to (from
+   * `Reference.targetProfile`) — what resolve() yields. Carried by element
+   * navigation and cardinality-preserving functions; absent means unknown.
+   */
+  targets?: string[]
 }
 
 const UNKNOWN: StaticState = { types: undefined, single: undefined }
@@ -293,6 +300,10 @@ class Analyzer {
     }
     const found: string[] = []
     let isCollection = false
+    // Reference targets (Reference.targetProfile) accumulate so a later
+    // resolve() yields their union; one unconstrained reference makes the
+    // whole set unknown.
+    let targets: string[] | undefined = []
     for (const type of input.types) {
       const element = this.model?.getElement(type, node.name)
       if (element) {
@@ -300,6 +311,12 @@ class Analyzer {
         isCollection = isCollection || element.isCollection
         for (const elementType of element.types) {
           found.push(this.canonicalize(elementType))
+          if (typeLocalName(elementType) === 'Reference') {
+            targets =
+              targets === undefined || element.referenceTargets === undefined
+                ? undefined
+                : [...targets, ...element.referenceTargets.map(target => this.canonicalize(target))]
+          }
         }
       }
     }
@@ -316,7 +333,11 @@ class Analyzer {
       }
       return UNKNOWN
     }
-    return { types: [...new Set(found)], single: singleAnd(input.single, !isCollection) }
+    const state: StaticState = { types: [...new Set(found)], single: singleAnd(input.single, !isCollection) }
+    if (targets !== undefined && targets.length > 0) {
+      state.targets = [...new Set(targets)]
+    }
+    return state
   }
 
   private canonicalize(elementType: string): string {
@@ -461,6 +482,19 @@ class Analyzer {
     })
     if (node.name === 'defineVariable') {
       this.registerVariable(node, input, argStates, scope)
+    }
+    // The matches() family compiles its pattern with the backtracking JS RegExp,
+    // which cannot be timed out — flag exponential-shaped literal patterns here.
+    if (REGEX_PATTERN_FUNCTIONS.has(node.name)) {
+      const pattern = node.args[0]
+      if (pattern?.kind === 'string' && hasNestedUnboundedQuantifier(pattern.value)) {
+        this.report(
+          'regex-backtracking',
+          `The regular expression nests unbounded repetition, which can backtrack catastrophically on non-matching input (ReDoS); rewrite it or supply a linear-time engine via EvaluateOptions.regex`,
+          pattern.span,
+          'warning'
+        )
+      }
     }
     // ofType(X) filters and as(X) casts: both narrow to the named type,
     // intersected with the known candidates.
@@ -751,6 +785,9 @@ class Analyzer {
     this.diagnostics.push({ severity, code, message, span })
   }
 }
+
+/** Functions whose first argument is a regular expression pattern. */
+const REGEX_PATTERN_FUNCTIONS = new Set(['matches', 'matchesFull', 'replaceMatches'])
 
 const SYSTEM_TYPE_NAMES = new Set([
   'Any',

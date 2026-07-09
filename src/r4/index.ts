@@ -55,7 +55,12 @@ export const r4Model: ModelProvider = {
     if (!found) {
       return undefined
     }
-    return { types: found.t, isCollection: found.a === 1, isChoice: found.c === 1 }
+    return {
+      types: found.t,
+      isCollection: found.a === 1,
+      isChoice: found.c === 1,
+      ...(found.r !== undefined && { referenceTargets: found.r }),
+    }
   },
 
   listElements(type: string): string[] | undefined {

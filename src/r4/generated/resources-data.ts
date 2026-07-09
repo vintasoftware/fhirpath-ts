@@ -50,9 +50,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       owner: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       partOf: {
         t: ['Reference'],
+        r: ['Account'],
       },
       servicePeriod: {
         t: ['Period'],
@@ -63,6 +65,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['Reference'],
         a: 1,
+        r: ['Patient', 'Device', 'Practitioner', 'PractitionerRole', 'Location', 'HealthcareService', 'Organization'],
       },
       text: {
         t: ['Narrative'],
@@ -77,6 +80,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       coverage: {
         t: ['Reference'],
+        r: ['Coverage'],
       },
       extension: {
         t: ['Extension'],
@@ -113,6 +117,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       party: {
         t: ['Reference'],
+        r: ['Patient', 'RelatedPerson', 'Organization'],
       },
       period: {
         t: ['Period'],
@@ -214,6 +219,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       meta: {
         t: ['Meta'],
@@ -228,10 +234,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       observationRequirement: {
         t: ['Reference'],
         a: 1,
+        r: ['ObservationDefinition'],
       },
       observationResultRequirement: {
         t: ['Reference'],
         a: 1,
+        r: ['ObservationDefinition'],
       },
       participant: {
         t: ['ActivityDefinition.participant'],
@@ -243,6 +251,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       product: {
         t: ['Reference', 'CodeableConcept'],
         c: 1,
+        r: ['Medication', 'Substance'],
       },
       profile: {
         t: ['canonical'],
@@ -267,6 +276,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       specimenRequirement: {
         t: ['Reference'],
         a: 1,
+        r: ['SpecimenDefinition'],
       },
       status: {
         t: ['code'],
@@ -274,6 +284,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Group'],
       },
       subtitle: {
         t: ['string'],
@@ -371,6 +382,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       contributor: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole', 'Device'],
       },
       date: {
         t: ['dateTime'],
@@ -380,6 +392,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       event: {
         t: ['CodeableConcept'],
@@ -402,6 +415,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       meta: {
         t: ['Meta'],
@@ -418,14 +432,17 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       recorder: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson'],
       },
       referenceDocument: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       resultingCondition: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition'],
       },
       seriousness: {
         t: ['CodeableConcept'],
@@ -436,13 +453,25 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       study: {
         t: ['Reference'],
         a: 1,
+        r: ['ResearchStudy'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group', 'Practitioner', 'RelatedPerson'],
       },
       subjectMedicalHistory: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'Condition',
+          'Observation',
+          'AllergyIntolerance',
+          'FamilyMemberHistory',
+          'Immunization',
+          'Procedure',
+          'Media',
+          'DocumentReference',
+        ],
       },
       suspectEntity: {
         t: ['AdverseEvent.suspectEntity'],
@@ -469,6 +498,15 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       instance: {
         t: ['Reference'],
+        r: [
+          'Immunization',
+          'Procedure',
+          'Substance',
+          'Medication',
+          'MedicationAdministration',
+          'MedicationStatement',
+          'Device',
+        ],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -484,6 +522,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       author: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       extension: {
         t: ['Extension'],
@@ -509,6 +548,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       asserter: {
         t: ['Reference'],
+        r: ['Patient', 'RelatedPerson', 'Practitioner', 'PractitionerRole'],
       },
       category: {
         t: ['code'],
@@ -529,6 +569,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -567,6 +608,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       reaction: {
         t: ['AllergyIntolerance.reaction'],
@@ -577,6 +619,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       recorder: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Patient', 'RelatedPerson'],
       },
       text: {
         t: ['Narrative'],
@@ -637,6 +680,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['ServiceRequest'],
       },
       cancelationReason: {
         t: ['CodeableConcept'],
@@ -701,6 +745,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Procedure', 'Observation', 'ImmunizationRecommendation'],
       },
       requestedPeriod: {
         t: ['Period'],
@@ -717,6 +762,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       slot: {
         t: ['Reference'],
         a: 1,
+        r: ['Slot'],
       },
       specialty: {
         t: ['CodeableConcept'],
@@ -742,6 +788,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       actor: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson', 'Device', 'HealthcareService', 'Location'],
       },
       extension: {
         t: ['Extension'],
@@ -774,9 +821,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       actor: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson', 'Device', 'HealthcareService', 'Location'],
       },
       appointment: {
         t: ['Reference'],
+        r: ['Appointment'],
       },
       comment: {
         t: ['string'],
@@ -911,6 +960,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       media: {
         t: ['Coding'],
@@ -945,6 +995,16 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       who: {
         t: ['Reference'],
+        r: [
+          'PractitionerRole',
+          'Practitioner',
+          'Organization',
+          'Device',
+          'Patient',
+          'RelatedPerson',
+          'Bot',
+          'ClientApplication',
+        ],
       },
     },
   },
@@ -1054,6 +1114,17 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       observer: {
         t: ['Reference'],
+        r: [
+          'PractitionerRole',
+          'Practitioner',
+          'Organization',
+          'Device',
+          'Patient',
+          'RelatedPerson',
+          'Subscription',
+          'Bot',
+          'ClientApplication',
+        ],
       },
       site: {
         t: ['string'],
@@ -1069,6 +1140,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       author: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Patient', 'RelatedPerson', 'Organization'],
       },
       code: {
         t: ['CodeableConcept'],
@@ -1181,6 +1253,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       parent: {
         t: ['Reference'],
         a: 1,
+        r: ['BiologicallyDerivedProduct'],
       },
       processing: {
         t: ['BiologicallyDerivedProduct.processing'],
@@ -1198,6 +1271,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       request: {
         t: ['Reference'],
         a: 1,
+        r: ['ServiceRequest'],
       },
       status: {
         t: ['code'],
@@ -1220,6 +1294,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       collector: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       extension: {
         t: ['Extension'],
@@ -1234,6 +1309,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       source: {
         t: ['Reference'],
+        r: ['Patient', 'Organization'],
       },
     },
   },
@@ -1265,6 +1341,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       additive: {
         t: ['Reference'],
+        r: ['Substance'],
       },
       description: {
         t: ['string'],
@@ -1370,6 +1447,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       text: {
         t: ['Narrative'],
@@ -1711,6 +1789,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       custodian: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       description: {
         t: ['string'],
@@ -2082,17 +2161,21 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       addresses: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition'],
       },
       author: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'Device', 'RelatedPerson', 'Organization', 'CareTeam'],
       },
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['CarePlan'],
       },
       careTeam: {
         t: ['Reference'],
         a: 1,
+        r: ['CareTeam'],
       },
       category: {
         t: ['CodeableConcept'],
@@ -2105,6 +2188,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       contributor: {
         t: ['Reference'],
         a: 1,
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'Device', 'RelatedPerson', 'Organization', 'CareTeam'],
       },
       created: {
         t: ['dateTime'],
@@ -2114,6 +2198,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -2122,6 +2207,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       goal: {
         t: ['Reference'],
         a: 1,
+        r: ['Goal'],
       },
       id: {
         t: ['System.String'],
@@ -2161,6 +2247,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: ['CarePlan'],
       },
       period: {
         t: ['Period'],
@@ -2168,12 +2255,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       replaces: {
         t: ['Reference'],
         a: 1,
+        r: ['CarePlan'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       supportingInfo: {
         t: ['Reference'],
@@ -2218,6 +2307,17 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       reference: {
         t: ['Reference'],
+        r: [
+          'Appointment',
+          'CommunicationRequest',
+          'DeviceRequest',
+          'MedicationRequest',
+          'NutritionOrder',
+          'Task',
+          'ServiceRequest',
+          'VisionPrescription',
+          'RequestGroup',
+        ],
       },
     },
   },
@@ -2243,6 +2343,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       goal: {
         t: ['Reference'],
         a: 1,
+        r: ['Goal'],
       },
       id: {
         t: ['System.String'],
@@ -2260,6 +2361,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -2268,10 +2370,21 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       performer: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'Practitioner',
+          'PractitionerRole',
+          'Organization',
+          'RelatedPerson',
+          'Patient',
+          'CareTeam',
+          'HealthcareService',
+          'Device',
+        ],
       },
       product: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Medication', 'Substance'],
       },
       quantity: {
         t: ['Quantity'],
@@ -2283,6 +2396,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport', 'DocumentReference'],
       },
       scheduled: {
         t: ['Timing', 'Period', 'string'],
@@ -2309,6 +2423,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -2330,6 +2445,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       managingOrganization: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       meta: {
         t: ['Meta'],
@@ -2359,12 +2475,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       telecom: {
         t: ['ContactPoint'],
@@ -2387,6 +2505,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       member: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'RelatedPerson', 'Patient', 'Organization', 'CareTeam'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -2394,6 +2513,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       onBehalfOf: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       period: {
         t: ['Period'],
@@ -2459,6 +2579,19 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       referencedItem: {
         t: ['Reference'],
+        r: [
+          'Medication',
+          'Device',
+          'Organization',
+          'Practitioner',
+          'PractitionerRole',
+          'HealthcareService',
+          'ActivityDefinition',
+          'PlanDefinition',
+          'SpecimenDefinition',
+          'ObservationDefinition',
+          'Binary',
+        ],
       },
       relatedEntry: {
         t: ['CatalogEntry.relatedEntry'],
@@ -2493,6 +2626,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       item: {
         t: ['Reference'],
+        r: ['CatalogEntry'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -2509,6 +2643,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       account: {
         t: ['Reference'],
         a: 1,
+        r: ['Account'],
       },
       bodysite: {
         t: ['CodeableConcept'],
@@ -2523,9 +2658,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       context: {
         t: ['Reference'],
+        r: ['Encounter', 'EpisodeOfCare'],
       },
       costCenter: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       definitionCanonical: {
         t: ['canonical'],
@@ -2540,6 +2677,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       enterer: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Patient', 'Device', 'RelatedPerson'],
       },
       extension: {
         t: ['Extension'],
@@ -2582,6 +2720,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: ['ChargeItem'],
       },
       performer: {
         t: ['ChargeItem.performer'],
@@ -2589,6 +2728,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       performingOrganization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       priceOverride: {
         t: ['Money'],
@@ -2596,6 +2736,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       product: {
         t: ['Reference', 'CodeableConcept'],
         c: 1,
+        r: ['Device', 'Medication', 'Substance'],
       },
       quantity: {
         t: ['Quantity'],
@@ -2606,16 +2747,28 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       requestingOrganization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       service: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'DiagnosticReport',
+          'ImagingStudy',
+          'Immunization',
+          'MedicationAdministration',
+          'MedicationDispense',
+          'Observation',
+          'Procedure',
+          'SupplyDelivery',
+        ],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       supportingInformation: {
         t: ['Reference'],
@@ -2631,6 +2784,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       actor: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'CareTeam', 'Patient', 'Device', 'RelatedPerson'],
       },
       extension: {
         t: ['Extension'],
@@ -2705,6 +2859,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       instance: {
         t: ['Reference'],
         a: 1,
+        r: ['Medication', 'Substance', 'Device'],
       },
       jurisdiction: {
         t: ['CodeableConcept'],
@@ -2862,6 +3017,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       enterer: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       extension: {
         t: ['Extension'],
@@ -2869,6 +3025,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       facility: {
         t: ['Reference'],
+        r: ['Location'],
       },
       fundsReserve: {
         t: ['CodeableConcept'],
@@ -2889,6 +3046,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       insurer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       item: {
         t: ['Claim.item'],
@@ -2906,15 +3064,18 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       originalPrescription: {
         t: ['Reference'],
+        r: ['DeviceRequest', 'MedicationRequest', 'VisionPrescription'],
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       payee: {
         t: ['Claim.payee'],
       },
       prescription: {
         t: ['Reference'],
+        r: ['DeviceRequest', 'MedicationRequest', 'VisionPrescription'],
       },
       priority: {
         t: ['CodeableConcept'],
@@ -2925,9 +3086,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       provider: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       referral: {
         t: ['Reference'],
+        r: ['ServiceRequest'],
       },
       related: {
         t: ['Claim.related'],
@@ -2973,6 +3136,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       location: {
         t: ['Address', 'Reference'],
         c: 1,
+        r: ['Location'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -2999,6 +3163,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       provider: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       qualification: {
         t: ['CodeableConcept'],
@@ -3020,6 +3185,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       diagnosis: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Condition'],
       },
       extension: {
         t: ['Extension'],
@@ -3055,9 +3221,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       claimResponse: {
         t: ['Reference'],
+        r: ['ClaimResponse'],
       },
       coverage: {
         t: ['Reference'],
+        r: ['Coverage'],
       },
       extension: {
         t: ['Extension'],
@@ -3109,6 +3277,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       encounter: {
         t: ['Reference'],
         a: 1,
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -3127,6 +3296,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       location: {
         t: ['CodeableConcept', 'Address', 'Reference'],
         c: 1,
+        r: ['Location'],
       },
       modifier: {
         t: ['CodeableConcept'],
@@ -3170,6 +3340,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       udi: {
         t: ['Reference'],
         a: 1,
+        r: ['Device'],
       },
       unitPrice: {
         t: ['Money'],
@@ -3226,6 +3397,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       udi: {
         t: ['Reference'],
         a: 1,
+        r: ['Device'],
       },
       unitPrice: {
         t: ['Money'],
@@ -3278,6 +3450,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       udi: {
         t: ['Reference'],
         a: 1,
+        r: ['Device'],
       },
       unitPrice: {
         t: ['Money'],
@@ -3300,6 +3473,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       party: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Patient', 'RelatedPerson'],
       },
       type: {
         t: ['CodeableConcept'],
@@ -3326,6 +3500,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       procedure: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Procedure'],
       },
       sequence: {
         t: ['positiveInt'],
@@ -3337,6 +3512,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       udi: {
         t: ['Reference'],
         a: 1,
+        r: ['Device'],
       },
     },
   },
@@ -3345,6 +3521,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       claim: {
         t: ['Reference'],
+        r: ['Claim'],
       },
       extension: {
         t: ['Extension'],
@@ -3415,6 +3592,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       communicationRequest: {
         t: ['Reference'],
         a: 1,
+        r: ['CommunicationRequest'],
       },
       contained: {
         t: ['Resource'],
@@ -3459,6 +3637,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       insurer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       item: {
         t: ['ClaimResponse.item'],
@@ -3479,6 +3658,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       payeeType: {
         t: ['CodeableConcept'],
@@ -3498,9 +3678,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       request: {
         t: ['Reference'],
+        r: ['Claim'],
       },
       requestor: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       status: {
         t: ['code'],
@@ -3558,6 +3740,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       location: {
         t: ['CodeableConcept', 'Address', 'Reference'],
         c: 1,
+        r: ['Location'],
       },
       modifier: {
         t: ['CodeableConcept'],
@@ -3584,6 +3767,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       provider: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       quantity: {
         t: ['Quantity'],
@@ -3731,9 +3915,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       claimResponse: {
         t: ['Reference'],
+        r: ['ClaimResponse'],
       },
       coverage: {
         t: ['Reference'],
+        r: ['Coverage'],
       },
       extension: {
         t: ['Extension'],
@@ -3960,6 +4146,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       assessor: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       code: {
         t: ['CodeableConcept'],
@@ -3980,6 +4167,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -4019,10 +4207,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       previous: {
         t: ['Reference'],
+        r: ['ClinicalImpression'],
       },
       problem: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'AllergyIntolerance'],
       },
       prognosisCodeableConcept: {
         t: ['CodeableConcept'],
@@ -4031,6 +4221,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       prognosisReference: {
         t: ['Reference'],
         a: 1,
+        r: ['RiskAssessment'],
       },
       protocol: {
         t: ['uri'],
@@ -4044,6 +4235,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       summary: {
         t: ['string'],
@@ -4075,6 +4267,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       itemReference: {
         t: ['Reference'],
+        r: ['Condition', 'Observation', 'Media'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -4098,6 +4291,15 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       item: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'Observation',
+          'QuestionnaireResponse',
+          'FamilyMemberHistory',
+          'DiagnosticReport',
+          'RiskAssessment',
+          'ImagingStudy',
+          'Media',
+        ],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -4385,6 +4587,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -4403,6 +4606,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       inResponseTo: {
         t: ['Reference'],
         a: 1,
+        r: ['Communication'],
       },
       instantiatesCanonical: {
         t: ['canonical'],
@@ -4448,6 +4652,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport', 'DocumentReference'],
       },
       received: {
         t: ['dateTime'],
@@ -4455,9 +4660,29 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       recipient: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'Device',
+          'Organization',
+          'Patient',
+          'Practitioner',
+          'PractitionerRole',
+          'RelatedPerson',
+          'Group',
+          'CareTeam',
+          'HealthcareService',
+        ],
       },
       sender: {
         t: ['Reference'],
+        r: [
+          'Device',
+          'Organization',
+          'Patient',
+          'Practitioner',
+          'PractitionerRole',
+          'RelatedPerson',
+          'HealthcareService',
+        ],
       },
       sent: {
         t: ['dateTime'],
@@ -4470,6 +4695,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -4526,6 +4752,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -4580,20 +4807,43 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport', 'DocumentReference'],
       },
       recipient: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'Device',
+          'Organization',
+          'Patient',
+          'Practitioner',
+          'PractitionerRole',
+          'RelatedPerson',
+          'Group',
+          'CareTeam',
+          'HealthcareService',
+        ],
       },
       replaces: {
         t: ['Reference'],
         a: 1,
+        r: ['CommunicationRequest'],
       },
       requester: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Patient', 'RelatedPerson', 'Device'],
       },
       sender: {
         t: ['Reference'],
+        r: [
+          'Device',
+          'Organization',
+          'Patient',
+          'Practitioner',
+          'PractitionerRole',
+          'RelatedPerson',
+          'HealthcareService',
+        ],
       },
       status: {
         t: ['code'],
@@ -4603,6 +4853,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -4742,6 +4993,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       author: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole', 'Device', 'Patient', 'RelatedPerson', 'Organization'],
       },
       category: {
         t: ['CodeableConcept'],
@@ -4756,12 +5008,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       custodian: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       date: {
         t: ['dateTime'],
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       event: {
         t: ['Composition.event'],
@@ -4834,6 +5088,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       party: {
         t: ['Reference'],
+        r: ['Patient', 'RelatedPerson', 'Practitioner', 'PractitionerRole', 'Organization'],
       },
       time: {
         t: ['dateTime'],
@@ -4887,6 +5142,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       target: {
         t: ['Identifier', 'Reference'],
         c: 1,
+        r: ['Composition'],
       },
     },
   },
@@ -4896,6 +5152,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       author: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole', 'Device', 'Patient', 'RelatedPerson', 'Organization'],
       },
       code: {
         t: ['CodeableConcept'],
@@ -5193,6 +5450,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       asserter: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Patient', 'RelatedPerson'],
       },
       bodySite: {
         t: ['CodeableConcept'],
@@ -5214,6 +5472,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       evidence: {
         t: ['Condition.evidence'],
@@ -5256,6 +5515,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       recorder: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Patient', 'RelatedPerson'],
       },
       severity: {
         t: ['CodeableConcept'],
@@ -5266,6 +5526,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -5305,6 +5566,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       assessment: {
         t: ['Reference'],
         a: 1,
+        r: ['ClinicalImpression', 'DiagnosticReport', 'Observation'],
       },
       extension: {
         t: ['Extension'],
@@ -5366,13 +5628,16 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       organization: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       performer: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization', 'Patient', 'Practitioner', 'RelatedPerson', 'PractitionerRole'],
       },
       policy: {
         t: ['Consent.policy'],
@@ -5390,6 +5655,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       source: {
         t: ['Attachment', 'Reference'],
         c: 1,
+        r: ['Consent', 'DocumentReference', 'Contract', 'QuestionnaireResponse'],
       },
       status: {
         t: ['code'],
@@ -5498,6 +5764,16 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       reference: {
         t: ['Reference'],
+        r: [
+          'Device',
+          'Group',
+          'CareTeam',
+          'Organization',
+          'Patient',
+          'Practitioner',
+          'RelatedPerson',
+          'PractitionerRole',
+        ],
       },
       role: {
         t: ['CodeableConcept'],
@@ -5548,6 +5824,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       verifiedWith: {
         t: ['Reference'],
+        r: ['Patient', 'RelatedPerson'],
       },
     },
   },
@@ -5563,10 +5840,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       author: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'Organization'],
       },
       authority: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       contained: {
         t: ['Resource'],
@@ -5581,6 +5860,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       domain: {
         t: ['Reference'],
         a: 1,
+        r: ['Location'],
       },
       expirationType: {
         t: ['CodeableConcept'],
@@ -5605,6 +5885,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       instantiatesCanonical: {
         t: ['Reference'],
+        r: ['Contract'],
       },
       instantiatesUri: {
         t: ['uri'],
@@ -5625,6 +5906,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       legallyBinding: {
         t: ['Attachment', 'Reference'],
         c: 1,
+        r: ['Composition', 'DocumentReference', 'QuestionnaireResponse', 'Contract'],
       },
       meta: {
         t: ['Meta'],
@@ -5639,6 +5921,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       relevantHistory: {
         t: ['Reference'],
         a: 1,
+        r: ['Provenance'],
       },
       rule: {
         t: ['Contract.rule'],
@@ -5654,6 +5937,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       site: {
         t: ['Reference'],
         a: 1,
+        r: ['Location'],
       },
       status: {
         t: ['code'],
@@ -5723,6 +6007,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       publisher: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       subType: {
         t: ['CodeableConcept'],
@@ -5738,6 +6023,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       content: {
         t: ['Attachment', 'Reference'],
         c: 1,
+        r: ['Composition', 'DocumentReference', 'QuestionnaireResponse'],
       },
       extension: {
         t: ['Extension'],
@@ -5758,6 +6044,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       content: {
         t: ['Attachment', 'Reference'],
         c: 1,
+        r: ['Composition', 'DocumentReference', 'QuestionnaireResponse'],
       },
       extension: {
         t: ['Extension'],
@@ -5778,6 +6065,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       content: {
         t: ['Attachment', 'Reference'],
         c: 1,
+        r: ['DocumentReference'],
       },
       extension: {
         t: ['Extension'],
@@ -5808,6 +6096,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       party: {
         t: ['Reference'],
+        r: ['Organization', 'Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson'],
       },
       signature: {
         t: ['Signature'],
@@ -5880,6 +6169,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       context: {
         t: ['Reference'],
+        r: ['Encounter', 'EpisodeOfCare'],
       },
       contextLinkId: {
         t: ['string'],
@@ -5916,6 +6206,17 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       performer: {
         t: ['Reference'],
+        r: [
+          'RelatedPerson',
+          'Patient',
+          'Practitioner',
+          'PractitionerRole',
+          'CareTeam',
+          'Device',
+          'Substance',
+          'Organization',
+          'Location',
+        ],
       },
       performerLinkId: {
         t: ['string'],
@@ -5943,10 +6244,19 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'Condition',
+          'Observation',
+          'DiagnosticReport',
+          'DocumentReference',
+          'Questionnaire',
+          'QuestionnaireResponse',
+        ],
       },
       requester: {
         t: ['Reference'],
         a: 1,
+        r: ['Patient', 'RelatedPerson', 'Practitioner', 'PractitionerRole', 'Device', 'Group', 'Organization'],
       },
       requesterLinkId: {
         t: ['string'],
@@ -5985,6 +6295,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reference: {
         t: ['Reference'],
         a: 1,
+        r: ['Patient', 'RelatedPerson', 'Practitioner', 'PractitionerRole', 'Device', 'Group', 'Organization'],
       },
       role: {
         t: ['CodeableConcept'],
@@ -6137,9 +6448,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       recipient: {
         t: ['Reference'],
+        r: ['Organization', 'Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson'],
       },
       responsible: {
         t: ['Reference'],
+        r: ['Organization', 'Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson'],
       },
       securityLabelNumber: {
         t: ['unsignedInt'],
@@ -6252,6 +6565,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reference: {
         t: ['Reference'],
         a: 1,
+        r: ['Patient', 'RelatedPerson', 'Practitioner', 'PractitionerRole', 'Device', 'Group', 'Organization'],
       },
       role: {
         t: ['CodeableConcept'],
@@ -6294,6 +6608,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       beneficiary: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       class: {
         t: ['Coverage.class'],
@@ -6306,6 +6621,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       contract: {
         t: ['Reference'],
         a: 1,
+        r: ['Contract'],
       },
       costToBeneficiary: {
         t: ['Coverage.costToBeneficiary'],
@@ -6347,12 +6663,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       payor: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization', 'Patient', 'RelatedPerson'],
       },
       period: {
         t: ['Period'],
       },
       policyHolder: {
         t: ['Reference'],
+        r: ['Patient', 'RelatedPerson', 'Organization'],
       },
       relationship: {
         t: ['CodeableConcept'],
@@ -6365,6 +6683,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subscriber: {
         t: ['Reference'],
+        r: ['Patient', 'RelatedPerson'],
       },
       subscriberId: {
         t: ['string'],
@@ -6463,6 +6782,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       enterer: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       extension: {
         t: ['Extension'],
@@ -6470,6 +6790,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       facility: {
         t: ['Reference'],
+        r: ['Location'],
       },
       id: {
         t: ['System.String'],
@@ -6487,6 +6808,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       insurer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       item: {
         t: ['CoverageEligibilityRequest.item'],
@@ -6504,12 +6826,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       priority: {
         t: ['CodeableConcept'],
       },
       provider: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       purpose: {
         t: ['code'],
@@ -6539,6 +6863,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       coverage: {
         t: ['Reference'],
+        r: ['Coverage'],
       },
       extension: {
         t: ['Extension'],
@@ -6576,6 +6901,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       facility: {
         t: ['Reference'],
+        r: ['Location', 'Organization'],
       },
       id: {
         t: ['System.String'],
@@ -6593,6 +6919,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       provider: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       quantity: {
         t: ['Quantity'],
@@ -6612,6 +6939,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       diagnosis: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Condition'],
       },
       extension: {
         t: ['Extension'],
@@ -6691,6 +7019,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       insurer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       language: {
         t: ['code'],
@@ -6707,6 +7036,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       preAuthRef: {
         t: ['string'],
@@ -6717,9 +7047,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       request: {
         t: ['Reference'],
+        r: ['CoverageEligibilityRequest'],
       },
       requestor: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       serviced: {
         t: ['date', 'Period'],
@@ -6760,6 +7092,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       coverage: {
         t: ['Reference'],
+        r: ['Coverage'],
       },
       extension: {
         t: ['Extension'],
@@ -6833,6 +7166,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       provider: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       term: {
         t: ['CodeableConcept'],
@@ -6874,6 +7208,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       author: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Device'],
       },
       code: {
         t: ['CodeableConcept'],
@@ -6927,6 +7262,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       reference: {
         t: ['uri'],
@@ -6974,6 +7310,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       author: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       date: {
         t: ['dateTime'],
@@ -7004,6 +7341,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       definition: {
         t: ['Reference'],
+        r: ['DeviceDefinition'],
       },
       deviceName: {
         t: ['Device.deviceName'],
@@ -7034,6 +7372,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       lotNumber: {
         t: ['string'],
@@ -7060,15 +7399,18 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       owner: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       parent: {
         t: ['Reference'],
+        r: ['Device'],
       },
       partNumber: {
         t: ['string'],
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       property: {
         t: ['Device.property'],
@@ -7291,6 +7633,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       manufacturer: {
         t: ['string', 'Reference'],
         c: 1,
+        r: ['Organization'],
       },
       material: {
         t: ['DeviceDefinition.material'],
@@ -7315,9 +7658,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       owner: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       parentDevice: {
         t: ['Reference'],
+        r: ['DeviceDefinition'],
       },
       physicalCharacteristics: {
         t: ['ProdCharacteristic'],
@@ -7576,9 +7921,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       parent: {
         t: ['Reference'],
+        r: ['Device'],
       },
       source: {
         t: ['Reference'],
+        r: ['Device'],
       },
       text: {
         t: ['Narrative'],
@@ -7629,6 +7976,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       code: {
         t: ['Reference', 'CodeableConcept'],
         c: 1,
+        r: ['Device'],
       },
       contained: {
         t: ['Resource'],
@@ -7636,6 +7984,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -7665,6 +8014,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       insurance: {
         t: ['Reference'],
         a: 1,
+        r: ['Coverage', 'ClaimResponse'],
       },
       intent: {
         t: ['code'],
@@ -7693,6 +8043,16 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       performer: {
         t: ['Reference'],
+        r: [
+          'Practitioner',
+          'PractitionerRole',
+          'Organization',
+          'CareTeam',
+          'HealthcareService',
+          'Patient',
+          'Device',
+          'RelatedPerson',
+        ],
       },
       performerType: {
         t: ['CodeableConcept'],
@@ -7711,19 +8071,23 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport', 'DocumentReference'],
       },
       relevantHistory: {
         t: ['Reference'],
         a: 1,
+        r: ['Provenance'],
       },
       requester: {
         t: ['Reference'],
+        r: ['Device', 'Practitioner', 'PractitionerRole', 'Organization'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group', 'Location', 'Device'],
       },
       supportingInfo: {
         t: ['Reference'],
@@ -7763,6 +8127,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['ServiceRequest'],
       },
       bodySite: {
         t: ['CodeableConcept'],
@@ -7774,9 +8139,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       derivedFrom: {
         t: ['Reference'],
         a: 1,
+        r: ['ServiceRequest', 'Procedure', 'Claim', 'Observation', 'QuestionnaireResponse', 'DocumentReference'],
       },
       device: {
         t: ['Reference'],
+        r: ['Device'],
       },
       extension: {
         t: ['Extension'],
@@ -7813,18 +8180,21 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport', 'DocumentReference', 'Media'],
       },
       recordedOn: {
         t: ['dateTime'],
       },
       source: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -7841,6 +8211,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['CarePlan', 'ImmunizationRecommendation', 'MedicationRequest', 'NutritionOrder', 'ServiceRequest'],
       },
       category: {
         t: ['CodeableConcept'],
@@ -7866,6 +8237,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -7881,6 +8253,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       imagingStudy: {
         t: ['Reference'],
         a: 1,
+        r: ['ImagingStudy'],
       },
       implicitRules: {
         t: ['uri'],
@@ -7905,6 +8278,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       performer: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'CareTeam'],
       },
       presentedForm: {
         t: ['Attachment'],
@@ -7913,20 +8287,24 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       result: {
         t: ['Reference'],
         a: 1,
+        r: ['Observation'],
       },
       resultsInterpreter: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'CareTeam'],
       },
       specimen: {
         t: ['Reference'],
         a: 1,
+        r: ['Specimen'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group', 'Device', 'Location'],
       },
       text: {
         t: ['Narrative'],
@@ -7948,6 +8326,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       link: {
         t: ['Reference'],
+        r: ['Media'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -7961,6 +8340,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       author: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Device', 'Patient', 'RelatedPerson'],
       },
       contained: {
         t: ['Resource'],
@@ -8006,6 +8386,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       recipient: {
         t: ['Reference'],
         a: 1,
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson', 'Organization'],
       },
       related: {
         t: ['DocumentManifest.related'],
@@ -8019,6 +8400,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'Group', 'Device'],
       },
       text: {
         t: ['Narrative'],
@@ -8055,10 +8437,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       authenticator: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       author: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Device', 'Patient', 'RelatedPerson'],
       },
       category: {
         t: ['CodeableConcept'],
@@ -8077,6 +8461,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       custodian: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       date: {
         t: ['instant'],
@@ -8127,6 +8512,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'Group', 'Device'],
       },
       text: {
         t: ['Narrative'],
@@ -8164,6 +8550,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       encounter: {
         t: ['Reference'],
         a: 1,
+        r: ['Encounter', 'EpisodeOfCare'],
       },
       event: {
         t: ['CodeableConcept'],
@@ -8195,6 +8582,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       sourcePatientInfo: {
         t: ['Reference'],
+        r: ['Patient'],
       },
     },
   },
@@ -8217,6 +8605,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       target: {
         t: ['Reference'],
+        r: ['DocumentReference'],
       },
     },
   },
@@ -8300,9 +8689,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       exposure: {
         t: ['Reference'],
+        r: ['EvidenceVariable'],
       },
       exposureAlternative: {
         t: ['Reference'],
+        r: ['EvidenceVariable'],
       },
       extension: {
         t: ['Extension'],
@@ -8344,9 +8735,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       outcome: {
         t: ['Reference'],
+        r: ['EvidenceVariable'],
       },
       population: {
         t: ['Reference'],
+        r: ['EvidenceVariable'],
       },
       publisher: {
         t: ['string'],
@@ -8537,6 +8930,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       riskEvidenceSynthesis: {
         t: ['Reference'],
+        r: ['RiskEvidenceSynthesis'],
       },
       variantState: {
         t: ['CodeableConcept'],
@@ -8574,14 +8968,17 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       account: {
         t: ['Reference'],
         a: 1,
+        r: ['Account'],
       },
       appointment: {
         t: ['Reference'],
         a: 1,
+        r: ['Appointment'],
       },
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['ServiceRequest'],
       },
       class: {
         t: ['Coding'],
@@ -8601,6 +8998,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       episodeOfCare: {
         t: ['Reference'],
         a: 1,
+        r: ['EpisodeOfCare'],
       },
       extension: {
         t: ['Extension'],
@@ -8638,6 +9036,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       partOf: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       participant: {
         t: ['Encounter.participant'],
@@ -8656,9 +9055,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Procedure', 'Observation', 'ImmunizationRecommendation'],
       },
       serviceProvider: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       serviceType: {
         t: ['CodeableConcept'],
@@ -8672,6 +9073,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -8709,6 +9111,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       condition: {
         t: ['Reference'],
+        r: ['Condition', 'Procedure'],
       },
       extension: {
         t: ['Extension'],
@@ -8737,6 +9140,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       destination: {
         t: ['Reference'],
+        r: ['Location', 'Organization'],
       },
       dietPreference: {
         t: ['CodeableConcept'],
@@ -8758,6 +9162,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       origin: {
         t: ['Reference'],
+        r: ['Location', 'Organization'],
       },
       preAdmissionIdentifier: {
         t: ['Identifier'],
@@ -8787,6 +9192,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -8815,6 +9221,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       individual: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'RelatedPerson'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -8891,6 +9298,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       managingOrganization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       meta: {
         t: ['Meta'],
@@ -8926,6 +9334,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       candidate: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       contained: {
         t: ['Resource'],
@@ -8933,6 +9342,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       coverage: {
         t: ['Reference'],
+        r: ['Coverage'],
       },
       created: {
         t: ['dateTime'],
@@ -8953,6 +9363,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       insurer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       language: {
         t: ['code'],
@@ -8966,6 +9377,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       provider: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       status: {
         t: ['code'],
@@ -9014,15 +9426,18 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       organization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       outcome: {
         t: ['code'],
       },
       request: {
         t: ['Reference'],
+        r: ['EnrollmentRequest'],
       },
       requestProvider: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       status: {
         t: ['code'],
@@ -9038,9 +9453,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       account: {
         t: ['Reference'],
         a: 1,
+        r: ['Account'],
       },
       careManager: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       contained: {
         t: ['Resource'],
@@ -9069,6 +9486,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       managingOrganization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       meta: {
         t: ['Meta'],
@@ -9079,6 +9497,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       period: {
         t: ['Period'],
@@ -9086,6 +9505,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       referralRequest: {
         t: ['Reference'],
         a: 1,
+        r: ['ServiceRequest'],
       },
       status: {
         t: ['code'],
@@ -9097,6 +9517,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       team: {
         t: ['Reference'],
         a: 1,
+        r: ['CareTeam'],
       },
       text: {
         t: ['Narrative'],
@@ -9112,6 +9533,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       condition: {
         t: ['Reference'],
+        r: ['Condition'],
       },
       extension: {
         t: ['Extension'],
@@ -9249,6 +9671,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Group'],
       },
       subtitle: {
         t: ['string'],
@@ -9322,10 +9745,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       exposureBackground: {
         t: ['Reference'],
+        r: ['EvidenceVariable'],
       },
       exposureVariant: {
         t: ['Reference'],
         a: 1,
+        r: ['EvidenceVariable'],
       },
       extension: {
         t: ['Extension'],
@@ -9368,6 +9793,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       outcome: {
         t: ['Reference'],
         a: 1,
+        r: ['EvidenceVariable'],
       },
       publisher: {
         t: ['string'],
@@ -9559,6 +9985,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       definitionReference: {
         t: ['Reference'],
+        r: ['EvidenceVariable', 'Group', 'Evidence'],
       },
       description: {
         t: ['markdown'],
@@ -9629,6 +10056,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       device: {
         t: ['Reference'],
+        r: ['Device', 'DeviceMetric'],
       },
       extension: {
         t: ['Extension'],
@@ -10053,9 +10481,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       claim: {
         t: ['Reference'],
+        r: ['Claim'],
       },
       claimResponse: {
         t: ['Reference'],
+        r: ['ClaimResponse'],
       },
       contained: {
         t: ['Resource'],
@@ -10073,6 +10503,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       enterer: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       extension: {
         t: ['Extension'],
@@ -10080,6 +10511,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       facility: {
         t: ['Reference'],
+        r: ['Location'],
       },
       form: {
         t: ['Attachment'],
@@ -10109,6 +10541,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       insurer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       item: {
         t: ['ExplanationOfBenefit.item'],
@@ -10126,12 +10559,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       originalPrescription: {
         t: ['Reference'],
+        r: ['MedicationRequest'],
       },
       outcome: {
         t: ['code'],
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       payee: {
         t: ['ExplanationOfBenefit.payee'],
@@ -10152,6 +10587,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       prescription: {
         t: ['Reference'],
+        r: ['MedicationRequest', 'VisionPrescription'],
       },
       priority: {
         t: ['CodeableConcept'],
@@ -10166,9 +10602,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       provider: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       referral: {
         t: ['Reference'],
+        r: ['ServiceRequest'],
       },
       related: {
         t: ['ExplanationOfBenefit.related'],
@@ -10215,6 +10653,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       location: {
         t: ['Address', 'Reference'],
         c: 1,
+        r: ['Location'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -10260,6 +10699,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       location: {
         t: ['CodeableConcept', 'Address', 'Reference'],
         c: 1,
+        r: ['Location'],
       },
       modifier: {
         t: ['CodeableConcept'],
@@ -10286,6 +10726,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       provider: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       quantity: {
         t: ['Quantity'],
@@ -10481,6 +10922,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       provider: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       qualification: {
         t: ['CodeableConcept'],
@@ -10502,6 +10944,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       diagnosis: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Condition'],
       },
       extension: {
         t: ['Extension'],
@@ -10534,6 +10977,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       coverage: {
         t: ['Reference'],
+        r: ['Coverage'],
       },
       extension: {
         t: ['Extension'],
@@ -10583,6 +11027,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       encounter: {
         t: ['Reference'],
         a: 1,
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -10601,6 +11046,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       location: {
         t: ['CodeableConcept', 'Address', 'Reference'],
         c: 1,
+        r: ['Location'],
       },
       modifier: {
         t: ['CodeableConcept'],
@@ -10648,6 +11094,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       udi: {
         t: ['Reference'],
         a: 1,
+        r: ['Device'],
       },
       unitPrice: {
         t: ['Money'],
@@ -10740,6 +11187,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       udi: {
         t: ['Reference'],
         a: 1,
+        r: ['Device'],
       },
       unitPrice: {
         t: ['Money'],
@@ -10800,6 +11248,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       udi: {
         t: ['Reference'],
         a: 1,
+        r: ['Device'],
       },
       unitPrice: {
         t: ['Money'],
@@ -10822,6 +11271,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       party: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Patient', 'RelatedPerson'],
       },
       type: {
         t: ['CodeableConcept'],
@@ -10882,6 +11332,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       procedure: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Procedure'],
       },
       sequence: {
         t: ['positiveInt'],
@@ -10893,6 +11344,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       udi: {
         t: ['Reference'],
         a: 1,
+        r: ['Device'],
       },
     },
   },
@@ -10929,6 +11381,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       claim: {
         t: ['Reference'],
+        r: ['Claim'],
       },
       extension: {
         t: ['Extension'],
@@ -11080,6 +11533,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       reasonCode: {
         t: ['CodeableConcept'],
@@ -11088,6 +11542,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'Condition',
+          'Observation',
+          'AllergyIntolerance',
+          'QuestionnaireResponse',
+          'DiagnosticReport',
+          'DocumentReference',
+        ],
       },
       relationship: {
         t: ['CodeableConcept'],
@@ -11141,6 +11603,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       author: {
         t: ['Reference'],
+        r: ['Device', 'Organization', 'Patient', 'Practitioner', 'PractitionerRole'],
       },
       category: {
         t: ['CodeableConcept'],
@@ -11155,6 +11618,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -11188,6 +11652,16 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: [
+          'Patient',
+          'Location',
+          'Group',
+          'Organization',
+          'Practitioner',
+          'PlanDefinition',
+          'Medication',
+          'Procedure',
+        ],
       },
       text: {
         t: ['Narrative'],
@@ -11203,6 +11677,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       addresses: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'MedicationStatement', 'NutritionOrder', 'ServiceRequest', 'RiskAssessment'],
       },
       category: {
         t: ['CodeableConcept'],
@@ -11217,6 +11692,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       expressedBy: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson'],
       },
       extension: {
         t: ['Extension'],
@@ -11256,6 +11732,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       outcomeReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Observation'],
       },
       priority: {
         t: ['CodeableConcept'],
@@ -11272,6 +11749,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group', 'Organization'],
       },
       target: {
         t: ['Goal.target'],
@@ -11528,6 +12006,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       managingEntity: {
         t: ['Reference'],
+        r: ['Organization', 'RelatedPerson', 'Practitioner', 'PractitionerRole'],
       },
       member: {
         t: ['Group.member'],
@@ -11588,6 +12067,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       entity: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'Device', 'Medication', 'Substance', 'Group'],
       },
       extension: {
         t: ['Extension'],
@@ -11621,10 +12101,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       evaluationMessage: {
         t: ['Reference'],
         a: 1,
+        r: ['OperationOutcome'],
       },
       extension: {
         t: ['Extension'],
@@ -11663,9 +12145,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       outputParameters: {
         t: ['Reference'],
+        r: ['Parameters'],
       },
       performer: {
         t: ['Reference'],
+        r: ['Device'],
       },
       reasonCode: {
         t: ['CodeableConcept'],
@@ -11674,18 +12158,21 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport', 'DocumentReference'],
       },
       requestIdentifier: {
         t: ['Identifier'],
       },
       result: {
         t: ['Reference'],
+        r: ['CarePlan', 'RequestGroup'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -11730,6 +12217,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       coverageArea: {
         t: ['Reference'],
         a: 1,
+        r: ['Location'],
       },
       eligibility: {
         t: ['HealthcareService.eligibility'],
@@ -11738,6 +12226,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       endpoint: {
         t: ['Reference'],
         a: 1,
+        r: ['Endpoint'],
       },
       extension: {
         t: ['Extension'],
@@ -11762,6 +12251,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       location: {
         t: ['Reference'],
         a: 1,
+        r: ['Location'],
       },
       meta: {
         t: ['Meta'],
@@ -11777,6 +12267,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
         t: ['HealthcareService.notAvailable'],
         a: 1,
       },
+      offeredIn: {
+        t: ['Reference'],
+        a: 1,
+        r: ['HealthcareService'],
+      },
       photo: {
         t: ['Attachment'],
       },
@@ -11786,6 +12281,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       providedBy: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       referralMethod: {
         t: ['CodeableConcept'],
@@ -11891,6 +12387,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['CarePlan', 'ServiceRequest', 'Appointment', 'AppointmentResponse', 'Task'],
       },
       contained: {
         t: ['Resource'],
@@ -11901,10 +12398,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       endpoint: {
         t: ['Reference'],
         a: 1,
+        r: ['Endpoint'],
       },
       extension: {
         t: ['Extension'],
@@ -11923,12 +12422,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       interpreter: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole'],
       },
       language: {
         t: ['code'],
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       meta: {
         t: ['Meta'],
@@ -11957,6 +12458,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       procedureReference: {
         t: ['Reference'],
+        r: ['Procedure'],
       },
       reasonCode: {
         t: ['CodeableConcept'],
@@ -11965,9 +12467,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'Media', 'DiagnosticReport', 'DocumentReference'],
       },
       referrer: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       series: {
         t: ['ImagingStudy.series'],
@@ -11981,6 +12485,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Device', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -11999,6 +12504,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       endpoint: {
         t: ['Reference'],
         a: 1,
+        r: ['Endpoint'],
       },
       extension: {
         t: ['Extension'],
@@ -12034,6 +12540,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       specimen: {
         t: ['Reference'],
         a: 1,
+        r: ['Specimen'],
       },
       started: {
         t: ['dateTime'],
@@ -12076,6 +12583,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       actor: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'CareTeam', 'Patient', 'Device', 'RelatedPerson'],
       },
       extension: {
         t: ['Extension'],
@@ -12109,6 +12617,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       expirationDate: {
         t: ['date'],
@@ -12138,12 +12647,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       lotNumber: {
         t: ['string'],
       },
       manufacturer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       meta: {
         t: ['Meta'],
@@ -12162,6 +12673,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       performer: {
         t: ['Immunization.performer'],
@@ -12189,6 +12701,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport'],
       },
       recorded: {
         t: ['dateTime'],
@@ -12253,6 +12766,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       actor: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       extension: {
         t: ['Extension'],
@@ -12275,6 +12789,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       authority: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       doseNumber: {
         t: ['positiveInt', 'string'],
@@ -12312,6 +12827,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       detail: {
         t: ['Reference'],
+        r: ['Observation'],
       },
       extension: {
         t: ['Extension'],
@@ -12334,6 +12850,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       authority: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       contained: {
         t: ['Resource'],
@@ -12369,6 +12886,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       immunizationEvent: {
         t: ['Reference'],
+        r: ['Immunization'],
       },
       implicitRules: {
         t: ['uri'],
@@ -12385,6 +12903,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       series: {
         t: ['string'],
@@ -12409,6 +12928,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       authority: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       contained: {
         t: ['Resource'],
@@ -12443,6 +12963,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       recommendation: {
         t: ['ImmunizationRecommendation.recommendation'],
@@ -12499,6 +13020,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       supportingImmunization: {
         t: ['Reference'],
         a: 1,
+        r: ['Immunization', 'ImmunizationEvaluation'],
       },
       supportingPatientInformation: {
         t: ['Reference'],
@@ -12710,6 +13232,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       name: {
         t: ['url', 'Reference'],
         c: 1,
+        r: ['Binary'],
       },
       page: {
         t: ['ImplementationGuide.definition.page'],
@@ -12942,6 +13465,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       administeredBy: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       alias: {
         t: ['string'],
@@ -12962,10 +13486,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       coverageArea: {
         t: ['Reference'],
         a: 1,
+        r: ['Location'],
       },
       endpoint: {
         t: ['Reference'],
         a: 1,
+        r: ['Endpoint'],
       },
       extension: {
         t: ['Extension'],
@@ -12997,9 +13523,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       network: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       ownedBy: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       period: {
         t: ['Period'],
@@ -13070,6 +13598,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       network: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       type: {
         t: ['CodeableConcept'],
@@ -13130,6 +13659,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       coverageArea: {
         t: ['Reference'],
         a: 1,
+        r: ['Location'],
       },
       extension: {
         t: ['Extension'],
@@ -13153,6 +13683,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       network: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       specificCost: {
         t: ['InsurancePlan.plan.specificCost'],
@@ -13271,6 +13802,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       account: {
         t: ['Reference'],
+        r: ['Account'],
       },
       cancelledReason: {
         t: ['string'],
@@ -13298,6 +13830,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       issuer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       language: {
         t: ['code'],
@@ -13326,12 +13859,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       recipient: {
         t: ['Reference'],
+        r: ['Organization', 'Patient', 'RelatedPerson'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -13357,6 +13892,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       chargeItem: {
         t: ['Reference', 'CodeableConcept'],
         c: 1,
+        r: ['ChargeItem'],
       },
       extension: {
         t: ['Extension'],
@@ -13411,6 +13947,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       actor: {
         t: ['Reference'],
+        r: ['Practitioner', 'Organization', 'Patient', 'PractitionerRole', 'Device', 'RelatedPerson'],
       },
       extension: {
         t: ['Extension'],
@@ -13535,6 +14072,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Group'],
       },
       subtitle: {
         t: ['string'],
@@ -13575,6 +14113,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       author: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       contained: {
         t: ['Resource'],
@@ -13649,6 +14188,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       entry: {
         t: ['List.entry'],
@@ -13690,12 +14230,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       source: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Patient', 'Device'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group', 'Device', 'Location'],
       },
       text: {
         t: ['Narrative'],
@@ -13756,6 +14298,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       endpoint: {
         t: ['Reference'],
         a: 1,
+        r: ['Endpoint'],
       },
       extension: {
         t: ['Extension'],
@@ -13780,6 +14323,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       managingOrganization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       meta: {
         t: ['Meta'],
@@ -13799,6 +14343,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       partOf: {
         t: ['Reference'],
+        r: ['Location'],
       },
       physicalType: {
         t: ['CodeableConcept'],
@@ -14010,6 +14555,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Group'],
       },
       subtitle: {
         t: ['string'],
@@ -14238,12 +14784,25 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       reporter: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Location', 'Organization'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: [
+          'Patient',
+          'Practitioner',
+          'PractitionerRole',
+          'Location',
+          'Device',
+          'RelatedPerson',
+          'Organization',
+          'CareTeam',
+          'HealthcareService',
+          'Group',
+        ],
       },
       text: {
         t: ['Narrative'],
@@ -14305,6 +14864,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subjectResults: {
         t: ['Reference'],
+        r: ['List'],
       },
     },
   },
@@ -14406,6 +14966,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subjectResults: {
         t: ['Reference'],
+        r: ['List'],
       },
     },
   },
@@ -14415,6 +14976,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['ServiceRequest', 'CarePlan'],
       },
       bodySite: {
         t: ['CodeableConcept'],
@@ -14432,6 +14994,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       device: {
         t: ['Reference'],
+        r: ['Device', 'DeviceMetric'],
       },
       deviceName: {
         t: ['string'],
@@ -14441,6 +15004,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -14484,6 +15048,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       operator: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'CareTeam', 'Patient', 'Device', 'RelatedPerson'],
       },
       partOf: {
         t: ['Reference'],
@@ -14498,6 +15063,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'Group', 'Device', 'Specimen', 'Location'],
       },
       text: {
         t: ['Narrative'],
@@ -14555,6 +15121,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       manufacturer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       meta: {
         t: ['Meta'],
@@ -14609,6 +15176,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       item: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Substance', 'Medication'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -14631,10 +15199,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       context: {
         t: ['Reference'],
+        r: ['Encounter', 'EpisodeOfCare'],
       },
       device: {
         t: ['Reference'],
         a: 1,
+        r: ['Device'],
       },
       dosage: {
         t: ['MedicationAdministration.dosage'],
@@ -14646,6 +15216,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       eventHistory: {
         t: ['Reference'],
         a: 1,
+        r: ['Provenance'],
       },
       extension: {
         t: ['Extension'],
@@ -14671,6 +15242,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       medication: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Medication'],
       },
       meta: {
         t: ['Meta'],
@@ -14686,6 +15258,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicationAdministration', 'Procedure'],
       },
       performer: {
         t: ['MedicationAdministration.performer'],
@@ -14698,9 +15271,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport'],
       },
       request: {
         t: ['Reference'],
+        r: ['MedicationRequest'],
       },
       status: {
         t: ['code'],
@@ -14711,6 +15286,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       supportingInformation: {
         t: ['Reference'],
@@ -14761,6 +15337,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       actor: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Patient', 'RelatedPerson', 'Device'],
       },
       extension: {
         t: ['Extension'],
@@ -14784,6 +15361,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       authorizingPrescription: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicationRequest'],
       },
       category: {
         t: ['CodeableConcept'],
@@ -14794,16 +15372,19 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       context: {
         t: ['Reference'],
+        r: ['Encounter', 'EpisodeOfCare'],
       },
       daysSupply: {
         t: ['Quantity'],
       },
       destination: {
         t: ['Reference'],
+        r: ['Location'],
       },
       detectedIssue: {
         t: ['Reference'],
         a: 1,
+        r: ['DetectedIssue'],
       },
       dosageInstruction: {
         t: ['Dosage'],
@@ -14812,6 +15393,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       eventHistory: {
         t: ['Reference'],
         a: 1,
+        r: ['Provenance'],
       },
       extension: {
         t: ['Extension'],
@@ -14832,10 +15414,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       medication: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Medication'],
       },
       meta: {
         t: ['Meta'],
@@ -14851,6 +15435,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: ['Procedure'],
       },
       performer: {
         t: ['MedicationDispense.performer'],
@@ -14862,6 +15447,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       receiver: {
         t: ['Reference'],
         a: 1,
+        r: ['Patient', 'Practitioner'],
       },
       status: {
         t: ['code'],
@@ -14869,9 +15455,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       statusReason: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['DetectedIssue'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       substitution: {
         t: ['MedicationDispense.substitution'],
@@ -14899,6 +15487,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       actor: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Patient', 'Device', 'RelatedPerson'],
       },
       extension: {
         t: ['Extension'],
@@ -14937,6 +15526,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       responsibleParty: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole'],
       },
       type: {
         t: ['CodeableConcept'],
@@ -14959,6 +15549,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       associatedMedication: {
         t: ['Reference'],
         a: 1,
+        r: ['Medication'],
       },
       code: {
         t: ['CodeableConcept'],
@@ -14970,6 +15561,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       contraindication: {
         t: ['Reference'],
         a: 1,
+        r: ['DetectedIssue'],
       },
       cost: {
         t: ['MedicationKnowledge.cost'],
@@ -15009,6 +15601,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       manufacturer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       medicineClassification: {
         t: ['MedicationKnowledge.medicineClassification'],
@@ -15076,6 +15669,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       indication: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['ObservationDefinition'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -15198,6 +15792,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       item: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Substance'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -15296,6 +15891,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       source: {
         t: ['Reference'],
+        r: ['DocumentReference', 'Media'],
       },
       type: {
         t: ['CodeableConcept'],
@@ -15343,6 +15939,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       regulatoryAuthority: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       schedule: {
         t: ['MedicationKnowledge.regulatory.schedule'],
@@ -15434,6 +16031,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reference: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicationKnowledge'],
       },
       type: {
         t: ['CodeableConcept'],
@@ -15449,6 +16047,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['CarePlan', 'MedicationRequest', 'ServiceRequest', 'ImmunizationRecommendation'],
       },
       category: {
         t: ['CodeableConcept'],
@@ -15464,6 +16063,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       detectedIssue: {
         t: ['Reference'],
         a: 1,
+        r: ['DetectedIssue'],
       },
       dispenseRequest: {
         t: ['MedicationRequest.dispenseRequest'],
@@ -15477,10 +16077,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       eventHistory: {
         t: ['Reference'],
         a: 1,
+        r: ['Provenance'],
       },
       extension: {
         t: ['Extension'],
@@ -15510,6 +16112,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       insurance: {
         t: ['Reference'],
         a: 1,
+        r: ['Coverage', 'ClaimResponse'],
       },
       intent: {
         t: ['code'],
@@ -15520,6 +16123,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       medication: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Medication'],
       },
       meta: {
         t: ['Meta'],
@@ -15534,12 +16138,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       performer: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Patient', 'Device', 'RelatedPerson', 'CareTeam'],
       },
       performerType: {
         t: ['CodeableConcept'],
       },
       priorPrescription: {
         t: ['Reference'],
+        r: ['MedicationRequest'],
       },
       priority: {
         t: ['code'],
@@ -15551,16 +16157,20 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation'],
       },
       recorder: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       reported: {
         t: ['boolean', 'Reference'],
         c: 1,
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson', 'Organization'],
       },
       requester: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Patient', 'RelatedPerson', 'Device'],
       },
       status: {
         t: ['code'],
@@ -15570,6 +16180,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       substitution: {
         t: ['MedicationRequest.substitution'],
@@ -15611,6 +16222,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       performer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       quantity: {
         t: ['Quantity'],
@@ -15671,6 +16283,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicationRequest', 'CarePlan', 'ServiceRequest'],
       },
       category: {
         t: ['CodeableConcept'],
@@ -15681,6 +16294,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       context: {
         t: ['Reference'],
+        r: ['Encounter', 'EpisodeOfCare'],
       },
       dateAsserted: {
         t: ['dateTime'],
@@ -15713,6 +16327,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       informationSource: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson', 'Organization'],
       },
       language: {
         t: ['code'],
@@ -15720,6 +16335,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       medication: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Medication'],
       },
       meta: {
         t: ['Meta'],
@@ -15735,6 +16351,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicationAdministration', 'MedicationDispense', 'MedicationStatement', 'Procedure', 'Observation'],
       },
       reasonCode: {
         t: ['CodeableConcept'],
@@ -15743,6 +16360,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport'],
       },
       status: {
         t: ['code'],
@@ -15753,6 +16371,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -15768,10 +16387,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       attachedDocument: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       clinicalTrial: {
         t: ['Reference'],
         a: 1,
+        r: ['ResearchStudy'],
       },
       combinedPharmaceuticalDoseForm: {
         t: ['CodeableConcept'],
@@ -15779,6 +16400,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       contact: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization', 'PractitionerRole'],
       },
       contained: {
         t: ['Resource'],
@@ -15822,6 +16444,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       masterFile: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       meta: {
         t: ['Meta'],
@@ -15837,6 +16460,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       packagedMedicinalProduct: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProductPackaged'],
       },
       paediatricUseIndicator: {
         t: ['CodeableConcept'],
@@ -15844,6 +16468,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       pharmaceuticalProduct: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProductPharmaceutical'],
       },
       productClassification: {
         t: ['CodeableConcept'],
@@ -15887,6 +16512,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       manufacturer: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -15897,6 +16523,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       regulator: {
         t: ['Reference'],
+        r: ['Organization'],
       },
     },
   },
@@ -15994,6 +16621,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       indication: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['MedicinalProductIndication'],
       },
       intendedUse: {
         t: ['CodeableConcept'],
@@ -16036,6 +16664,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       holder: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       id: {
         t: ['System.String'],
@@ -16076,6 +16705,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       regulator: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       restoreDate: {
         t: ['dateTime'],
@@ -16088,6 +16718,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['MedicinalProduct', 'MedicinalProductPackaged'],
       },
       text: {
         t: ['Narrative'],
@@ -16208,6 +16839,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProduct', 'Medication'],
       },
       text: {
         t: ['Narrative'],
@@ -16215,6 +16847,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       therapeuticIndication: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProductIndication'],
       },
     },
   },
@@ -16231,6 +16864,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       medication: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['MedicinalProduct', 'Medication', 'Substance', 'SubstanceSpecification'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -16295,6 +16929,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProduct', 'Medication'],
       },
       text: {
         t: ['Narrative'],
@@ -16302,6 +16937,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       undesirableEffect: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProductUndesirableEffect'],
       },
     },
   },
@@ -16318,6 +16954,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       medication: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['MedicinalProduct', 'Medication', 'Substance', 'SubstanceSpecification'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -16357,6 +16994,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       manufacturer: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       meta: {
         t: ['Meta'],
@@ -16549,6 +17187,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProduct', 'Medication', 'Substance'],
       },
       text: {
         t: ['Narrative'],
@@ -16571,6 +17210,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       item: {
         t: ['Reference', 'CodeableConcept'],
         c: 1,
+        r: ['MedicinalProduct', 'Medication', 'Substance', 'ObservationDefinition'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -16598,6 +17238,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       ingredient: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProductIngredient'],
       },
       language: {
         t: ['code'],
@@ -16608,6 +17249,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       manufacturer: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       meta: {
         t: ['Meta'],
@@ -16671,9 +17313,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       manufacturer: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       marketingAuthorization: {
         t: ['Reference'],
+        r: ['MedicinalProductAuthorization'],
       },
       marketingStatus: {
         t: ['MarketingStatus'],
@@ -16693,6 +17337,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProduct'],
       },
       text: {
         t: ['Narrative'],
@@ -16731,6 +17376,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       device: {
         t: ['Reference'],
         a: 1,
+        r: ['DeviceDefinition'],
       },
       extension: {
         t: ['Extension'],
@@ -16746,10 +17392,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       manufacturedItem: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProductManufactured'],
       },
       manufacturer: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       material: {
         t: ['CodeableConcept'],
@@ -16799,6 +17447,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       device: {
         t: ['Reference'],
         a: 1,
+        r: ['DeviceDefinition'],
       },
       extension: {
         t: ['Extension'],
@@ -16817,6 +17466,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       ingredient: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProductIngredient'],
       },
       language: {
         t: ['code'],
@@ -16988,6 +17638,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['Reference'],
         a: 1,
+        r: ['MedicinalProduct', 'Medication'],
       },
       symptomConditionEffect: {
         t: ['CodeableConcept'],
@@ -17166,6 +17817,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       author: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       contained: {
         t: ['Resource'],
@@ -17180,6 +17832,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       enterer: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       event: {
         t: ['Coding', 'uri'],
@@ -17217,9 +17870,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       responsible: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       sender: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       source: {
         t: ['MessageHeader.source'],
@@ -17251,9 +17906,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       receiver: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       target: {
         t: ['Reference'],
+        r: ['Device'],
       },
     },
   },
@@ -17265,6 +17922,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       details: {
         t: ['Reference'],
+        r: ['OperationOutcome'],
       },
       extension: {
         t: ['Extension'],
@@ -17325,6 +17983,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       device: {
         t: ['Reference'],
+        r: ['Device'],
       },
       extension: {
         t: ['Extension'],
@@ -17355,13 +18014,16 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       performer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       pointer: {
         t: ['Reference'],
         a: 1,
+        r: ['MolecularSequence'],
       },
       quality: {
         t: ['MolecularSequence.quality'],
@@ -17382,6 +18044,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       specimen: {
         t: ['Reference'],
+        r: ['Specimen'],
       },
       structureVariant: {
         t: ['MolecularSequence.structureVariant'],
@@ -17532,6 +18195,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       referenceSeqPointer: {
         t: ['Reference'],
+        r: ['MolecularSequence'],
       },
       referenceSeqString: {
         t: ['string'],
@@ -17687,6 +18351,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       variantPointer: {
         t: ['Reference'],
+        r: ['Observation'],
       },
     },
   },
@@ -17802,6 +18467,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       allergyIntolerance: {
         t: ['Reference'],
         a: 1,
+        r: ['AllergyIntolerance'],
       },
       contained: {
         t: ['Resource'],
@@ -17812,6 +18478,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       enteralFormula: {
         t: ['NutritionOrder.enteralFormula'],
@@ -17872,9 +18539,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       orderer: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       status: {
         t: ['code'],
@@ -18079,6 +18748,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'CarePlan',
+          'DeviceRequest',
+          'ImmunizationRecommendation',
+          'MedicationRequest',
+          'NutritionOrder',
+          'ServiceRequest',
+        ],
       },
       bodySite: {
         t: ['CodeableConcept'],
@@ -18104,9 +18781,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       derivedFrom: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference', 'ImagingStudy', 'Media', 'QuestionnaireResponse', 'Observation', 'MolecularSequence'],
       },
       device: {
         t: ['Reference'],
+        r: ['Device', 'DeviceMetric'],
       },
       effective: {
         t: ['dateTime', 'Period', 'Timing', 'instant'],
@@ -18114,6 +18793,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -18126,6 +18806,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       hasMember: {
         t: ['Reference'],
         a: 1,
+        r: ['Observation', 'QuestionnaireResponse', 'MolecularSequence'],
       },
       id: {
         t: ['System.String'],
@@ -18164,10 +18845,19 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'MedicationAdministration',
+          'MedicationDispense',
+          'MedicationStatement',
+          'Procedure',
+          'Immunization',
+          'ImagingStudy',
+        ],
       },
       performer: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'CareTeam', 'Patient', 'RelatedPerson'],
       },
       referenceRange: {
         t: ['Observation.referenceRange'],
@@ -18175,12 +18865,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       specimen: {
         t: ['Reference'],
+        r: ['Specimen'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group', 'Device', 'Location'],
       },
       text: {
         t: ['Narrative'],
@@ -18289,6 +18981,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       abnormalCodedValueSet: {
         t: ['Reference'],
+        r: ['ValueSet'],
       },
       category: {
         t: ['CodeableConcept'],
@@ -18303,6 +18996,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       criticalCodedValueSet: {
         t: ['Reference'],
+        r: ['ValueSet'],
       },
       extension: {
         t: ['Extension'],
@@ -18336,6 +19030,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       normalCodedValueSet: {
         t: ['Reference'],
+        r: ['ValueSet'],
       },
       permittedDataType: {
         t: ['code'],
@@ -18346,6 +19041,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       publisher: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       qualifiedInterval: {
         t: ['ObservationDefinition.qualifiedInterval'],
@@ -18359,6 +19055,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       validCodedValueSet: {
         t: ['Reference'],
+        r: ['ValueSet'],
       },
     },
   },
@@ -18763,6 +19460,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       endpoint: {
         t: ['Reference'],
         a: 1,
+        r: ['Endpoint'],
       },
       extension: {
         t: ['Extension'],
@@ -18793,6 +19491,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       partOf: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       telecom: {
         t: ['ContactPoint'],
@@ -18853,6 +19552,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       endpoint: {
         t: ['Reference'],
         a: 1,
+        r: ['Endpoint'],
       },
       extension: {
         t: ['Extension'],
@@ -18861,6 +19561,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       healthcareService: {
         t: ['Reference'],
         a: 1,
+        r: ['HealthcareService'],
       },
       id: {
         t: ['System.String'],
@@ -18878,6 +19579,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       location: {
         t: ['Reference'],
         a: 1,
+        r: ['Location'],
       },
       meta: {
         t: ['Meta'],
@@ -18889,12 +19591,15 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       network: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization'],
       },
       organization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       participatingOrganization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       period: {
         t: ['Period'],
@@ -19053,6 +19758,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       generalPractitioner: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization', 'Practitioner', 'PractitionerRole'],
       },
       id: {
         t: ['System.String'],
@@ -19073,6 +19779,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       managingOrganization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       maritalStatus: {
         t: ['CodeableConcept'],
@@ -19152,6 +19859,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       organization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       period: {
         t: ['Period'],
@@ -19182,6 +19890,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       other: {
         t: ['Reference'],
+        r: ['Patient', 'RelatedPerson'],
       },
       type: {
         t: ['code'],
@@ -19227,9 +19936,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       payee: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       payment: {
         t: ['Reference'],
+        r: ['PaymentReconciliation'],
       },
       paymentDate: {
         t: ['date'],
@@ -19239,9 +19950,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       provider: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       recipient: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       request: {
         t: ['Reference'],
@@ -19315,6 +20028,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       paymentIssuer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       period: {
         t: ['Period'],
@@ -19325,9 +20039,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       request: {
         t: ['Reference'],
+        r: ['Task'],
       },
       requestor: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       status: {
         t: ['code'],
@@ -19362,6 +20078,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       payee: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       predecessor: {
         t: ['Identifier'],
@@ -19374,9 +20091,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       responsible: {
         t: ['Reference'],
+        r: ['PractitionerRole'],
       },
       submitter: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       type: {
         t: ['CodeableConcept'],
@@ -19448,6 +20167,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       managingOrganization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       meta: {
         t: ['Meta'],
@@ -19491,6 +20211,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       target: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'RelatedPerson', 'Person'],
       },
     },
   },
@@ -19601,6 +20322,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Group'],
       },
       subtitle: {
         t: ['string'],
@@ -19722,6 +20444,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Group'],
       },
       textEquivalent: {
         t: ['string'],
@@ -19991,6 +20714,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       issuer: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -20025,6 +20749,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       endpoint: {
         t: ['Reference'],
         a: 1,
+        r: ['Endpoint'],
       },
       extension: {
         t: ['Extension'],
@@ -20033,6 +20758,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       healthcareService: {
         t: ['Reference'],
         a: 1,
+        r: ['HealthcareService'],
       },
       id: {
         t: ['System.String'],
@@ -20050,6 +20776,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       location: {
         t: ['Reference'],
         a: 1,
+        r: ['Location'],
       },
       meta: {
         t: ['Meta'],
@@ -20064,12 +20791,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       organization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       period: {
         t: ['Period'],
       },
       practitioner: {
         t: ['Reference'],
+        r: ['Practitioner'],
       },
       specialty: {
         t: ['CodeableConcept'],
@@ -20140,10 +20869,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       asserter: {
         t: ['Reference'],
+        r: ['Patient', 'RelatedPerson', 'Practitioner', 'PractitionerRole'],
       },
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['CarePlan', 'ServiceRequest'],
       },
       bodySite: {
         t: ['CodeableConcept'],
@@ -20162,6 +20893,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       complicationDetail: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition'],
       },
       contained: {
         t: ['Resource'],
@@ -20169,6 +20901,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -20205,6 +20938,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       meta: {
         t: ['Meta'],
@@ -20223,6 +20957,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: ['Procedure', 'Observation', 'MedicationAdministration'],
       },
       performed: {
         t: ['dateTime', 'Period', 'string', 'Age', 'Range'],
@@ -20239,13 +20974,16 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'Procedure', 'DiagnosticReport', 'DocumentReference'],
       },
       recorder: {
         t: ['Reference'],
+        r: ['Patient', 'RelatedPerson', 'Practitioner', 'PractitionerRole'],
       },
       report: {
         t: ['Reference'],
         a: 1,
+        r: ['DiagnosticReport', 'DocumentReference', 'Composition'],
       },
       status: {
         t: ['code'],
@@ -20255,6 +20993,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -20266,6 +21005,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       usedReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Device', 'Medication', 'Substance'],
       },
     },
   },
@@ -20284,6 +21024,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       manipulated: {
         t: ['Reference'],
+        r: ['Device'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -20296,6 +21037,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       actor: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Patient', 'RelatedPerson', 'Device'],
       },
       extension: {
         t: ['Extension'],
@@ -20313,6 +21055,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       onBehalfOf: {
         t: ['Reference'],
+        r: ['Organization'],
       },
     },
   },
@@ -20349,6 +21092,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       meta: {
         t: ['Meta'],
@@ -20401,6 +21145,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       onBehalfOf: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'RelatedPerson', 'Patient', 'Device', 'Organization'],
       },
       role: {
         t: ['CodeableConcept'],
@@ -20411,6 +21156,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       who: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'RelatedPerson', 'Patient', 'Device', 'Organization'],
       },
     },
   },
@@ -20702,6 +21448,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       author: {
         t: ['Reference'],
+        r: ['Device', 'Practitioner', 'PractitionerRole', 'Patient', 'RelatedPerson', 'Organization'],
       },
       authored: {
         t: ['dateTime'],
@@ -20709,6 +21456,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['CarePlan', 'ServiceRequest'],
       },
       contained: {
         t: ['Resource'],
@@ -20716,6 +21464,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -20747,12 +21496,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: ['Observation', 'Procedure'],
       },
       questionnaire: {
         t: ['canonical'],
       },
       source: {
         t: ['Reference'],
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson'],
       },
       status: {
         t: ['code'],
@@ -20889,6 +21640,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       period: {
         t: ['Period'],
@@ -20941,6 +21693,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       author: {
         t: ['Reference'],
+        r: ['Device', 'Practitioner', 'PractitionerRole'],
       },
       authoredOn: {
         t: ['dateTime'],
@@ -20958,6 +21711,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -21011,6 +21765,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport', 'DocumentReference'],
       },
       replaces: {
         t: ['Reference'],
@@ -21021,6 +21776,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -21069,6 +21825,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       participant: {
         t: ['Reference'],
         a: 1,
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson', 'Device'],
       },
       precheckBehavior: {
         t: ['code'],
@@ -21202,9 +21959,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       exposure: {
         t: ['Reference'],
+        r: ['ResearchElementDefinition'],
       },
       exposureAlternative: {
         t: ['Reference'],
+        r: ['ResearchElementDefinition'],
       },
       extension: {
         t: ['Extension'],
@@ -21246,9 +22005,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       outcome: {
         t: ['Reference'],
+        r: ['ResearchElementDefinition'],
       },
       population: {
         t: ['Reference'],
+        r: ['ResearchElementDefinition'],
       },
       publisher: {
         t: ['string'],
@@ -21273,6 +22034,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Group'],
       },
       subtitle: {
         t: ['string'],
@@ -21412,6 +22174,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       subject: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Group'],
       },
       subtitle: {
         t: ['string'],
@@ -21547,6 +22310,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       enrollment: {
         t: ['Reference'],
         a: 1,
+        r: ['Group'],
       },
       extension: {
         t: ['Extension'],
@@ -21606,6 +22370,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: ['ResearchStudy'],
       },
       period: {
         t: ['Period'],
@@ -21618,6 +22383,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       principalInvestigator: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       progressStatus: {
         t: ['ResearchStudy.progressStatus'],
@@ -21626,6 +22392,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       protocol: {
         t: ['Reference'],
         a: 1,
+        r: ['PlanDefinition'],
       },
       reasonStopped: {
         t: ['CodeableConcept'],
@@ -21644,13 +22411,16 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       result: {
         t: ['Reference'],
         a: 1,
+        r: ['DiagnosticReport'],
       },
       site: {
         t: ['Reference'],
         a: 1,
+        r: ['Location', 'ResearchStudy', 'Organization'],
       },
       sponsor: {
         t: ['Reference'],
+        r: ['Organization'],
       },
       status: {
         t: ['code'],
@@ -21718,6 +22488,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       party: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       period: {
         t: ['Period'],
@@ -21744,6 +22515,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       intendedExposure: {
         t: ['Reference'],
         a: 1,
+        r: ['EvidenceVariable'],
       },
       linkId: {
         t: ['id'],
@@ -21757,6 +22529,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       observedGroup: {
         t: ['Reference'],
+        r: ['Group'],
       },
       type: {
         t: ['CodeableConcept'],
@@ -21832,6 +22605,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       reference: {
         t: ['Reference'],
+        r: ['EvidenceVariable'],
       },
       type: {
         t: ['CodeableConcept'],
@@ -21869,12 +22643,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
     e: {
       actualGroup: {
         t: ['Reference'],
+        r: ['Group'],
       },
       actualNumber: {
         t: ['unsignedInt'],
       },
       eligibility: {
         t: ['Reference'],
+        r: ['Group', 'EvidenceVariable'],
       },
       extension: {
         t: ['Extension'],
@@ -21903,6 +22679,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       consent: {
         t: ['Reference'],
+        r: ['Consent'],
       },
       contained: {
         t: ['Resource'],
@@ -21924,6 +22701,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       individual: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       language: {
         t: ['code'],
@@ -21943,6 +22721,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       study: {
         t: ['Reference'],
+        r: ['ResearchStudy'],
       },
       text: {
         t: ['Narrative'],
@@ -21980,6 +22759,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       condition: {
         t: ['Reference'],
+        r: ['Condition'],
       },
       contained: {
         t: ['Resource'],
@@ -21987,6 +22767,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -22031,6 +22812,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       performer: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Device'],
       },
       prediction: {
         t: ['RiskAssessment.prediction'],
@@ -22043,12 +22825,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport', 'DocumentReference'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group'],
       },
       text: {
         t: ['Narrative'],
@@ -22135,6 +22919,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       exposure: {
         t: ['Reference'],
+        r: ['EvidenceVariable'],
       },
       extension: {
         t: ['Extension'],
@@ -22176,9 +22961,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       outcome: {
         t: ['Reference'],
+        r: ['EvidenceVariable'],
       },
       population: {
         t: ['Reference'],
+        r: ['EvidenceVariable'],
       },
       publisher: {
         t: ['string'],
@@ -22383,6 +23170,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       actor: {
         t: ['Reference'],
         a: 1,
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson', 'Device', 'HealthcareService', 'Location'],
       },
       comment: {
         t: ['string'],
@@ -22589,6 +23377,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['CarePlan', 'ServiceRequest', 'MedicationRequest'],
       },
       bodySite: {
         t: ['CodeableConcept'],
@@ -22610,6 +23399,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -22636,6 +23426,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       insurance: {
         t: ['Reference'],
         a: 1,
+        r: ['Coverage', 'ClaimResponse'],
       },
       intent: {
         t: ['code'],
@@ -22650,6 +23441,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       locationReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Location'],
       },
       meta: {
         t: ['Meta'],
@@ -22676,6 +23468,16 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       performer: {
         t: ['Reference'],
         a: 1,
+        r: [
+          'Practitioner',
+          'PractitionerRole',
+          'Organization',
+          'CareTeam',
+          'HealthcareService',
+          'Patient',
+          'Device',
+          'RelatedPerson',
+        ],
       },
       performerType: {
         t: ['CodeableConcept'],
@@ -22694,17 +23496,21 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport', 'DocumentReference'],
       },
       relevantHistory: {
         t: ['Reference'],
         a: 1,
+        r: ['Provenance'],
       },
       replaces: {
         t: ['Reference'],
         a: 1,
+        r: ['ServiceRequest'],
       },
       requester: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Patient', 'RelatedPerson', 'Device'],
       },
       requisition: {
         t: ['Identifier'],
@@ -22712,12 +23518,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       specimen: {
         t: ['Reference'],
         a: 1,
+        r: ['Specimen'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group', 'Location', 'Device'],
       },
       supportingInfo: {
         t: ['Reference'],
@@ -22773,6 +23581,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       schedule: {
         t: ['Reference'],
+        r: ['Schedule'],
       },
       serviceCategory: {
         t: ['CodeableConcept'],
@@ -22849,6 +23658,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       parent: {
         t: ['Reference'],
         a: 1,
+        r: ['Specimen'],
       },
       processing: {
         t: ['Specimen.processing'],
@@ -22860,12 +23670,14 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       request: {
         t: ['Reference'],
         a: 1,
+        r: ['ServiceRequest'],
       },
       status: {
         t: ['code'],
       },
       subject: {
         t: ['Reference'],
+        r: ['Patient', 'Group', 'Device', 'Substance', 'Location'],
       },
       text: {
         t: ['Narrative'],
@@ -22887,6 +23699,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       collector: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       duration: {
         t: ['Duration'],
@@ -22920,6 +23733,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       additive: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Substance'],
       },
       capacity: {
         t: ['Quantity'],
@@ -22956,6 +23770,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       additive: {
         t: ['Reference'],
         a: 1,
+        r: ['Substance'],
       },
       description: {
         t: ['string'],
@@ -23123,6 +23938,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       additive: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Substance'],
       },
       extension: {
         t: ['Extension'],
@@ -23911,6 +24727,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       subscription: {
         t: ['Reference'],
+        r: ['Subscription'],
       },
       text: {
         t: ['Narrative'],
@@ -24029,6 +24846,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       substance: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Substance'],
       },
     },
   },
@@ -24574,6 +25392,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       source: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       subtype: {
         t: ['CodeableConcept'],
@@ -24604,6 +25423,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       source: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
     },
   },
@@ -24627,6 +25447,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       source: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       type: {
         t: ['CodeableConcept'],
@@ -24666,6 +25487,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       source: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       target: {
         t: ['Identifier'],
@@ -24975,9 +25797,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       nucleicAcid: {
         t: ['Reference'],
+        r: ['SubstanceNucleicAcid'],
       },
       polymer: {
         t: ['Reference'],
+        r: ['SubstancePolymer'],
       },
       property: {
         t: ['SubstanceSpecification.property'],
@@ -24985,9 +25809,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       protein: {
         t: ['Reference'],
+        r: ['SubstanceProtein'],
       },
       referenceInformation: {
         t: ['Reference'],
+        r: ['SubstanceReferenceInformation'],
       },
       relationship: {
         t: ['SubstanceSpecification.relationship'],
@@ -24996,9 +25822,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       source: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       sourceMaterial: {
         t: ['Reference'],
+        r: ['SubstanceSourceMaterial'],
       },
       status: {
         t: ['CodeableConcept'],
@@ -25037,6 +25865,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       source: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       status: {
         t: ['CodeableConcept'],
@@ -25123,6 +25952,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       source: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       status: {
         t: ['CodeableConcept'],
@@ -25181,6 +26011,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       definingSubstance: {
         t: ['Reference', 'CodeableConcept'],
         c: 1,
+        r: ['SubstanceSpecification', 'Substance'],
       },
       extension: {
         t: ['Extension'],
@@ -25231,10 +26062,12 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       source: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       substance: {
         t: ['Reference', 'CodeableConcept'],
         c: 1,
+        r: ['SubstanceSpecification'],
       },
     },
   },
@@ -25275,6 +26108,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       source: {
         t: ['Reference'],
         a: 1,
+        r: ['DocumentReference'],
       },
       stereochemistry: {
         t: ['CodeableConcept'],
@@ -25368,6 +26202,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       basedOn: {
         t: ['Reference'],
         a: 1,
+        r: ['SupplyRequest'],
       },
       contained: {
         t: ['Resource'],
@@ -25375,6 +26210,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       destination: {
         t: ['Reference'],
+        r: ['Location'],
       },
       extension: {
         t: ['Extension'],
@@ -25407,13 +26243,16 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: ['SupplyDelivery', 'Contract'],
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       receiver: {
         t: ['Reference'],
         a: 1,
+        r: ['Practitioner', 'PractitionerRole'],
       },
       status: {
         t: ['code'],
@@ -25423,6 +26262,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       supplier: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
       text: {
         t: ['Narrative'],
@@ -25445,6 +26285,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       item: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Medication', 'Substance', 'Device'],
       },
       modifierExtension: {
         t: ['Extension'],
@@ -25470,9 +26311,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       deliverFrom: {
         t: ['Reference'],
+        r: ['Organization', 'Location'],
       },
       deliverTo: {
         t: ['Reference'],
+        r: ['Organization', 'Location', 'Patient'],
       },
       extension: {
         t: ['Extension'],
@@ -25491,6 +26334,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       item: {
         t: ['CodeableConcept', 'Reference'],
         c: 1,
+        r: ['Medication', 'Substance', 'Device'],
       },
       language: {
         t: ['code'],
@@ -25523,9 +26367,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       reasonReference: {
         t: ['Reference'],
         a: 1,
+        r: ['Condition', 'Observation', 'DiagnosticReport', 'DocumentReference'],
       },
       requester: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization', 'Patient', 'RelatedPerson', 'Device'],
       },
       status: {
         t: ['code'],
@@ -25533,6 +26379,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       supplier: {
         t: ['Reference'],
         a: 1,
+        r: ['Organization', 'HealthcareService'],
       },
       text: {
         t: ['Narrative'],
@@ -25587,6 +26434,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       executionPeriod: {
         t: ['Period'],
@@ -25627,6 +26475,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       insurance: {
         t: ['Reference'],
         a: 1,
+        r: ['Coverage', 'ClaimResponse'],
       },
       intent: {
         t: ['code'],
@@ -25639,6 +26488,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       location: {
         t: ['Reference'],
+        r: ['Location'],
       },
       meta: {
         t: ['Meta'],
@@ -25657,10 +26507,21 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       owner: {
         t: ['Reference'],
+        r: [
+          'Practitioner',
+          'PractitionerRole',
+          'Organization',
+          'CareTeam',
+          'HealthcareService',
+          'Patient',
+          'Device',
+          'RelatedPerson',
+        ],
       },
       partOf: {
         t: ['Reference'],
         a: 1,
+        r: ['Task'],
       },
       performerType: {
         t: ['CodeableConcept'],
@@ -25678,9 +26539,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       relevantHistory: {
         t: ['Reference'],
         a: 1,
+        r: ['Provenance'],
       },
       requester: {
         t: ['Reference'],
+        r: ['Device', 'Organization', 'Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson'],
       },
       restriction: {
         t: ['Task.restriction'],
@@ -25864,6 +26727,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       recipient: {
         t: ['Reference'],
         a: 1,
+        r: ['Patient', 'Practitioner', 'PractitionerRole', 'RelatedPerson', 'Group', 'Organization'],
       },
       repetitions: {
         t: ['positiveInt'],
@@ -26280,6 +27144,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       testScript: {
         t: ['Reference'],
+        r: ['TestScript'],
       },
       tester: {
         t: ['string'],
@@ -27533,6 +28398,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       onBehalfOf: {
         t: ['Reference'],
+        r: ['Organization', 'Practitioner', 'PractitionerRole'],
       },
       proxyIdentityCertificate: {
         t: ['string'],
@@ -27548,6 +28414,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       who: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole', 'Organization'],
       },
     },
   },
@@ -27588,6 +28455,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       who: {
         t: ['Reference'],
+        r: ['Organization', 'Practitioner', 'PractitionerRole'],
       },
     },
   },
@@ -27613,6 +28481,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       organization: {
         t: ['Reference'],
+        r: ['Organization'],
       },
     },
   },
@@ -27631,6 +28500,7 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       encounter: {
         t: ['Reference'],
+        r: ['Encounter'],
       },
       extension: {
         t: ['Extension'],
@@ -27662,9 +28532,11 @@ export const R4_RESOURCES: Readonly<Record<string, GeneratedType>> = {
       },
       patient: {
         t: ['Reference'],
+        r: ['Patient'],
       },
       prescriber: {
         t: ['Reference'],
+        r: ['Practitioner', 'PractitionerRole'],
       },
       status: {
         t: ['code'],

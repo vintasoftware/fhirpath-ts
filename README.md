@@ -380,13 +380,22 @@ error today:
 **Expression trust boundary.** The engine is hardened against hostile *expressions*
 in most dimensions — parser nesting is capped, tokenization is linear, UCUM
 exponents and decimal exponents are bounded, and navigation never reads the
-prototype chain — with one documented exception: `matches()`, `matchesFull()`, and
-`replaceMatches()` compile their pattern argument with the host `RegExp`, so a
-catastrophic-backtracking pattern like `(a+)+$` can stall the event loop. This is
-fine when expressions are developer-authored (the normal case). If a deployment
-evaluates **user-authored** FHIRPath — SDC `enableWhen`, Questionnaire logic,
-stored expressions — vet or sandbox those expressions and bound the subject string
-length; a true regex timeout is impractical without native dependencies.
+prototype chain — with one documented exception: by default `matches()`,
+`matchesFull()`, and `replaceMatches()` compile their pattern argument with the
+host `RegExp`, so a catastrophic-backtracking pattern like `(a+)+$` can stall the
+event loop (a true regex timeout is impractical without native dependencies).
+This is fine when expressions are developer-authored (the normal case). Two
+guards cover the rest:
+
+- **Static detection.** The analyzer (and therefore the ESLint rule and the
+  `fhirpath-check` CLI) emits a `regex-backtracking` warning when a literal
+  pattern nests unbounded repetition — the exponential shape — so
+  developer-authored patterns get caught in review.
+- **Pluggable engine.** If a deployment evaluates **user-authored** FHIRPath —
+  SDC `enableWhen`, Questionnaire logic, stored expressions — supply a
+  linear-time regex engine (e.g. an RE2 binding) via `EvaluateOptions.regex`;
+  the zero-dependency default stays untouched. Vet or sandbox such expressions
+  regardless.
 
 **Narrative checking.** `htmlChecks()` validates against FHIR's narrative rules
 with an inert-URL-scheme allowlist, entity-decoding attribute values the way a

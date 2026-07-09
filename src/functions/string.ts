@@ -140,16 +140,42 @@ function compileRegex(name: string, pattern: string, flags: string): RegExp {
   }
 }
 
-stringFunction('matches', { min: 1, max: 1 }, (value, [pattern]) =>
+/**
+ * Compile with the host's regex engine (EvaluateOptions.regex) when supplied —
+ * the ReDoS escape hatch for untrusted expressions — and the built-in RegExp
+ * otherwise. A custom engine's compile errors surface as the same
+ * invalid-expression type error the built-in path raises.
+ */
+function compilePattern(
+  name: string,
+  context: EvaluationContext,
+  pattern: string,
+  flags: string
+): { test(subject: string): boolean; replace(subject: string, substitution: string): string } {
+  if (context.regex !== undefined) {
+    try {
+      return context.regex.compile(pattern, flags)
+    } catch {
+      throw new FhirPathTypeError(`${name}() received an invalid regular expression`)
+    }
+  }
+  const compiled = compileRegex(name, pattern, flags)
+  return {
+    test: subject => compiled.test(subject),
+    replace: (subject, substitution) => subject.replace(compiled, substitution),
+  }
+}
+
+stringFunction('matches', { min: 1, max: 1 }, (value, [pattern], context) =>
   // Single-line mode: `.` matches line terminators (spec §5.6.9).
-  pattern === undefined ? [] : wrapBoolean(compileRegex('matches', pattern, 's').test(value))
+  pattern === undefined ? [] : wrapBoolean(compilePattern('matches', context, pattern, 's').test(value))
 )
 
-stringFunction('matchesFull', { min: 1, max: 1 }, (value, [pattern]) =>
-  pattern === undefined ? [] : wrapBoolean(compileRegex('matchesFull', `^(?:${pattern})$`, 's').test(value))
+stringFunction('matchesFull', { min: 1, max: 1 }, (value, [pattern], context) =>
+  pattern === undefined ? [] : wrapBoolean(compilePattern('matchesFull', context, `^(?:${pattern})$`, 's').test(value))
 )
 
-stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitution]) => {
+stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitution], context) => {
   if (pattern === undefined || substitution === undefined) {
     return []
   }
@@ -157,7 +183,7 @@ stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitut
   if (pattern === '') {
     return str(value)
   }
-  return str(value.replace(compileRegex('replaceMatches', pattern, 'gs'), substitution))
+  return str(compilePattern('replaceMatches', context, pattern, 'gs').replace(value, substitution))
 })
 
 stringFunction('length', { min: 0, max: 0 }, value => int(value.length))

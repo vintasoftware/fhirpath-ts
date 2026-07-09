@@ -20,7 +20,7 @@ interface ElementDefinition {
   sliceName?: string
   max?: string
   contentReference?: string
-  type?: { code: string }[]
+  type?: { code: string; targetProfile?: string[] }[]
 }
 
 interface StructureDefinition {
@@ -87,6 +87,10 @@ function extract(bundles: Bundle[]): Record<string, GeneratedType> {
         if (element.max === '*' || (element.max !== undefined && Number.parseInt(element.max, 10) > 1)) {
           generated.a = 1
         }
+        const targets = referenceTargets(element)
+        if (targets !== undefined) {
+          generated.r = targets
+        }
         owner.e[name] = generated
       }
     }
@@ -102,6 +106,34 @@ function componentBaseCode(element: ElementDefinition): 'Element' | 'BackboneEle
     }
   }
   return undefined
+}
+
+/**
+ * Resource names a Reference-typed element may point to, from
+ * ElementDefinition.type.targetProfile — undefined when the element has no
+ * Reference type or the reference is unconstrained (no profiles, or an
+ * explicit Resource target).
+ */
+function referenceTargets(element: ElementDefinition): string[] | undefined {
+  const targets: string[] = []
+  for (const type of element.type ?? []) {
+    if (type.code !== 'Reference') {
+      continue
+    }
+    if (type.targetProfile === undefined || type.targetProfile.length === 0) {
+      return undefined
+    }
+    for (const profile of type.targetProfile) {
+      const name = profile.split('/').pop()
+      if (name === undefined || name === 'Resource') {
+        return undefined
+      }
+      if (!targets.includes(name)) {
+        targets.push(name)
+      }
+    }
+  }
+  return targets.length > 0 ? targets : undefined
 }
 
 function elementTypeNames(element: ElementDefinition): string[] {
