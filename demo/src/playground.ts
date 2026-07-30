@@ -17,6 +17,7 @@ import { r4, r4Model } from 'fhirpath-ts/r4'
 import * as monaco from 'monaco-editor'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
+
 import analyzerDts from './monaco/fhirpath-ts.analyzer.d.ts?raw'
 import r4Dts from './monaco/fhirpath-ts.r4.d.ts?raw'
 

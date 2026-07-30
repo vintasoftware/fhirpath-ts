@@ -65,7 +65,7 @@ export default tseslint.config(
   },
   // CLIs, codegen scripts and benchmarks report through the console.
   {
-    files: ['src/cli/**/*.ts', 'scripts/**', 'benchmarks/**'],
+    files: ['src/cli/**/*.ts', 'scripts/**', 'demo/scripts/**', 'benchmarks/**'],
     rules: { 'no-console': 'off' },
   },
   prettier
