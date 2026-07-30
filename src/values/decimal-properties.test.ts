@@ -16,6 +16,13 @@ const decimalArb = fc
 
 const nonZeroArb = decimalArb.filter(decimal => !decimal.isZero())
 
+/**
+ * `compare` promises a sign, not a magnitude, so the laws below are about signs.
+ * Normalizing also keeps negation from yielding `-0` for equal values, which
+ * `toBe` (Object.is) reads as different from `0`.
+ */
+const sign = (value: number): number => (value < 0 ? -1 : value > 0 ? 1 : 0)
+
 describe('decimal arithmetic laws (exact operations)', () => {
   it('addition commutes and associates exactly', () => {
     fc.assert(
@@ -74,7 +81,7 @@ describe('decimal arithmetic laws (exact operations)', () => {
   it('compare is an order: antisymmetric, transitive, consistent with equals', () => {
     fc.assert(
       fc.property(decimalArb, decimalArb, decimalArb, (a, b, c) => {
-        expect(a.compare(b)).toBe(-b.compare(a))
+        expect(sign(a.compare(b))).toBe(sign(-b.compare(a)))
         expect(a.compare(b) === 0).toBe(a.equals(b))
         if (a.compare(b) <= 0 && b.compare(c) <= 0) {
           expect(a.compare(c)).toBeLessThanOrEqual(0)
