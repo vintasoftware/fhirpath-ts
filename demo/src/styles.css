@@ -15,6 +15,12 @@
   --screen-line: #223229;
   --screen-ink: #d8e4de;
   --screen-muted: #7c8d85;
+  --screen-dim: #3a4a42;
+
+  /* Code tokens, shared by the static blocks and the editor's theme. */
+  --tok-keyword: #7aa2f7;
+  --tok-fn: #c8b6ff;
+  --tok-delimiter: #9fb0a8;
 
   --pulse: #19c37d;
   --pulse-deep: #0c7a52;
@@ -372,6 +378,10 @@ code {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* Reserve one diagnostic row's height so the clean → error transition
+     doesn't push the output screens down. A single .diag renders at ~42.4px
+     (9px×2 padding around the badge + its border); 43px covers it exactly. */
+  min-height: 43px;
 }
 
 .diag {
@@ -555,6 +565,29 @@ code {
   color: var(--screen-ink);
 }
 
+/* --- Syntax tokens (static code blocks) ---------------------------------- */
+
+.tok-comment {
+  color: var(--screen-muted);
+  font-style: italic;
+}
+
+.tok-string {
+  color: var(--pulse);
+}
+
+.tok-keyword {
+  color: var(--tok-keyword);
+}
+
+.tok-num {
+  color: var(--caution);
+}
+
+.tok-fn {
+  color: var(--tok-fn);
+}
+
 /* --- Proof --------------------------------------------------------------- */
 
 .proof {
@@ -598,26 +631,6 @@ code {
 
 .proof-grid code {
   color: var(--ink);
-}
-
-.quickstart {
-  background: var(--screen);
-  border: 1px solid var(--screen-line);
-  border-radius: 10px;
-  padding: 14px 16px 16px;
-}
-
-.quickstart .panel-label {
-  color: var(--screen-muted);
-}
-
-.quickstart pre {
-  margin: 0;
-  overflow-x: auto;
-  font-family: var(--mono);
-  font-size: 0.84rem;
-  line-height: 1.62;
-  color: var(--screen-ink);
 }
 
 /* --- Layers: where a mistake gets caught --------------------------------- */

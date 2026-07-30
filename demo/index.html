@@ -101,7 +101,8 @@
             <h3>The analyzer, spec §11</h3>
             <p>
               Unknown elements, wrong types, singleton misuse, and equalities that can never hold —
-              flagged statically. Ships as a CLI and an ESLint rule for CI.
+              flagged statically. Runs in CI two ways: the <code>fhirpath-check</code> CLI, or the
+              <code>fhirpath/no-invalid-expressions</code> ESLint rule.
             </p>
           </article>
           <article>
@@ -120,9 +121,19 @@
           </article>
         </div>
 
-        <div class="quickstart">
-          <div class="panel-head"><span class="panel-label">Install it in your own code</span></div>
-          <pre data-quickstart></pre>
+        <div class="playground" data-playground>
+          <div class="panel-head">
+            <span class="panel-label">Edit it — checked live, in your browser</span>
+            <span class="panel-meta">tsc types + analyzer · no server</span>
+          </div>
+          <div class="pg-toolbar">
+            <div class="tabs pg-tabs" role="tablist" data-pg-tabs></div>
+            <button type="button" class="pg-run" data-pg-run hidden>Run ▸</button>
+          </div>
+          <div class="pg-editor" data-pg-editor>
+            <p class="pg-loading">Loading the editor…</p>
+          </div>
+          <div class="pg-panel" data-pg-panel></div>
         </div>
       </section>
 
@@ -157,7 +168,7 @@ given.evaluate(patient)[0].toFixed(1)   // won't compile: it's a string</pre>
         <article class="layer layer-early">
           <div class="layer-head">
             <span class="layer-when">Before you run</span>
-            <span class="layer-tool">CLI · ESLint · in CI</span>
+            <span class="layer-tool">fhirpath-check · ESLint · in CI</span>
             <h3 class="layer-name">Static analysis error</h3>
           </div>
           <div class="layer-body">
@@ -169,8 +180,13 @@ analyzeExpression('Patient.name.given.substring(1)', opts)
             <p class="layer-note">
               Typos, choice-key misuse, singleton misuse, equality that can never hold — the whole
               class TypeScript's type system can't express. The §11 analyzer reads the expression
-              against the FHIR model and reports them without touching data. Wire it into CI as a CLI
-              or ESLint rule and they fail the build. This is the layer the playground above runs live.
+              against the FHIR model and reports them without touching data. It ships two ways to run:
+              <code>fhirpath-check</code>, a CLI that scans your <code>.ts</code>/<code>.js</code> files
+              for FHIRPath literals (tags, <code>compile()</code>, <code>evaluate()</code>) and exits
+              non-zero on any finding — drop it into a CI step; and
+              <code>fhirpath/no-invalid-expressions</code>, an ESLint flat-config rule that flags the
+              same literals inline in your editor and fails <code>eslint</code>. This is the layer the
+              playground above runs live.
             </p>
           </div>
         </article>

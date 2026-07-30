@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json.schemastore.org/tsconfig",
+  // The project dts-bundle-generator compiles the library under (see
+  // scripts/generate-dts.mjs). It deliberately does not extend the repo root's
+  // tsconfig.json: that one declares `types: ["vitest/globals", "node"]`, which
+  // resolve from the root install, and the demo has to build on its own — the
+  // documented Cloudflare Pages command is `cd demo && npm install && npm run
+  // build`, with no root install in sight.
+  //
+  // Only what reading the library's types needs, nothing about how it is tested.
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM"],
+    "types": [],
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "strict": true
+  },
+  "include": ["../src/**/*.ts"],
+  "exclude": ["../src/**/*.test.ts"]
+}

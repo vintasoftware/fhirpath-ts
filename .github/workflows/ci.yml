@@ -46,3 +46,33 @@ jobs:
       # actually measures coverage, so the test step runs `pnpm coverage`.
       - name: Test (with coverage thresholds)
         run: pnpm coverage
+
+  # The demo is its own npm project, so the root install and `pnpm typecheck`
+  # (which covers `src` only) never reach it. Its own job does.
+  demo:
+    runs-on: ubuntu-latest
+    name: demo
+    steps:
+      - uses: actions/checkout@v5
+
+      # No root install on purpose. The demo has its own npm lockfile, and the
+      # declaration generator compiles the library under demo/tsconfig.dts.json,
+      # so this job runs the same way the documented Cloudflare Pages build does
+      # — `cd demo && npm install && npm run build`. If that stops working
+      # standalone, this job is what says so.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: demo/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix demo
+
+      - name: Typecheck
+        run: npm run typecheck --prefix demo
+
+      # `prebuild` rolls demo/src/monaco/*.d.ts up from the library's current
+      # types, so this also covers the declarations the playground feeds Monaco.
+      - name: Build
+        run: npm run build --prefix demo

@@ -22,6 +22,7 @@ export default tseslint.config(
       '**/build/**',
       '**/coverage/**',
       'src/r4/generated/**',
+      'demo/src/monaco/**',
       'test-data/**',
       '.claude/**',
     ],
@@ -64,7 +65,7 @@ export default tseslint.config(
   },
   // CLIs, codegen scripts and benchmarks report through the console.
   {
-    files: ['src/cli/**/*.ts', 'scripts/**', 'benchmarks/**'],
+    files: ['src/cli/**/*.ts', 'scripts/**', 'demo/scripts/**', 'benchmarks/**'],
     rules: { 'no-console': 'off' },
   },
   prettier

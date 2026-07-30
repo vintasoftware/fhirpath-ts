@@ -1,9 +1,12 @@
 import './styles.css'
+// The editor loads lazily, but its frame's styles do not: the frame reserves the
+// section's height so nothing jumps when Monaco mounts into it.
+import './playground/playground.css'
 
+import { $, escapeHtml, renderTabs } from './dom.ts'
 import { run } from './engine.ts'
 import { type Tab, TABS } from './examples.ts'
-
-const $ = <T extends Element>(sel: string) => document.querySelector<T>(sel)!
+import { highlightBlocks } from './highlight.ts'
 
 const exprEl = $<HTMLTextAreaElement>('[data-expr]')
 const highlightEl = $<HTMLDivElement>('[data-highlight]')
@@ -20,26 +23,7 @@ const traceEl = $<SVGSVGElement>('[data-trace]')
 
 let activeTab: Tab = TABS[0]!
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>]/g, c => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'))
-}
-
 // --- Chrome: tabs, chips, resource -----------------------------------------
-
-function renderTabs() {
-  tabsEl.replaceChildren(
-    ...TABS.map(tab => {
-      const b = document.createElement('button')
-      b.type = 'button'
-      b.role = 'tab'
-      b.textContent = tab.label
-      b.className = 'tab'
-      b.setAttribute('aria-selected', String(tab.id === activeTab.id))
-      b.addEventListener('click', () => selectTab(tab))
-      return b
-    })
-  )
-}
 
 function renderChips() {
   chipsEl.replaceChildren(
@@ -60,7 +44,7 @@ function renderChips() {
 
 function selectTab(tab: Tab) {
   activeTab = tab
-  renderTabs()
+  renderTabs(tabsEl, TABS, tab.id, selectTab)
   renderChips()
   resourceEl.textContent = JSON.stringify(tab.resource, null, 2)
   inputTypeEl.textContent = `input: ${tab.resourceType}`
@@ -209,23 +193,30 @@ function evaluate() {
 
 // --- Boot -------------------------------------------------------------------
 
-$<HTMLPreElement>('[data-quickstart]').textContent = `import { r4, r4Model } from 'fhirpath-ts/r4'
-import { analyzeExpression } from 'fhirpath-ts/analyzer'
+// Highlight the static example blocks in the "Where a mistake gets caught" section.
+highlightBlocks('.layer-code')
 
-// The R4 model is already bound; result types are inferred by tsc — no plugin:
-r4.evaluate('Patient.name.given', patient)         // string[]
-r4.first('Patient.name.family', patient)           // string | undefined
-
-// Helpers for FHIRPath's main jobs — Bundles and arrays work transparently:
-r4.filter(searchset, 'birthDate < @1990-01-01')    // matching entry resources
-r4.project(searchset, { id: 'Patient.id', family: 'Patient.name.family.first()' })
-r4.checkConstraints(patient, patientInvariants)    // .valid / .toOperationOutcome()
-
-// Check an expression before it ships:
-analyzeExpression('Observation.valueQuantity', { model: r4Model, inputType: 'Observation' })
-// -> [{ code: 'unknown-element', message: "...use the choice stem 'value'...", ... }]`
+// The playground pulls in Monaco (heavy), so load it only once the section is
+// near the viewport rather than blocking the initial page.
+const playgroundEl = $<HTMLDivElement>('[data-playground]')
+const observer = new IntersectionObserver(
+  entries => {
+    if (!entries.some(e => e.isIntersecting)) {
+      return
+    }
+    observer.disconnect()
+    void import('./playground/index.ts').then(
+      module => module.mountPlayground(playgroundEl),
+      () => {
+        $<HTMLParagraphElement>('.pg-loading', playgroundEl).textContent =
+          'The editor could not load. The examples below still show what it does.'
+      }
+    )
+  },
+  { rootMargin: '400px' }
+)
+observer.observe(playgroundEl)
 
 exprEl.addEventListener('input', evaluate)
 window.addEventListener('resize', autosize)
-renderTabs()
 selectTab(TABS[0]!)
