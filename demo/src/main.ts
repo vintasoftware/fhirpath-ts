@@ -1,10 +1,12 @@
 import './styles.css'
+// The editor loads lazily, but its frame's styles do not: the frame reserves the
+// section's height so nothing jumps when Monaco mounts into it.
+import './playground/playground.css'
 
+import { $, escapeHtml, renderTabs } from './dom.ts'
 import { run } from './engine.ts'
 import { type Tab, TABS } from './examples.ts'
 import { highlightBlocks } from './highlight.ts'
-
-const $ = <T extends Element>(sel: string) => document.querySelector<T>(sel)!
 
 const exprEl = $<HTMLTextAreaElement>('[data-expr]')
 const highlightEl = $<HTMLDivElement>('[data-highlight]')
@@ -21,26 +23,7 @@ const traceEl = $<SVGSVGElement>('[data-trace]')
 
 let activeTab: Tab = TABS[0]!
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>]/g, c => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'))
-}
-
 // --- Chrome: tabs, chips, resource -----------------------------------------
-
-function renderTabs() {
-  tabsEl.replaceChildren(
-    ...TABS.map(tab => {
-      const b = document.createElement('button')
-      b.type = 'button'
-      b.role = 'tab'
-      b.textContent = tab.label
-      b.className = 'tab'
-      b.setAttribute('aria-selected', String(tab.id === activeTab.id))
-      b.addEventListener('click', () => selectTab(tab))
-      return b
-    })
-  )
-}
 
 function renderChips() {
   chipsEl.replaceChildren(
@@ -61,7 +44,7 @@ function renderChips() {
 
 function selectTab(tab: Tab) {
   activeTab = tab
-  renderTabs()
+  renderTabs(tabsEl, TABS, tab.id, selectTab)
   renderChips()
   resourceEl.textContent = JSON.stringify(tab.resource, null, 2)
   inputTypeEl.textContent = `input: ${tab.resourceType}`
@@ -222,7 +205,13 @@ const observer = new IntersectionObserver(
       return
     }
     observer.disconnect()
-    void import('./playground.ts').then(m => m.mountPlayground(playgroundEl))
+    void import('./playground/index.ts').then(
+      module => module.mountPlayground(playgroundEl),
+      () => {
+        $<HTMLParagraphElement>('.pg-loading', playgroundEl).textContent =
+          'The editor could not load. The examples below still show what it does.'
+      }
+    )
   },
   { rootMargin: '400px' }
 )
@@ -230,5 +219,4 @@ observer.observe(playgroundEl)
 
 exprEl.addEventListener('input', evaluate)
 window.addEventListener('resize', autosize)
-renderTabs()
 selectTab(TABS[0]!)

@@ -5,13 +5,17 @@
 //
 //   npm run generate:dts
 //
-// The output is committed so a plain `vite build` needs no extra tooling.
+// The output is committed so a plain `vite build` needs no extra tooling, and CI
+// re-runs this to check the committed files still match the library's types.
 
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const repo = fileURLToPath(new URL('../..', import.meta.url))
 const out = p => fileURLToPath(new URL(`../src/monaco/${p}`, import.meta.url))
+// The version comes from demo/package.json alone; naming one here too would let
+// the two drift and quietly change what the committed bundles were built with.
+const generator = fileURLToPath(new URL('../node_modules/.bin/dts-bundle-generator', import.meta.url))
 
 // entry file (relative to the repo root) -> emitted bundle
 const ENTRIES = [
@@ -21,11 +25,10 @@ const ENTRIES = [
 
 for (const [entry, target] of ENTRIES) {
   console.log(`bundling ${entry} -> ${target}`)
-  execFileSync(
-    'npx',
-    ['dts-bundle-generator@9', '--no-check', '--export-referenced-types=false', '-o', target, entry],
-    { cwd: repo, stdio: 'inherit' }
-  )
+  execFileSync(generator, ['--no-check', '--export-referenced-types=false', '-o', target, entry], {
+    cwd: repo,
+    stdio: 'inherit',
+  })
 }
 
 console.log('done')

@@ -4,6 +4,8 @@
  * and call sites in the demo's screen palette. Returns HTML; input is escaped.
  */
 
+import { escapeHtml } from './dom.ts'
+
 const KEYWORDS = new Set([
   'import',
   'export',
@@ -32,35 +34,31 @@ const KEYWORDS = new Set([
 const TOKEN =
   /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)|(\b\d[\d_]*(?:\.\d+)?\b)|([A-Za-z_$][\w$]*)/g
 
-function esc(s: string): string {
-  return s.replace(/[&<>]/g, c => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'))
-}
-
 export function highlightTs(code: string): string {
   let out = ''
   let last = 0
   for (const m of code.matchAll(TOKEN)) {
     const i = m.index
-    out += esc(code.slice(last, i))
+    out += escapeHtml(code.slice(last, i))
     if (m[1] !== undefined) {
-      out += `<span class="tok-comment">${esc(m[1])}</span>`
+      out += `<span class="tok-comment">${escapeHtml(m[1])}</span>`
     } else if (m[2] !== undefined) {
-      out += `<span class="tok-string">${esc(m[2])}</span>`
+      out += `<span class="tok-string">${escapeHtml(m[2])}</span>`
     } else if (m[3] !== undefined) {
-      out += `<span class="tok-num">${esc(m[3])}</span>`
+      out += `<span class="tok-num">${escapeHtml(m[3])}</span>`
     } else {
       const word = m[4]!
       if (KEYWORDS.has(word)) {
-        out += `<span class="tok-keyword">${esc(word)}</span>`
+        out += `<span class="tok-keyword">${escapeHtml(word)}</span>`
       } else if (code[i + word.length] === '(') {
-        out += `<span class="tok-fn">${esc(word)}</span>`
+        out += `<span class="tok-fn">${escapeHtml(word)}</span>`
       } else {
-        out += esc(word)
+        out += escapeHtml(word)
       }
     }
     last = i + m[0].length
   }
-  out += esc(code.slice(last))
+  out += escapeHtml(code.slice(last))
   return out
 }
 

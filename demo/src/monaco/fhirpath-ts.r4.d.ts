@@ -598,6 +598,7 @@ interface Meta extends Element$1 {
 	accounts?: Reference[];
 	author?: Reference;
 	compartment?: Reference[];
+	deleted?: boolean;
 	extension?: Extension[];
 	id?: string;
 	lastUpdated?: string;
@@ -4578,6 +4579,7 @@ interface HealthcareService extends DomainResource {
 	modifierExtension?: Extension[];
 	name?: string;
 	notAvailable?: HealthcareServiceNotAvailable[];
+	offeredIn?: Reference[];
 	photo?: Attachment;
 	program?: CodeableConcept[];
 	providedBy?: Reference;
@@ -10925,6 +10927,10 @@ interface R4Elements {
 		compartment: {
 			t: "Reference";
 			a: true;
+		};
+		deleted: {
+			t: "boolean";
+			a: false;
 		};
 		extension: {
 			t: "Extension";
@@ -24596,6 +24602,10 @@ interface R4Elements {
 		};
 		notAvailable: {
 			t: "HealthcareService.notAvailable";
+			a: true;
+		};
+		offeredIn: {
+			t: "Reference";
 			a: true;
 		};
 		photo: {
@@ -43193,6 +43203,12 @@ interface ElementInfo$1 {
 	isCollection: boolean;
 	/** True for `[x]` elements, whose JSON keys carry a type suffix (`valueQuantity`). */
 	isChoice: boolean;
+	/**
+	 * Resource type names a Reference-typed element may point to, from
+	 * `Reference.targetProfile` — what resolve() statically yields. Absent when
+	 * the element is not a reference or the reference is unconstrained.
+	 */
+	referenceTargets?: string[];
 }
 interface ModelProvider {
 	/** Namespace prefix for the model's types, e.g. `FHIR`. */
@@ -43319,6 +43335,48 @@ interface BundleLike {
 		resource?: unknown;
 	}[];
 }
+type ValueKind = "Boolean" | "String" | "Numeric" | "Temporal" | "Quantity" | "Complex";
+type ValueArgSpec = "any" | ValueKind;
+interface CustomFunctionSignature {
+	input?: {
+		kind?: ValueKind;
+		singleton?: boolean;
+	};
+	args?: ValueArgSpec[];
+	result?: {
+		types?: string[];
+		single?: boolean;
+	};
+}
+interface HostFunction {
+	/** Inclusive argument count range, checked before invocation. Defaults: 0 to unlimited. */
+	minArity?: number;
+	maxArity?: number;
+	/**
+	 * The implementation. `input` is the unwrapped input collection; each
+	 * argument is eagerly evaluated against `$this` — the enclosing context
+	 * item, like built-in value arguments — and arrives as an unwrapped
+	 * collection. Return a plain value, an array of plain values, or undefined
+	 * for empty — the engine converts back to its typed representation.
+	 */
+	fn: (input: unknown[], ...args: unknown[][]) => unknown;
+}
+interface RegexEngine {
+	/**
+	 * Compile `pattern` with `flags` (a subset of 's' and 'g'; matchesFull
+	 * wraps the pattern in `^(?:...)$` before compiling). Throw on invalid
+	 * patterns — the engine converts that to the spec's type error.
+	 */
+	compile(pattern: string, flags: string): {
+		test(subject: string): boolean;
+		/** Replace every match (the 'g' flag is passed for replaceMatches). */
+		replace(subject: string, substitution: string): string;
+	};
+}
+interface CustomFunction extends HostFunction {
+	/** Analyzer signature: without it, expressions using this function analyze as unknown regions. */
+	signature?: CustomFunctionSignature;
+}
 interface EvaluateOptions {
 	/** Environment variables (`%name`), keyed with or without the leading `%`. */
 	env?: Record<string, unknown>;
@@ -43330,6 +43388,15 @@ interface EvaluateOptions {
 	 * patient data, so sending them anywhere is an explicit choice.
 	 */
 	trace?: (name: string, values: TypedValue[]) => void;
+	/** Host-supplied functions by name. Declare them to the analyzer too via AnalyzeOptions.functions. */
+	functions?: Record<string, CustomFunction>;
+	/**
+	 * Regex engine for matches()/matchesFull()/replaceMatches(). The default is
+	 * the built-in RegExp, which backtracks and cannot be timed out — supply a
+	 * linear-time engine (e.g. an RE2 binding) when evaluating untrusted
+	 * expressions (see README, Security).
+	 */
+	regex?: RegexEngine;
 }
 declare class CompiledExpression<Expr extends string = string> {
 	readonly source: string;
@@ -43387,14 +43454,18 @@ interface ConstraintCheckResult {
 type ProjectionColumn = string | {
 	path: string;
 	collection?: boolean;
+	type?: keyof R4TypeOf;
 };
 type ProjectionColumns = Record<string, ProjectionColumn>;
 type ColumnPath<Column extends ProjectionColumn> = Column extends string ? Column : Column extends {
 	path: infer Path extends string;
 } ? Path : never;
+type ColumnValues<Column extends ProjectionColumn> = Column extends {
+	type: infer T extends keyof R4TypeOf;
+} ? R4TypeOf[T][] : FhirpathResult<ColumnPath<Column>>;
 type ColumnResult<Column extends ProjectionColumn> = Column extends {
 	collection: true;
-} ? FhirpathResult<ColumnPath<Column>> : FhirpathResult<ColumnPath<Column>>[number] | undefined;
+} ? ColumnValues<Column> : ColumnValues<Column>[number] | undefined;
 type Projection<Columns extends ProjectionColumns> = {
 	-readonly [K in keyof Columns]: ColumnResult<Columns[K]>;
 };
@@ -43464,6 +43535,8 @@ export interface GeneratedElement {
 	a?: 1;
 	/** Present (1) for choice elements: JSON keys carry a type suffix (valueQuantity). */
 	c?: 1;
+	/** Resource names a Reference element may point to (targetProfile); absent when unconstrained. */
+	r?: string[];
 }
 export interface GeneratedType {
 	/** Base type local name, absent for the roots (Base, Element). */

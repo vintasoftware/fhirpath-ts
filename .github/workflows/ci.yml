@@ -46,3 +46,39 @@ jobs:
       # actually measures coverage, so the test step runs `pnpm coverage`.
       - name: Test (with coverage thresholds)
         run: pnpm coverage
+
+  # The demo is its own npm project, so the root install and `pnpm typecheck`
+  # (which covers `src` only) never reach it. Its own job does.
+  demo:
+    runs-on: ubuntu-latest
+    name: demo
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The declaration generator reads the library from source, so both projects
+      # need their dependencies.
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          npm ci --prefix demo
+
+      - name: Typecheck
+        run: npm run typecheck --prefix demo
+
+      # demo/src/monaco/*.d.ts is generated and committed. If the library's types
+      # move without it being regenerated, the playground type-checks the reader's
+      # code against declarations that no longer describe the package.
+      - name: Generated declarations are current
+        run: |
+          npm run generate:dts --prefix demo
+          git diff --exit-code -- demo/src/monaco
+
+      - name: Build
+        run: npm run build --prefix demo
