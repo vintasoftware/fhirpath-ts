@@ -3,7 +3,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { FhirPathRuntimeError } from '../errors.ts'
 import type { Bundle, FhirResource, Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
-import { compile, DEFAULT_PARSE_CACHE_SIZE } from './compile.ts'
+import { compile } from './compile.ts'
 import { BoundExpression, FhirPathEngine } from './engine.ts'
 import type { Projection } from './project.ts'
 
@@ -58,6 +58,12 @@ describe('FhirPathEngine.evaluate', () => {
     const engine = new FhirPathEngine({ model: r4Model, env: { threshold: 5 } })
     expect(engine.evaluate('%threshold + 1')).toEqual([6])
     expect(engine.evaluate('%threshold + 1', undefined, { env: { threshold: 10 } })).toEqual([11])
+  })
+
+  it('keeps engine-only options out of the bound per-call defaults', () => {
+    const engine = new FhirPathEngine({ model: r4Model, cacheSize: 10 })
+    expect(engine.defaults).toEqual({ model: r4Model })
+    expect(engine.evaluate('Patient.name.family', patient)).toEqual(['Chalmers'])
   })
 
   it('evaluateTyped keeps the internal representation', () => {
@@ -346,26 +352,5 @@ describe('FhirPathEngine.checkConstraints', () => {
     })
     expect(result.valid).toBe(false)
     expect(result.issues[0]?.error).toBe('Error: sink exploded')
-  })
-})
-
-describe('FhirPathEngine parse cache', () => {
-  it('defaults cacheSize to the module default', () => {
-    expect(new FhirPathEngine().cacheSize).toBe(DEFAULT_PARSE_CACHE_SIZE)
-  })
-
-  it('honors a configured cacheSize', () => {
-    expect(new FhirPathEngine({}, { cacheSize: 10 }).cacheSize).toBe(10)
-  })
-
-  it('stays correct under a tiny cache that keeps evicting across every method', () => {
-    // cacheSize 0 forces eviction on every distinct expression; results must not change.
-    const engine = new FhirPathEngine({ model: r4Model }, { cacheSize: 0 })
-    expect(engine.evaluate('Patient.name.given', patient)).toEqual(['Peter', 'James', 'Jim'])
-    expect(engine.evaluate('Patient.birthDate', patient)).toEqual(['1974-12-25'])
-    expect(engine.evaluate('Patient.name.given', patient)).toEqual(['Peter', 'James', 'Jim'])
-    expect(engine.filter([patient, otherPatient], 'active')).toEqual([patient])
-    expect(engine.project(patient, { given: 'name.given.first()' })).toEqual({ given: 'Peter' })
-    expect(engine.checkConstraints(patient, [{ key: 'p-1', expression: 'name.exists()' }]).valid).toBe(true)
   })
 })

@@ -22,12 +22,16 @@ describe('LruCache', () => {
     expect(cache.size).toBe(2)
   })
 
-  it('a zero-capacity cache keeps only the newest entry', () => {
+  it('a zero-capacity cache stores nothing', () => {
     const cache = new LruCache<number>(0)
     cache.set('a', 1)
-    cache.set('b', 2)
     expect(cache.get('a')).toBeUndefined()
-    expect(cache.get('b')).toBe(2)
+    expect(cache.size).toBe(0)
+  })
+
+  it('rejects a capacity that is not a non-negative integer', () => {
+    expect(() => new LruCache<number>(-1)).toThrow('non-negative integer')
+    expect(() => new LruCache<number>(1.5)).toThrow('non-negative integer')
   })
 
   it('updating an existing key refreshes it without eviction', () => {

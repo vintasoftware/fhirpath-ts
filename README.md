@@ -198,8 +198,9 @@ Without a model (engine default or per-call), the engine navigates raw JSON.
 
 ### Options
 
-`new FhirPathEngine(defaults)` and every evaluate-family call's trailing
-`options` argument accept the same fields (per-call wins):
+`new FhirPathEngine(options)` and every evaluate-family call's trailing
+`options` argument accept the same fields (per-call wins), plus `cacheSize`,
+which the engine keeps for itself:
 
 | Option | Meaning |
 | --- | --- |
@@ -208,6 +209,7 @@ Without a model (engine default or per-call), the engine navigates raw JSON.
 | `now` | Evaluation clock for `now()`/`today()`/`timeOfDay()` (deterministic tests) |
 | `trace` | Sink for `trace()` calls — see the PHI note below |
 | `functions` | Host-supplied functions — see Custom functions below |
+| `cacheSize` | Parse-cache capacity, at construction only — see Parse caching below |
 
 `evaluateTyped(...)` (on the engine, bound expressions, and compiled expressions)
 returns the internal `TypedValue[]` (type names plus `Decimal`/`Temporal` value
@@ -243,14 +245,23 @@ them instead of flagging `unknown-variable`.
 
 ### Parse caching
 
-A second constructor argument sets construction-time options — currently
-`cacheSize`, the capacity of the engine's private parse-cache LRU (default
-`DEFAULT_PARSE_CACHE_SIZE`, 500; `0` effectively disables reuse). Each engine
-caches independently of other engines and of the free `evaluate()`. Expressions
-you `compile()` yourself bypass the cache entirely.
+An engine parses each expression once and keeps it in a private LRU sized by
+`cacheSize` (default `DEFAULT_PARSE_CACHE_SIZE`, 500; `0` disables reuse).
+Each engine caches independently of other engines and of the free `evaluate()`.
+Expressions you `compile()` yourself bypass the cache entirely. `cacheSize` is
+read at construction — unlike the other options, passing it per call does nothing.
 
 ```ts
-const fp = new FhirPathEngine({ model: r4Model }, { cacheSize: 2000 })
+const fp = new FhirPathEngine({ model: r4Model, cacheSize: 2000 })
+```
+
+Because the cache belongs to the engine, a fresh engine starts cold — keep one
+around rather than building one per request. Options that change per request go
+in that call's `options`, which override the bound defaults field by field:
+
+```ts
+const fp = new FhirPathEngine({ model: r4Model }) // once, at startup
+fp.test(patient, criteria, { env: { requestor }, now: receivedAt }) // per request
 ```
 
 ## Conformance

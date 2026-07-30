@@ -92,49 +92,31 @@ export function compile<const Expr extends string>(expression: Expr): CompiledEx
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts any literal-typed CompiledExpression
 export type AnyExpression = string | CompiledExpression<any>
 
-/** Default parse-cache capacity, matching Firely's FhirPathCompilerCache default. */
+/** Default for `EngineOptions.cacheSize`, matching Firely's FhirPathCompilerCache default. */
 export const DEFAULT_PARSE_CACHE_SIZE = 500
 
-/** A parse cache: expression text → its CompiledExpression. */
-export interface ParseCache {
-  get(expression: string): CompiledExpression | undefined
-  set(expression: string, compiled: CompiledExpression): void
-}
-
-const disabledParseCache: ParseCache = {
-  get: () => undefined,
-  set: () => {},
-}
-
-/** Build a parse cache. `size` 0 disables reuse. */
-export function createParseCache(size: number = DEFAULT_PARSE_CACHE_SIZE): ParseCache {
-  if (!Number.isInteger(size) || size < 0) {
-    throw new RangeError(`Parse cache size must be a non-negative integer, got ${size}`)
-  }
-  if (size === 0) {
-    return disabledParseCache
-  }
-  return new LruCache<CompiledExpression>(size)
-}
-
-const defaultParseCache = createParseCache()
+/**
+ * Parses an expression, reusing an earlier parse of the same text while it is
+ * still cached. An already-compiled expression passes through untouched.
+ */
+export type Compiler = (expression: AnyExpression) => CompiledExpression<string>
 
 /**
- * Parse an expression, reusing the result from `cache` when present. Pass an
- * engine's private cache to isolate it; omit for the shared module-level cache
- * used by the free `evaluate()`. An already-compiled expression is returned as-is.
+ * A compiler over its own LRU of `capacity` distinct expression texts (`0`
+ * caches nothing). Each owner holds one — every `FhirPathEngine`, and the free
+ * `evaluate()` — so parses are never reused across them.
  */
-export function cachedCompile(
-  expression: AnyExpression,
-  cache: ParseCache = defaultParseCache
-): CompiledExpression<string> {
-  if (typeof expression !== 'string') {
-    return expression
+export function createCachedCompiler(capacity: number = DEFAULT_PARSE_CACHE_SIZE): Compiler {
+  const cache = new LruCache<CompiledExpression>(capacity)
+  return expression => {
+    if (typeof expression !== 'string') {
+      return expression
+    }
+    let compiled = cache.get(expression)
+    if (!compiled) {
+      compiled = new CompiledExpression(expression)
+      cache.set(expression, compiled)
+    }
+    return compiled
   }
-  let cached = cache.get(expression)
-  if (!cached) {
-    cached = new CompiledExpression(expression)
-    cache.set(expression, cached)
-  }
-  return cached
 }
