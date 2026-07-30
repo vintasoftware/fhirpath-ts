@@ -13,13 +13,17 @@
 //   npm run generate:dts
 
 import { execFileSync } from 'node:child_process'
+import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const repo = fileURLToPath(new URL('../..', import.meta.url))
-const out = p => fileURLToPath(new URL(`../src/monaco/${p}`, import.meta.url))
+const outDir = fileURLToPath(new URL('../src/monaco/', import.meta.url))
+const out = name => `${outDir}${name}`
 // The version comes from demo/package.json alone; naming one here too would let
-// the two drift and quietly change what the committed bundles were built with.
+// the two drift and quietly change what the bundles were built with.
 const generator = fileURLToPath(new URL('../node_modules/.bin/dts-bundle-generator', import.meta.url))
+// Not the repo root's tsconfig — see the comment in tsconfig.dts.json.
+const project = fileURLToPath(new URL('../tsconfig.dts.json', import.meta.url))
 
 // entry file (relative to the repo root) -> emitted bundle
 const ENTRIES = [
@@ -27,12 +31,17 @@ const ENTRIES = [
   ['src/analyzer/analyze.ts', out('fhirpath-ts.analyzer.d.ts')],
 ]
 
+// The directory holds nothing but these artifacts, so a fresh clone has no
+// src/monaco at all — git does not track empty directories.
+mkdirSync(outDir, { recursive: true })
+
 for (const [entry, target] of ENTRIES) {
   console.log(`bundling ${entry} -> ${target}`)
-  execFileSync(generator, ['--no-check', '--export-referenced-types=false', '-o', target, entry], {
-    cwd: repo,
-    stdio: 'inherit',
-  })
+  execFileSync(
+    generator,
+    ['--no-check', '--export-referenced-types=false', '--project', project, '-o', target, entry],
+    { cwd: repo, stdio: 'inherit' }
+  )
 }
 
 console.log('done')
