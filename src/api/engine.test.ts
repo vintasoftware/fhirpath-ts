@@ -60,6 +60,12 @@ describe('FhirPathEngine.evaluate', () => {
     expect(engine.evaluate('%threshold + 1', undefined, { env: { threshold: 10 } })).toEqual([11])
   })
 
+  it('keeps engine-only options out of the bound per-call defaults', () => {
+    const engine = new FhirPathEngine({ model: r4Model, cacheSize: 10 })
+    expect(engine.defaults).toEqual({ model: r4Model })
+    expect(engine.evaluate('Patient.name.family', patient)).toEqual(['Chalmers'])
+  })
+
   it('evaluateTyped keeps the internal representation', () => {
     const typed = r4.evaluateTyped('Patient.name.family', patient)
     expect(typed).toHaveLength(1)

@@ -2,7 +2,13 @@ import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
 import { booleanSingleton } from '../values/collection.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { type BundleLike, isBundle, normalizeInput, toSubjects } from './bundle.ts'
-import { type AnyExpression, cachedCompile, CompiledExpression, type EvaluateOptions } from './compile.ts'
+import {
+  type AnyExpression,
+  CompiledExpression,
+  type Compiler,
+  createCachedCompiler,
+  type EvaluateOptions,
+} from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
 import { type Projection, type ProjectionColumns, projectOne } from './project.ts'
 
@@ -17,6 +23,22 @@ import { type Projection, type ProjectionColumns, projectOne } from './project.t
 export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | readonly unknown[] | BundleLike
 
 /**
+ * What a `FhirPathEngine` takes at construction: the `EvaluateOptions` it binds
+ * as per-call defaults, plus settings that belong to the engine itself.
+ */
+export interface EngineOptions extends EvaluateOptions {
+  /**
+   * Max number of distinct expression texts this engine keeps parsed, in its own
+   * LRU (not shared with other engines or the free `evaluate()`). Defaults to 500;
+   * 0 disables reuse. Expressions passed via `compile()` bypass it.
+   *
+   * Read once, at construction: unlike the `EvaluateOptions` fields, this is not
+   * part of `defaults` and a per-call `options` argument cannot change it.
+   */
+  cacheSize?: number
+}
+
+/**
  * A FHIRPath engine with the model (and any env/now/trace defaults) bound once,
  * so every call site stops repeating `{ model: r4Model }`. Per-call options
  * override the bound defaults field by field. `fhirpath-ts/r4` exports a
@@ -25,12 +47,20 @@ export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | re
  * The evaluate-family methods take the expression first, mirroring the
  * low-level `evaluate()`; the per-resource helpers (`test`, `filter`,
  * `project`, `checkConstraints`) take their subject first.
+ *
+ * An engine is meant to outlive the work it serves: its parse cache is its own,
+ * so a fresh engine starts cold. To vary `env`, `now`, or any other option per
+ * request, keep one engine and pass them in that call's `options` — per-call
+ * values override the bound defaults field by field.
  */
 export class FhirPathEngine {
+  /** The per-call options bound at construction; engine-only settings are not part of them. */
   readonly defaults: EvaluateOptions
+  private readonly compileCached: Compiler
 
-  constructor(defaults: EvaluateOptions = {}) {
+  constructor({ cacheSize, ...defaults }: EngineOptions = {}) {
     this.defaults = defaults
+    this.compileCached = createCachedCompiler(cacheSize)
   }
 
   /** Compile (LRU-cached by expression text) and evaluate in one call; typed like `compile().evaluate()`. */
@@ -39,14 +69,14 @@ export class FhirPathEngine {
     input?: EngineInput<Expr>,
     options?: EvaluateOptions
   ): FhirpathResult<Expr> {
-    const compiled = cachedCompile(expression)
+    const compiled = this.compileCached(expression)
     const merged = this.merged(options)
     return compiled.evaluate(normalizeInput(input, compiled.ast, merged.model), merged) as FhirpathResult<Expr>
   }
 
   /** Like `evaluate()`, keeping the internal typed representation (types, Decimal, Temporal). */
   evaluateTyped(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): TypedValue[] {
-    const compiled = cachedCompile(expression)
+    const compiled = this.compileCached(expression)
     const merged = this.merged(options)
     return compiled.evaluateTyped(normalizeInput(input, compiled.ast, merged.model), merged)
   }
@@ -83,7 +113,7 @@ export class FhirPathEngine {
   filter<T>(input: readonly T[], expression: AnyExpression, options?: EvaluateOptions): T[]
   filter(input: BundleLike, expression: AnyExpression, options?: EvaluateOptions): unknown[]
   filter(input: readonly unknown[] | BundleLike, expression: AnyExpression, options?: EvaluateOptions): unknown[] {
-    const compiled = cachedCompile(expression)
+    const compiled = this.compileCached(expression)
     const merged = this.merged(options)
     return toSubjects(input)
       .map(subject => subject.value)
@@ -110,9 +140,9 @@ export class FhirPathEngine {
   project(input: unknown, columns: ProjectionColumns, options?: EvaluateOptions): unknown {
     const merged = this.merged(options)
     if (Array.isArray(input) || isBundle(input)) {
-      return toSubjects(input).map(subject => projectOne(subject.value, columns, merged))
+      return toSubjects(input).map(subject => projectOne(subject.value, columns, merged, this.compileCached))
     }
-    return projectOne(input, columns, merged)
+    return projectOne(input, columns, merged, this.compileCached)
   }
 
   /**
@@ -128,7 +158,7 @@ export class FhirPathEngine {
     constraints: readonly FhirConstraint[],
     options?: EvaluateOptions
   ): ConstraintCheckResult {
-    return evaluateConstraints(input, constraints, this.merged(options))
+    return evaluateConstraints(input, constraints, this.merged(options), this.compileCached)
   }
 
   private merged(options?: EvaluateOptions): EvaluateOptions {

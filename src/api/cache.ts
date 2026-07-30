@@ -4,6 +4,9 @@ export class LruCache<V> {
   private readonly entries = new Map<string, V>()
 
   constructor(capacity: number) {
+    if (!Number.isInteger(capacity) || capacity < 0) {
+      throw new RangeError(`LruCache capacity must be a non-negative integer, got ${capacity}`)
+    }
     this.capacity = capacity
   }
 
@@ -17,6 +20,9 @@ export class LruCache<V> {
   }
 
   set(key: string, value: V): void {
+    if (this.capacity === 0) {
+      return
+    }
     if (this.entries.has(key)) {
       this.entries.delete(key)
     } else if (this.entries.size >= this.capacity) {

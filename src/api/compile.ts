@@ -92,19 +92,31 @@ export function compile<const Expr extends string>(expression: Expr): CompiledEx
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts any literal-typed CompiledExpression
 export type AnyExpression = string | CompiledExpression<any>
 
-const PARSE_CACHE_CAPACITY = 500
+/** Default for `EngineOptions.cacheSize`, matching Firely's FhirPathCompilerCache default. */
+export const DEFAULT_PARSE_CACHE_SIZE = 500
 
-const parseCache = new LruCache<CompiledExpression>(PARSE_CACHE_CAPACITY)
+/**
+ * Parses an expression, reusing an earlier parse of the same text while it is
+ * still cached. An already-compiled expression passes through untouched.
+ */
+export type Compiler = (expression: AnyExpression) => CompiledExpression<string>
 
-/** The shared expression → CompiledExpression LRU, used by `evaluate()` and `FhirPathEngine`. */
-export function cachedCompile(expression: AnyExpression): CompiledExpression<string> {
-  if (typeof expression !== 'string') {
-    return expression
+/**
+ * A compiler over its own LRU of `capacity` distinct expression texts (`0`
+ * caches nothing). Each owner holds one — every `FhirPathEngine`, and the free
+ * `evaluate()` — so parses are never reused across them.
+ */
+export function createCachedCompiler(capacity: number = DEFAULT_PARSE_CACHE_SIZE): Compiler {
+  const cache = new LruCache<CompiledExpression>(capacity)
+  return expression => {
+    if (typeof expression !== 'string') {
+      return expression
+    }
+    let compiled = cache.get(expression)
+    if (!compiled) {
+      compiled = new CompiledExpression(expression)
+      cache.set(expression, compiled)
+    }
+    return compiled
   }
-  let cached = parseCache.get(expression)
-  if (!cached) {
-    cached = new CompiledExpression(expression)
-    parseCache.set(expression, cached)
-  }
-  return cached
 }

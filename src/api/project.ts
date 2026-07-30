@@ -1,7 +1,7 @@
 import { FhirPathRuntimeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathResult } from '../typed/infer.ts'
-import { cachedCompile, type EvaluateOptions } from './compile.ts'
+import type { Compiler, EvaluateOptions } from './compile.ts'
 
 /**
  * One column of a `project()` call: an expression, or an object form with
@@ -38,13 +38,14 @@ export type Projection<Columns extends ProjectionColumns> = {
 export function projectOne(
   input: unknown,
   columns: ProjectionColumns,
-  options: EvaluateOptions
+  options: EvaluateOptions,
+  compile: Compiler
 ): Record<string, unknown> {
   const row: Record<string, unknown> = {}
   for (const [name, column] of Object.entries(columns)) {
     const path = typeof column === 'string' ? column : column.path
     const collection = typeof column !== 'string' && column.collection === true
-    const values = cachedCompile(path).evaluate(input, options)
+    const values = compile(path).evaluate(input, options)
     if (collection) {
       row[name] = values
     } else if (values.length > 1) {
