@@ -55,30 +55,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
-
+      # The demo has its own npm lockfile; the generator reads the library
+      # straight from src, so it needs nothing from the root install.
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: pnpm
+          cache: npm
+          cache-dependency-path: demo/package-lock.json
 
-      # The declaration generator reads the library from source, so both projects
-      # need their dependencies.
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          npm ci --prefix demo
+        run: npm ci --prefix demo
 
       - name: Typecheck
         run: npm run typecheck --prefix demo
 
-      # demo/src/monaco/*.d.ts is generated and committed. If the library's types
-      # move without it being regenerated, the playground type-checks the reader's
-      # code against declarations that no longer describe the package.
-      - name: Generated declarations are current
-        run: |
-          npm run generate:dts --prefix demo
-          git diff --exit-code -- demo/src/monaco
-
+      # `prebuild` rolls demo/src/monaco/*.d.ts up from the library's current
+      # types, so this also covers the declarations the playground feeds Monaco.
       - name: Build
         run: npm run build --prefix demo

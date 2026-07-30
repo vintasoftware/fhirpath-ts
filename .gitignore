@@ -4,6 +4,10 @@ node_modules/
 dist/
 build/
 coverage/
+# Rolled up from the library's own types by demo/scripts/generate-dts.mjs, which
+# the demo's dev and build scripts run first. Committing them would keep a second
+# copy of src/r4/generated in the tree, free to go stale against it.
+demo/src/monaco/*.d.ts
 *.tsbuildinfo
 .DS_Store
 *.log

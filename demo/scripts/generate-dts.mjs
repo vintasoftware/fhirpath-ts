@@ -1,12 +1,16 @@
 // Bundles fhirpath-ts's type declarations into self-contained .d.ts files that
-// the Monaco playground feeds to its in-browser TypeScript worker. The library
-// is consumed from source (no published .d.ts), so we roll each entry point up
-// with dts-bundle-generator. Regenerate after changing the library's types:
+// the Monaco playground feeds to its in-browser TypeScript worker. The library is
+// consumed from source (no published .d.ts), so we roll each entry point up with
+// dts-bundle-generator.
+//
+// The output is a build artifact, not a source file: `npm run dev` and
+// `npm run build` both run this first (see the pre* scripts), and it is
+// gitignored. The R4 rollup is ~44k lines of the same element table that
+// src/r4/generated already holds — committing it would mean keeping a second copy
+// in step with the first, and the playground's whole claim is that the reader's
+// code is checked against the library's real types. Run it by hand with
 //
 //   npm run generate:dts
-//
-// The output is committed so a plain `vite build` needs no extra tooling, and CI
-// re-runs this to check the committed files still match the library's types.
 
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
