@@ -47,8 +47,16 @@ export interface EvaluateOptions {
  * A parsed expression, reusable across inputs. Create via `compile()` or the
  * `fhirpath` tag: literal expressions carry inferred result and input types for
  * the supported subset (see src/typed/infer.ts), everything else is unknown[].
+ *
+ * `TInput`/`TResult` default to the built-in inference but can be overridden,
+ * e.g. with `@medplum/fhirtypes` types, for full type-level fidelity with
+ * another FHIR type package: `compile<'Patient.name', Patient, HumanName[]>(...)`.
  */
-export class CompiledExpression<Expr extends string = string> {
+export class CompiledExpression<
+  Expr extends string = string,
+  TInput = FhirpathInput<Expr>,
+  TResult extends unknown[] = FhirpathResult<Expr>,
+> {
   readonly source: string
   readonly ast: AstNode
 
@@ -58,8 +66,8 @@ export class CompiledExpression<Expr extends string = string> {
   }
 
   /** Evaluate and unwrap results to plain JS values. */
-  evaluate(input?: FhirpathInput<Expr>, options?: EvaluateOptions): FhirpathResult<Expr> {
-    return this.evaluateTyped(input, options).map(unwrap) as FhirpathResult<Expr>
+  evaluate(input?: TInput, options?: EvaluateOptions): TResult {
+    return this.evaluateTyped(input, options).map(unwrap) as TResult
   }
 
   /** Evaluate keeping the internal typed representation (types, Decimal, Temporal). */
@@ -84,7 +92,11 @@ export class CompiledExpression<Expr extends string = string> {
 }
 
 /** Parse an expression once for reuse. Unlike `evaluate()`, does not touch the parse cache. */
-export function compile<const Expr extends string>(expression: Expr): CompiledExpression<Expr> {
+export function compile<
+  const Expr extends string,
+  TInput = FhirpathInput<Expr>,
+  TResult extends unknown[] = FhirpathResult<Expr>,
+>(expression: Expr): CompiledExpression<Expr, TInput, TResult> {
   return new CompiledExpression(expression)
 }
 
