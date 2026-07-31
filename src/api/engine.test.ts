@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { FhirPathRuntimeError } from '../errors.ts'
-import type { Bundle, FhirResource, Observation, Patient } from '../r4/generated/type-maps.ts'
+import type { Bundle, Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
 import { BoundExpression, FhirPathEngine } from './engine.ts'
@@ -29,15 +29,10 @@ const observation: Observation = {
 const otherPatient: Patient = { resourceType: 'Patient', id: 'other', birthDate: '1994-06-01', gender: 'female' }
 
 // One entry deliberately has no resource (e.g. a transaction-response entry).
-// The casts satisfy FhirResource's index signature, which plain interfaces lack.
 const searchset: Bundle = {
   resourceType: 'Bundle',
   type: 'searchset',
-  entry: [
-    { resource: patient as FhirResource },
-    { fullUrl: 'urn:no-resource' },
-    { resource: otherPatient as FhirResource },
-  ],
+  entry: [{ resource: patient }, { fullUrl: 'urn:no-resource' }, { resource: otherPatient }],
 }
 
 describe('FhirPathEngine.evaluate', () => {
