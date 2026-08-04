@@ -116,8 +116,8 @@ analyzer's job); the one runtime semantic error is choice-key misuse
 
 Need different defaults — `%env` variables, a fixed clock, a trace sink, another
 model? Construct your own engine; per-call options override its defaults field
-by field, except `env`, which merges per variable — per-call variables add to
-the bound ones and win on the same name:
+by field, except `env` and `functions`, which merge per name — per-call entries
+add to the bound ones and win on the same name:
 
 ```ts
 import { FhirPathEngine } from 'fhirpath-ts'
@@ -280,8 +280,8 @@ const fp = new FhirPathEngine({ model: r4Model, cacheSize: 2000 })
 Because the cache belongs to the engine, a fresh engine starts cold — keep one
 around rather than building one per request. Options that change per request go
 in that call's `options`, which override the bound defaults field by field
-(`env` merges per variable instead, so per-request variables sit alongside the
-bound ones):
+(`env` and `functions` merge per name instead, so per-request entries sit
+alongside the bound ones):
 
 ```ts
 const fp = new FhirPathEngine({ model: r4Model }) // once, at startup

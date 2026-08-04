@@ -67,6 +67,18 @@ describe('FhirPathEngine.evaluate', () => {
     expect(engine.evaluate('%threshold')).toEqual([5])
   })
 
+  it('merges per-call custom functions per name instead of replacing the bound set', () => {
+    const double = { minArity: 0, maxArity: 0, fn: (input: unknown[]) => input.map(v => (v as number) * 2) }
+    const triple = { minArity: 0, maxArity: 0, fn: (input: unknown[]) => input.map(v => (v as number) * 3) }
+    const engine = new FhirPathEngine({ model: r4Model, functions: { double } })
+    // The bound function stays callable next to the per-call addition…
+    expect(engine.evaluate('2.double() + 2.triple()', undefined, { functions: { triple } })).toEqual([10])
+    // …the per-call record wins on the same name…
+    expect(engine.evaluate('2.double()', undefined, { functions: { double: triple } })).toEqual([6])
+    // …and the bound defaults are untouched afterwards.
+    expect(engine.evaluate('2.double()')).toEqual([4])
+  })
+
   it('keeps engine-only options out of the bound per-call defaults', () => {
     const engine = new FhirPathEngine({ model: r4Model, cacheSize: 10 })
     expect(engine.defaults).toEqual({ model: r4Model })
