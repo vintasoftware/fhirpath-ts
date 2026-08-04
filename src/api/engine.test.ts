@@ -55,6 +55,18 @@ describe('FhirPathEngine.evaluate', () => {
     expect(engine.evaluate('%threshold + 1', undefined, { env: { threshold: 10 } })).toEqual([11])
   })
 
+  it('merges a per-call env per variable instead of replacing the bound one', () => {
+    const engine = new FhirPathEngine({ model: r4Model, env: { threshold: 5 } })
+    // The bound variable stays visible next to the per-call addition…
+    expect(engine.evaluate('%threshold + %bonus', undefined, { env: { bonus: 2 } })).toEqual([7])
+    // …the per-call value wins on the same name…
+    expect(engine.evaluate('%threshold', undefined, { env: { threshold: 9, bonus: 2 } })).toEqual([9])
+    // …a call can blank a bound variable by passing undefined…
+    expect(engine.evaluate('%threshold.empty()', undefined, { env: { threshold: undefined } })).toEqual([true])
+    // …and the bound defaults are untouched afterwards.
+    expect(engine.evaluate('%threshold')).toEqual([5])
+  })
+
   it('keeps engine-only options out of the bound per-call defaults', () => {
     const engine = new FhirPathEngine({ model: r4Model, cacheSize: 10 })
     expect(engine.defaults).toEqual({ model: r4Model })

@@ -63,7 +63,8 @@ export interface EngineOptions extends EvaluateOptions {
  * An engine is meant to outlive the work it serves: its parse cache is its own,
  * so a fresh engine starts cold. To vary `env`, `now`, or any other option per
  * request, keep one engine and pass them in that call's `options` — per-call
- * values override the bound defaults field by field.
+ * values override the bound defaults field by field, except `env`, which merges
+ * per variable (per-call variables add to the bound ones and win on the same name).
  */
 export class FhirPathEngine {
   /** The per-call options bound at construction; engine-only settings are not part of them. */
@@ -191,8 +192,22 @@ export class FhirPathEngine {
     return evaluateConstraints(input, constraints, this.merged(options), this.compileCached)
   }
 
+  /**
+   * Per-call options override the bound defaults field by field, except `env`,
+   * which merges per variable: per-call variables add to the bound ones and win
+   * on the same name. Passing `env: { reports }` to an engine bound with lookup
+   * tables must not silently unbind the tables for that call. (To blank a bound
+   * variable for one call, pass it as `undefined` — it resolves to empty.)
+   */
   private merged(options?: EvaluateOptions): EvaluateOptions {
-    return options ? { ...this.defaults, ...options } : this.defaults
+    if (!options) {
+      return this.defaults
+    }
+    const merged = { ...this.defaults, ...options }
+    if (this.defaults.env && options.env) {
+      merged.env = { ...this.defaults.env, ...options.env }
+    }
+    return merged
   }
 }
 

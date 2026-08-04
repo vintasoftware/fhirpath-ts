@@ -116,7 +116,8 @@ analyzer's job); the one runtime semantic error is choice-key misuse
 
 Need different defaults — `%env` variables, a fixed clock, a trace sink, another
 model? Construct your own engine; per-call options override its defaults field
-by field:
+by field, except `env`, which merges per variable — per-call variables add to
+the bound ones and win on the same name:
 
 ```ts
 import { FhirPathEngine } from 'fhirpath-ts'
@@ -278,7 +279,9 @@ const fp = new FhirPathEngine({ model: r4Model, cacheSize: 2000 })
 
 Because the cache belongs to the engine, a fresh engine starts cold — keep one
 around rather than building one per request. Options that change per request go
-in that call's `options`, which override the bound defaults field by field:
+in that call's `options`, which override the bound defaults field by field
+(`env` merges per variable instead, so per-request variables sit alongside the
+bound ones):
 
 ```ts
 const fp = new FhirPathEngine({ model: r4Model }) // once, at startup
@@ -492,17 +495,13 @@ r4.test(patient, 'birthDate <= today()', { now: new Date('2026-08-04T12:00:00Z')
 r4.evaluate("Patient.name.trace('names').given", patient, { trace: (name, values) => debugSink(name, values) })
 ```
 
-### Two gotchas worth knowing
+### One gotcha worth knowing
 
-- **A per-call `env` replaces the engine-bound one** — options merge field by
-  field, and `env` is one field. An engine bound with lookup tables loses them
-  when a call passes `{ env: { reports } }`; spread the shared tables into the
-  per-call env instead.
-- **Inside `where()` the focus is the item being scanned.** In
-  `%table.where(code = DiagnosticReport.status)` the path navigates from the
-  table row — silently empty, since unknown elements navigate to empty. Start
-  join paths at `%context` or another `%var`, which resolve independent of
-  focus.
+**Inside `where()` the focus is the item being scanned.** In
+`%table.where(code = DiagnosticReport.status)` the path navigates from the
+table row — silently empty, since unknown elements navigate to empty. Start
+join paths at `%context` or another `%var`, which resolve independent of
+focus.
 
 ## Conformance
 
