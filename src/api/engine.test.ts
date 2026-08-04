@@ -298,6 +298,40 @@ describe('FhirPathEngine.project', () => {
       /column 'd' yielded 2 values/
     )
   })
+
+  it('test columns evaluate as boolean criteria (empty → false), like engine.test()', () => {
+    const row = r4.project(patient, {
+      isActive: { test: 'Patient.active = true' },
+      isDeceased: { test: 'Patient.deceased.ofType(boolean)' }, // empty → false
+      hasName: { test: 'Patient.name.exists()' },
+    })
+    expectTypeOf(row.isActive).toEqualTypeOf<boolean>()
+    expect(row).toEqual({ isActive: true, isDeceased: false, hasName: true })
+  })
+
+  it('default fills an empty result and substitutes for undefined in the type', () => {
+    const row = r4.project(patient, {
+      maiden: { path: "Patient.name.where(use = 'maiden').family", default: null },
+      family: { path: 'Patient.name.family.first()', default: '' },
+      gender: { path: 'Patient.gender', default: 'unknown' as const },
+    })
+    expectTypeOf(row.maiden).toEqualTypeOf<string | null>()
+    expectTypeOf(row.family).toEqualTypeOf<string>()
+    expect(row).toEqual({ maiden: null, family: 'Chalmers', gender: 'unknown' })
+  })
+
+  it('an as-function maps each value and sets the column type from its return', () => {
+    const row = r4.project(patient, {
+      shout: { path: 'Patient.name.family.first()', as: value => String(value).toUpperCase() },
+      initials: { path: 'Patient.name.given', collection: true, as: value => String(value).charAt(0) },
+      // Coercion order: as runs on values, then default fills an empty result.
+      nickname: { path: "Patient.name.where(use = 'nickname').given", as: value => String(value), default: '—' },
+    })
+    expectTypeOf(row.shout).toEqualTypeOf<string | undefined>()
+    expectTypeOf(row.initials).toEqualTypeOf<string[]>()
+    expectTypeOf(row.nickname).toEqualTypeOf<string>()
+    expect(row).toEqual({ shout: 'CHALMERS', initials: ['P', 'J', 'J'], nickname: '—' })
+  })
 })
 
 describe('evaluate/first result type declaration', () => {

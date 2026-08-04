@@ -158,6 +158,8 @@ r4.project(patient, {
   given: { path: 'Patient.name.given', collection: true },  // string[]
   name: { path: "Patient.name.given.join(' ')", type: 'string' },  // string | undefined
   born: { path: 'Patient.birthDate', as: 'Date' },          // Date | undefined — see below
+  gender: { path: 'Patient.gender', default: 'unknown' },   // string — default fills empty AND types away undefined
+  isActive: { test: 'Patient.active = true' },              // boolean — criteria column, test() semantics
 })
 r4.project(searchset, { id: 'Patient.id' }) // arrays and Bundles: one row per resource
 
@@ -167,6 +169,12 @@ r4.project(searchset, { key: { path: '(Patient.id | %index.toString()).first()',
 
 // `as: 'Date'` coerces a column to JS Dates: partial dates become the UTC start of
 // their period, and an unparseable value coerces to empty (the toX() contract).
+// `as` also takes a function over each value — the escape hatch for display-ready
+// shaping; its return type becomes the column type. `default` fills an empty result
+// with a plain JS value (FHIRPath has no null, so this is also how a column yields
+// one) and substitutes for `undefined` in the column's type — with unions covering
+// in-expression fallbacks and these two covering the rest, a view-model mapper can
+// be a project() call with no .map() after it.
 // `evaluate` and `first` accept the same `type` declaration a column does, for
 // expressions outside the inference subset — per-call only, never an engine default:
 r4.first("Patient.name.select(family & ', ' & given.first())", patient, { type: 'string' })
