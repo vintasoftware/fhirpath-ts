@@ -153,8 +153,8 @@ export class FhirPathEngine {
    * value or undefined) and yielding several values is an error — append
    * `.first()` or opt into `{ path, collection: true }` to keep them all.
    * An array or Bundle input produces one row per resource, and every column
-   * evaluates with `%index`/`%total` set to the row's position (`0`/`1` for a
-   * single resource) — e.g. `(id | %index.toString()).first()` for a key that
+   * evaluates with `%rowIndex`/`%rowTotal` set to the row's position (`0`/`1` for a
+   * single resource) — e.g. `(id | %rowIndex.toString()).first()` for a key that
    * falls back to the row number. Columns compile up front, so a malformed
    * column expression throws even when the input yields no rows.
    */

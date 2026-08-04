@@ -30,11 +30,11 @@ interface Tab {
   running: boolean
 }
 
-// project() sets %index/%total per row at runtime; declared here so the samples
+// project() sets %rowIndex/%rowTotal per row at runtime; declared here so the samples
 // that use them lint clean (the analyzer has no notion of the call site).
 const PROJECT_ROW_VARIABLES = {
-  index: { types: ['System.Integer'], single: true },
-  total: { types: ['System.Integer'], single: true },
+  rowIndex: { types: ['System.Integer'], single: true },
+  rowTotal: { types: ['System.Integer'], single: true },
 }
 
 /** Publish the analyzer's findings for `model` under its own marker owner. */

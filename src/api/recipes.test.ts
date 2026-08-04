@@ -130,7 +130,7 @@ describe('README usage recipes', () => {
       { resourceType: 'MedicationRequest', status: 'stopped', intent: 'order', subject: { reference: 'Patient/p1' } },
     ]
     const cards = r4.project(requests, {
-      id: { path: '(MedicationRequest.id | %index.toString()).first()', type: 'string', default: '' },
+      id: { path: '(MedicationRequest.id | %rowIndex.toString()).first()', type: 'string', default: '' },
       name: {
         path: '(MedicationRequest.medication.ofType(CodeableConcept).select(text | coding.display.first()) | MedicationRequest.medication.ofType(Reference).display).first()',
         type: 'string',
@@ -326,8 +326,8 @@ describe('README usage recipes: enforcement', () => {
       pharmacyUrl: { types: ['System.String'], single: true },
       statusMeta: {},
       reports: {},
-      index: { types: ['System.Integer'], single: true },
-      total: { types: ['System.Integer'], single: true },
+      rowIndex: { types: ['System.Integer'], single: true },
+      rowTotal: { types: ['System.Integer'], single: true },
     }
     for (const expression of readmeExpressions) {
       expect(analyzeExpression(expression, { model: r4Model, variables }), expression).toEqual([])

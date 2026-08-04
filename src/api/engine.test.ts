@@ -278,31 +278,31 @@ describe('FhirPathEngine.project', () => {
     ])
   })
 
-  it('sets %index and %total to the row position, overriding same-named caller env', () => {
+  it('sets %rowIndex and %rowTotal to the row position, overriding same-named caller env', () => {
     const anonymous: Patient = { resourceType: 'Patient' }
     const rows = r4.project(
       [patient, anonymous],
       {
-        key: { path: '(Patient.id | %index.toString()).first()', type: 'string' },
-        pos: '%index',
-        of: '%total',
+        key: { path: '(Patient.id | %rowIndex.toString()).first()', type: 'string' },
+        pos: '%rowIndex',
+        of: '%rowTotal',
       },
-      { env: { index: 99, total: 99 } }
+      { env: { rowIndex: 99, rowTotal: 99 } }
     )
     expect(rows).toEqual([
       { key: 'example', pos: 0, of: 2 },
       { key: '1', pos: 1, of: 2 },
     ])
 
-    // Both spellings at once cannot spoof either: '%index' normalizes onto the
+    // Both spellings at once cannot spoof either: '%rowIndex' normalizes onto the
     // same key as the row's `index` instead of outliving it in insertion order.
-    expect(r4.project([patient, anonymous], { pos: '%index' }, { env: { index: 99, '%index': 98 } })).toEqual([
+    expect(r4.project([patient, anonymous], { pos: '%rowIndex' }, { env: { rowIndex: 99, '%rowIndex': 98 } })).toEqual([
       { pos: 0 },
       { pos: 1 },
     ])
 
     // A single resource is row 0 of 1, so the same columns work unchanged.
-    expect(r4.project(patient, { pos: '%index', of: '%total' })).toEqual({ pos: 0, of: 1 })
+    expect(r4.project(patient, { pos: '%rowIndex', of: '%rowTotal' })).toEqual({ pos: 0, of: 1 })
   })
 
   it('compiles every column before rows run, so a malformed column throws even with no rows', () => {

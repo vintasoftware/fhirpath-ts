@@ -129,10 +129,10 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
 /**
  * The rows of `FhirPathEngine.project()`: one per subject of the input (array
  * item, Bundle entry resource, or the single resource itself); options come
- * pre-merged with the engine defaults. Every column evaluates with `%index` and
- * `%total` set to the row's position — the caller's `env` is normalized first,
+ * pre-merged with the engine defaults. Every column evaluates with `%rowIndex` and
+ * `%rowTotal` set to the row's position — the caller's `env` is normalized first,
  * so the row numbering wins over a same-named key in either spelling
- * (`index` or `%index`).
+ * (`rowIndex` or `%rowIndex`).
  */
 export function projectRows(
   input: unknown,
@@ -145,7 +145,7 @@ export function projectRows(
   return subjects.map((subject, index) => {
     const rowOptions: EvaluateOptions = {
       ...options,
-      env: { ...normalizeEnvKeys(options.env), index, total: subjects.length },
+      env: { ...normalizeEnvKeys(options.env), rowIndex: index, rowTotal: subjects.length },
     }
     const row: Record<string, unknown> = {}
     for (const [name, read] of readers) {

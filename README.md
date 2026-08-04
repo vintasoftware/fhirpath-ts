@@ -164,9 +164,9 @@ r4.project(patient, {
 })
 r4.project(searchset, { id: 'Patient.id' }) // arrays and Bundles: one row per resource
 
-// Every column evaluates with %index/%total set to the row's position (0/1 for a
+// Every column evaluates with %rowIndex/%rowTotal set to the row's position (0/1 for a
 // single resource), so a row key can fall back to the row number:
-r4.project(searchset, { key: { path: '(Patient.id | %index.toString()).first()', type: 'string' } })
+r4.project(searchset, { key: { path: '(Patient.id | %rowIndex.toString()).first()', type: 'string' } })
 
 // `as: 'Date'` coerces a column to JS Dates: partial dates become the UTC start of
 // their period, and an unparseable value coerces to empty (the toX() contract).
@@ -340,7 +340,7 @@ the static analyzer clean — so an edit that lets the README and the tests
 drift apart fails the suite. (The join recipe composes its expression from a
 fragment at runtime, so its runtime test alone covers it.) To get the same
 static checks in your own CI, declare the `%vars` a snippet uses (and
-`index`/`total` for project columns) via `AnalyzeOptions.variables` / the
+`rowIndex`/`rowTotal` for project columns) via `AnalyzeOptions.variables` / the
 ESLint rule's `variables`.
 
 ### Display text with fallbacks
@@ -392,14 +392,14 @@ r4.first("Observation.value.ofType(Quantity).toQuantity('kg').value", weight, { 
 
 ### View rows straight from project()
 
-With `%index` keys, `default` fallbacks, `test` flags, and `as` narrowing, the
+With `%rowIndex` keys, `default` fallbacks, `test` flags, and `as` narrowing, the
 column map is the view model — no `.map()` after it. `default` also removes
 `undefined` from the column's type, which an in-expression `| 'fallback'`
 union cannot do, and it is the only way a column yields `null`:
 
 ```ts
 const cards: MedicationCard[] = r4.project(requests, {
-  id: { path: '(MedicationRequest.id | %index.toString()).first()', type: 'string', default: '' },
+  id: { path: '(MedicationRequest.id | %rowIndex.toString()).first()', type: 'string', default: '' },
   name: {
     path: '(MedicationRequest.medication.ofType(CodeableConcept).select(text | coding.display.first()) | MedicationRequest.medication.ofType(Reference).display).first()',
     type: 'string',
