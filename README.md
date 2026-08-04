@@ -333,10 +333,15 @@ given.evaluate(medplumPatient, { model: r4Model }) // HumanName[]
 
 The engine API above is the intended front door for application code. These are
 the patterns that come up constantly when building healthcare apps, each one
-runnable as shown (every snippet in this section is exercised against the
-engine). The static analyzer checks all of these expression strings in CI —
-declare the `%vars` a snippet uses (and `index`/`total` for project columns)
-via `AnalyzeOptions.variables` / the ESLint rule's `variables`.
+runnable as shown. `src/api/recipes.test.ts` keeps this section honest: it
+exercises every snippet against the engine, and it also reads this section
+back — each expression string below must be one the tests run, and must pass
+the static analyzer clean — so an edit that lets the README and the tests
+drift apart fails the suite. (The join recipe composes its expression from a
+fragment at runtime, so its runtime test alone covers it.) To get the same
+static checks in your own CI, declare the `%vars` a snippet uses (and
+`index`/`total` for project columns) via `AnalyzeOptions.variables` / the
+ESLint rule's `variables`.
 
 ### Display text with fallbacks
 
@@ -352,8 +357,7 @@ r4.first('Condition.code.select(text | coding.display.first() | coding.first().c
 
 // A patient's display name: prefer the official name, build "Given Family".
 r4.first(
-  "(Patient.name.where(use = 'official') | Patient.name).first()" +
-    ".select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))",
+  "(Patient.name.where(use = 'official') | Patient.name).first().select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))",
   patient,
   { type: 'string' }
 )
@@ -367,7 +371,7 @@ prefix on a key sorts descending. Choice elements go by stem (`effective`, not
 `effectiveDateTime`):
 
 ```ts
-const systolic = r4.filter(observations, "code.coding.exists(system = %loinc and code = '8480-6')", {
+const systolic = r4.filter(observations, "Observation.code.coding.exists(system = %loinc and code = '8480-6')", {
   env: { loinc: 'http://loinc.org' },
 })
 const newestFirst = r4.evaluate('Observation.sort(-(effective.ofType(dateTime) | issued).first())', systolic)
@@ -397,9 +401,7 @@ union cannot do, and it is the only way a column yields `null`:
 const cards: MedicationCard[] = r4.project(requests, {
   id: { path: '(MedicationRequest.id | %index.toString()).first()', type: 'string', default: '' },
   name: {
-    path:
-      '(MedicationRequest.medication.ofType(CodeableConcept).select(text | coding.display.first())' +
-      ' | MedicationRequest.medication.ofType(Reference).display).first()',
+    path: '(MedicationRequest.medication.ofType(CodeableConcept).select(text | coding.display.first()) | MedicationRequest.medication.ofType(Reference).display).first()',
     type: 'string',
     default: 'Medication',
   },
@@ -428,9 +430,7 @@ const statusMeta = [
 ]
 r4.project(conditions, {
   label: {
-    path:
-      "Condition.clinicalStatus.coding.first().code.defineVariable('sc')" +
-      '.select((%statusMeta.where(code = %sc).label | substring(0, 1).upper() & substring(1)).first())',
+    path: "Condition.clinicalStatus.coding.first().code.defineVariable('sc').select((%statusMeta.where(code = %sc).label | substring(0, 1).upper() & substring(1)).first())",
     type: 'string',
     default: 'Unknown',
   },

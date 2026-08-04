@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
 import { describe, expect, it } from 'vitest'
 
+import { analyzeExpression } from '../analyzer/analyze.ts'
+import { findLexicalExpressionSites } from '../analyzer/lexical-sites.ts'
 import type {
   Bundle,
   Condition,
@@ -10,12 +15,13 @@ import type {
   Questionnaire,
   ServiceRequest,
 } from '../r4/generated/type-maps.ts'
-import { r4 } from '../r4/index.ts'
+import { r4, r4Model } from '../r4/index.ts'
 
 /**
  * Every snippet in the README's "Usage recipes" section, exercised against the
- * engine so the section cannot drift. Keep each test's expression text in sync
- * with the README when either changes.
+ * engine. The enforcement suite at the bottom reads the section back: each
+ * expression string it can extract must be one this file runs, and must pass
+ * the static analyzer clean — so the README and these tests cannot drift apart.
  */
 
 const LOINC = 'http://loinc.org'
@@ -66,8 +72,7 @@ describe('README usage recipes', () => {
     }
     expect(
       r4.first(
-        "(Patient.name.where(use = 'official') | Patient.name).first()" +
-          ".select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))",
+        "(Patient.name.where(use = 'official') | Patient.name).first().select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))",
         patient,
         { type: 'string' }
       )
@@ -75,9 +80,13 @@ describe('README usage recipes', () => {
   })
 
   it('filter and sort a worklist', () => {
-    const systolic = r4.filter(systolicReadings, "code.coding.exists(system = %loinc and code = '8480-6')", {
-      env: { loinc: LOINC },
-    })
+    const systolic = r4.filter(
+      systolicReadings,
+      "Observation.code.coding.exists(system = %loinc and code = '8480-6')",
+      {
+        env: { loinc: LOINC },
+      }
+    )
     expect(systolic).toHaveLength(3)
     const newestFirst = r4.evaluate(
       'Observation.sort(-(effective.ofType(dateTime) | issued).first())',
@@ -123,9 +132,7 @@ describe('README usage recipes', () => {
     const cards = r4.project(requests, {
       id: { path: '(MedicationRequest.id | %index.toString()).first()', type: 'string', default: '' },
       name: {
-        path:
-          '(MedicationRequest.medication.ofType(CodeableConcept).select(text | coding.display.first())' +
-          ' | MedicationRequest.medication.ofType(Reference).display).first()',
+        path: '(MedicationRequest.medication.ofType(CodeableConcept).select(text | coding.display.first()) | MedicationRequest.medication.ofType(Reference).display).first()',
         type: 'string',
         default: 'Medication',
       },
@@ -154,9 +161,7 @@ describe('README usage recipes', () => {
       conditions,
       {
         label: {
-          path:
-            "Condition.clinicalStatus.coding.first().code.defineVariable('sc')" +
-            '.select((%statusMeta.where(code = %sc).label | substring(0, 1).upper() & substring(1)).first())',
+          path: "Condition.clinicalStatus.coding.first().code.defineVariable('sc').select((%statusMeta.where(code = %sc).label | substring(0, 1).upper() & substring(1)).first())",
           type: 'string',
           default: 'Unknown',
         },
@@ -283,5 +288,49 @@ describe('README usage recipes', () => {
       { trace: name => traced.push(name) }
     )
     expect(traced).toEqual(['names'])
+  })
+})
+
+describe('README usage recipes: enforcement', () => {
+  const readme = readFileSync(fileURLToPath(new URL('../../README.md', import.meta.url)), 'utf8')
+  const sectionStart = readme.indexOf('\n## Usage recipes')
+  const section = readme.slice(sectionStart + 1, readme.indexOf('\n## ', sectionStart + 1))
+  // The fences omit the import boilerplate the section's intro relies on; the
+  // walker needs it to trust `r4`, so scan each fence with it prepended.
+  const IMPORT_HEADER = "import { r4 } from 'fhirpath-ts/r4'\n"
+  const readmeExpressions = [...section.matchAll(/```ts\n([\s\S]*?)```/g)].flatMap(fence =>
+    findLexicalExpressionSites(IMPORT_HEADER + fence[1]!).map(site => site.expression)
+  )
+
+  it('extracts the section and its expression strings', () => {
+    expect(sectionStart).toBeGreaterThan(-1)
+    expect(readmeExpressions.length).toBeGreaterThanOrEqual(15)
+  })
+
+  it('runs every static README expression in this file', () => {
+    const tested = new Set(
+      findLexicalExpressionSites(readFileSync(fileURLToPath(import.meta.url), 'utf8'), { localImports: true }).map(
+        site => site.expression
+      )
+    )
+    for (const expression of readmeExpressions) {
+      expect(tested.has(expression), `README expression not exercised by these tests: ${expression}`).toBe(true)
+    }
+  })
+
+  it('every static README expression passes the analyzer', () => {
+    // What the snippets' surrounding code passes via `env` (plus project()'s
+    // row variables), declared the way a consumer's CI would.
+    const variables = {
+      loinc: { types: ['System.String'], single: true },
+      pharmacyUrl: { types: ['System.String'], single: true },
+      statusMeta: {},
+      reports: {},
+      index: { types: ['System.Integer'], single: true },
+      total: { types: ['System.Integer'], single: true },
+    }
+    for (const expression of readmeExpressions) {
+      expect(analyzeExpression(expression, { model: r4Model, variables }), expression).toEqual([])
+    }
   })
 })
