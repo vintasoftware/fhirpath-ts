@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { FhirPathRuntimeError } from '../errors.ts'
+import { FhirPathRuntimeError, FhirPathSyntaxError } from '../errors.ts'
 import type { Bundle, Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
@@ -53,6 +53,34 @@ describe('FhirPathEngine.evaluate', () => {
     const engine = new FhirPathEngine({ model: r4Model, env: { threshold: 5 } })
     expect(engine.evaluate('%threshold + 1')).toEqual([6])
     expect(engine.evaluate('%threshold + 1', undefined, { env: { threshold: 10 } })).toEqual([11])
+  })
+
+  it('merges a per-call env per variable instead of replacing the bound one', () => {
+    const engine = new FhirPathEngine({ model: r4Model, env: { threshold: 5 } })
+    // The bound variable stays visible next to the per-call addition…
+    expect(engine.evaluate('%threshold + %bonus', undefined, { env: { bonus: 2 } })).toEqual([7])
+    // …the per-call value wins on the same name…
+    expect(engine.evaluate('%threshold', undefined, { env: { threshold: 9, bonus: 2 } })).toEqual([9])
+    // …in either spelling — `%name` and `name` are one variable, so a bound
+    // `'%threshold'` key cannot shadow the per-call override via insertion order…
+    const spelled = new FhirPathEngine({ model: r4Model, env: { threshold: 5, '%threshold': 6 } })
+    expect(spelled.evaluate('%threshold', undefined, { env: { threshold: 9 } })).toEqual([9])
+    // …a call can blank a bound variable by passing undefined…
+    expect(engine.evaluate('%threshold.empty()', undefined, { env: { threshold: undefined } })).toEqual([true])
+    // …and the bound defaults are untouched afterwards.
+    expect(engine.evaluate('%threshold')).toEqual([5])
+  })
+
+  it('merges per-call custom functions per name instead of replacing the bound set', () => {
+    const double = { minArity: 0, maxArity: 0, fn: (input: unknown[]) => input.map(v => (v as number) * 2) }
+    const triple = { minArity: 0, maxArity: 0, fn: (input: unknown[]) => input.map(v => (v as number) * 3) }
+    const engine = new FhirPathEngine({ model: r4Model, functions: { double } })
+    // The bound function stays callable next to the per-call addition…
+    expect(engine.evaluate('2.double() + 2.triple()', undefined, { functions: { triple } })).toEqual([10])
+    // …the per-call record wins on the same name…
+    expect(engine.evaluate('2.double()', undefined, { functions: { double: triple } })).toEqual([6])
+    // …and the bound defaults are untouched afterwards.
+    expect(engine.evaluate('2.double()')).toEqual([4])
   })
 
   it('keeps engine-only options out of the bound per-call defaults', () => {
@@ -248,6 +276,138 @@ describe('FhirPathEngine.project', () => {
       { id: 'example', family: 'Chalmers', given: ['Peter', 'James', 'Jim'] },
       { id: 'other', family: undefined, given: [] },
     ])
+  })
+
+  it('sets %rowIndex and %rowTotal to the row position, overriding same-named caller env', () => {
+    const anonymous: Patient = { resourceType: 'Patient' }
+    const rows = r4.project(
+      [patient, anonymous],
+      {
+        key: { path: '(Patient.id | %rowIndex.toString()).first()', type: 'string' },
+        pos: '%rowIndex',
+        of: '%rowTotal',
+      },
+      { env: { rowIndex: 99, rowTotal: 99 } }
+    )
+    expect(rows).toEqual([
+      { key: 'example', pos: 0, of: 2 },
+      { key: '1', pos: 1, of: 2 },
+    ])
+
+    // Both spellings at once cannot spoof either: '%rowIndex' normalizes onto the
+    // same key as the row's `index` instead of outliving it in insertion order.
+    expect(r4.project([patient, anonymous], { pos: '%rowIndex' }, { env: { rowIndex: 99, '%rowIndex': 98 } })).toEqual([
+      { pos: 0 },
+      { pos: 1 },
+    ])
+
+    // A single resource is row 0 of 1, so the same columns work unchanged.
+    expect(r4.project(patient, { pos: '%rowIndex', of: '%rowTotal' })).toEqual({ pos: 0, of: 1 })
+  })
+
+  it('compiles every column before rows run, so a malformed column throws even with no rows', () => {
+    expect(() => r4.project([], { bad: 'name..family' })).toThrow(FhirPathSyntaxError)
+  })
+
+  it("as: 'Date' coerces date-valued columns to JS Dates", () => {
+    const dated: Observation = {
+      resourceType: 'Observation',
+      status: 'final',
+      code: { text: 'Weight' },
+      effectiveDateTime: '2026-01-05T08:30:00Z',
+    }
+    const row = r4.project(dated, {
+      at: { path: 'Observation.effective.ofType(dateTime)', as: 'Date' },
+      month: { path: "'2026-01'", as: 'Date' }, // partial date → UTC start of its period
+      missing: { path: 'Observation.issued', as: 'Date' },
+      invalid: { path: "'not-a-date'", as: 'Date' },
+      all: { path: "(Observation.effective.ofType(dateTime) | 'nope')", collection: true, as: 'Date' },
+    })
+    expectTypeOf(row.at).toEqualTypeOf<Date | undefined>()
+    expectTypeOf(row.all).toEqualTypeOf<Date[]>()
+    expect(row.at).toEqual(new Date('2026-01-05T08:30:00Z'))
+    expect(row.month).toEqual(new Date(Date.UTC(2026, 0, 1)))
+    expect(row.missing).toBeUndefined()
+    expect(row.invalid).toBeUndefined()
+    expect(row.all).toEqual([new Date('2026-01-05T08:30:00Z')])
+  })
+
+  it('applies the scalar-column rule before the Date coercion drops unparseable values', () => {
+    expect(() => r4.project(patient, { d: { path: "('nope' | '2020')", as: 'Date' } })).toThrow(
+      /column 'd' yielded 2 values/
+    )
+  })
+
+  it('test columns evaluate as boolean criteria (empty → false), like engine.test()', () => {
+    const row = r4.project(patient, {
+      isActive: { test: 'Patient.active = true' },
+      isDeceased: { test: 'Patient.deceased.ofType(boolean)' }, // empty → false
+      hasName: { test: 'Patient.name.exists()' },
+    })
+    expectTypeOf(row.isActive).toEqualTypeOf<boolean>()
+    expect(row).toEqual({ isActive: true, isDeceased: false, hasName: true })
+  })
+
+  it('default fills an empty result and substitutes for undefined in the type', () => {
+    const row = r4.project(patient, {
+      maiden: { path: "Patient.name.where(use = 'maiden').family", default: null },
+      family: { path: 'Patient.name.family.first()', default: '' },
+      gender: { path: 'Patient.gender', default: 'unknown' as const },
+    })
+    expectTypeOf(row.maiden).toEqualTypeOf<string | null>()
+    expectTypeOf(row.family).toEqualTypeOf<string>()
+    expect(row).toEqual({ maiden: null, family: 'Chalmers', gender: 'unknown' })
+  })
+
+  it('an as-function maps each value and sets the column type from its return', () => {
+    const row = r4.project(patient, {
+      shout: { path: 'Patient.name.family.first()', as: value => String(value).toUpperCase() },
+      initials: { path: 'Patient.name.given', collection: true, as: value => String(value).charAt(0) },
+      // Coercion order: as runs on values, then default fills an empty result.
+      nickname: { path: "Patient.name.where(use = 'nickname').given", as: value => String(value), default: '—' },
+    })
+    expectTypeOf(row.shout).toEqualTypeOf<string | undefined>()
+    expectTypeOf(row.initials).toEqualTypeOf<string[]>()
+    expectTypeOf(row.nickname).toEqualTypeOf<string>()
+    expect(row).toEqual({ shout: 'CHALMERS', initials: ['P', 'J', 'J'], nickname: '—' })
+  })
+})
+
+describe('evaluate/first result type declaration', () => {
+  // Outside the inference subset (union of navigations), like a template-built expression.
+  const displayName =
+    "(Patient.name.where(use = 'official') | Patient.name).first().select(given.first() & ' ' & family)"
+
+  it('declares what inference cannot see, matching a project column type', () => {
+    const untyped = r4.first(displayName, patient)
+    expectTypeOf(untyped).toEqualTypeOf<unknown>()
+
+    const name = r4.first(displayName, patient, { type: 'string' })
+    expectTypeOf(name).toEqualTypeOf<string | undefined>()
+    expect(name).toBe('Peter Chalmers')
+
+    const list = r4.evaluate(displayName, patient, { type: 'string' })
+    expectTypeOf(list).toEqualTypeOf<string[]>()
+    expect(list).toEqual(['Peter Chalmers'])
+  })
+
+  it('keeps literal inference when type is absent, with or without other options', () => {
+    const given = r4.first('Patient.name.given', patient, { env: { unused: 1 } })
+    expectTypeOf(given).toEqualTypeOf<string | undefined>()
+    expect(given).toBe('Peter')
+  })
+
+  it('works on bound expressions and composes with other per-call options', () => {
+    const bound = r4.compile(displayName)
+    const name = bound.first(patient, { env: { unused: 1 }, type: 'string' })
+    expectTypeOf(name).toEqualTypeOf<string | undefined>()
+    expect(name).toBe('Peter Chalmers')
+    expectTypeOf(bound.evaluate(patient, { type: 'string' })).toEqualTypeOf<string[]>()
+  })
+
+  it('cannot be bound as an engine default', () => {
+    // @ts-expect-error `type` is per-call only; EngineOptions does not carry it
+    void new FhirPathEngine({ model: r4Model, type: 'string' })
   })
 })
 

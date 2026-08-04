@@ -92,17 +92,25 @@ console.log('p1 active:', r4.test(patients[0], 'active = true'))
     runnable: true,
     code: `import { r4 } from 'fhirpath-ts/r4'
 
+// The second patient has no id and only a partial birthDate — on purpose.
 const patients = [
-  { resourceType: 'Patient' as const, id: 'p1', name: [{ family: 'Okoro', given: ['Adaeze'] }] },
-  { resourceType: 'Patient' as const, id: 'p2', name: [{ family: 'Chen', given: ['Wei', 'Lin'] }] },
+  { resourceType: 'Patient' as const, id: 'p1', name: [{ family: 'Okoro', given: ['Adaeze'] }], birthDate: '1984-11-02' },
+  { resourceType: 'Patient' as const, name: [{ family: 'Chen', given: ['Wei', 'Lin'] }], birthDate: '1991-06' },
 ]
 
 // project() builds a typed row per resource, one column per FHIRPath expression.
 // Column expressions are analyzed too: drop the first() calls and the analyzer
 // flags '+' on a collection, because name repeats.
 const rows = r4.project(patients, {
-  id: 'Patient.id',
+  // %rowIndex/%rowTotal hold the row position, so a key can fall back to the row number:
+  key: { path: '(Patient.id | %rowIndex.toString()).first()', type: 'string' },
   name: "(Patient.name.first().family + ' ' + Patient.name.first().given.join(' ')).trim()",
+  // as: 'Date' coerces to JS Dates; the partial birthDate becomes June 1 UTC:
+  born: { path: 'Patient.birthDate', as: 'Date' },
+  // default fills an empty result — and types the column string, not string | undefined:
+  gender: { path: 'Patient.gender', default: 'unknown' },
+  // test columns are boolean criteria (empty → false), like r4.test():
+  named: { test: 'Patient.name.exists()' },
 })
 
 console.log(rows)

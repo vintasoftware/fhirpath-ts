@@ -35,6 +35,9 @@ describe('clean expressions produce no diagnostics', () => {
     ['{} + 1'],
     ['{} and true'],
     ['{} = 1'],
+    // System.Quantity's components navigate, like the runtime's raw {value, unit} read.
+    ["(1.5 'kg').value + 1"],
+    ["(1.5 'kg').unit.length()"],
   ])('%s', expression => {
     expect(analyzeExpression(expression, options)).toEqual([])
   })
@@ -43,6 +46,7 @@ describe('clean expressions produce no diagnostics', () => {
 describe('spec §11 rules', () => {
   it('flags unknown elements, including choice-key misuse', () => {
     expect(codes('Patient.nope')).toEqual(['unknown-element'])
+    expect(codes("(1 'kg').nope")).toEqual(['unknown-element'])
     expect(codes('Observation.valueQuantity.unit', { model: r4Model, inputType: 'Observation' })).toEqual([
       'unknown-element',
     ])
@@ -384,6 +388,10 @@ describe('warnings and details', () => {
       inputType: 'Patient',
     })
     expect(elementDependencies).toEqual(['Patient.name', 'HumanName.use', 'HumanName.given'])
+  })
+
+  it('System.Quantity components are not model-element dependencies', () => {
+    expect(analyzeExpressionDetailed("(1 'kg').value + 1", options).elementDependencies).toEqual([])
   })
 
   it('detailed analysis carries the diagnostics too', () => {

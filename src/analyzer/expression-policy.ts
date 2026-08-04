@@ -12,7 +12,7 @@
  * How a call site carries its FHIRPath expression(s):
  * - `expression`: the argument is the expression string itself.
  * - `columns`: the argument is a `project()` columns object — each property value
- *   is an expression string or a `{ path }` object.
+ *   is an expression string, a `{ path }` object, or a `{ test }` criteria object.
  * - `constraints`: the argument is a `checkConstraints()` array of
  *   `{ expression }` constraint objects.
  */
@@ -197,10 +197,11 @@ export function expressionEntries<N>(argument: N, shape: CallSiteShape, ast: Exp
     return entry ? [entry] : []
   }
   if (shape === 'columns') {
-    // project() columns: { name: 'expr' } or { name: { path: 'expr', collection: true } }.
+    // project() columns: { name: 'expr' }, { name: { path: 'expr', ... } }, or
+    // the boolean-criteria form { name: { test: 'expr' } }.
     return (ast.properties(argument) ?? []).flatMap(({ value }) => {
       const entry = ast.string(value)
-      return entry ? [entry] : namedStringEntries(value, 'path', ast)
+      return entry ? [entry] : [...namedStringEntries(value, 'path', ast), ...namedStringEntries(value, 'test', ast)]
     })
   }
   // checkConstraints() constraints: [{ key, expression: 'expr', ... }].

@@ -116,7 +116,8 @@ analyzer's job); the one runtime semantic error is choice-key misuse
 
 Need different defaults — `%env` variables, a fixed clock, a trace sink, another
 model? Construct your own engine; per-call options override its defaults field
-by field:
+by field, except `env` and `functions`, which merge per name — per-call entries
+add to the bound ones and win on the same name:
 
 ```ts
 import { FhirPathEngine } from 'fhirpath-ts'
@@ -157,8 +158,27 @@ r4.project(patient, {
   family: 'Patient.name.family.first()',                    // string | undefined
   given: { path: 'Patient.name.given', collection: true },  // string[]
   name: { path: "Patient.name.given.join(' ')", type: 'string' },  // string | undefined
+  born: { path: 'Patient.birthDate', as: 'Date' },          // Date | undefined — see below
+  gender: { path: 'Patient.gender', default: 'unknown' },   // string — default fills empty AND types away undefined
+  isActive: { test: 'Patient.active = true' },              // boolean — criteria column, test() semantics
 })
 r4.project(searchset, { id: 'Patient.id' }) // arrays and Bundles: one row per resource
+
+// Every column evaluates with %rowIndex/%rowTotal set to the row's position (0/1 for a
+// single resource), so a row key can fall back to the row number:
+r4.project(searchset, { key: { path: '(Patient.id | %rowIndex.toString()).first()', type: 'string' } })
+
+// `as: 'Date'` coerces a column to JS Dates: partial dates become the UTC start of
+// their period, and an unparseable value coerces to empty (the toX() contract).
+// `as` also takes a function over each value — the escape hatch for display-ready
+// shaping; its return type becomes the column type. `default` fills an empty result
+// with a plain JS value (FHIRPath has no null, so this is also how a column yields
+// one) and substitutes for `undefined` in the column's type — with unions covering
+// in-expression fallbacks and these two covering the rest, a view-model mapper can
+// be a project() call with no .map() after it.
+// `evaluate` and `first` accept the same `type` declaration a column does, for
+// expressions outside the inference subset — per-call only, never an engine default:
+r4.first("Patient.name.select(family & ', ' & given.first())", patient, { type: 'string' })
 ```
 
 Arrays and Bundles flow through all of these: `filter` and `project` iterate the
@@ -241,7 +261,9 @@ analyzeExpression('name.given.initials()', { model: r4Model, inputType: 'Patient
 The same record works for both calls. Environment variables get the matching
 treatment on the static side: `AnalyzeOptions.variables` declares the `%vars`
 the host will pass (optionally with their types), so the analyzer can check
-them instead of flagging `unknown-variable`.
+them instead of flagging `unknown-variable`. When checking `project()` column
+expressions, declare `index` and `total` there too — the runtime sets them per
+row, but the analyzer has no notion of the call site that will run an expression.
 
 ### Parse caching
 
@@ -257,7 +279,9 @@ const fp = new FhirPathEngine({ model: r4Model, cacheSize: 2000 })
 
 Because the cache belongs to the engine, a fresh engine starts cold — keep one
 around rather than building one per request. Options that change per request go
-in that call's `options`, which override the bound defaults field by field:
+in that call's `options`, which override the bound defaults field by field
+(`env` and `functions` merge per name instead, so per-request entries sit
+alongside the bound ones):
 
 ```ts
 const fp = new FhirPathEngine({ model: r4Model }) // once, at startup
@@ -304,6 +328,180 @@ import type { HumanName, Patient } from '@medplum/fhirtypes'
 const given = compile<'Patient.name', Patient, HumanName[]>('Patient.name')
 given.evaluate(medplumPatient, { model: r4Model }) // HumanName[]
 ```
+
+## Usage recipes
+
+The engine API above is the intended front door for application code. These are
+the patterns that come up constantly when building healthcare apps, each one
+runnable as shown. `src/api/recipes.test.ts` keeps this section honest: it
+exercises every snippet against the engine, and it also reads this section
+back — each expression string below must be one the tests run, and must pass
+the static analyzer clean — so an edit that lets the README and the tests
+drift apart fails the suite. (The join recipe composes its expression from a
+fragment at runtime, so its runtime test alone covers it.) To get the same
+static checks in your own CI, declare the `%vars` a snippet uses (and
+`rowIndex`/`rowTotal` for project columns) via `AnalyzeOptions.variables` / the
+ESLint rule's `variables`.
+
+### Display text with fallbacks
+
+FHIR rarely guarantees which field carries the human-readable text. A union
+tries alternatives in order (left wins), `first()` picks the survivor —
+FHIRPath's spelling of `a ?? b ?? c`:
+
+```ts
+// CodeableConcept: text, else the first coding with a display, else a code.
+r4.first('Condition.code.select(text | coding.display.first() | coding.first().code).first()', condition, {
+  type: 'string',
+})
+
+// A patient's display name: prefer the official name, build "Given Family".
+r4.first(
+  "(Patient.name.where(use = 'official') | Patient.name).first().select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))",
+  patient,
+  { type: 'string' }
+)
+```
+
+### Filter and sort a worklist
+
+`filter()` keeps the matching resources; `sort()` (ballot STU, in the
+[CI-build spec](https://build.fhir.org/ig/HL7/FHIRPath/)) orders them — a `-`
+prefix on a key sorts descending. Choice elements go by stem (`effective`, not
+`effectiveDateTime`):
+
+```ts
+const systolic = r4.filter(observations, "Observation.code.coding.exists(system = %loinc and code = '8480-6')", {
+  env: { loinc: 'http://loinc.org' },
+})
+const newestFirst = r4.evaluate('Observation.sort(-(effective.ofType(dateTime) | issued).first())', systolic)
+```
+
+### Unit-safe quantities
+
+Quantity literals compare with automatic UCUM conversion for the units the
+engine knows (see `src/values/ucum.ts`); unknown units still compare within
+themselves. `toQuantity(unit)` converts, `.value` extracts the number, and
+`convertsToQuantity(unit)` is the criteria-side check for dirty data:
+
+```ts
+r4.filter(observations, "value.ofType(Quantity) > 140 'mm[Hg]'")
+r4.filter(observations, "value.ofType(Quantity).convertsToQuantity('kg')") // drops unit: "lbs" with no code
+r4.first("Observation.value.ofType(Quantity).toQuantity('kg').value", weight, { type: 'decimal' })
+```
+
+### View rows straight from project()
+
+With `%rowIndex` keys, `default` fallbacks, `test` flags, and `as` narrowing, the
+column map is the view model — no `.map()` after it. `default` also removes
+`undefined` from the column's type, which an in-expression `| 'fallback'`
+union cannot do, and it is the only way a column yields `null`:
+
+```ts
+const cards: MedicationCard[] = r4.project(requests, {
+  id: { path: '(MedicationRequest.id | %rowIndex.toString()).first()', type: 'string', default: '' },
+  name: {
+    path: '(MedicationRequest.medication.ofType(CodeableConcept).select(text | coding.display.first()) | MedicationRequest.medication.ofType(Reference).display).first()',
+    type: 'string',
+    default: 'Medication',
+  },
+  sig: { path: 'MedicationRequest.dosageInstruction.first().text', default: '' },
+  isActive: { test: "MedicationRequest.status = 'active'" },
+  prescribedOn: { path: 'MedicationRequest.authoredOn', default: null }, // string | null
+})
+```
+
+Only declare `type` when inference can't see the expression — union/`iif`/
+`%var` syntax, or a path built with `+`/template strings (TypeScript types
+those `string`, not a literal). A plain literal path like
+`MedicationRequest.authoredOn` infers on its own, often more precisely
+(`MedicationRequest.status` infers the R4 status-code union).
+
+### Status labels from a lookup table
+
+Display tables live in `env` as arrays of rows; expressions join them with
+`where()`. `defineVariable` saves a value so one expression can try the table,
+then a title-cased echo of the raw code:
+
+```ts
+const statusMeta = [
+  { code: 'active', label: 'Active', tone: 'info' },
+  { code: 'resolved', label: 'Resolved', tone: 'neutral' },
+]
+r4.project(conditions, {
+  label: {
+    path: "Condition.clinicalStatus.coding.first().code.defineVariable('sc').select((%statusMeta.where(code = %sc).label | substring(0, 1).upper() & substring(1)).first())",
+    type: 'string',
+    default: 'Unknown',
+  },
+}, { env: { statusMeta } })
+```
+
+### Join related resources
+
+A lookup `Map` becomes an env table of `{ key, resource }` pairs; `%context`
+is the row's own resource, so columns can reach across the join. Resources
+inside env values are model-typed by `resourceType` (choice stems work):
+
+```ts
+const reports = [...reportsByOrderId].map(([orderId, report]) => ({ orderId, report }))
+const REPORT = '%reports.where(orderId = %context.id).report'
+r4.project(orders, {
+  resultDate: { path: `(${REPORT}.effective.ofType(dateTime) | ${REPORT}.issued).first()`, type: 'string', default: null },
+  hasResult: { test: `${REPORT}.exists()` },
+}, { env: { reports } })
+```
+
+### Extensions — including primitive extensions
+
+`extension(url)` filters by URL; the `%ext-` variable family expands to
+`http://hl7.org/fhir/StructureDefinition/…`. Extensions on primitives (the
+JSON `_field` sibling) navigate transparently:
+
+```ts
+r4.first('Patient.extension(%pharmacyUrl).value.ofType(string)', patient, {
+  env: { pharmacyUrl: 'http://example.org/fhir/StructureDefinition/preferred-pharmacy' },
+})
+r4.first('Patient.birthDate.extension(%`ext-patient-birthTime`).value.ofType(dateTime)', patient)
+```
+
+### Follow references inside a Bundle
+
+`resolve()` follows a Reference to a contained resource or another Bundle
+entry (by `fullUrl` or `ResourceType/id`). Root the expression at `Bundle` —
+that keeps the bundle as the resolution scope:
+
+```ts
+r4.evaluate('Bundle.entry.resource.ofType(Observation).subject.resolve().name.family', searchset)
+```
+
+### Walk nested structures
+
+`repeat()` closes over a recursive element — every `linkId` of a nested
+Questionnaire, in document order:
+
+```ts
+r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)
+```
+
+### Deterministic tests and debugging
+
+`now` pins the evaluation clock, so `today()`/`now()` comparisons are
+reproducible; `trace()` reports through the `trace` sink instead of logging
+(traced values may contain patient data — nothing is logged by default):
+
+```ts
+r4.test(patient, 'birthDate <= today()', { now: new Date('2026-08-04T12:00:00Z') })
+r4.evaluate("Patient.name.trace('names').given", patient, { trace: (name, values) => debugSink(name, values) })
+```
+
+### One gotcha worth knowing
+
+**Inside `where()` the focus is the item being scanned.** In
+`%table.where(code = DiagnosticReport.status)` the path navigates from the
+table row — silently empty, since unknown elements navigate to empty. Start
+join paths at `%context` or another `%var`, which resolve independent of
+focus.
 
 ## Conformance
 
