@@ -285,6 +285,17 @@ class Analyzer {
     return name === 'index' ? { types: ['System.Integer'], single: true } : UNKNOWN
   }
 
+  /**
+   * A quantity's components (spec §4: `value` and `unit`), the one System type
+   * with navigable elements. The runtime reads them off the quantity's raw
+   * `{ value, unit }` shape (a `toQuantity()` result, a quantity literal), so
+   * the analyzer must know them too or flag working navigation.
+   */
+  private static readonly SYSTEM_QUANTITY_ELEMENTS: ReadonlyMap<string, ElementInfo> = new Map([
+    ['value', { types: ['System.Decimal'], isCollection: false, isChoice: false }],
+    ['unit', { types: ['System.String'], isCollection: false, isChoice: false }],
+  ])
+
   private walkIdentifier(node: AstNode & { kind: 'identifier' }, input: StaticState): StaticState {
     // Navigating from a statically empty input yields empty — nothing to check.
     if (input.types !== undefined && input.types.length === 0) {
@@ -313,9 +324,16 @@ class Analyzer {
     // whole set unknown.
     let targets: string[] | undefined = []
     for (const type of input.types) {
-      const element = this.model?.getElement(type, node.name)
+      const element =
+        type === 'System.Quantity'
+          ? Analyzer.SYSTEM_QUANTITY_ELEMENTS.get(node.name)
+          : this.model?.getElement(type, node.name)
       if (element) {
-        this.dependencies.add(`${typeLocalName(type)}.${node.name}`)
+        // elementDependencies names model elements; System.Quantity's components
+        // are not ones (there is no FHIR `Quantity.value` dependency here).
+        if (!type.startsWith('System.')) {
+          this.dependencies.add(`${typeLocalName(type)}.${node.name}`)
+        }
         isCollection = isCollection || element.isCollection
         for (const elementType of element.types) {
           found.push(this.canonicalize(elementType))

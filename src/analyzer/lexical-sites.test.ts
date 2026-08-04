@@ -28,6 +28,10 @@ const CASES: Record<string, string> = {
     import { r4 } from 'fhirpath-ts/r4'
     r4.project(rows, { given: { path: 'Patient.name.given', collection: true } })
   `,
+  'project() test columns': `
+    import { r4 } from 'fhirpath-ts/r4'
+    r4.project(rows, { named: { test: 'Patient.name.exists()' }, id: { path: 'Patient.id', default: '' } })
+  `,
   'checkConstraints() constraint arrays': `
     import { r4 } from 'fhirpath-ts/r4'
     r4.checkConstraints(patient, [
