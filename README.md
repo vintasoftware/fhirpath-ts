@@ -226,6 +226,7 @@ which the engine keeps for itself:
 | --- | --- |
 | `model` | A `ModelProvider`; use `r4Model` from `fhirpath-ts/r4` |
 | `env` | Environment variables: `{ myVar: 5 }` resolves `%myVar` |
+| `vars` | FHIRPath variable bindings, evaluated against the input — see below |
 | `now` | Evaluation clock for `now()`/`today()`/`timeOfDay()` (deterministic tests) |
 | `trace` | Sink for `trace()` calls — see the PHI note below |
 | `functions` | Host-supplied functions — see Custom functions below |
@@ -234,6 +235,31 @@ which the engine keeps for itself:
 `evaluateTyped(...)` (on the engine, bound expressions, and compiled expressions)
 returns the internal `TypedValue[]` (type names plus `Decimal`/`Temporal` value
 objects) instead of unwrapped JS values.
+
+#### `env` vs `vars`
+
+Both resolve `%name` references, both accept keys with or without the leading
+`%`, and both merge per name between the engine's bound defaults and a
+per-call record. They differ in what crosses the host boundary:
+
+- `env` carries host **data**: plain JS values, wrapped as-is. Lookup tables,
+  system URLs, request parameters.
+- `vars` carries **derived bindings**: each entry is a FHIRPath expression the
+  engine evaluates against the call's input — `%context`, `env`, and earlier
+  vars are in scope — and binds with full type fidelity. A var holding a
+  dateTime compares as a dateTime; a var holding a Quantity keeps unit
+  arithmetic. Env data enters untyped, so
+  `env: { w: { value: 72.5, unit: 'kg' } }` can never satisfy `%w > 70 'kg'`,
+  but `vars: { w: 'value.ofType(Quantity)' }` does.
+
+`vars` is the option form of `defineVariable()` and follows its rules: entries
+bind in declaration order (later vars can reference earlier ones), and a var
+may not override an environment variable — including built-ins like `%loinc` —
+that throws instead of shadowing. In `project()`, vars resolve once per row,
+with the row as focus and `%rowIndex`/`%rowTotal` in scope, and every column
+reads the same bindings — the join recipe below shows why that matters. A
+`readonly TypedValue[]` value (say, a previous `evaluateTyped()` result) binds
+directly without evaluation.
 
 ### Custom functions
 
@@ -262,8 +288,35 @@ The same record works for both calls. Environment variables get the matching
 treatment on the static side: `AnalyzeOptions.variables` declares the `%vars`
 the host will pass (optionally with their types), so the analyzer can check
 them instead of flagging `unknown-variable`. When checking `project()` column
-expressions, declare `index` and `total` there too — the runtime sets them per
-row, but the analyzer has no notion of the call site that will run an expression.
+expressions, declare `rowIndex` and `rowTotal` there too — the runtime sets
+them per row, but the analyzer has no notion of the call site that will run an
+expression.
+
+A function can also be defined in FHIRPath itself — `expression` instead of
+`fn`. The body evaluates as if spliced at the call site: the call's input is
+the focus, while `%context` and the environment stay the caller's. This is the
+alias mechanism for a chain you keep repeating:
+
+```ts
+const functions = {
+  displayText: {
+    expression: '(text | coding.display.first() | coding.first().code).first()',
+    signature: { result: { types: ['System.String'], single: true } },
+  },
+} satisfies Record<string, CustomFunction>
+
+const fp = new FhirPathEngine({ model: r4Model, functions })
+fp.first('Condition.code.displayText()', condition, { type: 'string' })
+fp.first('MedicationRequest.medication.ofType(CodeableConcept).displayText()', request, { type: 'string' })
+```
+
+Expression-defined functions take zero arguments and keep values typed
+end-to-end — a body yielding a dateTime compares as one, with none of the
+unwrap-to-JS flattening a native `fn` implies. A body that reaches itself,
+directly or through another definition, fails as recursion. The analyzer
+resolves them at arity 0 from the same record. An engine pre-parses bodies
+through its parse cache; pass a `CompiledExpression` body to get the same
+effect with the free `evaluate()`.
 
 ### Parse caching
 
@@ -363,6 +416,17 @@ r4.first(
 )
 ```
 
+A chain you use everywhere deserves a name: bind it as an expression-defined
+function (see Custom functions) and every CodeableConcept can call it —
+
+```ts
+const fp = new FhirPathEngine({
+  model: r4Model,
+  functions: { displayText: { expression: '(text | coding.display.first() | coding.first().code).first()' } },
+})
+fp.first('Condition.code.displayText()', condition, { type: 'string' })
+```
+
 ### Filter and sort a worklist
 
 `filter()` keeps the matching resources; `sort()` (ballot STU, in the
@@ -417,39 +481,47 @@ those `string`, not a literal). A plain literal path like
 `MedicationRequest.authoredOn` infers on its own, often more precisely
 (`MedicationRequest.status` infers the R4 status-code union).
 
-### Status labels from a lookup table
+### Status labels from a code map
 
-Display tables live in `env` as arrays of rows; expressions join them with
-`where()`. `defineVariable` saves a value so one expression can try the table,
-then a title-cased echo of the raw code:
+`map` decodes a code into your display vocabulary in TypeScript — no cast, no
+env-table join. Give it a display table (rows keyed by `code`) and `pick` the
+field each column reads, typed from the row; a miss becomes empty, so
+`default` doubles as the fallback for unexpected or future codes:
 
 ```ts
 const statusMeta = [
   { code: 'active', label: 'Active', tone: 'info' },
+  { code: 'recurrence', label: 'Recurrence', tone: 'danger' },
   { code: 'resolved', label: 'Resolved', tone: 'neutral' },
-]
+] as const
 r4.project(conditions, {
-  label: {
-    path: "Condition.clinicalStatus.coding.first().code.defineVariable('sc').select((%statusMeta.where(code = %sc).label | substring(0, 1).upper() & substring(1)).first())",
-    type: 'string',
-    default: 'Unknown',
-  },
-}, { env: { statusMeta } })
+  label: { path: 'Condition.clinicalStatus.coding.first().code', map: statusMeta, pick: 'label', default: 'Unknown' },
+  tone: { path: 'Condition.clinicalStatus.coding.first().code', map: statusMeta, pick: 'tone', default: 'neutral' as const },
+})
 ```
+
+Omit `pick` to yield the whole matching row, or pass a plain Record
+(`map: { active: 'info', … }`) when there is a single field to decode. When
+the fallback is computed rather than constant — say, title-casing the raw
+code — use an `as` function instead:
+`as: code => statusMeta.find(row => row.code === code)?.label ?? titleCase(String(code))`.
 
 ### Join related resources
 
-A lookup `Map` becomes an env table of `{ key, resource }` pairs; `%context`
-is the row's own resource, so columns can reach across the join. Resources
-inside env values are model-typed by `resourceType` (choice stems work):
+A lookup `Map` becomes an env table of `{ key, resource }` pairs, and a `vars`
+entry scans it once per row — a correlated left join written in one place
+instead of spliced into every column. `%context` is the row's own resource; a
+row with no match survives with each column's `default` (pre-filter with
+`r4.filter` for inner-join semantics). Resources inside env values are
+model-typed by `resourceType`, so choice stems like `effective` work, and the
+var keeps that typing for every column that reads it:
 
 ```ts
 const reports = [...reportsByOrderId].map(([orderId, report]) => ({ orderId, report }))
-const REPORT = '%reports.where(orderId = %context.id).report'
 r4.project(orders, {
-  resultDate: { path: `(${REPORT}.effective.ofType(dateTime) | ${REPORT}.issued).first()`, type: 'string', default: null },
-  hasResult: { test: `${REPORT}.exists()` },
-}, { env: { reports } })
+  resultDate: { path: '(%report.effective.ofType(dateTime) | %report.issued).first()', type: 'string', default: null },
+  hasResult: { test: '%report.exists()' },
+}, { env: { reports }, vars: { report: '%reports.where(orderId = %context.id).report' } })
 ```
 
 ### Extensions — including primitive extensions
