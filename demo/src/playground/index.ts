@@ -30,11 +30,21 @@ interface Tab {
   running: boolean
 }
 
+// project() sets %index/%total per row at runtime; declared here so the samples
+// that use them lint clean (the analyzer has no notion of the call site).
+const PROJECT_ROW_VARIABLES = {
+  index: { types: ['System.Integer'], single: true },
+  total: { types: ['System.Integer'], single: true },
+}
+
 /** Publish the analyzer's findings for `model` under its own marker owner. */
 function lint(model: monaco.editor.ITextModel): void {
   const markers: monaco.editor.IMarkerData[] = []
   for (const site of findLexicalExpressionSites(model.getValue())) {
-    for (const diagnostic of analyzeExpression(site.expression, { model: r4Model })) {
+    for (const diagnostic of analyzeExpression(site.expression, {
+      model: r4Model,
+      variables: PROJECT_ROW_VARIABLES,
+    })) {
       const start = model.getPositionAt(site.start + diagnostic.span.start)
       const end = model.getPositionAt(site.start + diagnostic.span.end)
       markers.push({

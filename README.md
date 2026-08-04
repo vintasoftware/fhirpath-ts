@@ -157,8 +157,19 @@ r4.project(patient, {
   family: 'Patient.name.family.first()',                    // string | undefined
   given: { path: 'Patient.name.given', collection: true },  // string[]
   name: { path: "Patient.name.given.join(' ')", type: 'string' },  // string | undefined
+  born: { path: 'Patient.birthDate', as: 'Date' },          // Date | undefined — see below
 })
 r4.project(searchset, { id: 'Patient.id' }) // arrays and Bundles: one row per resource
+
+// Every column evaluates with %index/%total set to the row's position (0/1 for a
+// single resource), so a row key can fall back to the row number:
+r4.project(searchset, { key: { path: '(Patient.id | %index.toString()).first()', type: 'string' } })
+
+// `as: 'Date'` coerces a column to JS Dates: partial dates become the UTC start of
+// their period, and an unparseable value coerces to empty (the toX() contract).
+// `evaluate` and `first` accept the same `type` declaration a column does, for
+// expressions outside the inference subset — per-call only, never an engine default:
+r4.first("Patient.name.select(family & ', ' & given.first())", patient, { type: 'string' })
 ```
 
 Arrays and Bundles flow through all of these: `filter` and `project` iterate the
@@ -241,7 +252,9 @@ analyzeExpression('name.given.initials()', { model: r4Model, inputType: 'Patient
 The same record works for both calls. Environment variables get the matching
 treatment on the static side: `AnalyzeOptions.variables` declares the `%vars`
 the host will pass (optionally with their types), so the analyzer can check
-them instead of flagging `unknown-variable`.
+them instead of flagging `unknown-variable`. When checking `project()` column
+expressions, declare `index` and `total` there too — the runtime sets them per
+row, but the analyzer has no notion of the call site that will run an expression.
 
 ### Parse caching
 

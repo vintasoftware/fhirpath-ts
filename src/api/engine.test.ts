@@ -249,6 +249,93 @@ describe('FhirPathEngine.project', () => {
       { id: 'other', family: undefined, given: [] },
     ])
   })
+
+  it('sets %index and %total to the row position, overriding same-named caller env', () => {
+    const anonymous: Patient = { resourceType: 'Patient' }
+    const rows = r4.project(
+      [patient, anonymous],
+      {
+        key: { path: '(Patient.id | %index.toString()).first()', type: 'string' },
+        pos: '%index',
+        of: '%total',
+      },
+      { env: { index: 99, total: 99 } }
+    )
+    expect(rows).toEqual([
+      { key: 'example', pos: 0, of: 2 },
+      { key: '1', pos: 1, of: 2 },
+    ])
+
+    // A single resource is row 0 of 1, so the same columns work unchanged.
+    expect(r4.project(patient, { pos: '%index', of: '%total' })).toEqual({ pos: 0, of: 1 })
+  })
+
+  it("as: 'Date' coerces date-valued columns to JS Dates", () => {
+    const dated: Observation = {
+      resourceType: 'Observation',
+      status: 'final',
+      code: { text: 'Weight' },
+      effectiveDateTime: '2026-01-05T08:30:00Z',
+    }
+    const row = r4.project(dated, {
+      at: { path: 'Observation.effective.ofType(dateTime)', as: 'Date' },
+      month: { path: "'2026-01'", as: 'Date' }, // partial date → UTC start of its period
+      missing: { path: 'Observation.issued', as: 'Date' },
+      invalid: { path: "'not-a-date'", as: 'Date' },
+      all: { path: "(Observation.effective.ofType(dateTime) | 'nope')", collection: true, as: 'Date' },
+    })
+    expectTypeOf(row.at).toEqualTypeOf<Date | undefined>()
+    expectTypeOf(row.all).toEqualTypeOf<Date[]>()
+    expect(row.at).toEqual(new Date('2026-01-05T08:30:00Z'))
+    expect(row.month).toEqual(new Date(Date.UTC(2026, 0, 1)))
+    expect(row.missing).toBeUndefined()
+    expect(row.invalid).toBeUndefined()
+    expect(row.all).toEqual([new Date('2026-01-05T08:30:00Z')])
+  })
+
+  it('applies the scalar-column rule before the Date coercion drops unparseable values', () => {
+    expect(() => r4.project(patient, { d: { path: "('nope' | '2020')", as: 'Date' } })).toThrow(
+      /column 'd' yielded 2 values/
+    )
+  })
+})
+
+describe('evaluate/first result type declaration', () => {
+  // Outside the inference subset (union of navigations), like a template-built expression.
+  const displayName =
+    "(Patient.name.where(use = 'official') | Patient.name).first().select(given.first() & ' ' & family)"
+
+  it('declares what inference cannot see, matching a project column type', () => {
+    const untyped = r4.first(displayName, patient)
+    expectTypeOf(untyped).toEqualTypeOf<unknown>()
+
+    const name = r4.first(displayName, patient, { type: 'string' })
+    expectTypeOf(name).toEqualTypeOf<string | undefined>()
+    expect(name).toBe('Peter Chalmers')
+
+    const list = r4.evaluate(displayName, patient, { type: 'string' })
+    expectTypeOf(list).toEqualTypeOf<string[]>()
+    expect(list).toEqual(['Peter Chalmers'])
+  })
+
+  it('keeps literal inference when type is absent, with or without other options', () => {
+    const given = r4.first('Patient.name.given', patient, { env: { unused: 1 } })
+    expectTypeOf(given).toEqualTypeOf<string | undefined>()
+    expect(given).toBe('Peter')
+  })
+
+  it('works on bound expressions and composes with other per-call options', () => {
+    const bound = r4.compile(displayName)
+    const name = bound.first(patient, { env: { unused: 1 }, type: 'string' })
+    expectTypeOf(name).toEqualTypeOf<string | undefined>()
+    expect(name).toBe('Peter Chalmers')
+    expectTypeOf(bound.evaluate(patient, { type: 'string' })).toEqualTypeOf<string[]>()
+  })
+
+  it('cannot be bound as an engine default', () => {
+    // @ts-expect-error `type` is per-call only; EngineOptions does not carry it
+    void new FhirPathEngine({ model: r4Model, type: 'string' })
+  })
 })
 
 describe('FhirPathEngine.checkConstraints', () => {
