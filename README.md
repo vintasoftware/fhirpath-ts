@@ -266,45 +266,44 @@ fp.test(patient, criteria, { env: { requestor }, now: receivedAt }) // per reque
 
 ### Medplum compatibility
 
-The generated R4 types (`fhirpath-ts/r4`) and `@medplum/fhirtypes` are both built
-from the same HL7 R4 StructureDefinitions, so they agree closely but are separate,
-structurally-typed declarations — not the same symbols. What that means in practice:
+`fhirpath-ts/r4` and `@medplum/fhirtypes` are generated from the same HL7 R4
+StructureDefinitions, so their types line up closely.
 
-- **Required-binding codes are literal unions, not `string`.** Fields with a
-  `required`-strength binding to a closed code set (`Patient.gender`,
-  `Address.use`, `HumanName.use`, hundreds more) are typed as the exact code
-  union (`'male' | 'female' | 'other' | 'unknown'`), resolved from the same R4
-  ValueSet/CodeSystem data at generation time. R4 CodeSystems are hierarchical —
-  `maiden` sits under `old`, `active` under `accepted`, `corrected` under
-  `amended` — and a binding admits the whole tree, so the resolver walks nested
-  concepts too. Of the 355 required `code` bindings, 322 resolve to a union; the
-  rest stay `string`, either because the code system is open-ended (MIME types,
-  ISO 4217 currencies) or because it is a meta-list too large to be worth inlining
-  (`ResourceType` at 148 codes, `FHIRAllTypes` at 213, the SPDX catalog at 346).
-  A scripted comparison against `@medplum/fhirtypes` — pinned to the same release
-  as `@medplum/definitions`, since the two only mean anything compared together —
-  found that every one of the 429 fields both packages type as a literal union
-  matches code-for-code.
-- **Every field here is optional, including the ones the spec marks required**
-  (`Extension.url`, `Observation.status`, `Narrative.div`, ...) — fhirpath-ts's
-  types describe *shapes to navigate*, not valid-resource constraints (that's the
-  analyzer's job, see below), whereas Medplum's types track required cardinality
-  exactly. The asymmetry is harmless in the direction that matters: a
-  `@medplum/fhirtypes` resource satisfies fhirpath-ts's default inferred input
-  type as-is, no cast required. It shows up only if you compare the two field
-  types for *equality* — `Observation['status']` includes `undefined` here and
-  does not there.
-- **To carry Medplum's own types through evaluation, override the inferred ones.**
-  `compile()`/`fhirpath()`/`CompiledExpression` take optional
-  `TInput`/`TResult` type parameters (defaulting to the built-in inference) that
-  let you target `@medplum/fhirtypes` — or any other FHIR type package — directly:
+A Medplum resource can be passed straight in, with no cast:
 
-  ```ts
-  import type { Patient, HumanName } from '@medplum/fhirtypes'
+```ts
+r4.evaluate('Patient.gender', medplumPatient) // works as-is
+```
 
-  const given = compile<'Patient.name', Patient, HumanName[]>('Patient.name')
-  given.evaluate(medplumPatient, { model: r4Model }) // input and result are Medplum's own types
-  ```
+Fields with a `required` binding to a closed code set are typed as the codes
+themselves instead of `string`, taken from the R4 ValueSet and CodeSystem data
+at generation time:
+
+```ts
+patient.gender // 'male' | 'female' | 'other' | 'unknown'
+```
+
+R4 nests narrower codes under broader ones, such as `maiden` under `old` and
+`active` under `accepted`. A binding accepts the whole tree, so the nested codes
+are included too. Every field that both packages type as a set of codes agrees
+code for code, all 429 of them. Bindings to open-ended code systems like MIME
+types, and to very large lists like `ResourceType`, stay `string`.
+
+Every field here is optional, including ones the spec marks required, such as
+`Observation.status` and `Extension.url`. These types describe shapes to
+navigate; checking whether a resource is valid is the analyzer's job. So the two
+packages' field types are close without being identical: `Observation['status']`
+includes `undefined` here and does not in Medplum's types.
+
+To use Medplum's types for both the input and the result, pass them to
+`compile()` or `fhirpath()`:
+
+```ts
+import type { HumanName, Patient } from '@medplum/fhirtypes'
+
+const given = compile<'Patient.name', Patient, HumanName[]>('Patient.name')
+given.evaluate(medplumPatient, { model: r4Model }) // HumanName[]
+```
 
 ## Conformance
 
