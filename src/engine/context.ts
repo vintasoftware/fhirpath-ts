@@ -96,6 +96,20 @@ export const BUILTIN_ENV_VARIABLE_NAMES: ReadonlySet<string> = new Set([
   'rootResource',
 ])
 
+/**
+ * Env records accept variable names with or without the leading `%`
+ * (`{ '%loinc': … }` or `{ loinc: … }`). Normalize to bare names — the form the
+ * context binds — so code that merges or overrides env records treats both
+ * spellings as one namespace. Later entries win on the same bare name.
+ */
+export function normalizeEnvKeys(env: Record<string, unknown> | undefined): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {}
+  for (const [name, value] of Object.entries(env ?? {})) {
+    normalized[name.startsWith('%') ? name.slice(1) : name] = value
+  }
+  return normalized
+}
+
 export function createContext(options: {
   root: TypedValue[]
   env?: Record<string, unknown> | undefined
@@ -113,8 +127,8 @@ export function createContext(options: {
   // FHIR-defined variables; contained-resource re-rooting is a later refinement.
   env.set('resource', options.root)
   env.set('rootResource', options.root)
-  for (const [name, value] of Object.entries(options.env ?? {})) {
-    env.set(name.startsWith('%') ? name.slice(1) : name, toCollection(value))
+  for (const [name, value] of Object.entries(normalizeEnvKeys(options.env))) {
+    env.set(name, toCollection(value))
   }
   const hostFunctions = new Map<string, HostFunction>()
   for (const [name, fn] of Object.entries(options.functions ?? {})) {

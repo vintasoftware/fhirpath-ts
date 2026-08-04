@@ -1,3 +1,4 @@
+import { normalizeEnvKeys } from '../engine/context.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
 import { booleanSingleton } from '../values/collection.ts'
@@ -11,7 +12,7 @@ import {
   type EvaluateOptions,
 } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
-import { type Projection, type ProjectionColumns, projectOne } from './project.ts'
+import { type Projection, type ProjectionColumns, projectRows } from './project.ts'
 
 /**
  * What engine methods accept as input: one resource, an array of resources, or a
@@ -154,7 +155,8 @@ export class FhirPathEngine {
    * An array or Bundle input produces one row per resource, and every column
    * evaluates with `%index`/`%total` set to the row's position (`0`/`1` for a
    * single resource) — e.g. `(id | %index.toString()).first()` for a key that
-   * falls back to the row number.
+   * falls back to the row number. Columns compile up front, so a malformed
+   * column expression throws even when the input yields no rows.
    */
   project<const Columns extends ProjectionColumns>(
     input: readonly unknown[] | BundleLike,
@@ -167,14 +169,8 @@ export class FhirPathEngine {
     options?: EvaluateOptions
   ): Projection<Columns>
   project(input: unknown, columns: ProjectionColumns, options?: EvaluateOptions): unknown {
-    const merged = this.merged(options)
-    if (Array.isArray(input) || isBundle(input)) {
-      const subjects = toSubjects(input)
-      return subjects.map((subject, index) =>
-        projectOne(subject.value, columns, merged, this.compileCached, { index, total: subjects.length })
-      )
-    }
-    return projectOne(input, columns, merged, this.compileCached)
+    const rows = projectRows(input, columns, this.merged(options), this.compileCached)
+    return Array.isArray(input) || isBundle(input) ? rows : rows[0]
   }
 
   /**
@@ -196,10 +192,12 @@ export class FhirPathEngine {
   /**
    * Per-call options override the bound defaults field by field, except `env`,
    * which merges per variable: per-call variables add to the bound ones and win
-   * on the same name. Passing `env: { reports }` to an engine bound with lookup
-   * tables must not silently unbind the tables for that call. (To blank a bound
-   * variable for one call, pass it as `undefined` — it resolves to empty.)
-   * `functions` merges the same way, per function name, for the same reason.
+   * on the same name — in either spelling, since env keys are normalized
+   * (`threshold` and `%threshold` are the same variable). Passing
+   * `env: { reports }` to an engine bound with lookup tables must not silently
+   * unbind the tables for that call. (To blank a bound variable for one call,
+   * pass it as `undefined` — it resolves to empty.) `functions` merges the same
+   * way, per function name, for the same reason.
    */
   private merged(options?: EvaluateOptions): EvaluateOptions {
     if (!options) {
@@ -207,7 +205,7 @@ export class FhirPathEngine {
     }
     const merged = { ...this.defaults, ...options }
     if (this.defaults.env && options.env) {
-      merged.env = { ...this.defaults.env, ...options.env }
+      merged.env = { ...normalizeEnvKeys(this.defaults.env), ...normalizeEnvKeys(options.env) }
     }
     if (this.defaults.functions && options.functions) {
       merged.functions = { ...this.defaults.functions, ...options.functions }

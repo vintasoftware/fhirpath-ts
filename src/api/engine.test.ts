@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { FhirPathRuntimeError } from '../errors.ts'
+import { FhirPathRuntimeError, FhirPathSyntaxError } from '../errors.ts'
 import type { Bundle, Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
@@ -61,6 +61,10 @@ describe('FhirPathEngine.evaluate', () => {
     expect(engine.evaluate('%threshold + %bonus', undefined, { env: { bonus: 2 } })).toEqual([7])
     // …the per-call value wins on the same name…
     expect(engine.evaluate('%threshold', undefined, { env: { threshold: 9, bonus: 2 } })).toEqual([9])
+    // …in either spelling — `%name` and `name` are one variable, so a bound
+    // `'%threshold'` key cannot shadow the per-call override via insertion order…
+    const spelled = new FhirPathEngine({ model: r4Model, env: { threshold: 5, '%threshold': 6 } })
+    expect(spelled.evaluate('%threshold', undefined, { env: { threshold: 9 } })).toEqual([9])
     // …a call can blank a bound variable by passing undefined…
     expect(engine.evaluate('%threshold.empty()', undefined, { env: { threshold: undefined } })).toEqual([true])
     // …and the bound defaults are untouched afterwards.
@@ -290,8 +294,19 @@ describe('FhirPathEngine.project', () => {
       { key: '1', pos: 1, of: 2 },
     ])
 
+    // Both spellings at once cannot spoof either: '%index' normalizes onto the
+    // same key as the row's `index` instead of outliving it in insertion order.
+    expect(r4.project([patient, anonymous], { pos: '%index' }, { env: { index: 99, '%index': 98 } })).toEqual([
+      { pos: 0 },
+      { pos: 1 },
+    ])
+
     // A single resource is row 0 of 1, so the same columns work unchanged.
     expect(r4.project(patient, { pos: '%index', of: '%total' })).toEqual({ pos: 0, of: 1 })
+  })
+
+  it('compiles every column before rows run, so a malformed column throws even with no rows', () => {
+    expect(() => r4.project([], { bad: 'name..family' })).toThrow(FhirPathSyntaxError)
   })
 
   it("as: 'Date' coerces date-valued columns to JS Dates", () => {
