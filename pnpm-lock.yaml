@@ -12,7 +12,10 @@ importers:
         specifier: ^9.39.2
         version: 9.39.4
       '@medplum/definitions':
-        specifier: ^5.1.6
+        specifier: 5.1.24
+        version: 5.1.24
+      '@medplum/fhirtypes':
+        specifier: 5.1.24
         version: 5.1.24
       '@types/estree':
         specifier: ^1.0.9
@@ -177,6 +180,10 @@ packages:
 
   '@medplum/definitions@5.1.24':
     resolution: {integrity: sha512-ywmT0d8OpYy1JLeD1eQ49bA9hj/+3MufOqr1AIxZGWuLOejRod2M/7yVhI3Y93J96bG8PU34oNTTo8hBDf7TEg==}
+    engines: {node: ^22.18.0 || >=24.2.0}
+
+  '@medplum/fhirtypes@5.1.24':
+    resolution: {integrity: sha512-22TsFeSJOzchtAZdqfKBV12hvgari477BnHI6Lx9ZrX3kgnCjH79MKrfS5B8SchEKDQ8iVjow1Px9RZihKX5AQ==}
     engines: {node: ^22.18.0 || >=24.2.0}
 
   '@napi-rs/wasm-runtime@1.1.6':
@@ -1396,6 +1403,8 @@ snapshots:
   '@loxjs/url-join@1.0.2': {}
 
   '@medplum/definitions@5.1.24': {}
+
+  '@medplum/fhirtypes@5.1.24': {}
 
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:

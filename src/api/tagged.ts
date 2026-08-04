@@ -1,16 +1,23 @@
 import { FhirPathError } from '../errors.ts'
+import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
 import { CompiledExpression } from './compile.ts'
 
 /**
  * Expression entry point, usable two ways:
  * - `fhirpath('Patient.name.given')` — the call form infers the result type
- *   (string[] here) for the supported subset; see src/typed/infer.ts.
+ *   (string[] here) for the supported subset; see src/typed/infer.ts. `TInput`/
+ *   `TResult` can be overridden the same way as `compile()`, e.g. to target
+ *   `@medplum/fhirtypes` types instead of the built-in inference.
  * - `` fhirpath`Patient.name.given` `` — the tag form; TypeScript does not carry
  *   literal types through tagged templates (TS#33304), so results are unknown[].
  * Interpolation is rejected on purpose — expressions must be static so they can be
  * statically checked (and to keep user data out of expression text).
  */
-export function fhirpath<const Expr extends string>(expression: Expr): CompiledExpression<Expr>
+export function fhirpath<
+  const Expr extends string,
+  TInput = FhirpathInput<Expr>,
+  TResult extends unknown[] = FhirpathResult<Expr>,
+>(expression: Expr): CompiledExpression<Expr, TInput, TResult>
 export function fhirpath(strings: TemplateStringsArray, ...substitutions: never[]): CompiledExpression
 export function fhirpath(input: string | TemplateStringsArray, ...substitutions: never[]): CompiledExpression {
   if (typeof input === 'string') {

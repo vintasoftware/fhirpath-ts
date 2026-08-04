@@ -264,6 +264,47 @@ const fp = new FhirPathEngine({ model: r4Model }) // once, at startup
 fp.test(patient, criteria, { env: { requestor }, now: receivedAt }) // per request
 ```
 
+### Medplum compatibility
+
+`fhirpath-ts/r4` and `@medplum/fhirtypes` are generated from the same HL7 R4
+StructureDefinitions, so their types line up closely.
+
+A Medplum resource can be passed straight in, with no cast:
+
+```ts
+r4.evaluate('Patient.gender', medplumPatient) // works as-is
+```
+
+Fields with a `required` binding to a closed code set are typed as the codes
+themselves instead of `string`, taken from the R4 ValueSet and CodeSystem data
+at generation time:
+
+```ts
+patient.gender // 'male' | 'female' | 'other' | 'unknown'
+```
+
+R4 nests narrower codes under broader ones, such as `maiden` under `old` and
+`active` under `accepted`. A binding accepts the whole tree, so the nested codes
+are included too. Every field that both packages type as a set of codes agrees
+code for code, all 429 of them. Bindings to open-ended code systems like MIME
+types, and to very large lists like `ResourceType`, stay `string`.
+
+Every field here is optional, including ones the spec marks required, such as
+`Observation.status` and `Extension.url`. These types describe shapes to
+navigate; checking whether a resource is valid is the analyzer's job. So the two
+packages' field types are close without being identical: `Observation['status']`
+includes `undefined` here and does not in Medplum's types.
+
+To use Medplum's types for both the input and the result, pass them to
+`compile()` or `fhirpath()`:
+
+```ts
+import type { HumanName, Patient } from '@medplum/fhirtypes'
+
+const given = compile<'Patient.name', Patient, HumanName[]>('Patient.name')
+given.evaluate(medplumPatient, { model: r4Model }) // HumanName[]
+```
+
 ## Conformance
 
 The official test suites from
