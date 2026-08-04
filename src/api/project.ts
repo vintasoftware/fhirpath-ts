@@ -4,7 +4,7 @@ import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathResult } from '../typed/infer.ts'
 import { booleanSingleton } from '../values/collection.ts'
 import { toSubjects } from './bundle.ts'
-import type { Compiler, EvaluateOptions } from './compile.ts'
+import { type Compiler, type EvaluateOptions, resolveVars } from './compile.ts'
 
 /**
  * One column of a `project()` call. The plain-string form is an expression whose
@@ -21,16 +21,29 @@ import type { Compiler, EvaluateOptions } from './compile.ts'
  *   `toX()` conversion-function contract.
  * - `{ path, as: fn }` maps each value through `fn`; the column's type is the
  *   function's return type. The escape hatch for display-ready shaping — prefer
- *   `type`/`'Date'`/`default` where they fit, so columns stay declarative.
+ *   `type`/`'Date'`/`default`/`map` where they fit, so columns stay declarative.
+ * - `{ path, map }` looks each value up by string key: a hit becomes the
+ *   mapped value, a miss becomes empty — so `default` doubles as the fallback
+ *   for unexpected codes. The declarative form of `as: v => map[v]`, typed
+ *   from the map's values: decode a status code into a display label or tone
+ *   without an env-table join. Only own keys match (no prototype hits), and
+ *   non-primitive values never match. A column declares `as` or `map`, not both.
+ * - `{ path, map, pick }` — `map` also accepts a display table, an array of
+ *   rows keyed by their `code` field. The column yields the matching row's
+ *   `pick` field (`{ map: STATUS_META, pick: 'tone' }`), typed from the row;
+ *   omit `pick` to yield the whole row. The first row wins on a duplicate
+ *   code, mirroring the `where(code = …).first()` idiom this replaces. `pick`
+ *   is only meaningful with the table form.
  * - `{ path, default }` fills an *empty* result with a plain JS value, after
- *   any `as` coercion — and, unlike an in-expression `| 'fallback'` union, it
- *   also removes `undefined` from the column's type. FHIRPath has no `null`,
+ *   any `as`/`map` coercion — and, unlike an in-expression `| 'fallback'` union,
+ *   it also removes `undefined` from the column's type. FHIRPath has no `null`,
  *   so this is also the way a column yields one.
  * - `{ test }` evaluates the expression as a boolean criteria, with the same
  *   spec §4.5 semantics as `FhirPathEngine.test()`: empty → false, a single
  *   boolean → itself. The column is always a `boolean`.
  *
- * `as` decides the column's JS type, so a `type` given alongside it is ignored.
+ * `as` or `map` decides the column's JS type, so a `type` given alongside
+ * either is ignored.
  */
 export type ProjectionColumn =
   | string
@@ -39,6 +52,8 @@ export type ProjectionColumn =
       collection?: boolean
       type?: keyof R4TypeOf
       as?: 'Date' | ((value: unknown) => unknown)
+      map?: Readonly<Record<string, unknown>> | readonly { code: string }[]
+      pick?: string
       default?: unknown
     }
   | { test: string }
@@ -51,14 +66,20 @@ type ColumnPath<Column extends ProjectionColumn> = Column extends string
     ? Path
     : never
 
-/** `as` wins (function return type, or Date), then a declared `type`; otherwise inference. */
+/** `as` wins (function return type, or Date), then `map` (row/`pick` field for tables, value types for Records), then a declared `type`; otherwise inference. */
 type ColumnValues<Column extends ProjectionColumn> = Column extends { as: (value: never) => infer R }
   ? R[]
   : Column extends { as: 'Date' }
     ? Date[]
-    : Column extends { type: infer T extends keyof R4TypeOf }
-      ? R4TypeOf[T][]
-      : FhirpathResult<ColumnPath<Column>>
+    : Column extends { map: readonly (infer Row extends { code: string })[] }
+      ? Column extends { pick: infer Key extends keyof Row }
+        ? Row[Key][]
+        : Row[]
+      : Column extends { map: infer M extends Readonly<Record<string, unknown>> }
+        ? M[keyof M][]
+        : Column extends { type: infer T extends keyof R4TypeOf }
+          ? R4TypeOf[T][]
+          : FhirpathResult<ColumnPath<Column>>
 
 /** A `default` replaces the empty case, so it substitutes for `undefined` in the type. */
 type ColumnResult<Column extends ProjectionColumn> = Column extends { test: string }
@@ -85,12 +106,62 @@ function toJsDates(values: unknown[]): Date[] {
   })
 }
 
-/** Resolve a column's `as` option into its values mapping. */
-function coercion(as: 'Date' | ((value: unknown) => unknown) | undefined): (values: unknown[]) => unknown[] {
-  if (as === 'Date') {
+/** The string key a `map` looks up: primitives via String(), anything else never matches. */
+function mapKey(value: unknown): string | undefined {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+    ? String(value)
+    : undefined
+}
+
+/** The `map` lookup over a plain Record: own keys only; a miss becomes empty. */
+function recordLookup(map: Readonly<Record<string, unknown>>): (values: unknown[]) => unknown[] {
+  return values =>
+    values.flatMap(value => {
+      const key = mapKey(value)
+      return key !== undefined && Object.hasOwn(map, key) ? [map[key]] : []
+    })
+}
+
+/**
+ * The `map` lookup over a display table: rows keyed by `code` (first row wins,
+ * like the `where(code = …).first()` idiom this replaces), yielding the `pick`
+ * field or the whole row. A miss — no row, or a row without the field — becomes empty.
+ */
+function tableLookup(rows: readonly { code: string }[], pick: string | undefined): (values: unknown[]) => unknown[] {
+  const byCode = new Map<string, { code: string }>()
+  for (const row of rows) {
+    if (!byCode.has(row.code)) {
+      byCode.set(row.code, row)
+    }
+  }
+  return values =>
+    values.flatMap(value => {
+      const key = mapKey(value)
+      const row = key === undefined ? undefined : byCode.get(key)
+      if (row === undefined) {
+        return []
+      }
+      if (pick === undefined) {
+        return [row]
+      }
+      const field = (row as Record<string, unknown>)[pick]
+      return field === undefined ? [] : [field]
+    })
+}
+
+/** Resolve a column's `as`/`map` option into its values mapping. */
+function coercion(spec: Extract<ProjectionColumn, { path: string }>): (values: unknown[]) => unknown[] {
+  if (Array.isArray(spec.map)) {
+    return tableLookup(spec.map as readonly { code: string }[], spec.pick)
+  }
+  if (spec.map !== undefined) {
+    return recordLookup(spec.map as Readonly<Record<string, unknown>>)
+  }
+  if (spec.as === 'Date') {
     return toJsDates
   }
-  if (typeof as === 'function') {
+  if (typeof spec.as === 'function') {
+    const as = spec.as
     return values => values.map(as)
   }
   return values => values
@@ -106,8 +177,16 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
     return (input, options) => booleanSingleton(criteria.evaluateTyped(input, options)) ?? false
   }
   const spec: Extract<ProjectionColumn, { path: string }> = typeof column === 'string' ? { path: column } : column
+  if (spec.as !== undefined && spec.map !== undefined) {
+    throw new FhirPathRuntimeError(`project(): column '${name}' declares both 'as' and 'map'; use one`)
+  }
+  if (spec.pick !== undefined && !Array.isArray(spec.map)) {
+    throw new FhirPathRuntimeError(
+      `project(): column '${name}' has 'pick' without a table 'map' (an array of { code, … } rows)`
+    )
+  }
   const expression = compile(spec.path)
-  const applyAs = coercion(spec.as)
+  const applyAs = coercion(spec)
   const empty = 'default' in spec ? spec.default : undefined
   return (input, options) => {
     const values = expression.evaluate(input, options)
@@ -115,7 +194,7 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
       return applyAs(values)
     }
     // The scalar-column rule counts the expression's values, before any `as`
-    // coercion drops unparseable ones.
+    // coercion or `map` miss drops them.
     if (values.length > 1) {
       throw new FhirPathRuntimeError(
         `project(): column '${name}' yielded ${values.length} values; append first() or set collection: true`
@@ -132,7 +211,9 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
  * pre-merged with the engine defaults. Every column evaluates with `%rowIndex` and
  * `%rowTotal` set to the row's position — the caller's `env` is normalized first,
  * so the row numbering wins over a same-named key in either spelling
- * (`rowIndex` or `%rowIndex`).
+ * (`rowIndex` or `%rowIndex`). `vars` resolve once per row, with the row as
+ * focus and the row numbering in scope, and every column reads the same typed
+ * bindings.
  */
 export function projectRows(
   input: unknown,
@@ -141,11 +222,23 @@ export function projectRows(
   compile: Compiler
 ): Record<string, unknown>[] {
   const readers = Object.entries(columns).map(([name, column]) => [name, planColumn(name, column, compile)] as const)
+  const vars =
+    options.vars === undefined
+      ? undefined
+      : Object.fromEntries(
+          Object.entries(options.vars).map(([name, value]) => [
+            name,
+            typeof value === 'string' ? compile(value) : value,
+          ])
+        )
   const subjects = toSubjects(input)
   return subjects.map((subject, index) => {
     const rowOptions: EvaluateOptions = {
       ...options,
       env: { ...normalizeEnvKeys(options.env), rowIndex: index, rowTotal: subjects.length },
+    }
+    if (vars !== undefined) {
+      rowOptions.vars = Object.fromEntries(resolveVars(vars, subject.value, rowOptions))
     }
     const row: Record<string, unknown> = {}
     for (const [name, read] of readers) {

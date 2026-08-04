@@ -371,6 +371,179 @@ describe('FhirPathEngine.project', () => {
     expectTypeOf(row.nickname).toEqualTypeOf<string>()
     expect(row).toEqual({ shout: 'CHALMERS', initials: ['P', 'J', 'J'], nickname: '—' })
   })
+
+  it('map decodes a value by string key, with default as the fallback for misses', () => {
+    type Tone = 'success' | 'neutral'
+    const tones: Record<string, Tone> = { final: 'success', amended: 'neutral' }
+    const row = r4.project(observation, {
+      tone: { path: 'Observation.status', map: tones, default: 'neutral' as Tone },
+      // A miss becomes empty, so default fills it — the retry-with-fallback idiom.
+      label: { path: 'Observation.status', map: { registered: 'Ordered' }, default: 'Result' },
+      // Literal maps infer the union of their value types.
+      flagged: { path: 'Observation.status', map: { final: false, preliminary: true } },
+    })
+    expectTypeOf(row.tone).toEqualTypeOf<Tone>()
+    expectTypeOf(row.flagged).toEqualTypeOf<boolean | undefined>()
+    expect(row).toEqual({ tone: 'success', label: 'Result', flagged: false })
+  })
+
+  it('map matches own keys only and non-primitive values never match', () => {
+    const row = r4.project(observation, {
+      // 'toString' exists on Object.prototype; hasOwn keeps it a miss.
+      proto: { path: "'toString'", map: { final: 'x' }, default: 'missed' },
+      // Non-string primitives key via String(); complex values never match.
+      numeric: { path: 'Observation.value.ofType(Quantity).value', map: { '72.5': 'ok' } },
+      complex: { path: 'Observation.code', map: { '[object Object]': 'never' }, default: 'missed' },
+      // In a collection column, misses drop instead of erroring.
+      some: { path: "('final' | 'nope')", collection: true, map: { final: 'kept' } },
+    })
+    expect(row).toEqual({ proto: 'missed', numeric: 'ok', complex: 'missed', some: ['kept'] })
+  })
+
+  it('a column declares as or map, not both — rejected at plan time', () => {
+    expect(() => r4.project([], { bad: { path: 'Patient.gender', as: String, map: { male: 'M' } } })).toThrow(
+      "column 'bad' declares both 'as' and 'map'"
+    )
+  })
+
+  it('map accepts a display table: rows keyed by code, pick naming the field', () => {
+    type Tone = 'success' | 'info' | 'neutral'
+    const statusMeta: { code: string; label: string; tone: Tone }[] = [
+      { code: 'final', label: 'Final', tone: 'success' },
+      { code: 'registered', label: 'Ordered', tone: 'info' },
+      // A duplicate code never shadows an earlier row — first wins, like where().first().
+      { code: 'final', label: 'Shadowed', tone: 'neutral' },
+    ]
+    const row = r4.project(observation, {
+      label: { path: 'Observation.status', map: statusMeta, pick: 'label', default: 'Result' },
+      tone: { path: 'Observation.status', map: statusMeta, pick: 'tone', default: 'neutral' as Tone },
+      // No pick: the whole matching row.
+      meta: { path: 'Observation.status', map: statusMeta },
+      // A miss (no row, or a row without the field) falls back to default.
+      missing: { path: "'cancelled'", map: statusMeta, pick: 'label', default: 'Result' },
+      absent: { path: 'Observation.status', map: statusMeta, pick: 'nope', default: 'none' },
+    })
+    expectTypeOf(row.label).toEqualTypeOf<string>()
+    expectTypeOf(row.tone).toEqualTypeOf<Tone>()
+    expectTypeOf(row.meta).toEqualTypeOf<{ code: string; label: string; tone: Tone } | undefined>()
+    expect(row).toEqual({
+      label: 'Final',
+      tone: 'success',
+      meta: { code: 'final', label: 'Final', tone: 'success' },
+      missing: 'Result',
+      absent: 'none',
+    })
+  })
+
+  it('pick requires the table form of map — rejected at plan time', () => {
+    expect(() => r4.project([], { bad: { path: 'Patient.gender', map: { male: 'M' }, pick: 'label' } })).toThrow(
+      "column 'bad' has 'pick' without a table 'map'"
+    )
+    expect(() => r4.project([], { bad: { path: 'Patient.gender', pick: 'label' } })).toThrow(
+      "column 'bad' has 'pick' without a table 'map'"
+    )
+  })
+})
+
+describe('vars: per-call FHIRPath bindings', () => {
+  const weighed: Observation = {
+    resourceType: 'Observation',
+    status: 'final',
+    code: { text: 'Weight' },
+    valueQuantity: { value: 72.5, unit: 'kg', code: 'kg' },
+    effectiveDateTime: '2026-01-05T08:30:00Z',
+  }
+
+  it('binds expressions evaluated against the input, before the main expression', () => {
+    expect(r4.evaluate('%w', weighed, { vars: { w: 'Observation.value.ofType(Quantity).value' } })).toEqual([72.5])
+    // Both spellings name the same variable, like env keys.
+    expect(r4.evaluate('%w', weighed, { vars: { '%w': 'Observation.status' } })).toEqual(['final'])
+  })
+
+  it('keeps bindings typed: a Quantity var compares by unit where env data cannot', () => {
+    const asVar = r4.evaluate("%w > 70000 'g'", weighed, { vars: { w: 'Observation.value.ofType(Quantity)' } })
+    expect(asVar).toEqual([true])
+    // The same value through env arrives as an untyped object and cannot compare.
+    expect(() => r4.evaluate("%w > 70000 'g'", weighed, { env: { w: { value: 72.5, unit: 'kg' } } })).toThrow()
+  })
+
+  it('binds in declaration order, so later vars reference earlier ones', () => {
+    expect(r4.evaluate('%b', patient, { vars: { a: 'Patient.id', b: "%a & '!'" } })).toEqual(['example!'])
+  })
+
+  it('vars see env; a var may not override an environment variable', () => {
+    expect(r4.evaluate('%tagged', patient, { env: { tag: 'v1' }, vars: { tagged: "id & '-' & %tag" } })).toEqual([
+      'example-v1',
+    ])
+    expect(() => r4.evaluate('%tag', patient, { env: { tag: 'v1' }, vars: { tag: 'id' } })).toThrow(
+      'Cannot override the environment variable %tag with a var'
+    )
+    expect(() => r4.evaluate('%loinc', patient, { vars: { loinc: "'nope'" } })).toThrow(
+      'Cannot override the environment variable %loinc with a var'
+    )
+  })
+
+  it('defineVariable() cannot rebind a var, matching its own scope rule', () => {
+    expect(() => r4.evaluate("defineVariable('w', 1).select(%w)", weighed, { vars: { w: 'status' } })).toThrow(
+      'Variable %w is already defined in this scope'
+    )
+  })
+
+  it('merges engine-bound vars with per-call vars per name', () => {
+    const engine = new FhirPathEngine({ model: r4Model, vars: { kind: 'code.text', status: 'status' } })
+    expect(engine.evaluate('%kind & %status', weighed, { vars: { status: "'overridden'" } })).toEqual([
+      'Weightoverridden',
+    ])
+  })
+
+  it('a pre-computed TypedValue[] binds directly, without evaluation', () => {
+    const typed = r4.evaluateTyped('Observation.effective.ofType(dateTime)', weighed)
+    expect(r4.evaluate('%at < now()', weighed, { vars: { at: typed } })).toEqual([true])
+  })
+
+  it('test() and filter() accept vars too', () => {
+    expect(r4.test(weighed, "%w > 70 'kg'", { vars: { w: 'value.ofType(Quantity)' } })).toBe(true)
+    // Only `weighed` carries a UCUM code; the criteria's var comes up empty for the other.
+    expect(
+      r4.filter([weighed, observation], "%unit = 'kg'", { vars: { unit: 'value.ofType(Quantity).code' } })
+    ).toEqual([weighed])
+  })
+
+  it('project() resolves vars once per row, with the row as focus and %rowIndex in scope', () => {
+    const rows = r4.project(
+      [patient, otherPatient],
+      {
+        who: { path: '%label', type: 'string' },
+        birthYear: { path: '%born.toString().substring(0, 4)', type: 'string' },
+      },
+      { vars: { label: "id & '@' & %rowIndex.toString()", born: 'Patient.birthDate' } }
+    )
+    expect(rows).toEqual([
+      { who: 'example@0', birthYear: '1974' },
+      { who: 'other@1', birthYear: '1994' },
+    ])
+  })
+
+  it('project() vars express a correlated left join: unmatched rows survive with defaults', () => {
+    const orders = [
+      { resourceType: 'ServiceRequest', id: 'sr1', status: 'active', intent: 'order' },
+      { resourceType: 'ServiceRequest', id: 'sr2', status: 'active', intent: 'order' },
+    ]
+    const reports = [{ orderId: 'sr1', report: { resourceType: 'DiagnosticReport', id: 'dr1', status: 'final' } }]
+    const rows = r4.project(
+      orders,
+      {
+        id: { path: 'ServiceRequest.id', type: 'string' },
+        reportStatus: { path: '%report.status', type: 'string', default: 'waiting' },
+        reportId: { path: '%report.id', type: 'string', default: null },
+      },
+      { env: { reports }, vars: { report: '%reports.where(orderId = %context.id).report' } }
+    )
+    expect(rows).toEqual([
+      { id: 'sr1', reportStatus: 'final', reportId: 'dr1' },
+      { id: 'sr2', reportStatus: 'waiting', reportId: null },
+    ])
+  })
 })
 
 describe('evaluate/first result type declaration', () => {

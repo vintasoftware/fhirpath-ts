@@ -21,7 +21,13 @@ import {
   type TypedValue,
   unwrap,
 } from '../values/typed-value.ts'
-import { type EvaluationContext, forkVariables, type HostFunction, resolveEnvironmentVariable } from './context.ts'
+import {
+  type EvaluationContext,
+  forkVariables,
+  type HostFunction,
+  resolveEnvironmentVariable,
+  withFrame,
+} from './context.ts'
 import { navigateIdentifier } from './navigation.ts'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
 
@@ -34,9 +40,14 @@ function evaluateArgument(node: AstNode, context: EvaluationContext, _input: Typ
 }
 
 /**
- * Call a host-supplied function (EvaluateOptions.functions): arity-check, then
- * eagerly evaluate every argument and unwrap both input and arguments to plain
- * JS values — the host boundary — and convert the plain result back.
+ * Call a host-supplied function (EvaluateOptions.functions). An
+ * expression-defined function evaluates its body as if spliced at the call
+ * site: the call's input is the focus (and `$this`), while `%context` and the
+ * other environment variables stay the caller's; the body runs typed
+ * end-to-end, so dates, Decimals, and Quantities keep their types. A native
+ * function arity-checks, then eagerly evaluates every argument and unwraps
+ * both input and arguments to plain JS values — the host boundary — and
+ * converts the plain result back.
  */
 function evaluateHostFunction(
   name: string,
@@ -45,6 +56,24 @@ function evaluateHostFunction(
   context: EvaluationContext,
   input: TypedValue[]
 ): TypedValue[] {
+  if ('ast' in host) {
+    if (args.length > 0) {
+      throw new FhirPathTypeError(`Function '${name}' expects ${describeArity(0, 0)}, got ${args.length} arguments`)
+    }
+    if (context.activeExpressionFunctions.has(name)) {
+      throw new FhirPathRuntimeError(
+        `Expression-defined function '${name}' calls itself, directly or through another function`
+      )
+    }
+    context.activeExpressionFunctions.add(name)
+    try {
+      // withFrame rebinds $this to the input and forks variables, so the
+      // body's defineVariable() bindings stay local to the body.
+      return withFrame(context, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))
+    } finally {
+      context.activeExpressionFunctions.delete(name)
+    }
+  }
   const minArity = host.minArity ?? 0
   const maxArity = host.maxArity ?? Number.POSITIVE_INFINITY
   if (args.length < minArity || args.length > maxArity) {

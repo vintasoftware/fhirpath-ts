@@ -74,8 +74,8 @@ export class FhirPathEngine {
   private readonly compileCached: Compiler
 
   constructor({ cacheSize, ...defaults }: EngineOptions = {}) {
-    this.defaults = defaults
     this.compileCached = createCachedCompiler(cacheSize)
+    this.defaults = this.precompiled(defaults)
   }
 
   /** Compile (LRU-cached by expression text) and evaluate in one call; typed like `compile().evaluate()`. */
@@ -196,21 +196,56 @@ export class FhirPathEngine {
    * (`threshold` and `%threshold` are the same variable). Passing
    * `env: { reports }` to an engine bound with lookup tables must not silently
    * unbind the tables for that call. (To blank a bound variable for one call,
-   * pass it as `undefined` — it resolves to empty.) `functions` merges the same
-   * way, per function name, for the same reason.
+   * pass it as `undefined` — it resolves to empty.) `vars` and `functions`
+   * merge the same way, per name, for the same reason.
    */
   private merged(options?: EvaluateOptions): EvaluateOptions {
     if (!options) {
       return this.defaults
     }
-    const merged = { ...this.defaults, ...options }
-    if (this.defaults.env && options.env) {
-      merged.env = { ...normalizeEnvKeys(this.defaults.env), ...normalizeEnvKeys(options.env) }
+    const precompiled = this.precompiled(options)
+    const merged = { ...this.defaults, ...precompiled }
+    if (this.defaults.env && precompiled.env) {
+      merged.env = { ...normalizeEnvKeys(this.defaults.env), ...normalizeEnvKeys(precompiled.env) }
     }
-    if (this.defaults.functions && options.functions) {
-      merged.functions = { ...this.defaults.functions, ...options.functions }
+    if (this.defaults.vars && precompiled.vars) {
+      merged.vars = {
+        ...normalizeEnvKeys(this.defaults.vars),
+        ...normalizeEnvKeys(precompiled.vars),
+      } as NonNullable<EvaluateOptions['vars']>
+    }
+    if (this.defaults.functions && precompiled.functions) {
+      merged.functions = { ...this.defaults.functions, ...precompiled.functions }
     }
     return merged
+  }
+
+  /**
+   * `vars` expressions and expression-function bodies given as strings parse
+   * through this engine's LRU here, once per call at most — so per-row
+   * evaluation inside project() never re-parses them.
+   */
+  private precompiled(options: EvaluateOptions): EvaluateOptions {
+    const out = { ...options }
+    if (options.vars) {
+      out.vars = Object.fromEntries(
+        Object.entries(options.vars).map(([name, value]) => [
+          name,
+          typeof value === 'string' ? this.compileCached(value) : value,
+        ])
+      )
+    }
+    if (options.functions) {
+      out.functions = Object.fromEntries(
+        Object.entries(options.functions).map(([name, fn]) => [
+          name,
+          'expression' in fn && typeof fn.expression === 'string'
+            ? { ...fn, expression: this.compileCached(fn.expression) }
+            : fn,
+        ])
+      )
+    }
+    return out
   }
 }
 

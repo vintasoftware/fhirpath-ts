@@ -50,11 +50,15 @@ export interface DeclaredVariable {
  * A host-supplied function declared to the analyzer (HAPI's resolveFunction +
  * checkFunction): the name and arities resolve calls, and the optional
  * signature type-checks them. A CustomFunction (EvaluateOptions.functions)
- * satisfies this shape, so the same record can be passed to both.
+ * satisfies this shape, so the same record can be passed to both — an
+ * expression-defined one (an `expression` present) declares arity 0, matching
+ * how the runtime calls it.
  */
 export interface DeclaredFunction {
   minArity?: number
   maxArity?: number
+  /** The body of an expression-defined CustomFunction; its presence pins the arity to 0. */
+  expression?: unknown
   signature?: CustomFunctionSignature
 }
 
@@ -166,7 +170,14 @@ class Analyzer {
     this.model = options?.model
     const inputType = options?.inputType
     this.inputType = inputType === undefined ? undefined : (this.model?.resolveType(inputType) ?? inputType)
-    this.customFunctions = new Map(Object.entries(options?.functions ?? {}))
+    this.customFunctions = new Map(
+      Object.entries(options?.functions ?? {}).map(([name, declared]) => [
+        name,
+        declared.expression === undefined
+          ? declared
+          : { minArity: 0, maxArity: 0, ...(declared.signature !== undefined && { signature: declared.signature }) },
+      ])
+    )
     this.declaredVariables = new Map(
       Object.entries(options?.variables ?? {}).map(([name, variable]) => [
         name.startsWith('%') ? name.slice(1) : name,

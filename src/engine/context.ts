@@ -1,14 +1,15 @@
 import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
+import type { AstNode } from '../parser/ast.ts'
 import { SYSTEM_STRING, toCollection, type TypedValue } from '../values/typed-value.ts'
 
 /**
- * The runtime side of a host-supplied function: arity and implementation.
+ * The runtime side of a native host-supplied function: arity and implementation.
  * The API layer's CustomFunction (api/compile.ts) adds the optional analyzer
  * signature; this module only needs what evaluation uses.
  */
-export interface HostFunction {
+export interface HostNativeFunction {
   /** Inclusive argument count range, checked before invocation. Defaults: 0 to unlimited. */
   minArity?: number
   maxArity?: number
@@ -21,6 +22,17 @@ export interface HostFunction {
    */
   fn: (input: unknown[], ...args: unknown[][]) => unknown
 }
+
+/**
+ * The runtime side of an expression-defined function (CustomFunction's
+ * `expression` form, pre-parsed by the API layer). Zero arguments; the body
+ * evaluates as if spliced at the call site, with the call's input as focus.
+ */
+export interface HostExpressionFunction {
+  ast: AstNode
+}
+
+export type HostFunction = HostNativeFunction | HostExpressionFunction
 
 /**
  * A pluggable regular-expression engine for matches()/matchesFull()/
@@ -66,13 +78,21 @@ export interface EvaluationContext {
    */
   trace: (name: string, values: TypedValue[]) => void
   /**
-   * Variables from defineVariable(). The map is local to one expression chain:
-   * dots thread it along, while operator operands, function arguments, and
-   * iteration frames evaluate against a copy (see forkVariables).
+   * Variables from defineVariable(), seeded with the call's `vars` bindings.
+   * The map is local to one expression chain: dots thread it along, while
+   * operator operands, function arguments, and iteration frames evaluate
+   * against a copy (see forkVariables).
    */
   variables: Map<string, TypedValue[]>
   /** Host-supplied functions by name; never contains a built-in name (createContext rejects overrides). */
   functions: ReadonlyMap<string, HostFunction>
+  /**
+   * Names of expression-defined functions currently on the call stack. One
+   * shared Set per evaluation (context copies keep the reference), so a
+   * definition that reaches itself — directly or through another definition —
+   * fails as recursion instead of overflowing the stack.
+   */
+  activeExpressionFunctions: Set<string>
   /** Regex engine for the matches() family; undefined means the built-in RegExp. */
   regex: RegexEngine | undefined
   frame: Frame
@@ -113,6 +133,8 @@ export function normalizeEnvKeys(env: Record<string, unknown> | undefined): Reco
 export function createContext(options: {
   root: TypedValue[]
   env?: Record<string, unknown> | undefined
+  /** Pre-evaluated variable bindings (EvaluateOptions.vars, resolved by the API layer): typed collections, seeded into `variables`. */
+  vars?: ReadonlyMap<string, TypedValue[]> | undefined
   model?: ModelProvider | undefined
   now?: Date | undefined
   trace?: ((name: string, values: TypedValue[]) => void) | undefined
@@ -130,6 +152,14 @@ export function createContext(options: {
   for (const [name, value] of Object.entries(normalizeEnvKeys(options.env))) {
     env.set(name, toCollection(value))
   }
+  const variables = new Map<string, TypedValue[]>()
+  for (const [name, value] of options.vars ?? []) {
+    // Same rule defineVariable() enforces: bindings never shadow env.
+    if (env.has(name)) {
+      throw new FhirPathTypeError(`Cannot override the environment variable %${name} with a var`)
+    }
+    variables.set(name, value)
+  }
   const hostFunctions = new Map<string, HostFunction>()
   for (const [name, fn] of Object.entries(options.functions ?? {})) {
     // Overriding a built-in would silently change spec behavior — fail loudly.
@@ -144,8 +174,9 @@ export function createContext(options: {
     model: options.model,
     now: options.now ?? new Date(),
     trace: options.trace ?? (() => {}),
-    variables: new Map(),
+    variables,
     functions: hostFunctions,
+    activeExpressionFunctions: new Set(),
     regex: options.regex,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
