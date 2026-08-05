@@ -27,6 +27,7 @@ const project = fileURLToPath(new URL('../tsconfig.dts.json', import.meta.url))
 
 // entry file (relative to the repo root) -> emitted bundle
 const ENTRIES = [
+  ['src/index.ts', out('fhirpath-ts.index.d.ts')],
   ['src/r4/index.ts', out('fhirpath-ts.r4.d.ts')],
   ['src/analyzer/analyze.ts', out('fhirpath-ts.analyzer.d.ts')],
 ]

@@ -16,6 +16,7 @@ import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 
 import { cssVar } from '../dom.ts'
 import analyzerDts from '../monaco/fhirpath-ts.analyzer.d.ts?raw'
+import indexDts from '../monaco/fhirpath-ts.index.d.ts?raw'
 import r4Dts from '../monaco/fhirpath-ts.r4.d.ts?raw'
 
 export { monaco }
@@ -52,6 +53,7 @@ export function configureMonaco(): void {
   })
   // Placed under node_modules so `import ... from 'fhirpath-ts/r4'` resolves the
   // way it would in a real project.
+  ts.typescriptDefaults.addExtraLib(indexDts, 'file:///node_modules/fhirpath-ts/index.d.ts')
   ts.typescriptDefaults.addExtraLib(r4Dts, 'file:///node_modules/fhirpath-ts/r4/index.d.ts')
   ts.typescriptDefaults.addExtraLib(analyzerDts, 'file:///node_modules/fhirpath-ts/analyzer/index.d.ts')
   monaco.editor.defineTheme(THEME_NAME, screenTheme())
