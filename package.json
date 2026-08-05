@@ -20,6 +20,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "check:type-perf": "node scripts/check-type-perf.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",

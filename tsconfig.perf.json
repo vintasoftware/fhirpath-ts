@@ -1,0 +1,6 @@
+// Compiles only the type-level perf fixture, so scripts/check-type-perf.ts
+// can measure inference cost in isolation from the rest of the project.
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/typed/perf-fixture.types.ts"]
+}
