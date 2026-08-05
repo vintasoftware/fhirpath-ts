@@ -34,6 +34,6 @@
     "noPropertyAccessFromIndexSignature": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "dogfood/**/*.ts"],
   "exclude": ["node_modules", "**/node_modules", "**/dist", "**/build"]
 }
