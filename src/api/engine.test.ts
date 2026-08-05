@@ -400,10 +400,24 @@ describe('FhirPathEngine.project', () => {
     expect(row).toEqual({ proto: 'missed', numeric: 'ok', complex: 'missed', some: ['kept'] })
   })
 
-  it('a column declares as or map, not both — rejected at plan time', () => {
+  it('a column declares at most one of as, map, enum — rejected at plan time', () => {
     expect(() => r4.project([], { bad: { path: 'Patient.gender', as: String, map: { male: 'M' } } })).toThrow(
-      "column 'bad' declares both 'as' and 'map'"
+      "column 'bad' declares more than one of 'as', 'map', 'enum'"
     )
+    expect(() => r4.project([], { bad: { path: 'Patient.gender', enum: ['male'], as: String } })).toThrow(
+      "column 'bad' declares more than one of 'as', 'map', 'enum'"
+    )
+  })
+
+  it('enum types the column as the union of its strings and checks it at runtime', () => {
+    const row = r4.project(observation, {
+      status: { path: 'Observation.status', enum: ['final', 'amended'], default: 'final' },
+      // A value outside the list becomes empty, so default catches it.
+      other: { path: 'Observation.status', enum: ['registered'], default: 'unexpected' },
+    })
+    expectTypeOf(row.status).toEqualTypeOf<'final' | 'amended'>()
+    expectTypeOf(row.other).toEqualTypeOf<'registered' | 'unexpected'>()
+    expect(row).toEqual({ status: 'final', other: 'unexpected' })
   })
 
   it('map accepts a display table: rows keyed by code, pick naming the field', () => {
@@ -419,9 +433,8 @@ describe('FhirPathEngine.project', () => {
       tone: { path: 'Observation.status', map: statusMeta, pick: 'tone', default: 'neutral' as Tone },
       // No pick: the whole matching row.
       meta: { path: 'Observation.status', map: statusMeta },
-      // A miss (no row, or a row without the field) falls back to default.
+      // A value no row's code matches falls back to default.
       missing: { path: "'cancelled'", map: statusMeta, pick: 'label', default: 'Result' },
-      absent: { path: 'Observation.status', map: statusMeta, pick: 'nope', default: 'none' },
     })
     expectTypeOf(row.label).toEqualTypeOf<string>()
     expectTypeOf(row.tone).toEqualTypeOf<Tone>()
@@ -431,17 +444,19 @@ describe('FhirPathEngine.project', () => {
       tone: 'success',
       meta: { code: 'final', label: 'Final', tone: 'success' },
       missing: 'Result',
-      absent: 'none',
     })
   })
 
-  it('pick requires the table form of map — rejected at plan time', () => {
+  it('pick requires the table form of map and a field its rows carry — rejected at plan time', () => {
     expect(() => r4.project([], { bad: { path: 'Patient.gender', map: { male: 'M' }, pick: 'label' } })).toThrow(
       "column 'bad' has 'pick' without a table 'map'"
     )
     expect(() => r4.project([], { bad: { path: 'Patient.gender', pick: 'label' } })).toThrow(
       "column 'bad' has 'pick' without a table 'map'"
     )
+    expect(() =>
+      r4.project([], { bad: { path: 'Patient.gender', map: [{ code: 'male', label: 'M' }], pick: 'lable' } })
+    ).toThrow("column 'bad' picks 'lable', which no row of its table has")
   })
 })
 

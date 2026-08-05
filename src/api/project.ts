@@ -34,6 +34,10 @@ import { type Compiler, type EvaluateOptions, resolveVars } from './compile.ts'
  *   omit `pick` to yield the whole row. The first row wins on a duplicate
  *   code, mirroring the `where(code = …).first()` idiom this replaces. `pick`
  *   is only meaningful with the table form.
+ * - `{ path, enum: ['asNeeded', 'continuous'] }` types the column as the union
+ *   of the listed strings — the cast-free way to a literal-union column — and
+ *   checks it at runtime: a value outside the list becomes empty, so `default`
+ *   catches it. The analyzer side stays a plain string.
  * - `{ path, default }` fills an *empty* result with a plain JS value, after
  *   any `as`/`map` coercion — and, unlike an in-expression `| 'fallback'` union,
  *   it also removes `undefined` from the column's type. FHIRPath has no `null`,
@@ -42,8 +46,9 @@ import { type Compiler, type EvaluateOptions, resolveVars } from './compile.ts'
  *   spec §4.5 semantics as `FhirPathEngine.test()`: empty → false, a single
  *   boolean → itself. The column is always a `boolean`.
  *
- * `as` or `map` decides the column's JS type, so a `type` given alongside
- * either is ignored.
+ * `as`, `map`, and `enum` are alternatives — a column declares at most one —
+ * and each decides the column's JS type, so a `type` given alongside any of
+ * them is ignored.
  */
 export type ProjectionColumn =
   | string
@@ -54,6 +59,7 @@ export type ProjectionColumn =
       as?: 'Date' | ((value: unknown) => unknown)
       map?: Readonly<Record<string, unknown>> | readonly { code: string }[]
       pick?: string
+      enum?: readonly string[]
       default?: unknown
     }
   | { test: string }
@@ -66,7 +72,7 @@ type ColumnPath<Column extends ProjectionColumn> = Column extends string
     ? Path
     : never
 
-/** `as` wins (function return type, or Date), then `map` (row/`pick` field for tables, value types for Records), then a declared `type`; otherwise inference. */
+/** `as` wins (function return type, or Date), then `map` (row/`pick` field for tables, value types for Records), then `enum` (union of its strings), then a declared `type`; otherwise inference. */
 type ColumnValues<Column extends ProjectionColumn> = Column extends { as: (value: never) => infer R }
   ? R[]
   : Column extends { as: 'Date' }
@@ -77,9 +83,11 @@ type ColumnValues<Column extends ProjectionColumn> = Column extends { as: (value
         : Row[]
       : Column extends { map: infer M extends Readonly<Record<string, unknown>> }
         ? M[keyof M][]
-        : Column extends { type: infer T extends keyof R4TypeOf }
-          ? R4TypeOf[T][]
-          : FhirpathResult<ColumnPath<Column>>
+        : Column extends { enum: readonly (infer V extends string)[] }
+          ? V[]
+          : Column extends { type: infer T extends keyof R4TypeOf }
+            ? R4TypeOf[T][]
+            : FhirpathResult<ColumnPath<Column>>
 
 /** A `default` replaces the empty case, so it substitutes for `undefined` in the type. */
 type ColumnResult<Column extends ProjectionColumn> = Column extends { test: string }
@@ -149,13 +157,22 @@ function tableLookup(rows: readonly { code: string }[], pick: string | undefined
     })
 }
 
-/** Resolve a column's `as`/`map` option into its values mapping. */
+/** The `enum` check: values outside the listed strings become empty. */
+function enumLookup(allowed: readonly string[]): (values: unknown[]) => unknown[] {
+  const members = new Set<unknown>(allowed)
+  return values => values.filter(value => members.has(value))
+}
+
+/** Resolve a column's `as`/`map`/`enum` option into its values mapping. */
 function coercion(spec: Extract<ProjectionColumn, { path: string }>): (values: unknown[]) => unknown[] {
   if (Array.isArray(spec.map)) {
     return tableLookup(spec.map as readonly { code: string }[], spec.pick)
   }
   if (spec.map !== undefined) {
     return recordLookup(spec.map as Readonly<Record<string, unknown>>)
+  }
+  if (spec.enum !== undefined) {
+    return enumLookup(spec.enum)
   }
   if (spec.as === 'Date') {
     return toJsDates
@@ -177,13 +194,21 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
     return (input, options) => booleanSingleton(criteria.evaluateTyped(input, options)) ?? false
   }
   const spec: Extract<ProjectionColumn, { path: string }> = typeof column === 'string' ? { path: column } : column
-  if (spec.as !== undefined && spec.map !== undefined) {
-    throw new FhirPathRuntimeError(`project(): column '${name}' declares both 'as' and 'map'; use one`)
+  const shapers = [spec.as, spec.map, spec.enum].filter(option => option !== undefined).length
+  if (shapers > 1) {
+    throw new FhirPathRuntimeError(`project(): column '${name}' declares more than one of 'as', 'map', 'enum'; use one`)
   }
   if (spec.pick !== undefined && !Array.isArray(spec.map)) {
     throw new FhirPathRuntimeError(
       `project(): column '${name}' has 'pick' without a table 'map' (an array of { code, … } rows)`
     )
+  }
+  if (spec.pick !== undefined && Array.isArray(spec.map) && spec.map.length > 0) {
+    const pick = spec.pick
+    // A field no row carries is a typo, not a sparse table — fail at plan time.
+    if (!spec.map.some(row => Object.hasOwn(row as object, pick))) {
+      throw new FhirPathRuntimeError(`project(): column '${name}' picks '${pick}', which no row of its table has`)
+    }
   }
   const expression = compile(spec.path)
   const applyAs = coercion(spec)
