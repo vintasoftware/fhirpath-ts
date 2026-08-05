@@ -318,6 +318,117 @@ resolves them at arity 0 from the same record. An engine pre-parses bodies
 through its parse cache; pass a `CompiledExpression` body to get the same
 effect with the free `evaluate()`.
 
+### Class-based DTOs
+
+A DTO class groups everything one resource's row shape needs — `column()`
+fields, the per-row `vars` they read, and the `env` tables they join — so the
+declaration travels as one unit. `column()` takes the same options as a
+`project()` column; its static type is the projected value, so
+`InstanceType<Dto>` is the row type and methods and getters on the class see
+real values:
+
+```ts
+class WeightRow {
+  static readonly fhirType = 'Observation'
+  lbs = column("Observation.value.ofType(Quantity).toQuantity('[lb_av]').value", { type: 'decimal', default: 0 })
+  at = column('(Observation.effective.ofType(dateTime) | Observation.issued).first()', { as: 'Date' })
+
+  get rounded(): number {
+    return Math.round(this.lbs)
+  }
+}
+const rows = fp.project(observations, WeightRow) // WeightRow[]: lbs is number, at is Date | undefined
+```
+
+Registering classes engine-wide turns every `column()` field into an
+expression-defined function (named by the field, unique across the engine,
+analyzer signature derived from the column's `type`), and merges each class's
+static `env` into the engine env. A registered class must declare its
+`fhirType` (typo-checked against the model's type names), and only one class
+registers per fhirType — it is *the* engine-wide vocabulary for that resource:
+
+```ts
+class CodeableConceptDto {
+  static readonly fhirType = 'CodeableConcept'
+  displayText = column('(text | coding.display.first() | coding.first().code).first()', { type: 'string' })
+}
+const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
+fp.first('Condition.code.displayText()', condition, { type: 'string' })
+```
+
+Class `vars` are not registered — they may reference per-call env, so they
+apply when the class itself is projected, merged under any per-call `vars`.
+That keeps join tables and their bindings inside the class:
+
+```ts
+class OrderRow {
+  static readonly fhirType = 'ServiceRequest'
+  static readonly vars = { report: '%reports.where(orderId = %context.id).report' }
+  id = column('ServiceRequest.id', { type: 'string', default: '' })
+  reportStatus = column('%report.status', { type: 'string', default: 'waiting' })
+}
+fp.project(orders, OrderRow, { env: { reports } })
+```
+
+A column several classes share can be declared once with
+`declareColumn(functionName, path, options)` — call the declaration in field
+position, and list it in the engine's `columns` to make the chain callable
+engine-wide under `functionName`:
+
+```ts
+const ObservedAt = declareColumn('observedAt', '(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+class WeightRow {
+  at = ObservedAt()
+}
+class HeightRow {
+  at = ObservedAt()
+}
+```
+
+For a column that yields one of a few known codes, `enum` gives a cast-free
+literal-union type and checks it at runtime (a value outside the list becomes
+empty, so `default` catches it):
+
+```ts
+const GroupColumn = declareColumn('medicationGroup', 'iif(dosageInstruction.asNeeded.ofType(boolean) = true, …)', {
+  enum: ['asNeeded', 'continuous'],
+  default: 'continuous',
+}) // 'asNeeded' | 'continuous'
+```
+
+A class you only ever project needs no registration — pass it straight to
+`project()`. `{ test }` fields stay projection-only either way, and never
+read a `column()` field before projection: until then it holds the column
+spec, not a value.
+
+When a class declares a `fhirType`, `project()` checks every row's
+`resourceType` against it and throws on a mismatch — without the check, wrong
+input would come back as well-typed rows full of defaults. Filter the input
+first to project a subset; a subject with no `resourceType` (a datatype value)
+has nothing to check.
+
+TypeScript checks the declaration shapes (`fhirType` against the model's type
+names, `pick` against the table's row keys) but never looks inside the
+expression strings. `analyzeDto` from `fhirpath-ts/analyzer` closes that gap —
+run it in a test next to each class:
+
+```ts
+import { analyzeDto } from 'fhirpath-ts/analyzer'
+
+// Columns, test criteria, and class vars all analyze against the fhirType.
+// Pass what the class doesn't declare itself: the engine's functions, and
+// names for per-call env (%reports here).
+expect(analyzeDto(LabResultDto, {
+  model: r4Model,
+  functions: fp.defaults.functions,
+  variables: { reports: {} },
+})).toEqual([])
+```
+
+Each finding carries the `member` it came from (a column name, or
+`vars.<name>`), the diagnostic code, and the message — so a typo inside an
+expression fails CI pointing at the exact field.
+
 ### Parse caching
 
 An engine parses each expression once and keeps it in a private LRU sized by
