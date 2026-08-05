@@ -1,6 +1,8 @@
 import type { CustomFunctionSignature } from '../analyzer/signatures.ts'
 import {
   createContext,
+  type EvaluationContext,
+  forkVariables,
   type HostFunction,
   type HostNativeFunction,
   normalizeEnvKeys,
@@ -39,8 +41,14 @@ import { LruCache } from './cache.ts'
  * expressions using the function analyze as unknown regions.
  */
 export type CustomFunction =
-  | (HostNativeFunction & { signature?: CustomFunctionSignature })
-  | { expression: AnyExpression; signature?: CustomFunctionSignature }
+  | (HostNativeFunction & { signature?: CustomFunctionSignature; expression?: never })
+  | {
+      expression: AnyExpression
+      signature?: CustomFunctionSignature
+      fn?: never
+      minArity?: never
+      maxArity?: never
+    }
 
 export interface EvaluateOptions {
   /** Environment variables (`%name`), keyed with or without the leading `%`. */
@@ -118,17 +126,7 @@ export class CompiledExpression<
   /** Evaluate keeping the internal typed representation (types, Decimal, Temporal). */
   evaluateTyped(input?: unknown, options?: EvaluateOptions): TypedValue[] {
     const root = toCollection(input)
-    const context = createContext({
-      root,
-      env: options?.env,
-      vars: options?.vars === undefined ? undefined : resolveVars(options.vars, input, options),
-      model: options?.model,
-      now: options?.now,
-      trace: options?.trace,
-      functions: options?.functions === undefined ? undefined : toHostFunctions(options.functions),
-      regex: options?.regex,
-    })
-    return evaluateNode(this.ast, context, root)
+    return evaluateNode(this.ast, contextFactory(options)(root), root)
   }
 
   /** The canonical form of the expression. */
@@ -150,28 +148,72 @@ export function compile<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts any literal-typed CompiledExpression
 export type AnyExpression = string | CompiledExpression<any>
 
-/**
- * Evaluate `vars` entries into typed collections, in declaration order — each
- * entry evaluates with every earlier one already bound (the recursive
- * `evaluateTyped` call carries them as pre-resolved `TypedValue[]` values, so
- * nothing re-evaluates). Exported for `projectRows`, which resolves once per
- * row and shares the bindings across all columns.
- */
-export function resolveVars(
-  vars: Record<string, AnyExpression | readonly TypedValue[]>,
-  input: unknown,
-  options: EvaluateOptions
-): Map<string, TypedValue[]> {
-  const resolved = new Map<string, TypedValue[]>()
-  for (const [name, value] of Object.entries(normalizeEnvKeys(vars))) {
-    if (Array.isArray(value)) {
-      resolved.set(name, value as TypedValue[])
-      continue
+/** A pre-resolved `vars` value; Array.isArray alone cannot exclude readonly arrays for the checker. */
+function isResolvedCollection<T>(value: T | readonly TypedValue[]): value is readonly TypedValue[] {
+  return Array.isArray(value)
+}
+
+/** Bind planned vars into a fresh context (see contextFactory for the scoping rules). */
+function bindVars(context: EvaluationContext, vars: readonly PlannedVar[]): void {
+  for (const [name, value] of vars) {
+    if (context.env.has(name)) {
+      throw new FhirPathTypeError(`Cannot override the environment variable %${name} with a var`)
     }
-    const compiled = typeof value === 'string' ? new CompiledExpression(value) : (value as CompiledExpression)
-    resolved.set(name, compiled.evaluateTyped(input, { ...options, vars: Object.fromEntries(resolved) }))
+    context.variables.set(
+      name,
+      isResolvedCollection(value) ? [...value] : evaluateNode(value, forkVariables(context), context.root)
+    )
   }
-  return resolved
+}
+
+/** One `vars` entry taken apart at factory time: a parsed body, or a pre-resolved collection. */
+type PlannedVar = readonly [name: string, value: AstNode | readonly TypedValue[]]
+
+/** Take a `vars` record apart once — keys normalize, string bodies parse — keeping declaration order. */
+function planVars(vars: Record<string, AnyExpression | readonly TypedValue[]>): PlannedVar[] {
+  return Object.entries(normalizeEnvKeys(vars)).map(([name, value]) => {
+    if (typeof value === 'string') {
+      return [name, parse(value)] as const
+    }
+    return [name, isResolvedCollection(value) ? value : value.ast] as const
+  })
+}
+
+/**
+ * The single mapping from `EvaluateOptions` onto evaluation contexts — every
+ * evaluation path builds its context here, so an option added to
+ * EvaluateOptions is consumed in one place. Option-wide work happens once per
+ * factory (host functions resolve, env keys normalize, var bodies parse); each
+ * call then builds one context for its root and binds the vars against it, in
+ * declaration order — each body evaluates in the new context (`%context`, env,
+ * and every earlier binding in scope, the root as focus), a body's own
+ * defineVariable() bindings stay local (forkVariables), a pre-resolved
+ * `TypedValue[]` binds without evaluation, and, like defineVariable(), a var
+ * may not shadow an environment variable. `extraEnv` carries caller-computed
+ * env entries (projectRows' row numbering) that win over same-named option
+ * keys.
+ */
+export function contextFactory(
+  options: EvaluateOptions | undefined
+): (root: TypedValue[], extraEnv?: Record<string, unknown>) => EvaluationContext {
+  const functions = options?.functions === undefined ? undefined : toHostFunctions(options.functions)
+  const env = normalizeEnvKeys(options?.env)
+  const vars = options?.vars === undefined ? undefined : planVars(options.vars)
+  return (root, extraEnv) => {
+    const context = createContext({
+      root,
+      env: extraEnv === undefined ? env : { ...env, ...extraEnv },
+      model: options?.model,
+      now: options?.now,
+      trace: options?.trace,
+      functions,
+      regex: options?.regex,
+    })
+    if (vars !== undefined) {
+      bindVars(context, vars)
+    }
+    return context
+  }
 }
 
 /** Resolve CustomFunctions to their runtime form: expression bodies parse to ASTs, signatures stay API-side. */

@@ -1,7 +1,5 @@
 import '../functions/install.ts'
 
-// The `fhirpath-ts/analyzer` subpath entry; analyzeDto (analyze-dto.ts) is
-// re-exported at the bottom, after the declarations it depends on.
 import { BUILTIN_ENV_VARIABLE_NAMES } from '../engine/context.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { describeArity, functions } from '../functions/registry.ts'
@@ -56,13 +54,15 @@ export interface DeclaredVariable {
  * expression-defined one (an `expression` present) declares arity 0, matching
  * how the runtime calls it.
  */
-export interface DeclaredFunction {
-  minArity?: number
-  maxArity?: number
-  /** The body of an expression-defined CustomFunction; its presence pins the arity to 0. */
-  expression?: unknown
-  signature?: CustomFunctionSignature
-}
+export type DeclaredFunction =
+  | { minArity?: number; maxArity?: number; expression?: never; signature?: CustomFunctionSignature }
+  | {
+      /** The body of an expression-defined CustomFunction; its presence pins the arity to 0. */
+      expression: unknown
+      minArity?: never
+      maxArity?: never
+      signature?: CustomFunctionSignature
+    }
 
 export interface AnalyzeOptions {
   model?: ModelProvider
@@ -992,5 +992,3 @@ function boundedEditDistance(a: string, b: string, limit: number): number {
   }
   return Math.min(previous[b.length] as number, limit + 1)
 }
-
-export { analyzeDto, type DtoDiagnostic } from './analyze-dto.ts'

@@ -1,10 +1,12 @@
-import { normalizeEnvKeys } from '../engine/context.ts'
+import { type EvaluationContext, forkVariables } from '../engine/context.ts'
+import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathResult } from '../typed/infer.ts'
 import { booleanSingleton } from '../values/collection.ts'
+import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
-import { type Compiler, type EvaluateOptions, resolveVars } from './compile.ts'
+import { type Compiler, contextFactory, type EvaluateOptions } from './compile.ts'
 
 /**
  * One column of a `project()` call. The plain-string form is an expression whose
@@ -50,30 +52,36 @@ import { type Compiler, type EvaluateOptions, resolveVars } from './compile.ts'
  * and each decides the column's JS type, so a `type` given alongside any of
  * them is ignored.
  */
-export type ProjectionColumn =
-  | string
-  | {
-      path: string
-      collection?: boolean
-      type?: keyof R4TypeOf
-      as?: 'Date' | ((value: unknown) => unknown)
-      map?: Readonly<Record<string, unknown>> | readonly { code: string }[]
-      pick?: string
-      enum?: readonly string[]
-      default?: unknown
-    }
-  | { test: string }
+export type ProjectionColumn = string | ({ path: string } & ColumnOptions) | { test: string }
+
+/**
+ * A path column's options besides the path itself; `column()` and
+ * `declareColumn()` (api/dto.ts) take the same set. The shaper members make
+ * `as`/`map`/`enum` mutually exclusive at the type level, and tie `pick` to
+ * the table form of `map`; `planColumn` re-checks both at plan time for
+ * callers outside the type system.
+ */
+export type ColumnOptions = {
+  collection?: boolean
+  type?: keyof R4TypeOf
+  default?: unknown
+} & (
+  | { as?: 'Date' | ((value: unknown) => unknown); map?: never; pick?: never; enum?: never }
+  | { map: Readonly<Record<string, unknown>>; as?: never; pick?: never; enum?: never }
+  | { map: readonly { code: string }[]; pick?: string; as?: never; enum?: never }
+  | { enum: readonly string[]; as?: never; map?: never; pick?: never }
+)
 
 export type ProjectionColumns = Record<string, ProjectionColumn>
 
-type ColumnPath<Column extends ProjectionColumn> = Column extends string
+type ColumnPath<Column> = Column extends string
   ? Column
   : Column extends { path: infer Path extends string }
     ? Path
     : never
 
 /** `as` wins (function return type, or Date), then `map` (row/`pick` field for tables, value types for Records), then `enum` (union of its strings), then a declared `type`; otherwise inference. */
-type ColumnValues<Column extends ProjectionColumn> = Column extends { as: (value: never) => infer R }
+type ColumnValues<Column> = Column extends { as: (value: never) => infer R }
   ? R[]
   : Column extends { as: 'Date' }
     ? Date[]
@@ -89,8 +97,15 @@ type ColumnValues<Column extends ProjectionColumn> = Column extends { as: (value
             ? R4TypeOf[T][]
             : FhirpathResult<ColumnPath<Column>>
 
-/** A `default` replaces the empty case, so it substitutes for `undefined` in the type. */
-type ColumnResult<Column extends ProjectionColumn> = Column extends { test: string }
+/**
+ * A `default` replaces the empty case, so it substitutes for `undefined` in
+ * the type. Constrained by the columns' outer shapes only, so `column()`
+ * (api/dto.ts) can apply it to a generic `{ path } & Options` intersection the
+ * checker cannot prove is one ProjectionColumn member.
+ */
+export type ColumnResult<Column extends string | { path: string } | { test: string }> = Column extends {
+  test: string
+}
   ? boolean
   : Column extends { collection: true }
     ? ColumnValues<Column>
@@ -163,13 +178,17 @@ function enumLookup(allowed: readonly string[]): (values: unknown[]) => unknown[
   return values => values.filter(value => members.has(value))
 }
 
+/** The table form of `map`; Array.isArray alone cannot exclude the Record form for the checker. */
+function isTable(
+  map: Readonly<Record<string, unknown>> | readonly { code: string }[]
+): map is readonly { code: string }[] {
+  return Array.isArray(map)
+}
+
 /** Resolve a column's `as`/`map`/`enum` option into its values mapping. */
 function coercion(spec: Extract<ProjectionColumn, { path: string }>): (values: unknown[]) => unknown[] {
-  if (Array.isArray(spec.map)) {
-    return tableLookup(spec.map as readonly { code: string }[], spec.pick)
-  }
   if (spec.map !== undefined) {
-    return recordLookup(spec.map as Readonly<Record<string, unknown>>)
+    return isTable(spec.map) ? tableLookup(spec.map, spec.pick) : recordLookup(spec.map)
   }
   if (spec.enum !== undefined) {
     return enumLookup(spec.enum)
@@ -184,16 +203,13 @@ function coercion(spec: Extract<ProjectionColumn, { path: string }>): (values: u
   return values => values
 }
 
-/** A column resolved against one compiler, ready to run once per row. */
-type ColumnReader = (input: unknown, options: EvaluateOptions) => unknown
-
-/** Take the column union apart once, at plan time; rows only run the result. */
-function planColumn(name: string, column: ProjectionColumn, compile: Compiler): ColumnReader {
-  if (typeof column !== 'string' && 'test' in column) {
-    const criteria = compile(column.test)
-    return (input, options) => booleanSingleton(criteria.evaluateTyped(input, options)) ?? false
-  }
-  const spec: Extract<ProjectionColumn, { path: string }> = typeof column === 'string' ? { path: column } : column
+/**
+ * ColumnOptions makes these combinations unrepresentable for TypeScript
+ * callers, but untyped callers reach project() too (the demo playground
+ * executes editor code transpile-only), so misuse fails loudly at plan time
+ * instead of one shaper silently winning.
+ */
+function assertShaperOptions(name: string, spec: Extract<ProjectionColumn, { path: string }>): void {
   const shapers = [spec.as, spec.map, spec.enum].filter(option => option !== undefined).length
   if (shapers > 1) {
     throw new FhirPathRuntimeError(`project(): column '${name}' declares more than one of 'as', 'map', 'enum'; use one`)
@@ -210,11 +226,28 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
       throw new FhirPathRuntimeError(`project(): column '${name}' picks '${pick}', which no row of its table has`)
     }
   }
+}
+
+/**
+ * A column resolved against one compiler, ready to run once per row-context.
+ * Each read forks the context's variables, so one column's defineVariable()
+ * never leaks into the next.
+ */
+type ColumnReader = (root: TypedValue[], context: EvaluationContext) => unknown
+
+/** Take the column union apart once, at plan time; rows only run the result. */
+function planColumn(name: string, column: ProjectionColumn, compile: Compiler): ColumnReader {
+  if (typeof column !== 'string' && 'test' in column) {
+    const criteria = compile(column.test)
+    return (root, context) => booleanSingleton(evaluateNode(criteria.ast, forkVariables(context), root)) ?? false
+  }
+  const spec: Extract<ProjectionColumn, { path: string }> = typeof column === 'string' ? { path: column } : column
+  assertShaperOptions(name, spec)
   const expression = compile(spec.path)
   const applyAs = coercion(spec)
   const empty = 'default' in spec ? spec.default : undefined
-  return (input, options) => {
-    const values = expression.evaluate(input, options)
+  return (root, context) => {
+    const values = evaluateNode(expression.ast, forkVariables(context), root).map(unwrap)
     if (spec.collection === true) {
       return applyAs(values)
     }
@@ -233,12 +266,12 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
 /**
  * The rows of `FhirPathEngine.project()`: one per subject of the input (array
  * item, Bundle entry resource, or the single resource itself); options come
- * pre-merged with the engine defaults. Every column evaluates with `%rowIndex` and
- * `%rowTotal` set to the row's position — the caller's `env` is normalized first,
- * so the row numbering wins over a same-named key in either spelling
- * (`rowIndex` or `%rowIndex`). `vars` resolve once per row, with the row as
- * focus and the row numbering in scope, and every column reads the same typed
- * bindings.
+ * pre-merged with the engine defaults. Each row evaluates in one shared
+ * context: `%rowIndex` and `%rowTotal` are set to the row's position — the
+ * caller's `env` is normalized first, so the row numbering wins over a
+ * same-named key in either spelling (`rowIndex` or `%rowIndex`) — and `vars`
+ * bind once, with the row as focus and the row numbering in scope, so every
+ * column reads the same typed bindings.
  */
 export function projectRows(
   input: unknown,
@@ -247,27 +280,14 @@ export function projectRows(
   compile: Compiler
 ): Record<string, unknown>[] {
   const readers = Object.entries(columns).map(([name, column]) => [name, planColumn(name, column, compile)] as const)
-  const vars =
-    options.vars === undefined
-      ? undefined
-      : Object.fromEntries(
-          Object.entries(options.vars).map(([name, value]) => [
-            name,
-            typeof value === 'string' ? compile(value) : value,
-          ])
-        )
+  const makeContext = contextFactory(options)
   const subjects = toSubjects(input)
   return subjects.map((subject, index) => {
-    const rowOptions: EvaluateOptions = {
-      ...options,
-      env: { ...normalizeEnvKeys(options.env), rowIndex: index, rowTotal: subjects.length },
-    }
-    if (vars !== undefined) {
-      rowOptions.vars = Object.fromEntries(resolveVars(vars, subject.value, rowOptions))
-    }
+    const root = toCollection(subject.value)
+    const context = makeContext(root, { rowIndex: index, rowTotal: subjects.length })
     const row: Record<string, unknown> = {}
     for (const [name, read] of readers) {
-      row[name] = read(subject.value, rowOptions)
+      row[name] = read(root, context)
     }
     return row
   })

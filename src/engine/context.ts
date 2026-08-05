@@ -122,19 +122,25 @@ export const BUILTIN_ENV_VARIABLE_NAMES: ReadonlySet<string> = new Set([
  * context binds — so code that merges or overrides env records treats both
  * spellings as one namespace. Later entries win on the same bare name.
  */
-export function normalizeEnvKeys(env: Record<string, unknown> | undefined): Record<string, unknown> {
-  const normalized: Record<string, unknown> = {}
+export function normalizeEnvKeys<T>(env: Record<string, T> | undefined): Record<string, T> {
+  const normalized: Record<string, T> = {}
   for (const [name, value] of Object.entries(env ?? {})) {
     normalized[name.startsWith('%') ? name.slice(1) : name] = value
   }
   return normalized
 }
 
+/** Merge two env-shaped records per name: both key spellings normalize first, and `override` wins. */
+export function mergeEnvKeys<T>(
+  base: Record<string, T> | undefined,
+  override: Record<string, T> | undefined
+): Record<string, T> {
+  return { ...normalizeEnvKeys(base), ...normalizeEnvKeys(override) }
+}
+
 export function createContext(options: {
   root: TypedValue[]
   env?: Record<string, unknown> | undefined
-  /** Pre-evaluated variable bindings (EvaluateOptions.vars, resolved by the API layer): typed collections, seeded into `variables`. */
-  vars?: ReadonlyMap<string, TypedValue[]> | undefined
   model?: ModelProvider | undefined
   now?: Date | undefined
   trace?: ((name: string, values: TypedValue[]) => void) | undefined
@@ -152,14 +158,6 @@ export function createContext(options: {
   for (const [name, value] of Object.entries(normalizeEnvKeys(options.env))) {
     env.set(name, toCollection(value))
   }
-  const variables = new Map<string, TypedValue[]>()
-  for (const [name, value] of options.vars ?? []) {
-    // Same rule defineVariable() enforces: bindings never shadow env.
-    if (env.has(name)) {
-      throw new FhirPathTypeError(`Cannot override the environment variable %${name} with a var`)
-    }
-    variables.set(name, value)
-  }
   const hostFunctions = new Map<string, HostFunction>()
   for (const [name, fn] of Object.entries(options.functions ?? {})) {
     // Overriding a built-in would silently change spec behavior — fail loudly.
@@ -174,7 +172,7 @@ export function createContext(options: {
     model: options.model,
     now: options.now ?? new Date(),
     trace: options.trace ?? (() => {}),
-    variables,
+    variables: new Map(),
     functions: hostFunctions,
     activeExpressionFunctions: new Set(),
     regex: options.regex,

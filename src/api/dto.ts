@@ -1,7 +1,10 @@
+import { mergeEnvKeys, normalizeEnvKeys } from '../engine/context.ts'
+import { FhirPathTypeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { TypedValue } from '../values/typed-value.ts'
-import type { AnyExpression } from './compile.ts'
-import type { Projection, ProjectionColumn, ProjectionColumns } from './project.ts'
+import { toSubjects } from './bundle.ts'
+import type { AnyExpression, Compiler, CustomFunction, EvaluateOptions } from './compile.ts'
+import type { ColumnOptions, ColumnResult, Projection, ProjectionColumn, ProjectionColumns } from './project.ts'
 
 /**
  * Marks a `column()` value so a DTO class's fields can be told apart from its
@@ -12,8 +15,6 @@ const COLUMN_BRAND = Symbol('fhirpath-ts.column')
 
 /** The object forms of ProjectionColumn — everything `column()` accepts. */
 type ColumnSpec = Exclude<ProjectionColumn, string>
-
-type PathOptions = Omit<Extract<ColumnSpec, { path: string }>, 'path'>
 
 /**
  * Ties `pick` to the table's row keys: with a table `map`, `pick` must name a
@@ -48,15 +49,15 @@ type PickConstraint<Options> = Options extends { map: readonly (infer Row extend
  */
 export function column<const Criteria extends string>(spec: { test: Criteria }): boolean
 export function column<const Expr extends string>(path: Expr): Projection<{ c: Expr }>['c']
-export function column<const Expr extends string, const Options extends PathOptions>(
+export function column<const Expr extends string, const Options extends ColumnOptions>(
   path: Expr,
   options: Options & PickConstraint<Options>
-): Projection<{ c: { path: Expr } & Options }>['c']
-export function column(pathOrSpec: string | { test: string }, options?: PathOptions): unknown {
+): ColumnResult<{ path: Expr } & Options>
+export function column(pathOrSpec: string | { test: string }, options?: ColumnOptions): unknown {
   return brandedSpec(pathOrSpec, options)
 }
 
-function brandedSpec(pathOrSpec: string | { test: string }, options?: PathOptions): ColumnSpec {
+function brandedSpec(pathOrSpec: string | { test: string }, options?: ColumnOptions): ColumnSpec {
   const spec: ColumnSpec = typeof pathOrSpec === 'string' ? { path: pathOrSpec, ...options } : pathOrSpec
   return Object.assign(spec, { [COLUMN_BRAND]: true })
 }
@@ -91,23 +92,18 @@ export function declareColumn<const Expr extends string>(
   functionName: string,
   path: Expr
 ): DeclaredColumn<Projection<{ c: Expr }>['c']>
-export function declareColumn<const Expr extends string, const Options extends PathOptions>(
+export function declareColumn<const Expr extends string, const Options extends ColumnOptions>(
   functionName: string,
   path: Expr,
   options: Options & PickConstraint<Options>
-): DeclaredColumn<Projection<{ c: { path: Expr } & Options }>['c']>
+): DeclaredColumn<ColumnResult<{ path: Expr } & Options>>
 export function declareColumn(
   functionName: string,
   pathOrSpec: string | { test: string },
-  options?: PathOptions
+  options?: ColumnOptions
 ): DeclaredColumn {
   const spec = brandedSpec(pathOrSpec, options)
-  return Object.assign(() => spec as unknown, { [COLUMN_BRAND]: true, functionName, spec })
-}
-
-/** Whether a value is a declared column rather than a DTO class or plain function. */
-export function isDeclaredColumn(value: unknown): value is DeclaredColumn {
-  return typeof value === 'function' && COLUMN_BRAND in value
+  return Object.assign(() => spec as unknown, { functionName, spec })
 }
 
 /**
@@ -162,4 +158,132 @@ export function dtoColumns(cls: DtoClass): ProjectionColumns {
   }
   columnsCache.set(cls, columns)
   return columns
+}
+
+/**
+ * Fold registered DTO classes and declared columns into the engine defaults:
+ * each `column()` field becomes an expression-defined function (its analyzer
+ * signature derived from the column's `type` when no `as`/`map` reshapes the
+ * value), and each class's static `env` merges in. Redefining an existing
+ * function or env variable is an error — silent shadowing between classes
+ * would be impossible to debug from an expression.
+ */
+export function withDtos(
+  defaults: EvaluateOptions,
+  dtos: readonly DtoClass[],
+  declaredColumns: readonly DeclaredColumn[],
+  compile: Compiler
+): EvaluateOptions {
+  if (dtos.length === 0 && declaredColumns.length === 0) {
+    return defaults
+  }
+  const functions: Record<string, CustomFunction> = { ...defaults.functions }
+  const env: Record<string, unknown> = normalizeEnvKeys(defaults.env)
+  for (const declared of declaredColumns) {
+    if ('test' in declared.spec) {
+      throw new FhirPathTypeError(
+        `Declared column '${declared.functionName}' is a test column, which cannot register as a function`
+      )
+    }
+    if (declared.functionName in functions) {
+      throw new FhirPathTypeError(
+        `Declared column '${declared.functionName}' redefines the function '${declared.functionName}'`
+      )
+    }
+    functions[declared.functionName] = columnFunction(declared.spec, compile)
+  }
+  const classPerType = new Map<string, string>()
+  for (const dto of dtos) {
+    // One registered class per fhirType: the class is the engine-wide
+    // vocabulary for that resource, so a second one is a conflict, not an
+    // addition — and requiring the type keeps that rule enforceable.
+    if (dto.fhirType === undefined) {
+      throw new FhirPathTypeError(`DTO ${dto.name} must declare a fhirType to register`)
+    }
+    const registered = classPerType.get(dto.fhirType)
+    if (registered !== undefined) {
+      throw new FhirPathTypeError(
+        `DTO ${dto.name} registers fhirType '${dto.fhirType}', already registered by ${registered}`
+      )
+    }
+    classPerType.set(dto.fhirType, dto.name)
+    for (const [name, spec] of Object.entries(dtoColumns(dto))) {
+      if (typeof spec === 'string' || 'test' in spec) {
+        continue
+      }
+      if (name in functions) {
+        throw new FhirPathTypeError(`DTO ${dto.name} redefines the function '${name}'`)
+      }
+      functions[name] = columnFunction(spec, compile)
+    }
+    for (const [name, value] of Object.entries(normalizeEnvKeys(dto.env))) {
+      if (name in env) {
+        throw new FhirPathTypeError(`DTO ${dto.name} redefines the environment variable %${name}`)
+      }
+      env[name] = value
+    }
+  }
+  return { ...defaults, functions, env }
+}
+
+/**
+ * A column's path as an expression-defined function; the analyzer signature
+ * derives from `type` — or, for an `enum` column, plain String — as long as no
+ * `as`/`map` reshapes the value outside FHIRPath.
+ */
+function columnFunction(spec: Extract<ProjectionColumn, { path: string }>, compile: Compiler): CustomFunction {
+  const resultType =
+    spec.as !== undefined || spec.map !== undefined
+      ? undefined
+      : (spec.type ?? (spec.enum !== undefined ? 'System.String' : undefined))
+  return {
+    expression: compile(spec.path),
+    ...(resultType !== undefined && {
+      signature: { result: { types: [resultType], single: spec.collection !== true } },
+    }),
+  }
+}
+
+/**
+ * A projected DTO's `fhirType` checked against each row's actual resource:
+ * a mismatch would not throw downstream — root-prefixed columns type-filter
+ * to empty and the row comes back as well-typed defaults — so this is the
+ * one place the mistake is visible. Fails loudly like the engine's other
+ * runtime checks (the scalar-column rule, Bundle ambiguity, env overrides);
+ * filter the input first to project a subset. A subject with no
+ * `resourceType` (a datatype, e.g. a CodeableConcept) has nothing to check.
+ */
+export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
+  const fhirType = dto.fhirType
+  if (fhirType === undefined) {
+    return
+  }
+  toSubjects(input).forEach((subject, index) => {
+    const resourceType = (subject.value as { resourceType?: unknown } | null | undefined)?.resourceType
+    if (typeof resourceType === 'string' && resourceType !== fhirType) {
+      throw new FhirPathTypeError(
+        `project(): row ${index} is a ${resourceType}, but ${dto.name} declares fhirType '${fhirType}'`
+      )
+    }
+  })
+}
+
+/**
+ * A projected DTO class's own env and vars, merged under the per-call options
+ * (per name, call wins) — so precedence runs engine defaults, then class, then
+ * call. A class registered via EngineOptions.resourceDtos re-applies its env
+ * here with identical values, which is harmless.
+ */
+export function dtoCallOptions(dto: DtoClass, options: EvaluateOptions | undefined): EvaluateOptions | undefined {
+  if (dto.env === undefined && dto.vars === undefined) {
+    return options
+  }
+  const merged: EvaluateOptions = { ...options }
+  if (dto.env !== undefined) {
+    merged.env = mergeEnvKeys(dto.env, options?.env)
+  }
+  if (dto.vars !== undefined) {
+    merged.vars = mergeEnvKeys(dto.vars, options?.vars)
+  }
+  return merged
 }

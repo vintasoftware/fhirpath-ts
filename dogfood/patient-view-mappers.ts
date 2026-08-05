@@ -253,13 +253,10 @@ class ProblemDTO {
 
 /** The badge columns every lab row renders, reading the per-row %badge binding. */
 class LabBadgeRow {
-  /** Narrows badge tone reads to StatusTone; the badge tables only hold StatusTone values. */
-  private static asTone(value: unknown): StatusTone {
-    return value as StatusTone
-  }
-
   statusLabel = column('%badge.label', { type: 'string', default: 'Result' })
-  tone = column('%badge.tone', { as: LabBadgeRow.asTone, default: 'neutral' as StatusTone })
+  // The badge tables only hold StatusTone values; `enum` types the column as
+  // that union and drops anything else, so `default` catches the unexpected.
+  tone = column('%badge.tone', { enum: ['info', 'success', 'warning', 'danger', 'neutral'], default: 'neutral' })
   flagged = column('%badge.flagged', { type: 'boolean', default: false })
 }
 

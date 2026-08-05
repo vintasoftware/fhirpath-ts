@@ -1,5 +1,4 @@
-import { normalizeEnvKeys } from '../engine/context.ts'
-import { FhirPathTypeError } from '../errors.ts'
+import { mergeEnvKeys } from '../engine/context.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
 import { booleanSingleton } from '../values/collection.ts'
@@ -10,12 +9,18 @@ import {
   CompiledExpression,
   type Compiler,
   createCachedCompiler,
-  type CustomFunction,
   type EvaluateOptions,
 } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
-import { type DeclaredColumn, type DtoClass, dtoColumns } from './dto.ts'
-import { type Projection, type ProjectionColumn, type ProjectionColumns, projectRows } from './project.ts'
+import {
+  assertInputMatchesDto,
+  type DeclaredColumn,
+  dtoCallOptions,
+  type DtoClass,
+  dtoColumns,
+  withDtos,
+} from './dto.ts'
+import { type Projection, type ProjectionColumns, projectRows } from './project.ts'
 
 /**
  * What engine methods accept as input: one resource, an array of resources, or a
@@ -87,7 +92,7 @@ export interface EngineOptions extends EvaluateOptions {
  * An engine is meant to outlive the work it serves: its parse cache is its own,
  * so a fresh engine starts cold. To vary `env`, `now`, or any other option per
  * request, keep one engine and pass them in that call's `options` — per-call
- * values override the bound defaults field by field, except `env` and
+ * values override the bound defaults field by field, except `env`, `vars`, and
  * `functions`, which merge per name (per-call entries add to the bound ones
  * and win on the same name).
  */
@@ -244,13 +249,10 @@ export class FhirPathEngine {
     const precompiled = this.precompiled(options)
     const merged = { ...this.defaults, ...precompiled }
     if (this.defaults.env && precompiled.env) {
-      merged.env = { ...normalizeEnvKeys(this.defaults.env), ...normalizeEnvKeys(precompiled.env) }
+      merged.env = mergeEnvKeys(this.defaults.env, precompiled.env)
     }
     if (this.defaults.vars && precompiled.vars) {
-      merged.vars = {
-        ...normalizeEnvKeys(this.defaults.vars),
-        ...normalizeEnvKeys(precompiled.vars),
-      } as NonNullable<EvaluateOptions['vars']>
+      merged.vars = mergeEnvKeys(this.defaults.vars, precompiled.vars)
     }
     if (this.defaults.functions && precompiled.functions) {
       merged.functions = { ...this.defaults.functions, ...precompiled.functions }
@@ -285,137 +287,6 @@ export class FhirPathEngine {
     }
     return out
   }
-}
-
-/**
- * Fold registered DTO classes into the engine defaults: each `column()` field
- * becomes an expression-defined function (its analyzer signature derived from
- * the column's `type` when no `as`/`map` reshapes the value), and each class's
- * static `env` merges in. Redefining an existing function or env variable is
- * an error — silent shadowing between classes would be impossible to debug
- * from an expression.
- */
-function withDtos(
-  defaults: EvaluateOptions,
-  dtos: readonly DtoClass[],
-  declaredColumns: readonly DeclaredColumn[],
-  compile: Compiler
-): EvaluateOptions {
-  if (dtos.length === 0 && declaredColumns.length === 0) {
-    return defaults
-  }
-  const functions: Record<string, CustomFunction> = { ...defaults.functions }
-  const env: Record<string, unknown> = normalizeEnvKeys(defaults.env)
-  for (const declared of declaredColumns) {
-    if ('test' in declared.spec) {
-      throw new FhirPathTypeError(
-        `Declared column '${declared.functionName}' is a test column, which cannot register as a function`
-      )
-    }
-    if (declared.functionName in functions) {
-      throw new FhirPathTypeError(
-        `Declared column '${declared.functionName}' redefines the function '${declared.functionName}'`
-      )
-    }
-    functions[declared.functionName] = columnFunction(declared.spec, compile)
-  }
-  const classPerType = new Map<string, string>()
-  for (const dto of dtos) {
-    // One registered class per fhirType: the class is the engine-wide
-    // vocabulary for that resource, so a second one is a conflict, not an
-    // addition — and requiring the type keeps that rule enforceable.
-    if (dto.fhirType === undefined) {
-      throw new FhirPathTypeError(`DTO ${dto.name} must declare a fhirType to register`)
-    }
-    const registered = classPerType.get(dto.fhirType)
-    if (registered !== undefined) {
-      throw new FhirPathTypeError(
-        `DTO ${dto.name} registers fhirType '${dto.fhirType}', already registered by ${registered}`
-      )
-    }
-    classPerType.set(dto.fhirType, dto.name)
-    for (const [name, spec] of Object.entries(dtoColumns(dto))) {
-      if (typeof spec === 'string' || 'test' in spec) {
-        continue
-      }
-      if (name in functions) {
-        throw new FhirPathTypeError(`DTO ${dto.name} redefines the function '${name}'`)
-      }
-      functions[name] = columnFunction(spec, compile)
-    }
-    for (const [name, value] of Object.entries(normalizeEnvKeys(dto.env))) {
-      if (name in env) {
-        throw new FhirPathTypeError(`DTO ${dto.name} redefines the environment variable %${name}`)
-      }
-      env[name] = value
-    }
-  }
-  return { ...defaults, functions, env }
-}
-
-/**
- * A column's path as an expression-defined function; the analyzer signature
- * derives from `type` — or, for an `enum` column, plain String — as long as no
- * `as`/`map` reshapes the value outside FHIRPath.
- */
-function columnFunction(spec: Extract<ProjectionColumn, { path: string }>, compile: Compiler): CustomFunction {
-  const resultType =
-    spec.as !== undefined || spec.map !== undefined
-      ? undefined
-      : ((spec.type as string | undefined) ?? (spec.enum !== undefined ? 'System.String' : undefined))
-  return {
-    expression: compile(spec.path),
-    ...(resultType !== undefined && {
-      signature: { result: { types: [resultType], single: spec.collection !== true } },
-    }),
-  }
-}
-
-/**
- * A projected DTO's `fhirType` checked against each row's actual resource:
- * a mismatch would not throw downstream — root-prefixed columns type-filter
- * to empty and the row comes back as well-typed defaults — so this is the
- * one place the mistake is visible. Fails loudly like the engine's other
- * runtime checks (the scalar-column rule, Bundle ambiguity, env overrides);
- * filter the input first to project a subset. A subject with no
- * `resourceType` (a datatype, e.g. a CodeableConcept) has nothing to check.
- */
-function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
-  const fhirType = dto.fhirType
-  if (fhirType === undefined) {
-    return
-  }
-  toSubjects(input).forEach((subject, index) => {
-    const resourceType = (subject.value as { resourceType?: unknown } | null | undefined)?.resourceType
-    if (typeof resourceType === 'string' && resourceType !== fhirType) {
-      throw new FhirPathTypeError(
-        `project(): row ${index} is a ${resourceType}, but ${dto.name} declares fhirType '${fhirType}'`
-      )
-    }
-  })
-}
-
-/**
- * A projected DTO class's own env and vars, merged under the per-call options
- * (per name, call wins) — so precedence runs engine defaults, then class, then
- * call. A class registered via EngineOptions.resourceDtos re-applies its env here with
- * identical values, which is harmless.
- */
-function dtoCallOptions(dto: DtoClass, options: EvaluateOptions | undefined): EvaluateOptions | undefined {
-  if (dto.env === undefined && dto.vars === undefined) {
-    return options
-  }
-  const merged: EvaluateOptions = { ...options }
-  if (dto.env !== undefined) {
-    merged.env = { ...normalizeEnvKeys(dto.env), ...normalizeEnvKeys(options?.env) }
-  }
-  if (dto.vars !== undefined) {
-    merged.vars = {
-      ...normalizeEnvKeys(dto.vars),
-      ...normalizeEnvKeys(options?.vars),
-    } as NonNullable<EvaluateOptions['vars']>
-  }
-  return merged
 }
 
 /** A compiled expression carrying an engine's defaults, so `evaluate(input)` needs nothing else. */

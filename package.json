@@ -15,7 +15,7 @@
     ".": "./src/index.ts",
     "./package.json": "./package.json",
     "./r4": "./src/r4/index.ts",
-    "./analyzer": "./src/analyzer/analyze.ts",
+    "./analyzer": "./src/analyzer/index.ts",
     "./eslint": "./src/eslint/index.ts"
   },
   "scripts": {

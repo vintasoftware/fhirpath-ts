@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { analyzeDto, analyzeExpression } from '../analyzer/analyze.ts'
+import { analyzeDto, analyzeExpression } from '../analyzer/index.ts'
 import type { Condition, Observation, ServiceRequest } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { column, declareColumn } from './dto.ts'
