@@ -4,9 +4,11 @@ import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated
  * Type-level FHIRPath inference for a tractable subset of the language:
  * dotted paths, indexers, first()/last()/single(), type-preserving where(),
  * select() over sub-paths, ofType(), exists()/empty()/count()/not()/hasValue(),
- * and choice elements by stem name. Everything else degrades to `unknown[]` —
- * never a type error. The runtime engine and the static analyzer cover the
- * full language; this layer only makes the common cases precise in plain tsc.
+ * the fixed-return conversion family (toBoolean()/toInteger()/…/toQuantity()
+ * and their convertsToX() tests), join(), toChars(), and choice elements by
+ * stem name. Everything else degrades to `unknown[]` — never a type error.
+ * The runtime engine and the static analyzer cover the full language; this
+ * layer only makes the common cases precise in plain tsc.
  */
 
 /** Inference state: the current type name(s) — or opaque, the designed escape valve. */
@@ -34,6 +36,33 @@ type Navigate<S extends State, E extends string> =
 
 type StripCount<S extends string> = S extends `${infer N}[${string}]` ? N : S
 
+/**
+ * Segments that always yield a boolean singleton: toBoolean() and the
+ * conversion tests (FHIRPath §5.5). `${string}` also matches an empty
+ * argument list, so `convertsToQuantity('kg')` and `convertsToQuantity()`
+ * both land here.
+ */
+type BooleanConversionSeg =
+  | 'toBoolean()'
+  | 'convertsToBoolean()'
+  | 'convertsToInteger()'
+  | 'convertsToDecimal()'
+  | 'convertsToString()'
+  | 'convertsToDate()'
+  | 'convertsToDateTime()'
+  | 'convertsToTime()'
+  | `convertsToQuantity(${string})`
+
+/** The remaining no-argument §5.5 conversions, keyed by segment → result type name. */
+interface ConversionReturns {
+  'toInteger()': 'integer'
+  'toDecimal()': 'decimal'
+  'toString()': 'string'
+  'toDate()': 'date'
+  'toDateTime()': 'dateTime'
+  'toTime()': 'time'
+}
+
 /** One `.`-separated segment: a function the subset knows, an indexer, or an element. */
 type Step<S extends State | 'opaque', Seg extends string> = S extends State
   ? Seg extends `where(${string})`
@@ -54,15 +83,25 @@ type Step<S extends State | 'opaque', Seg extends string> = S extends State
                   ? { n: Projected['n']; many: true }
                   : 'opaque'
                 : 'opaque'
-              : Seg extends `${string}(${string})` | `${string}()`
-                ? 'opaque'
-                : Seg extends `${infer N}[${string}]`
-                  ? Navigate<S, StripCount<N>> extends infer Indexed
-                    ? Indexed extends State
-                      ? { n: Indexed['n']; many: false }
-                      : 'opaque'
-                    : 'opaque'
-                  : Navigate<S, Seg>
+              : Seg extends BooleanConversionSeg
+                ? { n: 'boolean'; many: false }
+                : Seg extends keyof ConversionReturns
+                  ? { n: ConversionReturns[Seg]; many: false }
+                  : Seg extends `toQuantity(${string})`
+                    ? { n: 'Quantity'; many: false }
+                    : Seg extends `join(${string})`
+                      ? { n: 'string'; many: false }
+                      : Seg extends 'toChars()'
+                        ? { n: 'string'; many: true }
+                        : Seg extends `${string}(${string})` | `${string}()`
+                          ? 'opaque'
+                          : Seg extends `${infer N}[${string}]`
+                            ? Navigate<S, StripCount<N>> extends infer Indexed
+                              ? Indexed extends State
+                                ? { n: Indexed['n']; many: false }
+                                : 'opaque'
+                              : 'opaque'
+                            : Navigate<S, Seg>
   : 'opaque'
 
 /** Walk the remaining `.`-separated segments. */
@@ -78,14 +117,21 @@ type ParseSegments<Expr extends string, S extends State | 'opaque'> = Expr exten
 /**
  * A segment whose parentheses contain dots (e.g. `select(name.given)`) needs the
  * matching close before the next real segment; one nesting level is supported.
+ * The first `).` closes the segment when only one `(` opened before it; with a
+ * second `(` open, that close is nested and the segment runs to the final `)`.
  */
-type StepAcrossParen<Expr extends string, S extends State | 'opaque'> = Expr extends `${infer Head})${''}`
-  ? Step<S, `${Head})`>
-  : Expr extends `${infer Head}).${infer Rest}`
-    ? Head extends `${string})${string}`
-      ? 'opaque'
+type StepAcrossParen<Expr extends string, S extends State | 'opaque'> = Expr extends `${infer Head}).${infer Rest}`
+  ? Head extends `${string})${string}`
+    ? 'opaque'
+    : Head extends `${string}(${string}(${string}`
+      ? WholeParenSegment<Expr, S>
       : ParseSegments<Rest, Step<S, `${Head})`>>
-    : 'opaque'
+  : WholeParenSegment<Expr, S>
+
+/** The rest of the expression is a single paren segment ending at its final `)`. */
+type WholeParenSegment<Expr extends string, S extends State | 'opaque'> = Expr extends `${infer Head})${''}`
+  ? Step<S, `${Head})`>
+  : 'opaque'
 
 /** The root segment names the resource type. */
 type ParseRoot<Expr extends string> = Expr extends `${infer Root}.${infer Rest}`
