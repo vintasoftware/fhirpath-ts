@@ -42,6 +42,13 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # Instantiation counts are deterministic for the lockfile-pinned
+      # TypeScript version, so inference-cost regressions in FhirpathResult
+      # fail here against scripts/type-perf-budget.json instead of landing
+      # silently. `pnpm check:type-perf --update` re-baselines deliberately.
+      - name: Type-inference perf budget
+        run: pnpm check:type-perf
+
       # Coverage thresholds (vitest.config.ts) only guarantee anything if CI
       # actually measures coverage, so the test step runs `pnpm coverage`.
       - name: Test (with coverage thresholds)
