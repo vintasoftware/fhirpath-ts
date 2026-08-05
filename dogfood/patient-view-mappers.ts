@@ -59,10 +59,6 @@ class MedicationRequestDTO {
   routeText = column('dosageInstruction.first().route.select(text | coding.display.first()).first()', {
     type: 'string',
   })
-  // The resource-name root lets the type layer infer this column (relative
-  // paths have no root the type system can see); the runtime treats both the
-  // same. Datatype DTOs must keep relative paths — a datatype-name root
-  // matches nothing at runtime.
   sigText = column('MedicationRequest.dosageInstruction.first().text')
 }
 
