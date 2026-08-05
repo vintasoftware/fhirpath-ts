@@ -157,7 +157,7 @@ r4.project(patient, {
   id: 'Patient.id',                                         // string | undefined
   family: 'Patient.name.family.first()',                    // string | undefined
   given: { path: 'Patient.name.given', collection: true },  // string[]
-  name: { path: "Patient.name.given.join(' ')", type: 'string' },  // string | undefined
+  name: "Patient.name.given.join(' ')",                    // string | undefined
   born: { path: 'Patient.birthDate', as: 'Date' },          // Date | undefined — see below
   gender: { path: 'Patient.gender', default: 'unknown' },   // string — default fills empty AND types away undefined
   isActive: { test: 'Patient.active = true' },              // boolean — criteria column, test() semantics
@@ -330,7 +330,7 @@ real values:
 ```ts
 class WeightRow {
   static readonly fhirType = 'Observation'
-  lbs = column("Observation.value.ofType(Quantity).toQuantity('[lb_av]').value", { type: 'decimal', default: 0 })
+  lbs = column("Observation.value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
   at = column('(Observation.effective.ofType(dateTime) | Observation.issued).first()', { as: 'Date' })
 
   get rounded(): number {
@@ -562,7 +562,7 @@ themselves. `toQuantity(unit)` converts, `.value` extracts the number, and
 ```ts
 r4.filter(observations, "value.ofType(Quantity) > 140 'mm[Hg]'")
 r4.filter(observations, "value.ofType(Quantity).convertsToQuantity('kg')") // drops unit: "lbs" with no code
-r4.first("Observation.value.ofType(Quantity).toQuantity('kg').value", weight, { type: 'decimal' })
+r4.first("Observation.value.ofType(Quantity).toQuantity('kg').value", weight) // number | undefined, inferred
 ```
 
 ### View rows straight from project()

@@ -146,14 +146,14 @@ const fp = new FhirPathEngine({
 /** Both lbs and kg on one row, so the weight trend and the BMI series come from one pass. */
 class WeightRowDTO {
   static readonly fhirType = 'Observation'
-  lbs = column("Observation.value.ofType(Quantity).toQuantity('[lb_av]').value", { type: 'decimal', default: 0 })
-  kg = column("Observation.value.ofType(Quantity).toQuantity('kg').value", { type: 'decimal', default: 0 })
+  lbs = column("Observation.value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
+  kg = column("Observation.value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
   at = ObservedAt()
 }
 
 class HeightRowDTO {
   static readonly fhirType = 'Observation'
-  meters = column("Observation.value.ofType(Quantity).toQuantity('m').value", { type: 'decimal', default: 0 })
+  meters = column("Observation.value.ofType(Quantity).toQuantity('m').value", { default: 0 })
   at = ObservedAt()
 }
 

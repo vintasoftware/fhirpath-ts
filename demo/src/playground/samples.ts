@@ -141,7 +141,7 @@ const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDt
 class WeightRow {
   static readonly fhirType = 'Observation'
   name = column('Observation.code.displayText()', { type: 'string', default: 'Reading' })
-  kg = column("Observation.value.ofType(Quantity).toQuantity('kg').value", { type: 'decimal', default: 0 })
+  kg = column("Observation.value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
   at = ObservedAt()
 
   get label(): string {
