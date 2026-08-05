@@ -287,4 +287,21 @@ describe('analyzeDto', () => {
     expect(analyzeDto(Named, { model: r4Model }).map(f => f.code)).toEqual(['unknown-function'])
     expect(analyzeDto(Named, { model: r4Model, functions: engine.defaults.functions ?? {} })).toEqual([])
   })
+
+  it('flags a type-name root on a datatype fhirType, where the runtime navigates to empty', () => {
+    // Prefixing paths with the type name is the resource-DTO style; on a datatype
+    // DTO the runtime has no resourceType to match, so the column would be empty.
+    class Prefixed {
+      static readonly fhirType = 'CodeableConcept'
+      displayText = column('CodeableConcept.text', { type: 'string' })
+    }
+    class Relative {
+      static readonly fhirType = 'CodeableConcept'
+      displayText = column('(text | coding.display.first() | coding.first().code).first()', { type: 'string' })
+    }
+    expect(analyzeDto(Prefixed, { model: r4Model }).map(f => [f.member, f.code])).toEqual([
+      ['displayText', 'datatype-root'],
+    ])
+    expect(analyzeDto(Relative, { model: r4Model })).toEqual([])
+  })
 })

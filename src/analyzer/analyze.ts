@@ -93,6 +93,15 @@ interface StaticState {
    * navigation and cardinality-preserving functions; absent means unknown.
    */
   targets?: string[]
+  /**
+   * True while the state still holds the raw evaluation input, whose runtime
+   * type comes from toTypedValue alone — a resourceType discriminator or
+   * nothing. A type-name segment can only match such a value through
+   * resourceType, so non-resource names navigate it to empty. Element
+   * navigation and function results build fresh, model-typed states, so the
+   * flag never survives past the first real step.
+   */
+  rawInput?: boolean
 }
 
 const UNKNOWN: StaticState = { types: undefined, single: undefined }
@@ -189,7 +198,7 @@ class Analyzer {
   }
 
   rootState(): StaticState {
-    return this.inputType === undefined ? UNKNOWN : { types: [this.inputType], single: true }
+    return this.inputType === undefined ? UNKNOWN : { types: [this.inputType], single: true, rawInput: true }
   }
 
   walk(node: AstNode, input: StaticState, scope: VariableScope): StaticState {
@@ -327,6 +336,16 @@ class Analyzer {
     if (this.model) {
       const asType = this.model.resolveType(node.name)
       if (asType !== undefined && input.types.some(type => this.model?.isSubtypeOf(type, asType))) {
+        // The runtime matches a type name against the raw input only through the
+        // resourceType discriminator (values/typed-value.ts), so a non-resource
+        // name never matches there and the whole path navigates to empty.
+        if (input.rawInput === true && !this.isResourceType(asType)) {
+          this.report(
+            'datatype-root',
+            `'${node.name}' is not a resource type, and a type-name root matches only a resource's resourceType, so this always evaluates to empty — navigate from the input with a relative path`,
+            node.span
+          )
+        }
         return input
       }
     }
@@ -374,6 +393,17 @@ class Analyzer {
       state.targets = [...new Set(targets)]
     }
     return state
+  }
+
+  /**
+   * True when `canonical` is the model's Resource base or derives from it —
+   * the types whose instances carry a resourceType discriminator. A model
+   * without a Resource base cannot make the distinction, so the check stays
+   * permissive there.
+   */
+  private isResourceType(canonical: string): boolean {
+    const base = this.model?.resolveType('Resource')
+    return base === undefined || this.model?.isSubtypeOf(canonical, base) === true
   }
 
   private canonicalize(elementType: string): string {

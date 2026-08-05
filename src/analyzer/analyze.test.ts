@@ -272,6 +272,47 @@ describe('coverage completion', () => {
   })
 })
 
+describe('type-name roots on non-resource inputs', () => {
+  const datatype = { model: r4Model, inputType: 'CodeableConcept' }
+
+  it('flags a root naming the datatype input, which the runtime navigates to empty', () => {
+    const diagnostics = analyzeExpression('CodeableConcept.text', datatype)
+    expect(diagnostics.map(d => [d.severity, d.code])).toEqual([['error', 'datatype-root']])
+    expect(diagnostics[0]?.message).toBe(
+      "'CodeableConcept' is not a resource type, and a type-name root matches only a resource's resourceType, so this always evaluates to empty — navigate from the input with a relative path"
+    )
+  })
+
+  it('flags a root naming a non-resource supertype of the input', () => {
+    expect(codes('Element.id', datatype)).toEqual(['datatype-root'])
+  })
+
+  it('keeps checking the rest of the path after the flagged root', () => {
+    expect(codes('CodeableConcept.nope', datatype).sort()).toEqual(['datatype-root', 'unknown-element'])
+  })
+
+  it('relative paths on datatype inputs stay diagnostic-free', () => {
+    // CodeableConceptDTO's displayText column (dogfood) — the recommended style.
+    expect(codes('(text | coding.display.first() | coding.first().code).first()', datatype)).toEqual([])
+  })
+
+  it('resource-name roots on resource inputs stay accepted, including supertypes', () => {
+    expect(codes('Patient.name.given', options)).toEqual([])
+    expect(codes('Resource.id', options)).toEqual([])
+    expect(codes('DomainResource.contained.count()', options)).toEqual([])
+  })
+
+  it('a datatype name mid-chain still self-matches, like the runtime', () => {
+    // After model navigation items carry their model types, so the runtime's
+    // type-name match succeeds there — only the raw root input lacks one.
+    expect(codes('code.CodeableConcept.text', { model: r4Model, inputType: 'Observation' })).toEqual([])
+  })
+
+  it('%context on a datatype input is the same raw value, so it flags too', () => {
+    expect(codes('%context.CodeableConcept.text', datatype)).toEqual(['datatype-root'])
+  })
+})
+
 describe('type narrowing (ofType/as)', () => {
   it('ofType() narrows to the named type so checks resume', () => {
     expect(codes('Patient.deceased.ofType(boolean).not()')).toEqual([])
