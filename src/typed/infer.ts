@@ -37,10 +37,26 @@ type Navigate<S extends State, E extends string> =
 type StripCount<S extends string> = S extends `${infer N}[${string}]` ? N : S
 
 /**
+ * Whether a matched function argument really closes at the segment's final
+ * `)`. A `)` with no `(` still open is the signature of an operator glued
+ * onto the call — `join(', ') = ('x')` matches `join(${string})` with the
+ * "argument" `', ') = ('x'`, but the runtime sees a comparison. One nesting
+ * level inside the argument (`where(given.first() = 'P')`) is accepted.
+ */
+type CleanArg<A extends string> = A extends `${infer L}(${infer M})${infer R}`
+  ? L extends `${string})${string}`
+    ? false
+    : M extends `${string}(${string}`
+      ? false
+      : CleanArg<R>
+  : A extends `${string})${string}`
+    ? false
+    : true
+
+/**
  * Segments that always yield a boolean singleton: toBoolean() and the
- * conversion tests (FHIRPath §5.5). `${string}` also matches an empty
- * argument list, so `convertsToQuantity('kg')` and `convertsToQuantity()`
- * both land here.
+ * no-argument conversion tests (FHIRPath §5.5). `convertsToQuantity(unit)`
+ * has its own branch so its argument goes through CleanArg.
  */
 type BooleanConversionSeg =
   | 'toBoolean()'
@@ -51,7 +67,6 @@ type BooleanConversionSeg =
   | 'convertsToDate()'
   | 'convertsToDateTime()'
   | 'convertsToTime()'
-  | `convertsToQuantity(${string})`
 
 /** The remaining no-argument §5.5 conversions, keyed by segment → result type name. */
 interface ConversionReturns {
@@ -65,8 +80,10 @@ interface ConversionReturns {
 
 /** One `.`-separated segment: a function the subset knows, an indexer, or an element. */
 type Step<S extends State | 'opaque', Seg extends string> = S extends State
-  ? Seg extends `where(${string})`
-    ? S
+  ? Seg extends `where(${infer Cond})`
+    ? CleanArg<Cond> extends true
+      ? S
+      : 'opaque'
     : Seg extends `ofType(${infer T})` | `as(${infer T})`
       ? T extends keyof R4TypeOf & string
         ? { n: T; many: S['many'] }
@@ -87,21 +104,33 @@ type Step<S extends State | 'opaque', Seg extends string> = S extends State
                 ? { n: 'boolean'; many: false }
                 : Seg extends keyof ConversionReturns
                   ? { n: ConversionReturns[Seg]; many: false }
-                  : Seg extends `toQuantity(${string})`
-                    ? { n: 'Quantity'; many: false }
-                    : Seg extends `join(${string})`
-                      ? { n: 'string'; many: false }
-                      : Seg extends 'toChars()'
-                        ? { n: 'string'; many: true }
-                        : Seg extends `${string}(${string})` | `${string}()`
-                          ? 'opaque'
-                          : Seg extends `${infer N}[${string}]`
-                            ? Navigate<S, StripCount<N>> extends infer Indexed
-                              ? Indexed extends State
-                                ? { n: Indexed['n']; many: false }
-                                : 'opaque'
-                              : 'opaque'
-                            : Navigate<S, Seg>
+                  : Seg extends `convertsToQuantity(${infer Unit})`
+                    ? CleanArg<Unit> extends true
+                      ? { n: 'boolean'; many: false }
+                      : 'opaque'
+                    : Seg extends `toQuantity(${infer Unit})`
+                      ? CleanArg<Unit> extends true
+                        ? { n: 'Quantity'; many: false }
+                        : 'opaque'
+                      : Seg extends `join(${infer Sep})`
+                        ? CleanArg<Sep> extends true
+                          ? { n: 'string'; many: false }
+                          : 'opaque'
+                        : Seg extends 'toChars()'
+                          ? { n: 'string'; many: true }
+                          : Seg extends `${string}(${string})` | `${string}()`
+                            ? 'opaque'
+                            : Seg extends `${infer N}[${infer I}]`
+                              ? I extends `${string}]${string}` | `${string}[${string}`
+                                ? // A ']' or '[' inside the index means this "one indexer"
+                                  // spans an operator (`family[0] | active[0]`): outside the subset.
+                                  'opaque'
+                                : Navigate<S, StripCount<N>> extends infer Indexed
+                                  ? Indexed extends State
+                                    ? { n: Indexed['n']; many: false }
+                                    : 'opaque'
+                                  : 'opaque'
+                              : Navigate<S, Seg>
   : 'opaque'
 
 /** Walk the remaining `.`-separated segments. */

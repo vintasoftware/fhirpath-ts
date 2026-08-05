@@ -157,6 +157,37 @@ describe('fixed-return conversion functions', () => {
   })
 })
 
+describe('operator-glued segments degrade instead of inferring the swallowed match', () => {
+  // Each of these runtime-evaluates to a boolean or a union, but the last
+  // segment ends in ')' or ']', so a naive pattern match would swallow the
+  // operator and claim the function's type. They must all be unknown[].
+  it('a parenthesized right operand cannot hide inside a function argument', () => {
+    expectTypeOf<FhirpathResult<"Patient.name.given.join(', ') = ('x')">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.where(use = 'a') = (Patient.name)">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Observation.value.ofType(Quantity).toQuantity('kg') > (5)">>().toEqualTypeOf<
+      unknown[]
+    >()
+    expectTypeOf<
+      FhirpathResult<"Observation.value.ofType(Quantity).convertsToQuantity('kg') or (true)">
+    >().toEqualTypeOf<unknown[]>()
+  })
+
+  it('an operator between two indexers cannot hide inside one indexer', () => {
+    expectTypeOf<FhirpathResult<'Patient.name.family[0] | active[0]'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.family[0] = given[0]'>>().toEqualTypeOf<unknown[]>()
+  })
+
+  it('where() conditions with sane parentheses keep their precision', () => {
+    const withCall = compile("Patient.name.where(given.first() = 'Peter')").evaluate(patient, options)
+    expectTypeOf(withCall).toEqualTypeOf<HumanName[]>()
+    expect(withCall).toHaveLength(1)
+
+    const twoClauses = compile('Patient.name.where(use.exists() and given.exists())').evaluate(patient, options)
+    expectTypeOf(twoClauses).toEqualTypeOf<HumanName[]>()
+    expect(twoClauses).toHaveLength(2)
+  })
+})
+
 describe('degradation to unknown[]', () => {
   it('constructs outside the subset degrade instead of erroring', () => {
     expectTypeOf<FhirpathResult<'Patient.name.given | Patient.name.family'>>().toEqualTypeOf<unknown[]>()

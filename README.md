@@ -754,7 +754,8 @@ Three layers, from cheapest to most thorough:
 
 1. **Type-level inference** (`tsc`, zero infrastructure) for the tractable subset:
    dotted paths, `[n]`, `first()/last()/single()`, type-preserving `where()`,
-   `select()` sub-paths, `ofType()/as()`, `exists()/empty()/count()`, choice stems.
+   `select()` sub-paths, `ofType()/as()`, `exists()/empty()/count()`, the
+   `toX()`/`convertsToX()` conversions, `join()`, `toChars()`, choice stems.
    Anything else degrades to `unknown[]` — never a type error.
 2. **ESLint rule** (`fhirpath-ts/eslint`) — runs the analyzer as a lint rule over
    every literal expression at each API entry point: the `` fhirpath`...` `` tag,
