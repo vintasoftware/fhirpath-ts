@@ -1,5 +1,7 @@
 import '../functions/install.ts'
 
+// The `fhirpath-ts/analyzer` subpath entry; analyzeDto (analyze-dto.ts) is
+// re-exported at the bottom, after the declarations it depends on.
 import { BUILTIN_ENV_VARIABLE_NAMES } from '../engine/context.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { describeArity, functions } from '../functions/registry.ts'
@@ -990,3 +992,5 @@ function boundedEditDistance(a: string, b: string, limit: number): number {
   }
   return Math.min(previous[b.length] as number, limit + 1)
 }
+
+export { analyzeDto, type DtoDiagnostic } from './analyze-dto.ts'
