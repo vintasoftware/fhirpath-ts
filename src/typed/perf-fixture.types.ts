@@ -112,3 +112,16 @@ export type T107 = FhirpathResult<"Patient.name.exists(use = 'official')">
 export type T108 = FhirpathResult<'Patient.name.select(given.first()).count()'>
 export type T109 = FhirpathResult<"MedicationRequest.dosageInstruction.text.join('; ')">
 export type T110 = FhirpathResult<'Observation.component.value.ofType(Quantity).value.first().toString()'>
+// Fixed-return batch 2 (string/boolean/numeric) and identity functions.
+export type T111 = FhirpathResult<'Patient.name.family.first().trim()'>
+export type T112 = FhirpathResult<'Patient.name.given.first().substring(0, 1)'>
+export type T113 = FhirpathResult<"Patient.name.family.first().replace('mers', 'm')">
+export type T114 = FhirpathResult<"Patient.name.family.first().matches('^Ch')">
+export type T115 = FhirpathResult<"Patient.name.given.first().startsWith('Pe')">
+export type T116 = FhirpathResult<"Patient.name.given.first().indexOf('e')">
+export type T117 = FhirpathResult<'Patient.name.count().toDecimal().round()'>
+export type T118 = FhirpathResult<'Patient.name.count().sqrt()'>
+export type T119 = FhirpathResult<'Patient.name.given.distinct()'>
+export type T120 = FhirpathResult<'Patient.name.given.skip(1).take(2)'>
+export type T121 = FhirpathResult<"Patient.name.given.first().split('e')">
+export type T122 = FhirpathResult<'Patient.name.all(use.exists())'>

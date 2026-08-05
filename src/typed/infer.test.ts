@@ -1,11 +1,12 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
+import { FUNCTION_SIGNATURES } from '../analyzer/signatures.ts'
 import { compile } from '../api/compile.ts'
 import { column } from '../api/dto.ts'
 import { fhirpath } from '../api/tagged.ts'
 import type { HumanName, Identifier, Patient, PatientContact, Quantity } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
-import type { FhirpathInput, FhirpathResult } from './infer.ts'
+import { type FhirpathInput, type FhirpathResult, FIXED_RETURNS, IDENTITY_RETURNS } from './infer.ts'
 
 const patient: Patient = {
   resourceType: 'Patient',
@@ -191,6 +192,142 @@ describe('fixed-return conversion functions', () => {
     const exists = compile('Patient.nope.exists()').evaluate(patient, options)
     expectTypeOf(exists).toEqualTypeOf<boolean[]>()
     expect(exists).toEqual([false])
+
+    // Same for the batch-2 entries: an argument-taking fixed-return call
+    // after an unknown element evaluates to empty, which boolean[] covers.
+    const matched = compile("Patient.nope.matches('x')").evaluate(patient, options)
+    expectTypeOf(matched).toEqualTypeOf<boolean[]>()
+    expect(matched).toEqual([])
+  })
+})
+
+describe('fixed-return string, boolean, and numeric functions (batch 2)', () => {
+  it('string functions agree with the runtime', () => {
+    const trimmed = compile('Patient.name.family.first().trim()').evaluate(patient, options)
+    expectTypeOf(trimmed).toEqualTypeOf<string[]>()
+    expect(trimmed).toEqual(['Chalmers'])
+
+    // Comma-separated arguments pass the CleanArg guard.
+    const initial = compile('Patient.name.given.first().substring(0, 1)').evaluate(patient, options)
+    expectTypeOf(initial).toEqualTypeOf<string[]>()
+    expect(initial).toEqual(['P'])
+
+    const replaced = compile("Patient.name.family.first().replace('mers', 'm')").evaluate(patient, options)
+    expectTypeOf(replaced).toEqualTypeOf<string[]>()
+    expect(replaced).toEqual(['Chalm'])
+
+    const upper = compile('Patient.name.given.first().upper()').evaluate(patient, options)
+    expectTypeOf(upper).toEqualTypeOf<string[]>()
+    expect(upper).toEqual(['PETER'])
+
+    const split = compile("Patient.name.given.first().split('e')").evaluate(patient, options)
+    expectTypeOf(split).toEqualTypeOf<string[]>()
+    expect(split).toEqual(['P', 't', 'r'])
+
+    const encoded = compile("Patient.name.family.first().encode('base64')").evaluate(patient, options)
+    expectTypeOf(encoded).toEqualTypeOf<string[]>()
+    expect(encoded).toEqual(['Q2hhbG1lcnM='])
+  })
+
+  it('boolean functions agree with the runtime', () => {
+    const matched = compile("Patient.name.family.first().matches('^Ch')").evaluate(patient, options)
+    expectTypeOf(matched).toEqualTypeOf<boolean[]>()
+    expect(matched).toEqual([true])
+
+    const starts = compile("Patient.name.given.first().startsWith('Pe')").evaluate(patient, options)
+    expectTypeOf(starts).toEqualTypeOf<boolean[]>()
+    expect(starts).toEqual([true])
+
+    const distinct = compile('Patient.name.given.isDistinct()').evaluate(patient, options)
+    expectTypeOf(distinct).toEqualTypeOf<boolean[]>()
+    expect(distinct).toEqual([true])
+
+    const all = compile('Patient.name.all(use.exists())').evaluate(patient, options)
+    expectTypeOf(all).toEqualTypeOf<boolean[]>()
+    expect(all).toEqual([true])
+
+    const subset = compile('Patient.name.given.subsetOf(name.given)').evaluate(patient, options)
+    expectTypeOf(subset).toEqualTypeOf<boolean[]>()
+    expect(subset).toEqual([true])
+  })
+
+  it('integer and decimal functions agree with the runtime', () => {
+    const index = compile("Patient.name.given.first().indexOf('e')").evaluate(patient, options)
+    expectTypeOf(index).toEqualTypeOf<number[]>()
+    expect(index).toEqual([1])
+
+    const ceiling = compile('Patient.name.count().toDecimal().ceiling()').evaluate(patient, options)
+    expectTypeOf(ceiling).toEqualTypeOf<number[]>()
+    expect(ceiling).toEqual([2])
+
+    const rounded = compile('Patient.name.count().toDecimal().round()').evaluate(patient, options)
+    expectTypeOf(rounded).toEqualTypeOf<number[]>()
+    expect(rounded).toEqual([2])
+
+    const root = compile('Patient.name.count().sqrt()').evaluate(patient, options)
+    expectTypeOf(root).toEqualTypeOf<number[]>()
+    expect(root).toEqual([1.4142135623730951])
+  })
+
+  it('identity functions keep the input type', () => {
+    const distinct = compile('Patient.name.given.distinct()').evaluate(patient, options)
+    expectTypeOf(distinct).toEqualTypeOf<string[]>()
+    expect(distinct).toEqual(['Peter', 'James', 'Jim'])
+
+    const tail = compile('Patient.name.tail().given').evaluate(patient, options)
+    expectTypeOf(tail).toEqualTypeOf<string[]>()
+    expect(tail).toEqual(['Jim'])
+
+    const skipped = compile('Patient.name.given.skip(1)').evaluate(patient, options)
+    expectTypeOf(skipped).toEqualTypeOf<string[]>()
+    expect(skipped).toEqual(['James', 'Jim'])
+
+    const taken = compile('Patient.name.given.take(2)').evaluate(patient, options)
+    expectTypeOf(taken).toEqualTypeOf<string[]>()
+    expect(taken).toEqual(['Peter', 'James'])
+
+    const excluded = compile("Patient.name.given.exclude('Jim')").evaluate(patient, options)
+    expectTypeOf(excluded).toEqualTypeOf<string[]>()
+    expect(excluded).toEqual(['Peter', 'James'])
+
+    const intersected = compile('Patient.name.given.intersect(name.first().given)').evaluate(patient, options)
+    expectTypeOf(intersected).toEqualTypeOf<string[]>()
+    expect(intersected).toEqual(['Peter', 'James'])
+  })
+})
+
+describe('the tables cannot drift from the analyzer', () => {
+  /** FIXED_RETURNS names R4TypeOf keys; the analyzer names System types. */
+  const SYSTEM_OF: Record<string, string> = {
+    boolean: 'System.Boolean',
+    integer: 'System.Integer',
+    decimal: 'System.Decimal',
+    string: 'System.String',
+    date: 'System.Date',
+    dateTime: 'System.DateTime',
+    time: 'System.Time',
+    Quantity: 'System.Quantity',
+  }
+
+  it('every FIXED_RETURNS entry matches its FUNCTION_SIGNATURES result type', () => {
+    for (const [fn, r4Name] of Object.entries(FIXED_RETURNS)) {
+      const signature = FUNCTION_SIGNATURES[fn]
+      expect(signature, `${fn}() has no analyzer signature`).toBeDefined()
+      const result = signature?.result({ types: ['FHIR.Patient'], single: undefined }, [])
+      expect(result?.types, `${fn}() disagrees with the analyzer`).toEqual([SYSTEM_OF[r4Name]])
+    }
+  })
+
+  it('every IDENTITY_RETURNS entry passes the input types through in the analyzer', () => {
+    for (const fn of IDENTITY_RETURNS) {
+      const signature = FUNCTION_SIGNATURES[fn]
+      expect(signature, `${fn}() has no analyzer signature`).toBeDefined()
+      const input = { types: ['FHIR.HumanName'], single: false }
+      const result = signature?.result(input, [undefined])
+      // Same reference: the signature passes the input's types through
+      // untouched, so the function is genuinely type-preserving.
+      expect(result?.types, `${fn}() does not preserve its input type`).toBe(input.types)
+    }
   })
 })
 
@@ -214,6 +351,12 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
     expectTypeOf<
       FhirpathResult<"Observation.value.ofType(Quantity).convertsToQuantity('kg') or (true)">
     >().toEqualTypeOf<unknown[]>()
+  })
+
+  it('comma-separated arguments cannot hide a glued operator either', () => {
+    // Runtime: [false] / [true] — comparisons, not strings; both must degrade.
+    expectTypeOf<FhirpathResult<"Patient.name.given.first().replace('a', 'b') = ('x')">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.given.first().substring(0, 1) = ('P')">>().toEqualTypeOf<unknown[]>()
   })
 
   it('an operator between two indexers cannot hide inside one indexer', () => {
@@ -276,7 +419,11 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
 describe('degradation to unknown[]', () => {
   it('constructs outside the subset degrade instead of erroring', () => {
     expectTypeOf<FhirpathResult<'Patient.name.given | Patient.name.family'>>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<'Patient.name.given.substring(1)'>>().toEqualTypeOf<unknown[]>()
+    // power's result depends on its input (integer^integer vs decimal), so it
+    // stays out of FIXED_RETURNS and degrades; abs is type-preserving at
+    // runtime but the analyzer declares it unknown, so it stays out too.
+    expectTypeOf<FhirpathResult<'Patient.name.count().power(2)'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.count().abs()'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.descendants()'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.name.unknownFn()'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'name.given'>>().toEqualTypeOf<unknown[]>()
