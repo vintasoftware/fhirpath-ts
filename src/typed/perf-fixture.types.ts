@@ -99,3 +99,16 @@ export type T094 = FhirpathResult<'ValueSet.status'>
 export type T095 = FhirpathResult<'ValueSet.url'>
 export type T096 = FhirpathResult<'ValueSet.expansion.contains.code'>
 export type T097 = FhirpathResult<'ValueSet.compose.include.system'>
+export type T098 = FhirpathResult<"Observation.value.ofType(Quantity).toQuantity('kg').value">
+export type T099 = FhirpathResult<"Observation.value.ofType(Quantity).toQuantity('kg.m/s2').value">
+export type T100 = FhirpathResult<'Patient.birthDate.toDate()'>
+export type T101 = FhirpathResult<'Patient.birthDate.convertsToDateTime()'>
+export type T102 = FhirpathResult<"Patient.name.given.join(', ')">
+export type T103 = FhirpathResult<'Patient.name.family.first().toChars()'>
+export type T104 = FhirpathResult<'Patient.name.given.first().toString()'>
+export type T105 = FhirpathResult<"Patient.name.where(given.first() = 'Peter').family">
+export type T106 = FhirpathResult<'Patient.name.where(use.exists() and given.exists()).given'>
+export type T107 = FhirpathResult<"Patient.name.exists(use = 'official')">
+export type T108 = FhirpathResult<'Patient.name.select(given.first()).count()'>
+export type T109 = FhirpathResult<"MedicationRequest.dosageInstruction.text.join('; ')">
+export type T110 = FhirpathResult<'Observation.component.value.ofType(Quantity).value.first().toString()'>
