@@ -14,7 +14,7 @@
     "paths": {
       "fhirpath-ts": ["../src/index.ts"],
       "fhirpath-ts/r4": ["../src/r4/index.ts"],
-      "fhirpath-ts/analyzer": ["../src/analyzer/analyze.ts"]
+      "fhirpath-ts/analyzer": ["../src/analyzer/index.ts"]
     }
   },
   "include": ["src"],

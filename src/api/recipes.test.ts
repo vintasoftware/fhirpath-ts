@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
 import { findLexicalExpressionSites } from '../analyzer/lexical-sites.ts'
+import { FhirPathEngine } from '../index.ts'
 import type {
   Bundle,
   Condition,
@@ -77,6 +78,13 @@ describe('README usage recipes', () => {
         { type: 'string' }
       )
     ).toBe('Mary Miller')
+
+    // The fallback chain named once, as an expression-defined function.
+    const fp = new FhirPathEngine({
+      model: r4Model,
+      functions: { displayText: { expression: '(text | coding.display.first() | coding.first().code).first()' } },
+    })
+    expect(fp.first('Condition.code.displayText()', condition, { type: 'string' })).toBe('Hypertension')
   })
 
   it('filter and sort a worklist', () => {
@@ -146,29 +154,37 @@ describe('README usage recipes', () => {
     ])
   })
 
-  it('status labels from a lookup table', () => {
+  it('status labels from a code map', () => {
     const statusMeta = [
       { code: 'active', label: 'Active', tone: 'info' },
+      { code: 'recurrence', label: 'Recurrence', tone: 'danger' },
       { code: 'resolved', label: 'Resolved', tone: 'neutral' },
-    ]
+    ] as const
     const subject = { reference: 'Patient/p1' }
     const conditions: Condition[] = [
       { resourceType: 'Condition', subject, clinicalStatus: { coding: [{ code: 'active' }] } },
       { resourceType: 'Condition', subject, clinicalStatus: { coding: [{ code: 'recurrence' }] } },
       { resourceType: 'Condition', subject },
     ]
-    const rows = r4.project(
-      conditions,
-      {
-        label: {
-          path: "Condition.clinicalStatus.coding.first().code.defineVariable('sc').select((%statusMeta.where(code = %sc).label | substring(0, 1).upper() & substring(1)).first())",
-          type: 'string',
-          default: 'Unknown',
-        },
+    const rows = r4.project(conditions, {
+      label: {
+        path: 'Condition.clinicalStatus.coding.first().code',
+        map: statusMeta,
+        pick: 'label',
+        default: 'Unknown',
       },
-      { env: { statusMeta } }
-    )
-    expect(rows.map(row => row.label)).toEqual(['Active', 'Recurrence', 'Unknown'])
+      tone: {
+        path: 'Condition.clinicalStatus.coding.first().code',
+        map: statusMeta,
+        pick: 'tone',
+        default: 'neutral' as const,
+      },
+    })
+    expect(rows).toEqual([
+      { label: 'Active', tone: 'info' },
+      { label: 'Recurrence', tone: 'danger' },
+      { label: 'Unknown', tone: 'neutral' },
+    ])
   })
 
   it('join related resources', () => {
@@ -195,18 +211,17 @@ describe('README usage recipes', () => {
       },
     ]
     const reports = [...reportsByOrderId].map(([orderId, report]) => ({ orderId, report }))
-    const REPORT = '%reports.where(orderId = %context.id).report'
     const rows = r4.project(
       orders,
       {
         resultDate: {
-          path: `(${REPORT}.effective.ofType(dateTime) | ${REPORT}.issued).first()`,
+          path: '(%report.effective.ofType(dateTime) | %report.issued).first()',
           type: 'string',
           default: null,
         },
-        hasResult: { test: `${REPORT}.exists()` },
+        hasResult: { test: '%report.exists()' },
       },
-      { env: { reports } }
+      { env: { reports }, vars: { report: '%reports.where(orderId = %context.id).report' } }
     )
     expect(rows).toEqual([
       { resultDate: '2026-01-06', hasResult: true },
@@ -319,18 +334,22 @@ describe('README usage recipes: enforcement', () => {
   })
 
   it('every static README expression passes the analyzer', () => {
-    // What the snippets' surrounding code passes via `env` (plus project()'s
-    // row variables), declared the way a consumer's CI would.
+    // What the snippets' surrounding code passes via `env`, `vars`, and
+    // `functions` (plus project()'s row variables), declared the way a
+    // consumer's CI would.
     const variables = {
       loinc: { types: ['System.String'], single: true },
       pharmacyUrl: { types: ['System.String'], single: true },
-      statusMeta: {},
       reports: {},
+      report: {},
       rowIndex: { types: ['System.Integer'], single: true },
       rowTotal: { types: ['System.Integer'], single: true },
     }
+    const functions = {
+      displayText: { expression: '(text | coding.display.first() | coding.first().code).first()' },
+    }
     for (const expression of readmeExpressions) {
-      expect(analyzeExpression(expression, { model: r4Model, variables }), expression).toEqual([])
+      expect(analyzeExpression(expression, { model: r4Model, variables, functions }), expression).toEqual([])
     }
   })
 })

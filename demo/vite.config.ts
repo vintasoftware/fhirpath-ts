@@ -12,7 +12,7 @@ export default defineConfig({
   base: './',
   resolve: {
     alias: [
-      { find: 'fhirpath-ts/analyzer', replacement: src('analyzer/analyze.ts') },
+      { find: 'fhirpath-ts/analyzer', replacement: src('analyzer/index.ts') },
       { find: 'fhirpath-ts/r4', replacement: src('r4/index.ts') },
       { find: 'fhirpath-ts', replacement: src('index.ts') },
     ],

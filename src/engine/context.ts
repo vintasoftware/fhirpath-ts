@@ -1,14 +1,15 @@
 import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
+import type { AstNode } from '../parser/ast.ts'
 import { SYSTEM_STRING, toCollection, type TypedValue } from '../values/typed-value.ts'
 
 /**
- * The runtime side of a host-supplied function: arity and implementation.
+ * The runtime side of a native host-supplied function: arity and implementation.
  * The API layer's CustomFunction (api/compile.ts) adds the optional analyzer
  * signature; this module only needs what evaluation uses.
  */
-export interface HostFunction {
+export interface HostNativeFunction {
   /** Inclusive argument count range, checked before invocation. Defaults: 0 to unlimited. */
   minArity?: number
   maxArity?: number
@@ -21,6 +22,17 @@ export interface HostFunction {
    */
   fn: (input: unknown[], ...args: unknown[][]) => unknown
 }
+
+/**
+ * The runtime side of an expression-defined function (CustomFunction's
+ * `expression` form, pre-parsed by the API layer). Zero arguments; the body
+ * evaluates as if spliced at the call site, with the call's input as focus.
+ */
+export interface HostExpressionFunction {
+  ast: AstNode
+}
+
+export type HostFunction = HostNativeFunction | HostExpressionFunction
 
 /**
  * A pluggable regular-expression engine for matches()/matchesFull()/
@@ -66,13 +78,21 @@ export interface EvaluationContext {
    */
   trace: (name: string, values: TypedValue[]) => void
   /**
-   * Variables from defineVariable(). The map is local to one expression chain:
-   * dots thread it along, while operator operands, function arguments, and
-   * iteration frames evaluate against a copy (see forkVariables).
+   * Variables from defineVariable(), seeded with the call's `vars` bindings.
+   * The map is local to one expression chain: dots thread it along, while
+   * operator operands, function arguments, and iteration frames evaluate
+   * against a copy (see forkVariables).
    */
   variables: Map<string, TypedValue[]>
   /** Host-supplied functions by name; never contains a built-in name (createContext rejects overrides). */
   functions: ReadonlyMap<string, HostFunction>
+  /**
+   * Names of expression-defined functions currently on the call stack. One
+   * shared Set per evaluation (context copies keep the reference), so a
+   * definition that reaches itself — directly or through another definition —
+   * fails as recursion instead of overflowing the stack.
+   */
+  activeExpressionFunctions: Set<string>
   /** Regex engine for the matches() family; undefined means the built-in RegExp. */
   regex: RegexEngine | undefined
   frame: Frame
@@ -102,12 +122,20 @@ export const BUILTIN_ENV_VARIABLE_NAMES: ReadonlySet<string> = new Set([
  * context binds — so code that merges or overrides env records treats both
  * spellings as one namespace. Later entries win on the same bare name.
  */
-export function normalizeEnvKeys(env: Record<string, unknown> | undefined): Record<string, unknown> {
-  const normalized: Record<string, unknown> = {}
+export function normalizeEnvKeys<T>(env: Record<string, T> | undefined): Record<string, T> {
+  const normalized: Record<string, T> = {}
   for (const [name, value] of Object.entries(env ?? {})) {
     normalized[name.startsWith('%') ? name.slice(1) : name] = value
   }
   return normalized
+}
+
+/** Merge two env-shaped records per name: both key spellings normalize first, and `override` wins. */
+export function mergeEnvKeys<T>(
+  base: Record<string, T> | undefined,
+  override: Record<string, T> | undefined
+): Record<string, T> {
+  return { ...normalizeEnvKeys(base), ...normalizeEnvKeys(override) }
 }
 
 export function createContext(options: {
@@ -146,6 +174,7 @@ export function createContext(options: {
     trace: options.trace ?? (() => {}),
     variables: new Map(),
     functions: hostFunctions,
+    activeExpressionFunctions: new Set(),
     regex: options.regex,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }

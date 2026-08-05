@@ -1,4 +1,4 @@
-import { normalizeEnvKeys } from '../engine/context.ts'
+import { mergeEnvKeys } from '../engine/context.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
 import { booleanSingleton } from '../values/collection.ts'
@@ -12,6 +12,14 @@ import {
   type EvaluateOptions,
 } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
+import {
+  assertInputMatchesDto,
+  type DeclaredColumn,
+  dtoCallOptions,
+  type DtoClass,
+  dtoColumns,
+  withDtos,
+} from './dto.ts'
 import { type Projection, type ProjectionColumns, projectRows } from './project.ts'
 
 /**
@@ -49,6 +57,26 @@ export interface EngineOptions extends EvaluateOptions {
    * part of `defaults` and a per-call `options` argument cannot change it.
    */
   cacheSize?: number
+  /**
+   * DTO classes registered engine-wide (see `column()`): every `column()`
+   * field becomes an expression-defined function callable from any expression
+   * this engine evaluates (its name must be unique across the engine's
+   * functions; `{ test }` fields stay projection-only), and each class's
+   * static `env` merges into the engine env. A registered class must declare
+   * its `fhirType`, and only one class may register per fhirType — the class
+   * is *the* engine-wide vocabulary for that resource. Class `vars` are not
+   * registered — they may reference per-call env, so they apply only when
+   * projecting the class. A class you only ever project (never call into from
+   * other expressions) does not need to be listed here.
+   */
+  resourceDtos?: readonly DtoClass[]
+  /**
+   * Declared columns registered engine-wide (see `declareColumn()`): each one's
+   * expression becomes a function named by its `functionName`, under the same
+   * uniqueness rule as `functions` and DTO members. `{ test }` declarations are
+   * projection-only and cannot be listed here.
+   */
+  columns?: readonly DeclaredColumn[]
 }
 
 /**
@@ -64,7 +92,7 @@ export interface EngineOptions extends EvaluateOptions {
  * An engine is meant to outlive the work it serves: its parse cache is its own,
  * so a fresh engine starts cold. To vary `env`, `now`, or any other option per
  * request, keep one engine and pass them in that call's `options` — per-call
- * values override the bound defaults field by field, except `env` and
+ * values override the bound defaults field by field, except `env`, `vars`, and
  * `functions`, which merge per name (per-call entries add to the bound ones
  * and win on the same name).
  */
@@ -73,9 +101,9 @@ export class FhirPathEngine {
   readonly defaults: EvaluateOptions
   private readonly compileCached: Compiler
 
-  constructor({ cacheSize, ...defaults }: EngineOptions = {}) {
-    this.defaults = defaults
+  constructor({ cacheSize, resourceDtos, columns, ...defaults }: EngineOptions = {}) {
     this.compileCached = createCachedCompiler(cacheSize)
+    this.defaults = this.precompiled(withDtos(defaults, resourceDtos ?? [], columns ?? [], this.compileCached))
   }
 
   /** Compile (LRU-cached by expression text) and evaluate in one call; typed like `compile().evaluate()`. */
@@ -158,6 +186,12 @@ export class FhirPathEngine {
    * falls back to the row number. Columns compile up front, so a malformed
    * column expression throws even when the input yields no rows.
    */
+  project<C extends DtoClass>(
+    input: readonly unknown[] | BundleLike,
+    dto: C,
+    options?: EvaluateOptions
+  ): InstanceType<C>[]
+  project<C extends DtoClass>(input: unknown, dto: C, options?: EvaluateOptions): InstanceType<C>
   project<const Columns extends ProjectionColumns>(
     input: readonly unknown[] | BundleLike,
     columns: Columns,
@@ -168,8 +202,17 @@ export class FhirPathEngine {
     columns: Columns,
     options?: EvaluateOptions
   ): Projection<Columns>
-  project(input: unknown, columns: ProjectionColumns, options?: EvaluateOptions): unknown {
-    const rows = projectRows(input, columns, this.merged(options), this.compileCached)
+  project(input: unknown, columns: ProjectionColumns | DtoClass, options?: EvaluateOptions): unknown {
+    if (typeof columns === 'function') {
+      assertInputMatchesDto(input, columns)
+    }
+    const rows =
+      typeof columns === 'function'
+        ? projectRows(input, dtoColumns(columns), this.merged(dtoCallOptions(columns, options)), this.compileCached)
+            // Materialize each row as a class instance: values replace the column
+            // specs the field initializers hold, and methods/getters see the values.
+            .map(row => Object.assign(new columns(), row))
+        : projectRows(input, columns, this.merged(options), this.compileCached)
     return Array.isArray(input) || isBundle(input) ? rows : rows[0]
   }
 
@@ -196,21 +239,53 @@ export class FhirPathEngine {
    * (`threshold` and `%threshold` are the same variable). Passing
    * `env: { reports }` to an engine bound with lookup tables must not silently
    * unbind the tables for that call. (To blank a bound variable for one call,
-   * pass it as `undefined` — it resolves to empty.) `functions` merges the same
-   * way, per function name, for the same reason.
+   * pass it as `undefined` — it resolves to empty.) `vars` and `functions`
+   * merge the same way, per name, for the same reason.
    */
   private merged(options?: EvaluateOptions): EvaluateOptions {
     if (!options) {
       return this.defaults
     }
-    const merged = { ...this.defaults, ...options }
-    if (this.defaults.env && options.env) {
-      merged.env = { ...normalizeEnvKeys(this.defaults.env), ...normalizeEnvKeys(options.env) }
+    const precompiled = this.precompiled(options)
+    const merged = { ...this.defaults, ...precompiled }
+    if (this.defaults.env && precompiled.env) {
+      merged.env = mergeEnvKeys(this.defaults.env, precompiled.env)
     }
-    if (this.defaults.functions && options.functions) {
-      merged.functions = { ...this.defaults.functions, ...options.functions }
+    if (this.defaults.vars && precompiled.vars) {
+      merged.vars = mergeEnvKeys(this.defaults.vars, precompiled.vars)
+    }
+    if (this.defaults.functions && precompiled.functions) {
+      merged.functions = { ...this.defaults.functions, ...precompiled.functions }
     }
     return merged
+  }
+
+  /**
+   * `vars` expressions and expression-function bodies given as strings parse
+   * through this engine's LRU here, once per call at most — so per-row
+   * evaluation inside project() never re-parses them.
+   */
+  private precompiled(options: EvaluateOptions): EvaluateOptions {
+    const out = { ...options }
+    if (options.vars) {
+      out.vars = Object.fromEntries(
+        Object.entries(options.vars).map(([name, value]) => [
+          name,
+          typeof value === 'string' ? this.compileCached(value) : value,
+        ])
+      )
+    }
+    if (options.functions) {
+      out.functions = Object.fromEntries(
+        Object.entries(options.functions).map(([name, fn]) => [
+          name,
+          'expression' in fn && typeof fn.expression === 'string'
+            ? { ...fn, expression: this.compileCached(fn.expression) }
+            : fn,
+        ])
+      )
+    }
+    return out
   }
 }
 

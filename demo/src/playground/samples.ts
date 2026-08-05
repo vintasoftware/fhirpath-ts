@@ -117,6 +117,62 @@ console.log(rows)
 `,
   },
   {
+    id: 'dto',
+    label: 'dto',
+    runnable: true,
+    code: `import { column, declareColumn, FhirPathEngine } from 'fhirpath-ts'
+import { r4Model } from 'fhirpath-ts/r4'
+
+// A DTO class binds columns to one resource type. Registered on the engine,
+// each column doubles as a function any expression can call — displayText()
+// below. A declared column is one reusable column with an engine-wide name.
+class CodeableConceptDto {
+  static readonly fhirType = 'CodeableConcept'
+  displayText = column('(text | coding.display.first() | coding.first().code).first()', { type: 'string' })
+}
+
+const ObservedAt = declareColumn('observedAt', '(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+
+const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto], columns: [ObservedAt] })
+
+// Projected rows ARE instances of the class: each field's static type is the
+// column's value — kg is number, at is Date | undefined — so getters work on
+// real values. Hover the fields to see it.
+class WeightRow {
+  static readonly fhirType = 'Observation'
+  name = column('Observation.code.displayText()', { type: 'string', default: 'Reading' })
+  kg = column("Observation.value.ofType(Quantity).toQuantity('kg').value", { type: 'decimal', default: 0 })
+  at = ObservedAt()
+
+  get label(): string {
+    return this.name + ': ' + Math.round(this.kg * 10) / 10 + ' kg'
+  }
+}
+
+const observations = [
+  {
+    resourceType: 'Observation' as const,
+    status: 'final',
+    code: { coding: [{ system: 'http://loinc.org', code: '29463-7', display: 'Body weight' }] },
+    valueQuantity: { value: 71.4, unit: 'kg', code: 'kg' },
+    effectiveDateTime: '2026-06-30T09:15:00Z',
+  },
+  {
+    resourceType: 'Observation' as const,
+    status: 'final',
+    code: { text: 'Body weight' },
+    // Recorded in pounds; the kg column converts it.
+    valueQuantity: { value: 160, unit: 'lb', code: '[lb_av]' },
+    issued: '2026-05-01T08:00:00Z',
+  },
+]
+
+const rows = fp.project(observations, WeightRow) // WeightRow[]
+console.log(rows.map(row => row.label))
+console.log('row 1 observed at:', rows[1]?.at?.toISOString())
+`,
+  },
+  {
     id: 'checkConstraints',
     label: 'checkConstraints',
     runnable: true,
