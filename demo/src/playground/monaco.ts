@@ -5,9 +5,14 @@
  * their own entry points instead. Both contributions are needed: the first
  * registers the `typescript` language id, the second attaches the language
  * service that answers with types.
+ *
+ * `editor.api` ships the bare editor with no contributions, so the hover widget —
+ * the piece that asks the language service for type info under the cursor and
+ * shows marker messages — has to be pulled in explicitly.
  */
 
 import 'monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution'
+import 'monaco-editor/esm/vs/editor/contrib/hover/browser/hoverContribution'
 import 'monaco-editor/esm/vs/language/typescript/monaco.contribution'
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
