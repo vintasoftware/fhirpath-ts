@@ -753,11 +753,14 @@ ported into `src/reference-crosschecks.test.ts` (alongside Medplum spot checks).
 Three layers, from cheapest to most thorough:
 
 1. **Type-level inference** (`tsc`, zero infrastructure) for the tractable subset:
-   dotted paths, `[n]`, `first()/last()/single()`, type-preserving `where()`,
-   `select()` sub-paths, `ofType()/as()`, `exists()/empty()/not()/hasValue()`,
-   `count()/length()`, the `toX()`/`convertsToX()` conversions, `join()`,
-   `toChars()`, choice stems. Anything else degrades to `unknown[]` — never a
-   type error.
+   dotted paths, `[n]`, the type-preserving identity functions
+   (`where()/first()/last()/single()/distinct()/tail()/skip()/take()/exclude()/intersect()/trace()`),
+   `select()` sub-paths, `ofType()/as()`, the fixed-return family —
+   existence/comparison booleans (`exists()/empty()/not()/matches()/startsWith()`, …),
+   `count()/length()/indexOf()` and the other integer/decimal results, the
+   `toX()`/`convertsToX()` conversions, and the string functions
+   (`join()`, `trim()`, `replace()`, `substring()`, `split()`, …) — and choice
+   stems. Anything else degrades to `unknown[]` — never a type error.
 2. **ESLint rule** (`fhirpath-ts/eslint`) — runs the analyzer as a lint rule over
    every literal expression at each API entry point: the `` fhirpath`...` `` tag,
    the expression-first calls (`fhirpath()`, `compile()`, `evaluate()`,

@@ -3,11 +3,12 @@ import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated
 /**
  * Type-level FHIRPath inference for a tractable subset of the language:
  * dotted paths, indexers, choice elements by stem name, and the calls the
- * subset knows — type-preserving `where()`/`first()`/`last()`/`single()`,
- * `select()` over sub-paths, `ofType()`/`as()`, and the fixed-return family
- * (`exists()`/`empty()`/`not()`/`hasValue()`, `count()`/`length()`, the
- * `toX()`/`convertsToX()` conversions, `join()`, `toChars()`). Everything
- * else degrades to `unknown[]` — never a type error, never a wrong type.
+ * subset knows — the type-preserving identity functions (IDENTITY_RETURNS:
+ * `where()`/`first()`/`distinct()`/`skip()`/…), `select()` over sub-paths,
+ * `ofType()`/`as()`, and the fixed-return family (FIXED_RETURNS: existence
+ * and comparison booleans, `count()`/`length()` and the other integer/decimal
+ * results, the `toX()`/`convertsToX()` conversions, and the string functions).
+ * Everything else degrades to `unknown[]` — never a type error, never a wrong type.
  * The runtime engine and the static analyzer cover the full language; this
  * layer only makes the common cases precise in plain tsc.
  *
@@ -67,39 +68,101 @@ type Balanced<A extends string> = A extends `${infer L}(${infer M})${infer R}`
 
 /**
  * Functions whose result type is fixed regardless of input (FHIRPath §5.1,
- * §5.5, §5.7). Every entry must be genuinely input-independent: these types
- * also apply after an unknown element (see Navigate), where the input is
- * empty at runtime.
+ * §5.3, §5.5–§5.7). Every entry must be genuinely input-independent: these
+ * types also apply after an unknown element (see Navigate), where the input
+ * is empty at runtime. A value (not a type-only interface) so the unit test
+ * can cross-check every entry against the analyzer's FUNCTION_SIGNATURES.
+ * Entries whose result depends on the input (`power`, `abs`, `lowBoundary`,
+ * `union`, `iif`, …) must stay out — degrading beats guessing.
  */
-interface FixedReturns {
-  exists: 'boolean'
-  empty: 'boolean'
-  not: 'boolean'
-  hasValue: 'boolean'
-  count: 'integer'
-  length: 'integer'
-  toBoolean: 'boolean'
-  convertsToBoolean: 'boolean'
-  convertsToInteger: 'boolean'
-  convertsToDecimal: 'boolean'
-  convertsToString: 'boolean'
-  convertsToDate: 'boolean'
-  convertsToDateTime: 'boolean'
-  convertsToTime: 'boolean'
-  convertsToQuantity: 'boolean'
-  toInteger: 'integer'
-  toDecimal: 'decimal'
-  toString: 'string'
-  toDate: 'date'
-  toDateTime: 'dateTime'
-  toTime: 'time'
-  toQuantity: 'Quantity'
-  toChars: 'string'
-  join: 'string'
-}
+export const FIXED_RETURNS = {
+  exists: 'boolean',
+  empty: 'boolean',
+  not: 'boolean',
+  hasValue: 'boolean',
+  count: 'integer',
+  length: 'integer',
+  toBoolean: 'boolean',
+  convertsToBoolean: 'boolean',
+  convertsToInteger: 'boolean',
+  convertsToDecimal: 'boolean',
+  convertsToString: 'boolean',
+  convertsToDate: 'boolean',
+  convertsToDateTime: 'boolean',
+  convertsToTime: 'boolean',
+  convertsToQuantity: 'boolean',
+  toInteger: 'integer',
+  toDecimal: 'decimal',
+  toString: 'string',
+  toDate: 'date',
+  toDateTime: 'dateTime',
+  toTime: 'time',
+  toQuantity: 'Quantity',
+  toChars: 'string',
+  join: 'string',
+  trim: 'string',
+  upper: 'string',
+  lower: 'string',
+  replace: 'string',
+  replaceMatches: 'string',
+  substring: 'string',
+  encode: 'string',
+  decode: 'string',
+  escape: 'string',
+  unescape: 'string',
+  split: 'string',
+  matches: 'boolean',
+  matchesFull: 'boolean',
+  startsWith: 'boolean',
+  endsWith: 'boolean',
+  contains: 'boolean',
+  subsetOf: 'boolean',
+  supersetOf: 'boolean',
+  isDistinct: 'boolean',
+  allTrue: 'boolean',
+  anyTrue: 'boolean',
+  allFalse: 'boolean',
+  anyFalse: 'boolean',
+  all: 'boolean',
+  indexOf: 'integer',
+  lastIndexOf: 'integer',
+  ceiling: 'integer',
+  floor: 'integer',
+  truncate: 'integer',
+  round: 'decimal',
+  sqrt: 'decimal',
+  exp: 'decimal',
+  ln: 'decimal',
+  log: 'decimal',
+} as const satisfies Record<string, keyof R4TypeOf & string>
+
+type FixedReturns = typeof FIXED_RETURNS
+
+/**
+ * Functions that yield a subset or reordering of their input, so the input's
+ * type carries through. Cross-checked against the analyzer the same way as
+ * FIXED_RETURNS (their signatures preserve the input's types). `abs` is
+ * excluded deliberately: it preserves the numeric kind at runtime, but the
+ * analyzer declares its result unknown, and the table must not outrun it.
+ */
+export const IDENTITY_RETURNS = [
+  'where',
+  'first',
+  'last',
+  'single',
+  'distinct',
+  'tail',
+  'skip',
+  'take',
+  'exclude',
+  'intersect',
+  'trace',
+] as const
+
+type IdentityFn = (typeof IDENTITY_RETURNS)[number]
 
 /** One call segment, dispatched on the function name. */
-type Call<S extends string, Fn extends string, Arg extends string> = Fn extends 'where' | 'first' | 'last' | 'single'
+type Call<S extends string, Fn extends string, Arg extends string> = Fn extends IdentityFn
   ? S
   : Fn extends 'ofType' | 'as'
     ? Arg extends keyof R4TypeOf & string
