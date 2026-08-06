@@ -23,7 +23,6 @@ import {
 // rather than a single expression — a browser playground, a bundler plugin — can
 // find the expressions to analyze without the TypeScript compiler the CLI walker
 // needs. The call table both walkers obey lives in expression-policy.ts.
-export { findLexicalExpressionSites, type LexicalExpressionSite } from './lexical-sites.ts'
 
 export interface AnalyzerDiagnostic {
   severity: 'error' | 'warning'

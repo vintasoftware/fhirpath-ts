@@ -5,47 +5,64 @@ documentation. This file records **decisions that are cheap to break and
 expensive to rediscover** — the ones where the obvious refactor is the wrong one.
 Add to it when a decision survives a real debate, not for every choice.
 
-## Two static walkers, one oracle
+## Two walkers, one AST each — and the compiler is the caller's
 
-Three consumers need to find FHIRPath expression literals in source code, and
-they are deliberately *not* three implementations of that search:
+Expression-site extraction has exactly two implementations, one per AST kind:
 
 - **`src/eslint/index.ts`** walks ESLint's ESTree, because a lint rule is handed
   an AST and must report on its nodes.
-- **`src/analyzer/lexical-sites.ts`** is a `typescript`-free scanner, and it is
-  what everything else uses: the `fhirpath-check` CLI, the demo playground's
-  editor markers, and any bundler plugin. Two reasons, in order:
-  - `fhirpath-ts` has **no runtime dependencies**, and `fhirpath-ts/analyzer` is
-    imported by browser and edge hosts. Walking the TypeScript AST in a shipped
-    path would put the compiler in `dependencies` for all of them.
-  - A browser host that *does* have TypeScript cannot reach it: the demo ships
-    it, but behind Monaco's async worker, while `lint()` runs synchronously on the
-    main thread per keystroke. Using it would mean bundling a second copy or
-    making linting async.
-- **`src/analyzer/reference-sites.ts`** is the same policy over a real TypeScript
-  AST, and exists **only as the test oracle**. `lexical-sites.test.ts` runs it
-  and the scanner over every `.ts` file in the repo and fails on any
-  disagreement, down to each site's DTO context and declared column functions.
+- **`src/sites/index.ts`** (`fhirpath-ts/sites`) walks the real TypeScript AST
+  for everything else: the `fhirpath-check` CLI, the demo playground's editor
+  markers, a bundler plugin. `createSiteFinder(ts)` takes the TypeScript
+  namespace **as an argument** — the entry point itself imports only types — so
+  the package keeps its zero-runtime-dependency promise while each caller brings
+  the compiler it already has: the CLI passes the `typescript` package (optional
+  peer), the demo passes the copy Monaco ships in its worker (`globalThis.ts`,
+  set by ts.worker at module scope), and nobody bundles a second compiler.
 
-What follows from that:
+There used to be a third: a hand-written `typescript`-free lexical scanner, plus
+a reference walker kept only as its parity oracle (a repo-wide
+compare-both-walkers test). Both were deleted when the demo — the one consumer
+that genuinely could not reach a compiler, because its lint ran synchronously on
+the main thread while Monaco's TS sits behind an async worker — moved extraction
+*into* that worker (see below). Do not reintroduce a scanner without a consumer
+that measurably cannot do that.
 
-- Do not point the CLI (or any shipped code) at `reference-sites.ts`. It was the
-  CLI's walker once; making that mistake again reintroduces a second production
-  walker to keep in step.
+What still follows:
+
 - Do not make the CLI depend on ESLint to reuse the rule. It would cost the
   CLI's niche (Biome and other non-ESLint repos) and silently drop
   warning-severity diagnostics such as `regex-backtracking`, because ESLint
   severity is per-rule, not per-report.
-- The CLI's *source* half is TypeScript-free; its DTO half is not —
-  `src/cli/ts-loader.mjs` imports `typescript` to compile the modules it loads,
-  which is why the package declares it as an optional peer. `--no-import` is the
-  path that touches no compiler.
+- The CLI requires `typescript` (optional peer) for both halves now: sites for
+  the source half, `src/cli/ts-loader.mjs` for the DTO half.
+- `fhirpath-ts/analyzer` stays free of the compiler: `analyzeExpression`,
+  `analyzeDto` and `analyzeSite` have genuine runtime uses (a rules editor
+  validating what a user typed), and those hosts must not pay for TypeScript.
+  Source-reading is the one job that needs it, and it lives in
+  `fhirpath-ts/sites` for exactly that reason.
 - When a walker learns a new shape, the *decision* belongs in
   `src/analyzer/expression-policy.ts` (call table, argument positions, receiver
   rules, shape extraction through the `ExpressionAst` adapter) and the *analysis*
-  in `analyzeSite`. A walker should only supply AST or token access.
-- Never repair a scanner/oracle disagreement by changing the oracle to match the
-  scanner. The oracle is the reference; the scanner is what may be wrong.
+  in `analyzeSite`. A walker should only supply AST access.
+
+## The demo extracts sites inside Monaco's TS worker
+
+`demo/src/playground/ts.custom.worker.ts` is Monaco's own TypeScript worker plus
+a side channel: the side-effect import wires Monaco's protocol unchanged and
+exposes the bundled compiler as `globalThis.ts` (ts.worker does that at module
+scope), and `createSiteFinder` runs on it. The two protocols share one worker
+safely because Monaco guards both directions with
+`if (!message || !message.vsWorker) return` (vs/base/common/worker/webWorker.js)
+while the side channel answers only messages carrying `fhirpathSites`. The
+playground's `lint()` is async as a result: request id + model version guard
+drop stale answers. `analyzeSite` still runs on the main thread — the analyzer
+needs no compiler.
+
+If a Monaco upgrade breaks this, the things to re-check are those three facts:
+`globalThis.ts` still set, the `vsWorker` guard still present, and
+`MonacoEnvironment.getWorker` still letting us construct (and keep a handle to)
+the worker ourselves.
 
 ## `fhirpath-check` has two halves, and DTOs live in `*.dto.ts`
 

@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
-import { findLexicalExpressionSites } from '../analyzer/lexical-sites.ts'
 import { FhirPathEngine } from '../index.ts'
 import type {
   Bundle,
@@ -17,6 +17,7 @@ import type {
   ServiceRequest,
 } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
+import { createSiteFinder } from '../sites/index.ts'
 
 /**
  * Every snippet in the README's "Usage recipes" section, exercised against the
@@ -313,8 +314,9 @@ describe('README usage recipes: enforcement', () => {
   // The fences omit the import boilerplate the section's intro relies on; the
   // walker needs it to trust `r4`, so scan each fence with it prepended.
   const IMPORT_HEADER = "import { r4 } from 'fhirpath-ts/r4'\n"
+  const findExpressionSites = createSiteFinder(ts)
   const readmeExpressions = [...section.matchAll(/```ts\n([\s\S]*?)```/g)].flatMap(fence =>
-    findLexicalExpressionSites(IMPORT_HEADER + fence[1]!).map(site => site.expression)
+    findExpressionSites(IMPORT_HEADER + fence[1]!, 'recipe.ts').map(site => site.expression)
   )
 
   it('extracts the section and its expression strings', () => {
@@ -324,9 +326,9 @@ describe('README usage recipes: enforcement', () => {
 
   it('runs every static README expression in this file', () => {
     const tested = new Set(
-      findLexicalExpressionSites(readFileSync(fileURLToPath(import.meta.url), 'utf8'), { localImports: true }).map(
-        site => site.expression
-      )
+      findExpressionSites(readFileSync(fileURLToPath(import.meta.url), 'utf8'), 'recipes.test.ts', {
+        localImports: true,
+      }).map(site => site.expression)
     )
     for (const expression of readmeExpressions) {
       expect(tested.has(expression), `README expression not exercised by these tests: ${expression}`).toBe(true)

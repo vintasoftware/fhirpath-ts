@@ -5,10 +5,9 @@
  * 1. Every FHIRPath expression literal in the given files, analyzed with the R4
  *    model. Which call sites carry expressions, and which are skipped, is the
  *    shared policy's decision — see src/analyzer/expression-policy.ts. Sites come
- *    from the `typescript`-free scanner (analyzer/lexical-sites.ts), the same
- *    walker editors and bundler plugins use, so this command stays dependency-
- *    light and there is one static walker to maintain besides the ESLint rule's.
- *    analyzer/reference-sites.ts keeps the scanner honest as a test oracle.
+ *    from `fhirpath-ts/sites`, the shared TypeScript-AST walker, with the
+ *    `typescript` package (an optional peer dependency, and this command's one
+ *    requirement beyond Node) supplying the compiler.
  *
  * 2. Every DTO in the project's `*.dto.ts` modules, *imported* and analyzed
  *    against the engine that projects it (see dto-check.ts) — the exhaustive
@@ -26,10 +25,14 @@
 /* v8 ignore file -- covered end-to-end as a subprocess in fhirpath-check.test.ts */
 import { readFileSync } from 'node:fs'
 
+import ts from 'typescript'
+
 import { analyzeSite } from '../analyzer/analyze.ts'
-import { findLexicalExpressionSites } from '../analyzer/lexical-sites.ts'
 import { r4Model } from '../r4/index.ts'
+import { createSiteFinder } from '../sites/index.ts'
 import { checkDtoModules, DEFAULT_DTO_GLOB, type DtoFinding } from './dto-check.ts'
+
+const findExpressionSites = createSiteFinder(ts)
 
 interface Args {
   files: string[]
@@ -63,19 +66,6 @@ if (args.files.length === 0 && !args.imports) {
   process.exit(2)
 }
 
-/** 1-based line and column of `offset` in `text`. */
-function positionAt(text: string, offset: number): { line: number; column: number } {
-  let line = 1
-  let lineStart = 0
-  for (let index = 0; index < offset; index++) {
-    if (text[index] === '\n') {
-      line += 1
-      lineStart = index + 1
-    }
-  }
-  return { line, column: offset - lineStart + 1 }
-}
-
 let failures = 0
 
 function report(location: string, diagnostic: { severity: string; code: string; message: string }): void {
@@ -95,15 +85,10 @@ for (const file of args.files) {
     console.error(`fhirpath-check: cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`)
     process.exit(2)
   }
-  for (const site of findLexicalExpressionSites(text)) {
-    const diagnostics = analyzeSite(site, { model: r4Model })
-    if (diagnostics.length === 0) {
-      continue
-    }
-    const start = positionAt(text, site.start)
-    for (const diagnostic of diagnostics) {
-      const line = start.line + (diagnostic.span.line - 1)
-      const column = diagnostic.span.line === 1 ? start.column + diagnostic.span.column - 1 : diagnostic.span.column
+  for (const site of findExpressionSites(text, file)) {
+    for (const diagnostic of analyzeSite(site, { model: r4Model })) {
+      const line = site.line + (diagnostic.span.line - 1)
+      const column = diagnostic.span.line === 1 ? site.column + diagnostic.span.column - 1 : diagnostic.span.column
       report(`${file}:${line}:${column}`, diagnostic)
     }
   }
@@ -122,13 +107,12 @@ function locate(finding: DtoFinding): string {
   } catch {
     return `${finding.file} ${finding.dto}.${finding.member}`
   }
-  const site = findLexicalExpressionSites(text).find(candidate => candidate.expression === finding.expression)
+  const site = findExpressionSites(text, finding.file).find(candidate => candidate.expression === finding.expression)
   if (site === undefined) {
     return `${finding.file} ${finding.dto}.${finding.member}`
   }
-  const start = positionAt(text, site.start)
-  const line = start.line + (finding.span.line - 1)
-  const column = finding.span.line === 1 ? start.column + finding.span.column - 1 : finding.span.column
+  const line = site.line + (finding.span.line - 1)
+  const column = finding.span.line === 1 ? site.column + finding.span.column - 1 : finding.span.column
   return `${finding.file}:${line}:${column} ${finding.dto}.${finding.member}`
 }
 

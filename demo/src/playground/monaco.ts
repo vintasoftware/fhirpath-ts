@@ -17,12 +17,12 @@ import 'monaco-editor/esm/vs/language/typescript/monaco.contribution'
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
-import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 
 import { cssVar } from '../dom.ts'
 import analyzerDts from '../monaco/fhirpath-ts.analyzer.d.ts?raw'
 import indexDts from '../monaco/fhirpath-ts.index.d.ts?raw'
 import r4Dts from '../monaco/fhirpath-ts.r4.d.ts?raw'
+import tsWorker from './ts.custom.worker?worker'
 
 export { monaco }
 
@@ -34,10 +34,33 @@ export const THEME_NAME = 'fhirpath-dark'
 interface MonacoEnvironmentShape {
   getWorker(id: string, label: string): Worker
 }
+
+/**
+ * The raw TypeScript worker, kept for the FHIRPath side channel: Monaco wraps
+ * what getWorker returns in its own proxy, so the extra protocol the custom
+ * worker speaks (see ts.custom.worker.ts) needs this direct handle. Created
+ * lazily by Monaco; `tsWorkerHandle()` forces creation first.
+ */
+let rawTsWorker: Worker | undefined
 ;(self as unknown as { MonacoEnvironment: MonacoEnvironmentShape }).MonacoEnvironment = {
   getWorker(_id, label) {
-    return label === 'typescript' || label === 'javascript' ? new tsWorker() : new editorWorker()
+    if (label === 'typescript' || label === 'javascript') {
+      rawTsWorker = new tsWorker()
+      return rawTsWorker
+    }
+    return new editorWorker()
   },
+}
+
+/** The custom TypeScript worker, forcing Monaco to create it on the first call. */
+export async function tsWorkerHandle(): Promise<Worker> {
+  if (rawTsWorker === undefined) {
+    await monaco.languages.typescript.getTypeScriptWorker()
+  }
+  if (rawTsWorker === undefined) {
+    throw new Error('Monaco did not create its TypeScript worker')
+  }
+  return rawTsWorker
 }
 
 /** Point Monaco's TypeScript worker at the package's real declarations, and theme it. */
