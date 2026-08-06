@@ -220,11 +220,11 @@ export function column(path: string, options?: ColumnOptions): unknown {
  * empty → false per the convention on top of it), so the field is always a
  * `boolean`.
  *
- * A registered DTO's criteria is also callable from other expressions
- * (`isFinal()`), and the coercion travels with it — the call yields one Boolean,
- * so `isFinal().not()` on a resource with no `status` is `true`, the same answer
- * the projected column gives. The body still runs against the *call's* focus, so
- * reach it on the type the DTO was written against.
+ * Other expressions can also call a registered DTO's criteria, as `isFinal()`,
+ * and the criteria rule travels with it. The call returns one Boolean, so
+ * `isFinal().not()` on a resource with no `status` is `true`, the same answer
+ * the projected column gives. The body still runs against the call's focus, so
+ * call it on the type the DTO was written for.
  */
 export function criteria<const Expr extends string>(expr: Expr): ColumnDecorator<boolean>
 export function criteria(expr: string): unknown {
@@ -326,8 +326,8 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
     }
     classPerType.set(definition.fhirType, dto.name)
     for (const [name, spec] of Object.entries(definition.columns)) {
-      // A field named after a built-in would fail at createContext, naming the
-      // function rather than the field that caused it.
+      // Without this, createContext fails later and names the function rather
+      // than the field that caused it.
       if (builtinFunctions.has(name)) {
         throw new FhirPathTypeError(
           `DTO ${dto.name} declares a column named '${name}', which is a built-in function; rename the field`
@@ -349,14 +349,14 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
 }
 
 /**
- * A column as an expression-defined function, with the signature it claims and
- * the DTO's own `fhirType` as the input it expects — a column is written against
- * one type, and calling it on anything else navigates to nothing.
+ * Turns a column into an expression-defined function, with the signature it
+ * claims and the DTO's own `fhirType` as the input it expects. A column is
+ * written for one type, and calling it on anything else navigates to nothing.
  *
- * A criteria registers with `criteria: true`, so its coercion rides
- * on the function itself — the same rule `planColumn` applies when the criteria
- * is projected, which is what lets one declaration mean one thing in both
- * positions.
+ * A criteria registers with `criteria: true`, so the criteria rule travels on
+ * the function itself. That is the same rule `planColumn` applies when the
+ * criteria is projected, which is what lets one declaration mean one thing in
+ * both places.
  */
 function columnFunction(spec: ColumnSpec, compile: Compiler, hostType: string): CustomFunction {
   if ('test' in spec) {

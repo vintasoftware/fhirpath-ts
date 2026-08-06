@@ -45,10 +45,10 @@ import { type Compiler, contextFactory, type EvaluateOptions } from './compile.t
  *   it also removes `undefined` from the column's type. FHIRPath has no `null`,
  *   so this is also the way a column yields one.
  * - `{ test }` evaluates the expression as a boolean criteria, with the same
- *   semantics as `FhirPathEngine.test()`: a single boolean → itself (spec §4.5),
- *   empty → false (the criteria convention). `criteriaBoolean`,
- *   values/collection.ts, is the one place that rule lives. The column is always
- *   a `boolean`.
+ *   semantics as `FhirPathEngine.test()`: a single boolean returns itself (spec
+ *   §4.5), and empty returns false (the criteria convention). That rule lives in
+ *   one place, `criteriaBoolean` in values/collection.ts. The column is always a
+ *   `boolean`.
  *
  * `as`, `choices`, and `enum` are alternatives — a column declares at most one —
  * and each decides the column's JS type, so a `type` given alongside any of

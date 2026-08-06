@@ -135,8 +135,9 @@ helper for each:
 
 ```ts
 // Criteria — the boolean semantics FHIR invariants, Subscription criteria, and
-// Questionnaire enableWhen share: one boolean → itself (spec §4.5 singleton
-// evaluation), empty → false (those callers' own reading of an empty result).
+// Questionnaire enableWhen share. One boolean returns itself (spec §4.5
+// singleton evaluation). Empty returns false, which is how those callers read
+// an empty result.
 r4.test(patient, "name.family = 'Chalmers'")   // boolean
 r4.filter(patients, 'birthDate < @1990-01-01') // Patient[] — arrays and Bundles alike
 
@@ -337,30 +338,30 @@ resolves them at arity 0 from the same record. An engine pre-parses bodies
 through its parse cache; pass a `CompiledExpression` body to get the same
 effect with the free `evaluate()`.
 
-Two signature fields say what a function is *for*, rather than only what it
+Two signature fields say what a function is for, rather than only what it
 returns:
 
 ```ts
 const functions = {
   displayText: {
     expression: '(text | coding.display.first() | coding.first().code).first()',
-    // Written against a CodeableConcept: reaching it on anything that can never
-    // be one throws at runtime and reports `input-type` in the analyzer.
+    // Written for a CodeableConcept. Calling it on anything that can never be
+    // one throws at runtime and reports `input-type` in the analyzer.
     signature: { input: { types: ['CodeableConcept'] }, result: { types: ['string'], single: true } },
   },
   isFinal: {
     expression: "status = 'final'",
-    // Read the result as a criteria (§4.5 singleton evaluation, with empty
-    // reading as false), so the call is one boolean and `isFinal().not()` composes.
+    // Read the result as a criteria: §4.5 singleton evaluation, with empty read
+    // as false. The call is then one boolean, so `isFinal().not()` chains.
     criteria: true,
   },
 } satisfies Record<string, CustomFunction>
 ```
 
-`input.types` only speaks when it can prove the focus is wrong. An empty focus,
-no model, a value the model does not describe (plain `env` data, a pre-resolved
-var), or a focus where any one candidate fits all pass silently — and the
-hierarchy is read in both directions, so a `Quantity` function accepts a
+`input.types` reports only what it can prove. It stays silent on an empty focus,
+on a call with no model, on a value the model does not describe such as plain
+`env` data or a pre-resolved var, and on a focus where any one type fits. It
+also reads the hierarchy in both directions, so a `Quantity` function accepts a
 `SimpleQuantity`.
 
 ### DTOs
@@ -400,9 +401,9 @@ statusCode!: number
 ```
 
 `@column` takes the same options as a `project()` column — `type`, `as`,
-`choices`/`pick`, `enum`, `default`, `collection` — and `@criteria` declares a
-boolean criteria column (the `test()` semantics above), which reads the same way
-when it is called as a function. Rows are real instances, so anything
+`choices`/`pick`, `enum`, `default`, `collection`. `@criteria` declares a
+boolean criteria column, using the `test()` semantics above, and it reads the
+same way when called as a function. Rows are real instances, so anything
 derived from the columns belongs on the class as a getter or method rather than
 in a column shaper.
 
@@ -431,20 +432,20 @@ fp.first('Condition.code.displayText()', condition, { type: 'string' })
 fp.first('Condition.subject.reference.displayText()', condition) // throws: a reference is not a CodeableConcept
 ```
 
-The namespace is flat — a name resolves the same way from anywhere — but each
-column declares its DTO's `fhirType` as the input it expects, so a call on a
-focus that can never hold that type is an error at both ends instead of an
-expression that quietly comes back empty. A `@criteria` registers the same way,
-carrying its criteria coercion, so `isFinal()` yields one boolean whether it is
-projected as a column or called from an expression:
+The namespace is flat, so a name resolves the same way from anywhere. Each
+column declares its DTO's `fhirType` as the input it expects, so calling one on
+a focus that can never hold that type is an error at both ends rather than an
+expression that quietly returns empty. A `@criteria` registers the same way and
+carries the criteria rule with it, so `isFinal()` returns one boolean whether it
+is projected as a column or called from an expression:
 
 ```ts
 fp.evaluate('isFinal().not()', observationWithNoStatus) // [true], the same answer the column holds
 ```
 
-Column and criteria fields share one name space, so a field name that collides
-with another registered column — or with a built-in function — fails at engine
-construction rather than shadowing anything.
+Column and criteria fields share one namespace. A field name that collides with
+another registered column, or with a built-in function, fails when the engine is
+constructed rather than shadowing anything.
 
 `vars` and `env` travel with the DTO, as the second argument to `defineDto`.
 `vars` are not registered — they may reference per-call env, so they apply when

@@ -324,9 +324,9 @@ describe('DTOs registered engine-wide', () => {
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Flags] })
     expect(engine.project(weighed, Flags).isFinal).toBe(true)
     expect(engine.evaluate('isFinal()', weighed)).toEqual([true])
-    // The criteria coercion travels with the function, so both readings agree on a
-    // resource the criteria finds nothing in — and the call composes as a
-    // boolean rather than propagating empty.
+    // The criteria rule travels with the function, so both readings agree on a
+    // resource where the criteria finds nothing. The call also chains as a
+    // boolean instead of returning empty.
     const statusless = { resourceType: 'Observation', code: { text: 'Weight' } }
     expect(engine.project(statusless, Flags).isFinal).toBe(false)
     expect(engine.evaluate('isFinal()', statusless)).toEqual([false])
@@ -343,8 +343,8 @@ describe('DTOs registered engine-wide', () => {
     }
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Flags] })
     const functions = engine.defaults.functions ?? {}
-    // The declared Boolean result feeds later checks, and the declared input
-    // catches the call on a focus that can never be an Observation.
+    // The declared Boolean result feeds later checks. The declared input
+    // catches a call on a focus that can never be an Observation.
     const codes = (expression: string, inputType: string): string[] =>
       analyzeExpression(expression, { model: r4Model, inputType, functions }).map(d => d.code)
     expect(codes('isFinal().not()', 'Observation')).toEqual([])

@@ -226,7 +226,7 @@ describe('criteria: the criteria rule on the function', () => {
   it('answers exactly one boolean, whatever the body yields', () => {
     expect(run('holds()', criterion("status = 'final'"))).toEqual([true])
     expect(run('holds()', criterion("status = 'amended'"))).toEqual([false])
-    // Empty is false, which is the whole point: the call composes as a boolean.
+    // Empty is false, which is the point: the call chains as a boolean.
     expect(run('holds()', criterion('nothing.here'))).toEqual([false])
     expect(run('holds().not()', criterion('nothing.here'))).toEqual([true])
     // A single non-boolean item is true, per the implicit-exists rule.
@@ -237,10 +237,11 @@ describe('criteria: the criteria rule on the function', () => {
     expect(evaluate('holds()', observation, { functions: { holds: { expression: 'nothing.here' } } })).toEqual([])
   })
 
-  it('keeps the >1-item error, and still clears the recursion guard', () => {
+  it('keeps the >1-item error, and still allows a later call', () => {
     const many = criterion('code.text | status')
     expect(() => run('holds()', many)).toThrow('Expected a collection with at most one item, but found 2')
-    // The guard is released even though the coercion threw, so a later call works.
+    // The name is removed from activeExpressionFunctions even though the
+    // criteria rule threw, so a later call still works.
     expect(run('holds()', criterion("status = 'final'"))).toEqual([true])
   })
 })
@@ -327,9 +328,9 @@ describe('a declared input type', () => {
     })
 
     it('walks a surplus argument against $this, now that the column has a signature', () => {
-      // Declaring an input type means every column has a signature, so a
-      // surplus argument takes the checked path: value arguments analyze
-      // against $this, which here is the Patient rather than the call's input.
+      // Declaring an input type gives every column a signature, so an extra
+      // argument now takes the checked path. Value arguments analyze against
+      // $this, which here is the Patient rather than the call's input.
       const messages = analyzeExpression('maritalStatus.displayText(nope)', {
         model: r4Model,
         inputType: 'Patient',
@@ -384,8 +385,8 @@ const invalidSignature: CustomFunction = {
 }
 void invalidSignature
 
-// `criteria` coerces an expression body's result; a native function returns
-// plain JS values and would silently ignore it.
+// `criteria` coerces an expression body's result. A native function returns
+// plain JS values and would ignore it without saying so.
 // @ts-expect-error -- criteria belongs to the expression form only
 const nativeCriteria: CustomFunction = {
   fn: () => true,

@@ -92,12 +92,13 @@ export interface EngineOptions extends EvaluateOptions {
   /**
    * DTO classes registered engine-wide (see `defineDto()`): every column
    * becomes an expression-defined function callable from any expression this
-   * engine evaluates (its name must be unique across the engine's functions,
-   * and may not be a built-in), and each DTO's `env` merges into the engine
-   * env. A `@criteria` registers too, carrying its criteria coercion, so the call
-   * yields the same boolean the projected column holds. Every column declares
-   * the DTO's `fhirType` as the input it expects, so calling one on a focus
-   * that can never hold that type throws instead of navigating to nothing.
+   * engine evaluates. Each column name must be unique across the engine's
+   * functions and must not be a built-in name, and each DTO's `env` merges into
+   * the engine env. A `@criteria` registers too and carries the criteria rule
+   * with it, so the call returns the same boolean the projected column holds.
+   * Every column declares the DTO's `fhirType` as the input it expects, so
+   * calling one on a focus that can never hold that type throws instead of
+   * navigating to nothing.
    * Only one DTO may register per fhirType — it is *the*
    * engine-wide vocabulary for that resource. DTO `vars` are not registered —
    * they may reference per-call env, so they apply only when projecting the
@@ -188,10 +189,10 @@ export class FhirPathEngine {
 
   /**
    * Boolean criteria evaluation, the semantics FHIR invariants, Subscription
-   * criteria, and `enableWhen` share: a single boolean → itself, a single
-   * non-boolean item → true, more than one item is an error (spec §4.5
-   * singleton evaluation), and empty → false (the criteria convention on top of
-   * it — see `criteriaBoolean`).
+   * criteria, and `enableWhen` share. A single boolean returns itself, a single
+   * non-boolean item returns true, and more than one item is an error, which is
+   * spec §4.5 singleton evaluation. Empty returns false, which is the criteria
+   * convention layered on top of it; see `criteriaBoolean`.
    */
   test(input: unknown, expression: AnyExpression, options?: EvaluateOptions): boolean {
     return criteriaBoolean(this.evaluateTyped(expression, input, options))

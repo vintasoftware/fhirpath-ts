@@ -6,8 +6,8 @@ import { canonicalFocusType, typesOverlap, unsatisfiedInput, valueKindOfTypeName
 describe('canonicalFocusType', () => {
   it.each([
     ['Patient', 'FHIR.Patient'],
-    // A runtime value's type is already prefixed; resolveType does not strip its
-    // own prefix, so the local-name fallback is what canonicalizes it.
+    // A runtime value's type already carries the prefix, and resolveType does
+    // not strip its own prefix, so the local-name fallback canonicalizes it.
     ['FHIR.Patient', 'FHIR.Patient'],
     ['CodeableConcept', 'FHIR.CodeableConcept'],
     ['FHIR.code', 'FHIR.code'],
@@ -101,8 +101,8 @@ describe('unsatisfiedInput', () => {
 
   it('dedupes the focus it reports, and stops at the first item that fits', () => {
     expect(wants(['CodeableConcept'], ['FHIR.code', 'FHIR.code', 'FHIR.uri'])?.found).toEqual(['FHIR.code', 'FHIR.uri'])
-    // The fitting item ends the scan, so a type that would not resolve behind it
-    // is never consulted — proof the loop short-circuits rather than mapping.
+    // The fitting item ends the scan, so nothing behind it is read. This fails
+    // if the loop ever goes back to reading the whole collection first.
     const lazy = (function* () {
       yield 'FHIR.CodeableConcept'
       throw new Error('scanned past the item that fits')

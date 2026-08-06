@@ -50,7 +50,7 @@ function evaluateArgument(node: AstNode, context: EvaluationContext, _input: Typ
  * both input and arguments to plain JS values — the host boundary — and
  * converts the plain result back.
  *
- * Either form may declare the types its focus must be able to hold, which is
+ * Either form may declare the types its focus must be able to hold. That is
  * checked before anything else runs (see `requireHostInput`).
  */
 function evaluateHostFunction(
@@ -75,8 +75,8 @@ function evaluateHostFunction(
       // withFrame rebinds $this to the input and forks variables, so the
       // body's defineVariable() bindings stay local to the body.
       const result = withFrame(context, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))
-      // Inside the try, so a body yielding several items still clears the
-      // recursion guard on its way out.
+      // Inside the try, so a body that returns several items still removes its
+      // name from activeExpressionFunctions on the way out.
       return host.criteria === true ? wrapBoolean(criteriaBoolean(result)) : result
     } finally {
       context.activeExpressionFunctions.delete(name)

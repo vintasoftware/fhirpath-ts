@@ -143,67 +143,74 @@ be wrong, `analyzeDto` must never be lenient.
 ## Registering a DTO is a namespace, checked at the edges
 
 `EngineOptions.resourceDtos` turns each `@column` and `@criteria` into an
-expression-defined function in one flat namespace. The namespace is flat: there
-is no dispatch on `fhirType`, and a name resolves the same way from anywhere.
-What each function does carry is the type it was *written against*
-(`CustomFunctionSignature.input.types`, from the DTO's `fhirType`), and both the
-engine and the analyzer reject a call whose focus can never hold it. So
+expression-defined function in one flat namespace. The namespace really is flat.
+Nothing dispatches on `fhirType`, and a name resolves the same way from
+anywhere. What each function carries is the type it was written for, in
+`CustomFunctionSignature.input.types`, taken from the DTO's `fhirType`. Both the
+engine and the analyzer reject a call whose focus can never hold that type. So
 `code.displayText()` on a Condition runs, while `status.displayText()` throws
 `FhirPathTypeError` instead of navigating to nothing.
 
-**What the check deliberately does not do.** It speaks only when it can prove
-incompatibility, because reporting valid code is worse than missing a mistake.
-It stays silent on: an empty focus (the spec's own propagation); no model bound;
-a focus type the model has never heard of — the `Object` placeholder that plain
-env data, a pre-resolved `%var`, and a datatype root all carry; a declared name
-this model rejects; and a mixed focus where *any* item could fit. It is also
-permissive about what "can be" means: either direction of the model hierarchy
-counts, `System.Quantity` and `FHIR.Quantity` are one type, and sibling
-primitives (`code`, `uri`) do not distinguish.
+**What the check deliberately does not do.** It reports only what it can prove,
+because reporting valid code is worse than missing a mistake. It says nothing
+about any of these:
 
-That whole rule is **one function** — `unsatisfiedInput` in
+- an empty focus, which is the spec's own empty propagation
+- no model bound
+- a focus type the model has never heard of, which is the `Object` placeholder
+  carried by plain env data, a pre-resolved `%var`, and a datatype root
+- a declared name the model rejects
+- a mixed focus where any one item could fit
+
+It is also permissive about what "can be" means. Either direction of the model
+hierarchy counts, `System.Quantity` and `FHIR.Quantity` are one type, and
+sibling primitives such as `code` and `uri` are not told apart.
+
+That whole rule is **one function**: `unsatisfiedInput` in
 `values/type-compat.ts`, which returns the proof rather than a verdict. The two
-halves differ only in how they report it (`requireHostInput` throws,
-`checkCallInput` reports `input-type`), so the silence list above cannot drift
-between them. Keep it that way: the analyzer/engine import boundary justifies two
-callers, never two copies of the rule. Note also that `typesOverlap`'s kind clause
-must not gate the model check, or a `Quantity` column on
-`Dosage.doseAndRate.dose` (kind `Complex`, since `SimpleQuantity` is not
-`Quantity`) would be rejected.
+halves differ only in how they report it, since `requireHostInput` throws and
+`checkCallInput` reports `input-type`. That is what stops the list above from
+drifting between them. Keep it that way. The analyzer and the engine cannot
+import each other, which justifies two callers, but never two copies of the
+rule. One more thing to watch: `typesOverlap` must run its model test even when
+the value kinds differ. `FHIR.SimpleQuantity` has kind `Complex` while
+`FHIR.Quantity` has kind `Quantity`, so testing kinds first would reject a
+`Quantity` column called on `Dosage.doseAndRate.dose`.
 
-No **builtin** may declare `input.types`: spec functions are polymorphic, and one
-that named types would start reporting valid official-suite expressions.
-`signatures.test.ts` holds that as a gate.
+No **built-in** may set `input.types`. Spec functions accept many types, so a
+built-in that named types would start reporting valid expressions from the
+official test suite. `signatures.test.ts` checks that none does.
 
-The lint/editor half guesses its host types, and can be wrong where the engine
-cannot: it reads a class's root out of the syntax, so two files declaring a
-same-named column against different roots collapse to whichever the walker saw
-last (only one of them can actually register). That is the same species as the
-already-guessed result signature, and nothing in one file's source distinguishes
-the two. Accepted.
+The lint and editor half guesses its host types, and can be wrong where the
+engine cannot. It reads a class's root from the source, so if two files declare
+a same-named column against different roots, the walker keeps whichever it saw
+last, even though only one of them can actually register. This is the same kind
+of guess as the result signature, and nothing in one file's source tells the two
+apart. Accepted.
 
 `@criteria` registers with `criteria: true` on its `CustomFunction`. That flag
-is where its coercion lives — `criteriaBoolean` (values/collection.ts)
-applied to the body's result, on the function rather than in `planColumn`. It is
-what makes one declaration mean one thing: `isFinal()` yields exactly one boolean
-in both positions, so `isFinal().not()` on a resource with no `status` is `true`
-whether it is projected or called.
+is where its rule lives: `criteriaBoolean` (values/collection.ts) applied to the
+body's result, on the function rather than in `planColumn`. It is what makes one
+declaration mean one thing. `isFinal()` returns exactly one boolean in both
+places, so `isFinal().not()` on a resource with no `status` is `true` whether it
+is projected or called.
 
-Two rules are stacked there, and the citation is worth keeping honest: §4.5
-(Singleton Evaluation of Collections) gives the single-item cases and the
->1-item error, but its empty case is *empty*. The `?? false` is the calling
-environment's — FHIR invariants require the expression to evaluate to true, so an
-empty result has not satisfied the constraint. **Do not push `?? false` down into
-`booleanSingleton`** — `engine/operators/logic.ts` feeds its `undefined` into the
-three-valued and/or/xor/implies tables, and collapsing it there breaks `{}`
-against `false`. `where()`/`exists()`/`all()`/`iif()` keep their own `=== true`
-tests for the same reason: arithmetically identical, but they express spec text
-per item, not this rule.
+Two rules stack there, and the citation is worth keeping honest. §4.5, Singleton
+Evaluation of Collections, gives the single-item cases and the error for more
+than one item, but its empty case is empty. The `?? false` comes from the
+calling environment: FHIR invariants require the expression to evaluate to true,
+so an empty result has not satisfied the constraint. **Do not move `?? false`
+down into `booleanSingleton`.** `engine/operators/logic.ts` passes its
+`undefined` into the three-valued and/or/xor/implies tables, and turning it into
+false there breaks `{}` against `false`. `where()`, `exists()`, `all()`, and
+`iif()` keep their own `=== true` tests for the same reason. They produce the
+same answers, but they state spec text about one item rather than this rule.
 
-The caveat a criteria call carries: its body runs against the *call's* focus, not
-the DTO's root. Absent the input-type check, `code.isFinal()` would answer a
-confident `false` — total coercion turns a wrong focus into a plausible answer
-rather than an empty one, so the two features depend on each other.
+One caveat comes with a criteria call: its body runs against the call's focus,
+not the DTO's root. Without the input-type check, `code.isFinal()` would answer
+a confident `false`. Because the criteria rule always returns true or false, a
+wrong focus produces a plausible answer rather than an empty one, so the two
+features depend on each other.
 
 `analyzeEngineDtos(engine)` sweeps only what the engine registered, so a row
 shape you merely project is invisible to it. Do not read it as exhaustive — the

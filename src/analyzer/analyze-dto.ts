@@ -174,10 +174,10 @@ function expressionOf(column: ColumnSpec): string {
  * one the engine registers and the walkers declare, so a cross-check can never
  * contradict a claim that was never made.
  *
- * A criteria claims nothing here, and that stays right even though its
- * *function* declares a Boolean result: the Boolean is a property of the
- * criteria coercion applied to the result, not of the expression.
- * `@criteria('name.given')` legally yields HumanName.given and reads as true.
+ * A criteria claims nothing here, even though its function declares a Boolean
+ * result. The Boolean comes from the criteria rule applied to the result, not
+ * from the expression itself. `@criteria('name.given')` validly returns
+ * HumanName.given, which then reads as true.
  */
 function claimedType(column: ColumnSpec): string | undefined {
   return 'test' in column ? undefined : columnResultType(column)

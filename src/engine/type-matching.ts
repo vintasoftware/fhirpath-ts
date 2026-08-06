@@ -83,14 +83,14 @@ export function itemMatchesType(
 }
 
 /**
- * A host function declared against one type, reached on a focus that can never
- * be one (`status.displayText()`, where displayText was written for a
- * CodeableConcept). The call resolves and its body would navigate to nothing, so
- * this is the one place the mistake is visible — and the engine is loud about
- * everything structural, which a function's declared input is.
+ * Throws when a host function is called on a focus its declared type rules out.
+ * `status.displayText()` is the case to picture, where `displayText` was written
+ * for a CodeableConcept. The call resolves and the body then finds nothing, so
+ * this is the only place the mistake shows. The engine reports every structural
+ * problem this way, and a function's declared input is one.
  *
- * `unsatisfiedInput` decides; this only phrases the failure the way the engine's
- * other function errors are phrased.
+ * `unsatisfiedInput` makes the decision. This function only writes the message,
+ * in the same form as the engine's other function errors.
  */
 export function requireHostInput(
   name: string,
@@ -98,8 +98,8 @@ export function requireHostInput(
   context: EvaluationContext,
   input: TypedValue[]
 ): void {
-  // `unsatisfiedInput` answers this case too; returning first is what keeps the
-  // undeclared majority of host calls from allocating a focus iterator at all.
+  // `unsatisfiedInput` handles this case too. Returning first is what stops the
+  // many host functions that declare no types from creating a focus iterator.
   if (types === undefined) {
     return
   }
@@ -111,7 +111,7 @@ export function requireHostInput(
   }
 }
 
-/** The focus's type names, lazily — a satisfied call stops at the first item that fits. */
+/** The focus's type names, read one at a time. A valid call stops at the first item that fits. */
 function* focusTypes(input: TypedValue[]): Iterable<string> {
   for (const item of input) {
     yield item.type

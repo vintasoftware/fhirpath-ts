@@ -226,11 +226,12 @@ const noInvalidExpressions: Rule.RuleModule = {
     /** Every class in the file, so a DTO root can be followed through a base class. */
     const classes: ClassHeritage[] = []
     /**
-     * One per `@column` field in the file: a registered DTO column is callable
-     * from any expression, so the calls between a file's own columns resolve.
-     * Filled in `Program:exit`, because a declaration carries the `fhirType` of
-     * the class it sits in and a base class may be declared further down the
-     * file — the same reason the call sites themselves are decided there.
+     * One entry per `@column` field in the file. Any expression can call a
+     * registered DTO column, so this is what lets calls between a file's own
+     * columns resolve. It is filled in `Program:exit` because a declaration
+     * carries the `fhirType` of the class it sits in, and a base class may be
+     * declared further down the file. The call sites themselves are decided
+     * there for the same reason.
      */
     const columnDeclarations: {
       kind: 'column' | 'criteria'
@@ -360,8 +361,8 @@ const noInvalidExpressions: Rule.RuleModule = {
           }
         }
         const dtoRoots = dtoRootsOf(classes)
-        // The column vocabulary first: `checkAt` reads it, and every site of the
-        // file shares it — including the tags.
+        // Build the column names first. `checkAt` reads them, and every site in
+        // the file shares them, including the tags.
         for (const { kind, field, options: columnOptions, enclosing } of columnDeclarations) {
           columnFunctions[field] = columnFunctionDeclaration<ESTree.Node>(
             kind,

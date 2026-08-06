@@ -33,9 +33,10 @@ function matchesExpectedType(item: TypedValue, expectedType: string): boolean {
 }
 
 /**
- * Singleton coerced to a boolean, applying the implicit-true rule. Empty →
- * undefined, which the three-valued logic operators need as a distinct answer —
- * do not fold it into `false` here (see `criteriaBoolean`).
+ * Singleton evaluation coerced to a boolean, applying the implicit-true rule.
+ * Empty returns undefined, which the three-valued logic operators need as an
+ * answer distinct from false. Do not turn it into `false` here; see
+ * `criteriaBoolean`.
  */
 export function booleanSingleton(collection: TypedValue[]): boolean | undefined {
   const item = singleton(collection, SYSTEM_BOOLEAN)
@@ -43,21 +44,24 @@ export function booleanSingleton(collection: TypedValue[]): boolean | undefined 
 }
 
 /**
- * The criteria reading of a collection: `booleanSingleton` with empty as
- * `false`, so the answer is always one of two.
+ * Reads a collection as a criteria: `booleanSingleton` with empty as `false`,
+ * so the answer is always true or false.
  *
- * Two rules stacked, and worth keeping apart. §4.5 supplies the single-item
- * cases and the >1-item error, but its empty case is *empty*, not false — the
- * `?? false` is the calling environment's. FHIR invariants require the
- * expression to evaluate to true, so a constraint that comes back empty has not
- * been satisfied; Subscription criteria and `enableWhen` read it the same way.
+ * Two rules stack here, and they are worth keeping apart. §4.5 gives the
+ * single-item cases and the error for more than one item, but its empty case is
+ * empty, not false. The `?? false` comes from the calling environment instead.
+ * FHIR invariants require the expression to evaluate to true, so a constraint
+ * that returns empty has not been satisfied. Subscription criteria and
+ * `enableWhen` read it the same way.
+ *
  * That convention is what `FhirPathEngine.test()`, `filter()`, a `{ test }`
- * column and a `@criteria` all mean by "the criteria holds" — one function, so
- * a criteria cannot mean two things depending on where it is read.
+ * column, and a `@criteria` all mean by "the criteria holds". Keeping it in one
+ * function is what stops a criteria from meaning two things depending on where
+ * it is read.
  *
- * `where()`, `exists()`, `all()` and `iif()` keep their own `=== true` tests.
- * They are arithmetically identical but express spec text about one item, not
- * this convention about a whole expression.
+ * `where()`, `exists()`, `all()`, and `iif()` keep their own `=== true` tests.
+ * Those produce the same answers, but they state spec text about one item
+ * rather than this convention about a whole expression.
  */
 export function criteriaBoolean(collection: TypedValue[]): boolean {
   return booleanSingleton(collection) ?? false

@@ -48,12 +48,13 @@ export type CustomFunction =
       expression: AnyExpression
       signature?: CustomFunctionSignature
       /**
-       * Read the body's result as a criteria (`criteriaBoolean`: §4.5 singleton
-       * evaluation, with empty reading as false), so the function always yields
-       * exactly one Boolean. A `@criteria` field registers this way, which is
-       * what makes one declaration mean the same thing projected as a column
-       * and called from an expression — without it, `isFinal().not()` on a
-       * resource with no status is empty rather than true.
+       * Read the body's result as a criteria, so the function always returns
+       * exactly one Boolean. The rule is `criteriaBoolean`: §4.5 singleton
+       * evaluation, with an empty result read as false. A `@criteria` field
+       * registers this way, which is what makes one declaration mean the same
+       * thing whether it is projected as a column or called from an
+       * expression. Without it, `isFinal().not()` on a resource with no status
+       * returns empty rather than true.
        */
       criteria?: boolean
       fn?: never
@@ -241,9 +242,9 @@ export function contextFactory(
 }
 
 /**
- * Resolve CustomFunctions to their runtime form: expression bodies parse to
- * ASTs, the declared input types come across for the engine to enforce, and the
- * rest of the signature stays API-side (the analyzer's half).
+ * Converts CustomFunctions to their runtime form. Expression bodies parse to
+ * ASTs, and the declared input types come across for the engine to check. The
+ * rest of the signature stays in the API layer, which is the analyzer's half.
  */
 function toHostFunctions(functions: Record<string, CustomFunction>): Record<string, HostFunction> {
   const host: Record<string, HostFunction> = {}
@@ -255,7 +256,7 @@ function toHostFunctions(functions: Record<string, CustomFunction>): Record<stri
       host[name] = hostExpressionFunction(custom)
     } else {
       const inputTypes = custom.signature?.input?.types
-      // Copied rather than passed through: `custom` is the caller's own object,
+      // Copy rather than pass through. `custom` is the caller's own object,
       // and the runtime form carries fields the API form does not.
       host[name] = inputTypes === undefined ? custom : { ...custom, inputTypes }
     }
@@ -263,7 +264,7 @@ function toHostFunctions(functions: Record<string, CustomFunction>): Record<stri
   return host
 }
 
-/** The runtime form of an expression-defined CustomFunction: its body, plus what the engine enforces around it. */
+/** The runtime form of an expression-defined CustomFunction: its body, plus what the engine checks around it. */
 function hostExpressionFunction(
   custom: Extract<CustomFunction, { expression: AnyExpression }>
 ): HostExpressionFunction {

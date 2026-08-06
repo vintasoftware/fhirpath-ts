@@ -1,13 +1,13 @@
 /**
- * Whether a value of one type can also be a value of another — the question both
- * halves of the input-type check ask. The runtime asks it of a call's real focus
- * (`requireHostInput`, engine/type-matching.ts) and the analyzer asks it of the
- * inferred candidates (`checkCallInput`, analyzer/analyze.ts); those two live in
- * trees that must not import each other, so the rule lives here, below both.
+ * Whether a value of one type can also be a value of another. Both halves of the
+ * input-type check ask this. The engine asks it about a call's real focus (see
+ * `requireHostInput` in engine/type-matching.ts), and the analyzer asks it about
+ * the types it inferred (see `checkCallInput` in analyzer/analyze.ts). Those two
+ * modules must not import each other, so the rule lives here, below both.
  *
- * Everything here is deliberately permissive: a check that cannot prove
- * incompatibility says nothing, because reporting valid code is worse than
- * missing a mistake.
+ * Every answer here is deliberately permissive. When a check cannot prove that
+ * two types are incompatible, it says nothing. Reporting valid code is worse
+ * than missing a mistake.
  */
 import type { ModelProvider } from '../model/provider.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from './typed-value.ts'
@@ -38,16 +38,15 @@ export function valueKindOfTypeName(canonical: string): ValueKind {
 }
 
 /**
- * The canonical model name for a type the runtime or the analyzer is holding, or
- * undefined when the model does not know it — which every caller reads as "say
- * nothing".
+ * Returns the canonical model name for a type name, or undefined when the model
+ * does not know it. Every caller treats undefined as "say nothing".
  *
- * The raw name is tried before its local part, because a model resolves backbone
- * paths under their full name (`Patient.contact`) and canonical names under their
- * local one (`FHIR.Patient` resolves only as `Patient`, since `resolveType` does
- * not strip its own prefix). The undefined result is what keeps the check quiet
- * for values no model describes: the `Object` placeholder, System types, and a
- * `FHIR.`-prefixed name under a model of some other namespace.
+ * The full name is tried before its local part. A model resolves backbone paths
+ * under their full name (`Patient.contact`), but canonical names only under
+ * their local one, because `resolveType` does not strip its own prefix, so
+ * `FHIR.Patient` resolves as `Patient`. The undefined result is what keeps the
+ * check quiet for values no model describes: the `Object` placeholder, System
+ * types, and a `FHIR.`-prefixed name under a model of another namespace.
  */
 export function canonicalFocusType(model: ModelProvider, raw: string): string | undefined {
   if (raw.startsWith('System.')) {
@@ -66,15 +65,15 @@ function typeSatisfies(model: ModelProvider, type: string, base: string): boolea
 
 /**
  * Can one value be both an `a` and a `b`? Either direction of the model's
- * hierarchy counts, so a declared `Quantity` accepts a `SimpleQuantity` focus and
+ * hierarchy counts. A declared `Quantity` accepts a `SimpleQuantity` focus, and
  * the other way round.
  *
- * The kind clause covers the pairs the model cannot bridge, and only those:
- * `System.Quantity` (a quantity literal, `toQuantity()`) against `FHIR.Quantity`,
- * and sibling primitives that behave identically (`code` and `uri` are both
- * Strings). It deliberately does not gate the model check — `FHIR.SimpleQuantity`
- * has kind `Complex` while `FHIR.Quantity` has kind `Quantity`, so a kind
- * prefilter would reject a legitimate call.
+ * The value-kind test covers the pairs the model cannot connect, and only those.
+ * Those pairs are `System.Quantity` (a quantity literal, or `toQuantity()`)
+ * against `FHIR.Quantity`, and sibling primitives that behave the same way, such
+ * as `code` and `uri`, which are both Strings. Run the model test even when the
+ * kinds differ. `FHIR.SimpleQuantity` has kind `Complex` while `FHIR.Quantity`
+ * has kind `Quantity`, so testing kinds first would reject a valid call.
  */
 export function typesOverlap(model: ModelProvider, a: string, b: string): boolean {
   const kind = valueKindOfTypeName(a)
@@ -85,19 +84,23 @@ export function typesOverlap(model: ModelProvider, a: string, b: string): boolea
 }
 
 /**
- * Proof that a function declared against `declared` cannot be running on this
- * focus, or undefined when nothing is proven. The whole rule for both halves of
- * the input-type check: the engine holds a call's real values
- * (`requireHostInput`) and the analyzer holds inferred candidates
- * (`checkCallInput`), and they must not disagree about what counts as a mistake,
- * so only how to *report* it is left to them.
+ * Decides whether a function written for the `declared` types can be running on
+ * this focus. Returns undefined when the call may be valid. Returns an object
+ * when the call is definitely wrong, where `wanted` lists the declared types and
+ * `found` lists the focus types, both as canonical names with duplicates
+ * removed. Callers report those two lists and add nothing of their own.
  *
- * Everything unprovable reads as satisfied: no model, no declaration, a declared
- * name this model rejects, a focus type it has never heard of (the `Object`
- * placeholder, a datatype root, plain host data), a focus with no values at all,
- * and — since one item is enough — any focus where some candidate fits. That
- * last case exits at the first fit, so the common path stops early instead of
- * canonicalizing a whole collection.
+ * This is the whole rule for both halves of the input-type check. The engine
+ * passes a call's real values (`requireHostInput`) and the analyzer passes the
+ * types it inferred (`checkCallInput`). They must agree on what counts as a
+ * mistake, so each one only decides how to report it.
+ *
+ * Anything unprovable counts as valid: no model, no declaration, a declared name
+ * the model rejects, a focus type the model has never heard of (the `Object`
+ * placeholder, a datatype root, plain host data), a focus with no values, and
+ * any focus where one type fits, since one is enough. The loop stops at that
+ * first fitting type, so a valid call does not canonicalize the whole
+ * collection.
  */
 export function unsatisfiedInput(
   model: ModelProvider | undefined,

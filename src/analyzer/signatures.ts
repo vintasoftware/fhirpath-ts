@@ -40,11 +40,11 @@ export type ValueArgSpec = 'any' | ValueKind
  * What a function accepts as its input (the focus it is called on): a value
  * kind, a cardinality, and/or the model types the focus must be able to hold.
  *
- * `types` is for functions written against one type — a DTO's `@column`, which
- * knows the class it was declared on. No built-in declares it, and none should:
- * spec functions are polymorphic, and a builtin that named types here would
- * start reporting valid official-suite expressions. `signatures.test.ts` holds
- * that invariant as a gate.
+ * `types` is for a function written for one type, such as a DTO's `@column`,
+ * which knows the class it was declared on. No built-in sets it, and none
+ * should. Spec functions accept many types, so a built-in that named types here
+ * would start reporting valid expressions from the official test suite.
+ * `signatures.test.ts` checks that no built-in sets it.
  */
 export interface InputSpec {
   kind?: ValueKind

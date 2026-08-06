@@ -74,15 +74,15 @@ export interface CallSitePolicy {
    */
   dto?: true
   /**
-   * The call declares a function named by the field it decorates, and which kind
-   * of column it is. A registered `@column`/`@criteria` becomes a zero-arity
-   * function every expression on that engine can call (see `withDtos`), so a
-   * walker collects one per decorated field and hands them to `analyzeSite` —
-   * which is how a call between a file's own columns resolves. The kind decides
-   * the signature: a criteria is a single Boolean whatever its expression
-   * yields, so there are no options to read. A field on the table rather than a
-   * name comparison in each walker, so the two cannot disagree about which call
-   * it is.
+   * The call declares a function named after the field it decorates, and says
+   * which kind of column it is. A registered `@column` or `@criteria` becomes a
+   * zero-argument function that every expression on that engine can call (see
+   * `withDtos`). A walker collects one per decorated field and passes them to
+   * `analyzeSite`, which is how a call between a file's own columns resolves.
+   * The kind decides the signature: a criteria returns a single Boolean whatever
+   * its expression returns, so there are no options to read. This lives in the
+   * table rather than as a name comparison in each walker, so the two walkers
+   * cannot disagree about which call it is.
    */
   declaresField?: 'column' | 'criteria'
 }
@@ -447,16 +447,17 @@ export interface DeclaredColumnFunction {
 }
 
 /**
- * The function a `@column(path, options)` declaration contributes, given the
- * `fhirType` its class settled on. Both halves of the signature are
- * `columnSignature`'s decision, the same one the runtime registers, so the two
- * cannot drift; all this adds is reading the options out of the syntax.
+ * Builds the function a `@column(path, options)` declaration contributes, given
+ * the `fhirType` its class settled on. Both halves of the signature come from
+ * `columnSignature`, the same decision the runtime registers, so the two cannot
+ * drift apart. All this adds is reading the options out of the source.
  *
- * The two halves fail independently. A class whose root the file cannot resolve
- * (an imported base, a root-generic factory) declares no input, so calls to its
- * columns stay unchecked — see `dtoRootsOf` for why guessing one is worse. An
- * option whose value is not a literal is not in the syntax at all, so a dynamic
- * `collection` drops the *result* claim while keeping the input one.
+ * The two halves fail independently. A class whose root the file cannot
+ * resolve, such as one extending an imported base or a factory call, declares
+ * no input, so calls to its columns go unchecked. See `dtoRootsOf` for why
+ * guessing a root is worse. An option whose value is not a literal is not in
+ * the source at all, so a `collection` set from a variable drops the result
+ * claim and keeps the input one.
  */
 export function columnFunctionDeclaration<N>(
   kind: 'column' | 'criteria',
@@ -466,8 +467,8 @@ export function columnFunctionDeclaration<N>(
 ): DeclaredColumnFunction {
   const declaration: DeclaredColumnFunction = { minArity: 0, maxArity: 0 }
   if (kind === 'criteria') {
-    // A criteria has no options object: its result is a single Boolean whatever
-    // the expression yields, because the coercion lives on the function.
+    // A criteria takes no options object. Its result is a single Boolean
+    // whatever the expression returns, because the rule lives on the function.
     return { ...declaration, signature: criteriaSignature(hostType) }
   }
   const signature = columnSignature(columnClaim(options, ast), hostType)
@@ -475,11 +476,11 @@ export function columnFunctionDeclaration<N>(
 }
 
 /**
- * The type claim a column's options object makes. An empty claim is the answer
- * whenever the syntax cannot say — no options at all, options that are not an
- * object literal, or a `collection` that is not a literal, where a guessed
- * cardinality would be worse than none. All three yield no result claim, which
- * leaves the input claim as the only thing the declaration carries.
+ * Reads the type claim a column's options object makes. The answer is an empty
+ * claim whenever the source cannot say: no options at all, options that are not
+ * an object literal, or a `collection` set from a variable, where a guessed
+ * cardinality would be worse than none. All three produce no result claim,
+ * which leaves the input type as the only thing the declaration carries.
  */
 function columnClaim<N>(options: N | undefined, ast: ExpressionAst<N>): ColumnTypeClaim & { collection?: boolean } {
   const properties = options === undefined ? undefined : ast.properties(options)

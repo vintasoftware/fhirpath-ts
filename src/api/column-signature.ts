@@ -43,9 +43,9 @@ export function columnResultType(column: ColumnTypeClaim): string | undefined {
 
 /**
  * What a registered column declares as a function. `input` is the type the
- * column was *written against* — the DTO class's `fhirType` — and `result` is
- * what its expression yields; a column may declare either, both, or neither.
- * Shaped to be assignable to `CustomFunctionSignature`.
+ * column was written for, which is the DTO class's `fhirType`. `result` is what
+ * its expression returns. A column may declare either, both, or neither. The
+ * shape is assignable to `CustomFunctionSignature`.
  */
 export interface ColumnFunctionSignature {
   input?: { types: string[] }
@@ -57,12 +57,12 @@ export interface ColumnFunctionSignature {
  * it claims nothing at all. `collection: true` is the only way a column yields
  * more than one value, so everything else is a singleton.
  *
- * `hostType` is the class's `fhirType`, which is not a column option — it comes
- * from the DTO, so it is a separate parameter and `ColumnTypeClaim` stays about
- * the column's own output. A caller that cannot see the class (a walker whose
- * DTO extends an imported base) passes nothing, and calls stay unchecked.
- * Passing an empty claim is how a caller keeps the input claim while dropping a
- * result it cannot read out of the syntax.
+ * `hostType` is the class's `fhirType`. It comes from the DTO rather than from
+ * the column options, so it is a separate parameter and `ColumnTypeClaim` stays
+ * about the column's own output. A caller that cannot see the class, such as a
+ * walker whose DTO extends an imported base, passes nothing, and calls to that
+ * column go unchecked. Pass an empty claim to keep the input type while
+ * dropping a result the caller cannot read from the source.
  */
 export function columnSignature(
   column: ColumnTypeClaim & { collection?: boolean },
@@ -79,9 +79,9 @@ export function columnSignature(
 
 /**
  * The signature a `@criteria` contributes. Its expression goes through the
- * criteria rule (see `criteriaBoolean`), so the function is a single Boolean
- * whatever the expression yields — a function rather than a shared constant, so
- * no consumer can mutate what the next one reads.
+ * criteria rule (see `criteriaBoolean`), so the function returns a single
+ * Boolean whatever the expression returns. This is a function rather than a
+ * shared constant, so one caller cannot change what the next caller reads.
  */
 export function criteriaSignature(hostType?: string): ColumnFunctionSignature {
   return {

@@ -609,9 +609,9 @@ class Analyzer {
     if (!signature.input) {
       return
     }
-    // A function declared against one type (a DTO's `@column`), called on a
-    // focus that can never be one. `unsatisfiedInput` holds the rule the engine
-    // enforces too, so the two halves cannot disagree about what is a mistake.
+    // A function written for one type (a DTO's `@column`), called on a focus
+    // that can never be that type. `unsatisfiedInput` holds the same rule the
+    // engine applies, so the two halves agree on what counts as a mistake.
     const unsatisfied =
       input.types === undefined ? undefined : unsatisfiedInput(this.model, signature.input.types, input.types)
     if (unsatisfied !== undefined) {
@@ -749,11 +749,11 @@ class Analyzer {
   }
 
   /**
-   * A host function's declared signature as the analyzer's internal shape:
-   * result type names canonicalize once, and an omitted result stays unknown.
-   * The input passes through as declared — `unsatisfiedInput` canonicalizes the
-   * names it compares, so local names ('CodeableConcept') work without a second
-   * pass here.
+   * Converts a host function's declared signature into the analyzer's internal
+   * shape. Result type names canonicalize once here, and a missing result stays
+   * unknown. The input passes through as declared, because `unsatisfiedInput`
+   * canonicalizes the names it compares, so a local name such as
+   * 'CodeableConcept' works without a second pass.
    */
   private toSignature(declared: CustomFunctionSignature | undefined): FunctionSignature | undefined {
     if (declared === undefined) {

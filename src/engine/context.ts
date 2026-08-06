@@ -14,10 +14,11 @@ export interface HostNativeFunction {
   minArity?: number
   maxArity?: number
   /**
-   * Model type names the call's focus must be able to hold, as the caller wrote
-   * them — local or canonical, since `unsatisfiedInput` (values/type-compat.ts)
-   * canonicalizes what it compares. Absent means the function accepts any focus,
-   * which is every function that does not declare `signature.input.types`.
+   * Model type names the call's focus must be able to hold, spelled as the
+   * caller wrote them. Either a local name or a canonical one works, because
+   * `unsatisfiedInput` (values/type-compat.ts) canonicalizes the names it
+   * compares. Leave this out to accept any focus, which is what every function
+   * that does not declare `signature.input.types` does.
    */
   inputTypes?: readonly string[]
   /**
@@ -37,13 +38,14 @@ export interface HostNativeFunction {
  */
 export interface HostExpressionFunction {
   ast: AstNode
-  /** See HostNativeFunction.inputTypes — the same rule, checked the same way. */
+  /** See HostNativeFunction.inputTypes. Same meaning, checked the same way. */
   inputTypes?: readonly string[]
   /**
-   * Coerce the body's result by the criteria rule (`criteriaBoolean`: §4.5
-   * singleton evaluation, with empty reading as false), so the function always
-   * yields exactly one Boolean. What makes a `@criteria` mean the same thing
-   * projected as a column and called from an expression.
+   * Apply the criteria rule to the body's result, so the function always returns
+   * exactly one Boolean. That rule is `criteriaBoolean`: §4.5 singleton
+   * evaluation, with an empty result read as false. It is what makes a
+   * `@criteria` mean the same thing whether it is projected as a column or
+   * called from an expression.
    */
   criteria?: boolean
 }
