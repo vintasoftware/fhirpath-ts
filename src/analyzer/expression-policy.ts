@@ -3,10 +3,12 @@
  * expressions. Both the `fhirpath-check` CLI (TypeScript AST) and the ESLint rule
  * (ESTree AST) apply the same rules; only the tree-walking differs, so everything
  * that is a *decision* lives here — the call-name table, the check/skip rules,
- * and the expression-shape extraction (via the `ExpressionAst` adapter) — and the
- * walkers supply only AST access. This module must stay free of `typescript` and
- * `eslint` imports so either walker can load it alone.
+ * the context a site carries, and the expression-shape extraction (via the
+ * `ExpressionAst` adapter) — and the walkers supply only AST access. This module
+ * must stay free of `typescript` and `eslint` imports so either walker can load
+ * it alone; `column-signature.ts` is dependency-free for the same reason.
  */
+import { columnSignature } from '../api/column-signature.ts'
 
 /**
  * How a call site carries its FHIRPath expression(s):
@@ -66,6 +68,15 @@ export interface CallSitePolicy {
    * checks all of it properly.
    */
   dto?: true
+  /**
+   * The call declares a function named by the field it decorates. A registered
+   * `@column` becomes a zero-arity function every expression on that engine can
+   * call (see `withDtos`), so a walker collects one per decorated field and hands
+   * them to `analyzeSite` — which is how a call between a file's own columns
+   * resolves. A flag on the table rather than a name comparison in each walker,
+   * so the two cannot disagree about which call it is.
+   */
+  declaresField?: true
 }
 
 /** Call names that take FHIRPath expressions, and where/how/on-what they take them. */
@@ -87,16 +98,16 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   ['checkConstraints', { argIndex: 1, shape: 'constraints', receiver: 'any' }],
   // DTO declarations: the column/criteria expressions of a `@column` field, and
   // the `vars` a DTO binds per row.
-  ['column', { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true }],
+  [
+    'column',
+    { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true, declaresField: true },
+  ],
   ['criteria', { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true }],
   ['defineDto', { argIndex: 1, shape: 'dto-vars', receiver: 'import', rootArg: 0, dto: true }],
 ])
 
 /** The `defineDto` call whose first argument fixes a DTO's fhirType. */
 export const DTO_BASE_NAME = 'defineDto'
-
-/** The decorator that declares a DTO column — and, with it, a function named by its field. */
-export const COLUMN_NAME = 'column'
 
 /** The tag name whose no-substitution template holds a FHIRPath expression. */
 export const TAG_NAME = 'fhirpath'
@@ -171,6 +182,22 @@ export function isCheckedCall(
 }
 
 /**
+ * Whether a `` fhirpath`…` `` tag is this package's, given the name it is reached
+ * by. The same rule the distinctive call names get (`receiver: 'any'`): checked
+ * unless that name is bound by a foreign import, so `` hb.fhirpath`…` `` under
+ * `import * as hb from 'handlebars'` is not ours, while a bare tag in a file with
+ * no imports still is.
+ *
+ * A tag is a call site in every respect but syntax, and this is the same test
+ * `isCheckedCall` makes. It lives here because each walker used to hand-roll it,
+ * and neither consulted the receiver — so a foreign namespaced tag was reported as
+ * invalid FHIRPath, which is the failure mode this whole policy exists to avoid.
+ */
+export function isCheckedTag(receiverRoot: string | undefined, bindings: SourceBindings): boolean {
+  return !bindings.foreign.has(receiverRoot ?? TAG_NAME)
+}
+
+/**
  * Whether `new className(...)` yields a trusted binding: any class imported from
  * this package counts, and the bare `FhirPathEngine` name also counts in files
  * whose imports don't claim it — so import-less snippets stay checkable.
@@ -214,6 +241,122 @@ export interface ExpressionEntry<N> {
 }
 
 /**
+ * What a site tells `analyzeSite` about itself, beyond the expression text: the
+ * type the expression runs against, and whether it is a DTO member. Both walkers
+ * produce this shape so `analyzeSite` cannot be handed two different vocabularies.
+ */
+export interface SiteContext {
+  /** The type the expression is analyzed against, when the site fixes one. */
+  inputType?: string
+  /** A DTO member site, whose findings are weighed differently (see `CallSitePolicy.dto`). */
+  dto?: true
+}
+
+/** One class of a file, as a walker reads its heritage clause. */
+export interface ClassHeritage {
+  /** The class's own name, when it has one. */
+  name: string | undefined
+  /** The fhirType its own `extends defineDto('X')` clause fixes, when it has one. */
+  ownRoot: string | undefined
+  /** The name of the class it extends, when that clause is a plain identifier. */
+  baseName: string | undefined
+}
+
+/**
+ * The DTO root each named class of a file settles on, following `extends` chains
+ * through the file's own classes. Sharing columns by extending a base DTO class is
+ * the documented way to do it, and a base class carries its root along with the
+ * columns it lends — so `class WeightRow extends ObservationRow` reads against
+ * Observation, and its paths are checkable rather than syntax-only.
+ *
+ * Two guards, both because a wrong root would report valid code: a name declared
+ * twice in one file is dropped rather than guessed (two scopes can hold different
+ * classes of one name), and a cycle resolves to nothing. A base reached by
+ * anything but a plain identifier — a factory call, an imported class — is not
+ * resolvable here, and stays rootless.
+ */
+export function dtoRootsOf(classes: readonly ClassHeritage[]): ReadonlyMap<string, string> {
+  const byName = new Map<string, ClassHeritage>()
+  const ambiguous = new Set<string>()
+  for (const cls of classes) {
+    if (cls.name === undefined) {
+      continue
+    }
+    if (byName.has(cls.name)) {
+      ambiguous.add(cls.name)
+    }
+    byName.set(cls.name, cls)
+  }
+  const rootOf = (cls: ClassHeritage, seen: Set<string>): string | undefined => {
+    if (cls.ownRoot !== undefined) {
+      return cls.ownRoot
+    }
+    const base = cls.baseName
+    if (base === undefined || ambiguous.has(base) || seen.has(base)) {
+      return undefined
+    }
+    const declaration = byName.get(base)
+    if (declaration === undefined) {
+      return undefined
+    }
+    seen.add(base)
+    return rootOf(declaration, seen)
+  }
+  const roots = new Map<string, string>()
+  for (const [name, cls] of byName) {
+    if (ambiguous.has(name)) {
+      continue
+    }
+    const root = rootOf(cls, new Set([name]))
+    if (root !== undefined) {
+      roots.set(name, root)
+    }
+  }
+  return roots
+}
+
+/**
+ * The DTO root a class's `@column` fields analyze against: its own
+ * `extends defineDto('X')` clause, else whatever its `extends` chain settled on in
+ * `dtoRootsOf`. Its own clause wins outright, so a class whose *name* the file
+ * declares twice — dropped from the chain, since a wrong root would report valid
+ * code — still checks its own columns.
+ */
+export function rootOf(heritage: ClassHeritage | undefined, dtoRoots: ReadonlyMap<string, string>): string | undefined {
+  if (heritage === undefined || heritage.ownRoot !== undefined) {
+    return heritage?.ownRoot
+  }
+  return heritage.name === undefined ? undefined : dtoRoots.get(heritage.name)
+}
+
+/**
+ * The context a call site's expressions carry, per its policy. The root is named
+ * either by one of the call's own arguments (`fhirpath(expr, 'Patient')`,
+ * `defineDto('Condition', …)`) or by the enclosing class's `extends defineDto(…)`
+ * clause, which the walker resolves and passes as `classRoot`. Mapping a policy
+ * to a context is a decision, so it happens here rather than once per walker —
+ * the two drifted while each had its own copy.
+ */
+export function siteContext<N>(
+  policy: CallSitePolicy,
+  argumentAt: (index: number) => N | undefined,
+  classRoot: string | undefined,
+  ast: ExpressionAst<N>
+): SiteContext {
+  const rootArgument = policy.rootArg === undefined ? undefined : argumentAt(policy.rootArg)
+  const inputType =
+    rootArgument !== undefined
+      ? ast.string(rootArgument)?.expression
+      : policy.rootFromClass === true
+        ? classRoot
+        : undefined
+  return {
+    ...(policy.dto === true && { dto: true as const }),
+    ...(inputType !== undefined && { inputType }),
+  }
+}
+
+/**
  * The AST accessors a walker provides so shape extraction can be written once.
  * Each returns undefined when the node is not of the asked-for kind, which the
  * extractor treats as "dynamic, skip" — so spreads, shorthands, computed values,
@@ -222,6 +365,8 @@ export interface ExpressionEntry<N> {
 export interface ExpressionAst<N> {
   /** The node as a string literal entry, or undefined when it is not one. */
   string(node: N): ExpressionEntry<N> | undefined
+  /** The node's value as a `true`/`false` literal, or undefined when it is not one. */
+  boolean(node: N): boolean | undefined
   /**
    * The plain (non-spread, non-shorthand) properties of an object literal, or
    * undefined when the node is not an object literal. `name` is the property's
@@ -291,12 +436,12 @@ export interface DeclaredColumnFunction {
 }
 
 /**
- * The function a `@column(path, options)` declaration contributes, derived from
- * the options the same way the runtime derives it: the result type comes from
- * `type` — or plain String for an `enum` — and only when no `as`/`choices`
- * reshapes the value outside FHIRPath. A `collection` key leaves the signature
- * off entirely rather than guessing a cardinality from a boolean the walkers
- * cannot read, so the result stays an unknown region instead of a wrong one.
+ * The function a `@column(path, options)` declaration contributes. The result
+ * type is `columnSignature`'s decision, the same one the runtime registers, so
+ * the two cannot drift; all this adds is reading the options out of the syntax.
+ * An option whose value is not a literal is not in the syntax at all, and a
+ * guessed signature would be worse than none — so a dynamic `collection` leaves
+ * the result an unknown region rather than a wrong one.
  */
 export function columnFunctionDeclaration<N>(options: N | undefined, ast: ExpressionAst<N>): DeclaredColumnFunction {
   const declaration: DeclaredColumnFunction = { minArity: 0, maxArity: 0 }
@@ -305,17 +450,18 @@ export function columnFunctionDeclaration<N>(options: N | undefined, ast: Expres
     return declaration
   }
   const named = (name: string): N | undefined => properties.find(property => property.name === name)?.value
-  if (named('as') !== undefined || named('choices') !== undefined || named('collection') !== undefined) {
+  const collection = named('collection')
+  const isCollection = collection === undefined ? false : ast.boolean(collection)
+  if (isCollection === undefined) {
     return declaration
   }
   const declaredType = named('type')
-  const resultType =
-    declaredType !== undefined
-      ? ast.string(declaredType)?.expression
-      : named('enum') !== undefined
-        ? 'System.String'
-        : undefined
-  return resultType === undefined
-    ? declaration
-    : { ...declaration, signature: { result: { types: [resultType], single: true } } }
+  const signature = columnSignature({
+    ...(declaredType !== undefined && { type: ast.string(declaredType)?.expression }),
+    ...(named('enum') !== undefined && { enum: true }),
+    ...(named('as') !== undefined && { as: true }),
+    ...(named('choices') !== undefined && { choices: true }),
+    collection: isCollection,
+  })
+  return signature === undefined ? declaration : { ...declaration, signature }
 }

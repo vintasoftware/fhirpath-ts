@@ -1,13 +1,14 @@
 import { mergeEnvKeys, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
-import type { R4TypeOf } from '../r4/generated/type-maps.ts'
+import type { FhirTypeName } from '../typed/infer.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
+import { columnSignature } from './column-signature.ts'
 import type { AnyExpression, Compiler, CustomFunction, EvaluateOptions } from './compile.ts'
-import type { ColumnOptions, ColumnResult, ProjectionColumn, ProjectionColumns } from './project.ts'
+import type { ColumnOptions, ColumnResult, ProjectionColumn } from './project.ts'
 
-/** The object forms of ProjectionColumn — what a `@column` decorator records. */
-type ColumnSpec = Exclude<ProjectionColumn, string>
+/** The object forms of ProjectionColumn — what a `@column`/`@criteria` decorator records. */
+export type ColumnSpec = Exclude<ProjectionColumn, string>
 
 /**
  * Ties `pick` to the table's row keys: with a table `choices`, `pick` must name
@@ -42,9 +43,6 @@ type Checked<Inferred, Declared> = unknown extends Inferred
   : [Inferred] extends [Declared]
     ? (initial: Declared) => Declared
     : ColumnTypeMismatch<Declared, Inferred>
-
-/** A type name the bound model knows — what a DTO's `fhirType` must be. */
-export type FhirTypeName = keyof R4TypeOf & string
 
 /** Every DTO instance carries the type its columns read, which is also their inference root. */
 export interface DtoInstance {
@@ -99,7 +97,8 @@ export interface DtoOptions {
 /** Everything a DTO class was declared with; `project()`, the engine, and `analyzeDto` all read it from here. */
 export interface DtoDefinition {
   readonly fhirType: string
-  readonly columns: ProjectionColumns
+  /** A decorator always records an object form, so a consumer never has to handle the plain-string column. */
+  readonly columns: Readonly<Record<string, ColumnSpec>>
   readonly env: Record<string, unknown> | undefined
   readonly vars: Record<string, AnyExpression | readonly TypedValue[]> | undefined
   /** Env names the projecting call supplies (see DtoOptions.callerEnv). */
@@ -112,13 +111,25 @@ const bases = new WeakMap<object, { fhirType: string } & DtoOptions>()
 /**
  * Columns by the class that declared them. A field decorator runs before its
  * class exists, so it records through the initializer it returns, where `this`
- * is the instance being built and `this.constructor` the class — `definitionOf`
+ * is the instance being built and `this.constructor` the class — `dtoDefinition`
  * instantiates each DTO once to collect them.
  */
 const declaredColumns = new WeakMap<object, Record<string, ColumnSpec>>()
 
 /** Definitions already collected, keyed by the DTO class. */
 const definitions = new WeakMap<object, DtoDefinition>()
+
+/**
+ * The class `dtoDefinition` is collecting, for as long as its single `new cls()`
+ * runs — the only window in which a field initializer records anything.
+ *
+ * Every projected row is built the same way (`Object.assign(new Dto(), row)`), so
+ * the initializers run again and again; making the window explicit is what stops
+ * them, rather than a "already collected?" test that would have to stay true
+ * forever to remain correct. It also keeps the per-row path to one identity
+ * comparison.
+ */
+let collecting: object | undefined
 
 /**
  * Declares the resource or datatype a DTO reads, plus the `vars`/`env` its
@@ -159,14 +170,10 @@ export function defineDto<const Root extends FhirTypeName>(fhirType: Root, optio
   return base as unknown as DtoBase<Root>
 }
 
-/**
- * Records one column against the class being constructed. Every projected row
- * runs the same initializers, so once the class's definition is collected there
- * is nothing left to record.
- */
+/** Records one column against the class being collected, and does nothing at any other time. */
 function recordColumn(instance: object, name: string, spec: ColumnSpec): void {
   const cls = instance.constructor as object
-  if (definitions.has(cls)) {
+  if (cls !== collecting) {
     return
   }
   const own = declaredColumns.get(cls) ?? {}
@@ -252,8 +259,19 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
       `${cls.name || 'The class'} is not a DTO class; extend defineDto('<fhirType>') to declare one`
     )
   }
-  new cls()
-  const columns = declaredColumns.get(cls) ?? {}
+  // Saved and restored, not cleared: a field initializer may reach another DTO's
+  // definition (`new FhirPathEngine({ resourceDtos })` is enough), and clearing
+  // would end this class's collection at that field and silently drop every
+  // column below it.
+  const outer = collecting
+  collecting = cls
+  try {
+    new cls()
+  } finally {
+    collecting = outer
+  }
+  // Copied, so the definition cannot be reached through the collection map.
+  const columns = { ...declaredColumns.get(cls) }
   if (Object.keys(columns).length === 0) {
     throw new FhirPathTypeError(`DTO ${cls.name} declares no columns; add a @column field`)
   }
@@ -317,21 +335,12 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
   return { ...defaults, functions, env }
 }
 
-/**
- * A column's path as an expression-defined function; the analyzer signature
- * derives from `type` — or, for an `enum` column, plain String — as long as no
- * `as`/`choices` reshapes the value outside FHIRPath.
- */
+/** A column's path as an expression-defined function, with the signature its options claim. */
 function columnFunction(spec: Extract<ProjectionColumn, { path: string }>, compile: Compiler): CustomFunction {
-  const resultType =
-    spec.as !== undefined || spec.choices !== undefined
-      ? undefined
-      : (spec.type ?? (spec.enum !== undefined ? 'System.String' : undefined))
+  const signature = columnSignature(spec)
   return {
     expression: compile(spec.path),
-    ...(resultType !== undefined && {
-      signature: { result: { types: [resultType], single: spec.collection !== true } },
-    }),
+    ...(signature !== undefined && { signature }),
   }
 }
 

@@ -1,9 +1,12 @@
 import { Linter } from 'eslint'
 import ts from 'typescript'
+import tseslint from 'typescript-eslint'
 import { describe, expect, it } from 'vitest'
 
 import eslintPlugin from '../eslint/index.ts'
+import { r4Model } from '../r4/index.ts'
 import { createSiteFinder } from '../sites/index.ts'
+import { analyzeSite } from './analyze.ts'
 
 const findExpressionSites = createSiteFinder(ts)
 
@@ -27,7 +30,7 @@ const findExpressionSites = createSiteFinder(ts)
  * runtime dependency of the `./eslint` export. This suite is the price of that
  * decision: parity is enforced here rather than by construction.
  */
-const corpus: { name: string; code: string; expected: number }[] = [
+const corpus: { name: string; code: string; expected: number; typescript?: true }[] = [
   {
     name: 'expression-first calls and the tag',
     code: [
@@ -132,15 +135,91 @@ const corpus: { name: string; code: string; expected: number }[] = [
     ].join('\n'),
     expected: 1,
   },
+  {
+    // A namespace import reaches the API through a member access, and every place
+    // that resolves a name must read it the same way. These two shapes are why:
+    // the tag and the `extends` clause each used to be checked with their own
+    // Identifier-only test in the rule, so both went unreported there while
+    // `fhirpath-ts/sites` reported them.
+    name: 'names reached through a namespace import',
+    code: [
+      "import * as api from 'fhirpath-ts'",
+      'const a = api.fhirpath`x..1`',
+      "const b = api.compile('x..2')",
+      // Not a third site: `defineDto` is `receiver: 'import'`, which asks for the
+      // callee name itself to be the imported one, so a member-access callee is
+      // not a checked call and its `vars` go unread — in both walkers. The root
+      // this clause fixes is still read from it (see the context suite below).
+      "class Row extends api.defineDto('Condition', { vars: { v: 'x..3' } }) {}",
+    ].join('\n'),
+    expected: 2,
+    typescript: true,
+  },
+  {
+    // A tag is gated on its receiver like a call: only the last of these is ours.
+    // The rule and the finder each used to decide this alone, and neither looked
+    // at the receiver.
+    name: 'tags are gated on the name they are reached through',
+    code: [
+      "import * as hb from 'handlebars'",
+      "import { compile } from 'handlebars'",
+      'const a = hb.fhirpath`x..1`',
+      "const b = hb.compile('x..2')",
+      'const c = fhirpath`x..3`',
+    ].join('\n'),
+    expected: 1,
+  },
+  {
+    name: 'DTO declarations: column, criteria and vars',
+    code: [
+      "import { column, criteria, defineDto } from 'fhirpath-ts'",
+      "class Row extends defineDto('Condition', { vars: { badge: 'x..1' } }) {",
+      "  @column('x..2', { type: 'string' }) name!: string | undefined",
+      "  @column('x..3', { collection: true }) all!: unknown[]",
+      "  @criteria('x..4') flag!: boolean",
+      '}',
+    ].join('\n'),
+    expected: 4,
+    typescript: true,
+  },
+  {
+    // No statically-known root, so `analyzeSite` keeps syntax findings only — the
+    // corpus is all syntax errors, so both walkers must still report every one.
+    name: 'DTO declarations on a class with no statically-known root',
+    code: [
+      "import { column, criteria } from 'fhirpath-ts'",
+      "class Row extends badgedRow('DiagnosticReport') {",
+      "  @column('x..1') name!: unknown",
+      "  @criteria('x..2') flag!: boolean",
+      '}',
+    ].join('\n'),
+    expected: 2,
+    typescript: true,
+  },
+  {
+    name: 'the DTO vocabulary is skipped when it is not the package export',
+    code: [
+      'const column = (path: string) => path',
+      "class Row extends defineDto('Condition') {",
+      "  @column('x..1') name!: unknown",
+      '}',
+    ].join('\n'),
+    expected: 0,
+    typescript: true,
+  },
 ]
 
 const linter = new Linter()
 
-function eslintPositions(code: string): [number, number][] {
+function eslintPositions(code: string, typescript: boolean): [number, number][] {
   const messages = linter.verify(code, {
     plugins: { fhirpath: eslintPlugin },
     rules: { 'fhirpath/no-invalid-expressions': 'error' },
-    languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
+    // DTO fields carry decorators and type annotations, which the default parser
+    // cannot read — the same TypeScript parser the repo lints with supplies them.
+    languageOptions: typescript
+      ? { parser: tseslint.parser as Linter.Parser, ecmaVersion: 2022, sourceType: 'module' }
+      : { ecmaVersion: 2022, sourceType: 'module' },
   })
   for (const message of messages) {
     // Only rule reports count; a parse error would silently zero the corpus entry.
@@ -152,9 +231,134 @@ function eslintPositions(code: string): [number, number][] {
 describe('CLI and ESLint walkers stay in lockstep', () => {
   for (const entry of corpus) {
     it(entry.name, () => {
-      const cli = findExpressionSites(entry.code, 'sample.ts').map((site): [number, number] => [site.line, site.column])
+      const sites = findExpressionSites(entry.code, 'sample.ts')
+      const cli = sites.map((site): [number, number] => [site.line, site.column])
       expect(cli).toHaveLength(entry.expected)
-      expect(eslintPositions(entry.code)).toEqual(cli)
+      expect(eslintPositions(entry.code, entry.typescript === true)).toEqual(cli)
     })
   }
 })
+
+/**
+ * The two walkers must also agree on each site's *context*, not only on where the
+ * sites are: the DTO root and the column vocabulary decide which findings survive
+ * `analyzeSite`, so a walker that reads the root differently reports different
+ * diagnostics from identical source. Positions alone would not catch that — both
+ * report a syntax error with or without a root — so this compares the diagnostics
+ * themselves over valid-syntax expressions whose errors are root-dependent.
+ */
+describe('the walkers agree on a site’s context', () => {
+  const cases: { name: string; code: string; expected: string[] }[] = [
+    {
+      name: 'a column path resolves against the class fhirType',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Row extends defineDto('Condition') {",
+        "  @column('clinicalStatus.codingg.first().code') code!: string | undefined",
+        '}',
+      ].join('\n'),
+      expected: ["unknown-element: Element 'codingg' is not defined on FHIR.CodeableConcept — did you mean 'coding'?"],
+    },
+    {
+      name: 'a namespace-imported defineDto still fixes the root',
+      code: [
+        "import * as api from 'fhirpath-ts'",
+        "import { column } from 'fhirpath-ts'",
+        "class Row extends api.defineDto('Condition') {",
+        "  @column('clinicalStatus.codingg.first().code') code!: string | undefined",
+        '}',
+      ].join('\n'),
+      expected: ["unknown-element: Element 'codingg' is not defined on FHIR.CodeableConcept — did you mean 'coding'?"],
+    },
+    {
+      name: 'a %var on a DTO site is never judged',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Row extends defineDto('Condition') {",
+        "  @column('%whatever.label') label!: unknown",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a call into a column the same file declares resolves, and carries its type',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Concept extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('code.displayText().length()') len!: number | undefined",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a near-miss of a column the same file declares is still a typo',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Concept extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('code.displayTxt()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ["unknown-function: Unrecognized function 'displayTxt' — did you mean 'displayText'?"],
+    },
+    {
+      name: 'a root followed through a same-file base class',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Base extends defineDto('Observation') {",
+        "  @column('issued') at!: unknown",
+        '}',
+        'class Sub extends Base {',
+        "  @column('valuee.ofType(Quantity).value') kg!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ["unknown-element: Element 'valuee' is not defined on FHIR.Observation — did you mean 'value'?"],
+    },
+    {
+      name: 'no statically-known root keeps syntax findings only',
+      code: [
+        "import { column } from 'fhirpath-ts'",
+        "class Row extends badgedRow('DiagnosticReport') {",
+        "  @column('clinicalStatus.codingg.first()') code!: unknown",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+  ]
+
+  for (const entry of cases) {
+    it(entry.name, () => {
+      const fromSites = findExpressionSites(entry.code, 'sample.ts').flatMap(site =>
+        analyzeSite(site, { model: r4Model })
+          // The rule can only report errors (ESLint severity is per-rule), so
+          // comparing its output to anything else would fail on a warning-level
+          // finding — a corpus entry provoking `regex-backtracking`, say — that
+          // both walkers agree on.
+          .filter(diagnostic => diagnostic.severity === 'error')
+          .map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`)
+      )
+      expect(fromSites).toEqual(entry.expected)
+      expect(eslintMessages(entry.code)).toEqual(entry.expected)
+    })
+  }
+})
+
+/**
+ * The rule's reports, stripped of position, in the same shape as an analyzer
+ * diagnostic. Error severity only, which is all the rule can produce — see the
+ * filter on the sites side.
+ */
+function eslintMessages(code: string): string[] {
+  return linter
+    .verify(code, {
+      plugins: { fhirpath: eslintPlugin },
+      rules: { 'fhirpath/no-invalid-expressions': 'error' },
+      languageOptions: { parser: tseslint.parser as Linter.Parser, ecmaVersion: 2022, sourceType: 'module' },
+    })
+    .map(message => message.message.replace(/^\[([^\]]+)] /, '$1: '))
+}

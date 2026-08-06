@@ -1,5 +1,5 @@
-import { type DtoClass, dtoDefinition } from '../api/dto.ts'
-import type { ProjectionColumn } from '../api/project.ts'
+import { columnResultType } from '../api/column-signature.ts'
+import { type ColumnSpec, type DtoClass, dtoDefinition } from '../api/dto.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import {
   analyzeExpressionDetailed,
@@ -19,12 +19,18 @@ export interface DtoDiagnostic extends AnalyzerDiagnostic {
 }
 
 /**
- * The engine shape `analyzeDto` reads its context from — structural, so the
- * analyzer never imports the engine (and `fhirpath-ts/analyzer` stays
- * independent of the runtime).
+ * The engine shape `analyzeDto` reads a DTO's context from — structural, so the
+ * analyzer never imports the engine (and `fhirpath-ts/analyzer` stays independent
+ * of the runtime). Only the per-call defaults, because that is all context is: a
+ * checker can hand over a composite of several engines without inventing a
+ * registration list for it (see the `fhirpath-check` CLI).
  */
-export interface AnalyzedEngine {
+export interface AnalyzedContext {
   readonly defaults: { model?: ModelProvider; functions?: Record<string, DeclaredFunction>; env?: object }
+}
+
+/** A context that also knows which DTOs it registered, which is what a sweep needs. */
+export interface AnalyzedEngine extends AnalyzedContext {
   readonly dtos: readonly DtoClass[]
 }
 
@@ -33,25 +39,42 @@ export interface AnalyzeDtoOptions extends AnalyzeOptions {
   /**
    * The engine the DTO is projected by: its `model`, its registered functions
    * (so calls into other DTOs' columns resolve) and the names in its `env` all
-   * come from here, and anything passed explicitly still wins. Per-call env the
-   * DTO reads (`%reports` handed to `project()`) is not the engine's, so declare
-   * those in `variables`.
+   * come from here. The caller's own options layer on top of that context per
+   * name, never instead of it (see `contextOf`). Per-call env the DTO reads
+   * (`%reports` handed to `project()`) is not the engine's, so declare those in
+   * `variables`.
    */
-  engine?: AnalyzedEngine
+  engine?: AnalyzedContext
 }
 
-/** The context an engine supplies, as plain AnalyzeOptions. */
-function engineOptions(engine: AnalyzedEngine): AnalyzeOptions {
-  const { model, functions, env } = engine.defaults
-  const variables: Record<string, DeclaredVariable> = {}
-  for (const name of Object.keys(env ?? {})) {
-    variables[name.startsWith('%') ? name.slice(1) : name] = {}
+/**
+ * The analyzer context for a DTO: what its engine supplies, with the caller's
+ * own options layered on top *per name* — one function or variable a host
+ * declares must not displace the engine's whole table, or a valid column call
+ * would be reported as unresolved. `model` and `inputType` are single values, so
+ * there the caller simply wins.
+ */
+function contextOf(options: AnalyzeDtoOptions | undefined): AnalyzeOptions {
+  const { engine, ...caller } = options ?? {}
+  if (engine === undefined) {
+    return caller
   }
+  const { model, functions, env } = engine.defaults
   return {
     ...(model !== undefined && { model }),
-    ...(functions !== undefined && { functions }),
-    variables,
+    ...caller,
+    functions: { ...functions, ...caller.functions },
+    variables: { ...envVariables(env), ...caller.variables },
   }
+}
+
+/** An engine's env names, declared as variables the expressions may read. */
+function envVariables(env: object | undefined): Record<string, DeclaredVariable> {
+  const variables: Record<string, DeclaredVariable> = {}
+  for (const name of Object.keys(env ?? {})) {
+    variables[bare(name)] = {}
+  }
+  return variables
 }
 
 /**
@@ -93,15 +116,8 @@ export function analyzeEngineDtos(
  */
 export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagnostic[] {
   const definition = dtoDefinition(dto)
-  const merged: AnalyzeDtoOptions =
-    options?.engine === undefined
-      ? (options ?? {})
-      : {
-          ...engineOptions(options.engine),
-          ...options,
-          variables: { ...engineOptions(options.engine).variables, ...options.variables },
-        }
-  const inputType = merged.inputType ?? definition.fhirType
+  const context = contextOf(options)
+  const inputType = context.inputType ?? definition.fhirType
   const declared: Record<string, DeclaredVariable> = {
     rowIndex: { types: ['System.Integer'], single: true },
     rowTotal: { types: ['System.Integer'], single: true },
@@ -110,17 +126,17 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
     declared[bare(name)] = {}
   }
   const diagnostics: DtoDiagnostic[] = []
-  const analyze = (member: string, expression: string, column?: ProjectionColumn): void => {
+  const analyze = (member: string, expression: string, column?: ColumnSpec): void => {
     const perExpression: AnalyzeOptions = {
-      ...merged,
+      ...context,
       ...(inputType !== undefined && { inputType }),
-      variables: { ...declared, ...merged.variables },
+      variables: { ...declared, ...context.variables },
     }
     const { diagnostics: found, result } = analyzeExpressionDetailed(expression, perExpression)
     for (const diagnostic of found) {
       diagnostics.push({ member, expression, ...diagnostic })
     }
-    const mismatch = column === undefined ? undefined : declaredTypeMismatch(column, result.types, merged)
+    const mismatch = column === undefined ? undefined : declaredTypeMismatch(column, result.types, context)
     if (mismatch !== undefined) {
       // The whole expression is the finding's span: the declaration it
       // contradicts lives outside the expression text.
@@ -137,31 +153,30 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
   for (const [name, value] of Object.entries(definition.vars ?? {})) {
     const source = typeof value === 'string' ? value : sourceOf(value)
     if (source !== undefined) {
+      // A var declares no type, so there is nothing to cross-check against.
       analyze(`vars.${bare(name)}`, source)
     }
     declared[bare(name)] = {}
   }
   for (const [name, spec] of Object.entries(definition.columns)) {
-    if (typeof spec !== 'string' && 'test' in spec) {
-      analyze(name, spec.test)
-      continue
-    }
-    analyze(name, typeof spec === 'string' ? spec : spec.path, spec)
+    analyze(name, expressionOf(spec), spec)
   }
   return diagnostics
 }
 
+/** The expression a column reads: a criteria's `test`, else its path. */
+function expressionOf(column: ColumnSpec): string {
+  return 'test' in column ? column.test : column.path
+}
+
 /**
- * The type a column claims its expression yields: `type` when it declares one,
- * plain String for an `enum` (the codes are strings before the union narrows
- * them). A column whose `as`/`choices` reshapes values outside FHIRPath claims
- * nothing about the expression, so there is nothing to compare.
+ * The type a column claims its expression yields — `columnSignature`'s rule, the
+ * one the engine registers and the walkers declare, so a cross-check can never
+ * contradict a claim that was never made. A criteria claims nothing about its
+ * expression: the column is a boolean whatever the expression yields.
  */
-function claimedType(column: ProjectionColumn): string | undefined {
-  if (typeof column === 'string' || 'test' in column || column.as !== undefined || column.choices !== undefined) {
-    return undefined
-  }
-  return column.type ?? (column.enum !== undefined ? 'System.String' : undefined)
+function claimedType(column: ColumnSpec): string | undefined {
+  return 'test' in column ? undefined : columnResultType(column)
 }
 
 /**
@@ -174,7 +189,7 @@ function claimedType(column: ProjectionColumn): string | undefined {
  * undefined`) claims nothing and is left alone.
  */
 function declaredTypeMismatch(
-  column: ProjectionColumn,
+  column: ColumnSpec,
   yielded: string[] | undefined,
   options: AnalyzeOptions | undefined
 ): string | undefined {

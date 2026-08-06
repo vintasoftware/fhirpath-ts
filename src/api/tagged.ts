@@ -1,8 +1,7 @@
 import { FhirPathError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { FhirpathInput, FhirpathResult, FhirpathResultIn } from '../typed/infer.ts'
+import type { FhirpathInput, FhirpathResult, FhirpathResultIn, FhirTypeName } from '../typed/infer.ts'
 import { CompiledExpression } from './compile.ts'
-import type { FhirTypeName } from './dto.ts'
 
 /**
  * Expression entry point, usable three ways:

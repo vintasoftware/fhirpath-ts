@@ -29,7 +29,7 @@ import ts from 'typescript'
 
 import { analyzeSite } from '../analyzer/analyze.ts'
 import { r4Model } from '../r4/index.ts'
-import { createSiteFinder } from '../sites/index.ts'
+import { createSiteFinder, type ExpressionSite } from '../sites/index.ts'
 import { checkDtoModules, DEFAULT_DTO_GLOB, type DtoFinding } from './dto-check.ts'
 
 const findExpressionSites = createSiteFinder(ts)
@@ -76,44 +76,66 @@ function report(location: string, diagnostic: { severity: string; code: string; 
   console.error(`${location} [${prefix}${diagnostic.code}] ${diagnostic.message}`)
 }
 
+/**
+ * Where a diagnostic falls in the file, given the site its expression came from.
+ * A span's own line/column are relative to the expression text, so only a
+ * first-line column is an offset from the site's; a later line starts at its own
+ * column 1.
+ */
+function positionIn(site: { line: number; column: number }, span: { line: number; column: number }): string {
+  const line = site.line + (span.line - 1)
+  const column = span.line === 1 ? site.column + span.column - 1 : span.column
+  return `${line}:${column}`
+}
+
+/** A file's expression sites, parsed on first use and kept — a file is read once however many findings it holds. */
+const sitesByFile = new Map<string, ExpressionSite[]>()
+
+function sitesOf(file: string): ExpressionSite[] {
+  const cached = sitesByFile.get(file)
+  if (cached !== undefined) {
+    return cached
+  }
+  const sites = findExpressionSites(readFileSync(file, 'utf8'), file)
+  sitesByFile.set(file, sites)
+  return sites
+}
+
 // --- 1. expression literals in the given files ---
 for (const file of args.files) {
-  let text: string
+  let sites: ExpressionSite[]
   try {
-    text = readFileSync(file, 'utf8')
+    sites = sitesOf(file)
   } catch (error) {
     console.error(`fhirpath-check: cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`)
     process.exit(2)
   }
-  for (const site of findExpressionSites(text, file)) {
+  for (const site of sites) {
     for (const diagnostic of analyzeSite(site, { model: r4Model })) {
-      const line = site.line + (diagnostic.span.line - 1)
-      const column = diagnostic.span.line === 1 ? site.column + diagnostic.span.column - 1 : diagnostic.span.column
-      report(`${file}:${line}:${column}`, diagnostic)
+      report(`${file}:${positionIn(site, diagnostic.span)}`, diagnostic)
     }
   }
 }
 
 /**
  * A DTO finding's position in source: `analyzeDto` knows the member and the
- * expression, and the scanner knows where each expression literal sits, so the
- * expression text joins the two. Identical expressions in one file share the
- * first match — a cosmetic tie, not a wrong finding.
+ * expression, and the site finder knows where each expression literal sits, so
+ * the expression text joins the two. Identical expressions in one file share the
+ * first match — a cosmetic tie, not a wrong finding. A file that cannot be read,
+ * or an expression with no literal to point at (one built at runtime), degrades
+ * to naming the member.
  */
 function locate(finding: DtoFinding): string {
-  let text: string
+  const member = `${finding.dto}.${finding.member}`
+  let site: ExpressionSite | undefined
   try {
-    text = readFileSync(finding.file, 'utf8')
+    site = sitesOf(finding.file).find(candidate => candidate.expression === finding.expression)
   } catch {
-    return `${finding.file} ${finding.dto}.${finding.member}`
+    return `${finding.file} ${member}`
   }
-  const site = findExpressionSites(text, finding.file).find(candidate => candidate.expression === finding.expression)
-  if (site === undefined) {
-    return `${finding.file} ${finding.dto}.${finding.member}`
-  }
-  const line = site.line + (finding.span.line - 1)
-  const column = finding.span.line === 1 ? site.column + finding.span.column - 1 : finding.span.column
-  return `${finding.file}:${line}:${column} ${finding.dto}.${finding.member}`
+  return site === undefined
+    ? `${finding.file} ${member}`
+    : `${finding.file}:${positionIn(site, finding.span)} ${member}`
 }
 
 // --- 2. the project's DTO modules, imported ---

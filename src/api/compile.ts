@@ -15,7 +15,7 @@ import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { printExpression } from '../parser/printer.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { FhirpathInput, FhirpathResult, FhirpathResultIn } from '../typed/infer.ts'
+import type { FhirpathInput, FhirpathResult, FhirpathResultIn, FhirTypeName } from '../typed/infer.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
 
@@ -144,7 +144,7 @@ export class CompiledExpression<
  */
 export function compile<
   const Expr extends string,
-  const Root extends keyof R4TypeOf & string,
+  const Root extends FhirTypeName,
   TResult extends unknown[] = FhirpathResultIn<Expr, Root>,
 >(expression: Expr, inputType: Root): CompiledExpression<Expr, R4TypeOf[Root], TResult>
 export function compile<

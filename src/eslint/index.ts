@@ -5,16 +5,21 @@ import { analyzeSite, type DeclaredFunction, type DeclaredVariable } from '../an
 import {
   CALL_SITES,
   type CallSitePolicy,
-  COLUMN_NAME,
+  type ClassHeritage,
   columnFunctionDeclaration,
   constructsEngine,
   type DeclaredColumnFunction,
   DTO_BASE_NAME,
+  dtoRootsOf,
   type ExpressionAst,
   expressionEntries,
   isCheckedCall,
+  isCheckedTag,
   isForeignModule,
   type LocalModuleOptions,
+  rootOf,
+  type SiteContext,
+  siteContext,
   type SourceBindings,
   TAG_NAME,
 } from '../analyzer/expression-policy.ts'
@@ -38,6 +43,7 @@ function propertyKeyName(property: ESTree.Property): string | undefined {
 /** How the shared shape extractor reads ESTree nodes. */
 const estreeAst: ExpressionAst<ESTree.Node> = {
   string: node => (isStringLiteral(node) ? { node, expression: node.value } : undefined),
+  boolean: node => (node.type === 'Literal' && typeof node.value === 'boolean' ? node.value : undefined),
   properties: node =>
     node.type === 'ObjectExpression'
       ? node.properties.flatMap(property =>
@@ -89,9 +95,22 @@ function receiverRoot(callee: ESTree.Expression | ESTree.Super): string | undefi
   return current.type === 'Identifier' ? current.name : undefined
 }
 
-/** A call argument's text when it is a string literal. */
-function stringArgument(argument: ESTree.Node | undefined): string | undefined {
-  return argument !== undefined && isStringLiteral(argument) ? argument.value : undefined
+/**
+ * The name a callee or tag is known by: its own identifier, or the property of a
+ * member access (`fhirpath` in `api.fhirpath`). Every place that resolves a name
+ * uses this one — calls, `` fhirpath`…` `` tags, and a class's
+ * `extends defineDto(…)` clause. They were three separate tests once, and the tag
+ * and heritage copies rejected a member access the call copy accepted, so a
+ * namespace-imported `api.fhirpath` tag and an `extends api.defineDto('Condition')`
+ * root went unchecked here while `fhirpath-ts/sites` checked both.
+ */
+function nameOf(node: ESTree.Node): string | undefined {
+  if (node.type === 'Identifier') {
+    return node.name
+  }
+  return node.type === 'MemberExpression' && !node.computed && node.property.type === 'Identifier'
+    ? node.property.name
+    : undefined
 }
 
 /** The name of the field a `@column(...)` decorator belongs to, from the call's ancestors. */
@@ -107,23 +126,29 @@ function decoratedFieldName(ancestors: readonly ESTree.Node[]): string | undefin
   return key !== undefined && isStringLiteral(key) ? key.value : undefined
 }
 
+/** A class's heritage, as `dtoRootsOf` reads it: its own DTO root, or the name of the class it extends. */
+function heritageOf(node: ESTree.ClassDeclaration | ESTree.ClassExpression): ClassHeritage {
+  const base = node.superClass
+  const rootArgument =
+    base?.type === 'CallExpression' && nameOf(base.callee) === DTO_BASE_NAME ? base.arguments[0] : undefined
+  return {
+    name: node.id?.name,
+    ownRoot: rootArgument === undefined ? undefined : estreeAst.string(rootArgument)?.expression,
+    baseName: base?.type === 'Identifier' ? base.name : undefined,
+  }
+}
+
 /**
- * The fhirType of the nearest enclosing class declared as
- * `class Row extends defineDto('Condition', …)` — what a `@column` field's
- * expressions analyze against. A class extending a base class or a root-generic
- * factory yields undefined: the root is not statically known there, so the
- * expression is analyzed without an input type (see `CallSitePolicy.rootFromClass`).
+ * The heritage of the nearest enclosing class — what a `@column` field's
+ * expressions analyze against, once `dtoRootsOf` has resolved it against the rest
+ * of the file. Undefined when the field is not inside a class at all.
  */
-function enclosingDtoRoot(ancestors: readonly ESTree.Node[]): string | undefined {
+function enclosingClass(ancestors: readonly ESTree.Node[]): ClassHeritage | undefined {
   for (let index = ancestors.length - 1; index >= 0; index--) {
     const node = ancestors[index]
-    if (node === undefined || (node.type !== 'ClassDeclaration' && node.type !== 'ClassExpression')) {
-      continue
+    if (node?.type === 'ClassDeclaration' || node?.type === 'ClassExpression') {
+      return heritageOf(node)
     }
-    const base = node.superClass
-    return base?.type === 'CallExpression' && base.callee.type === 'Identifier' && base.callee.name === DTO_BASE_NAME
-      ? stringArgument(base.arguments[0])
-      : undefined
   }
   return undefined
 }
@@ -187,35 +212,39 @@ const noInvalidExpressions: Rule.RuleModule = {
         addPatternNames(param, rebound)
       }
     }
-    const tags: { literal: ESTree.TemplateLiteral; expression: string }[] = []
+    const tags: { literal: ESTree.TemplateLiteral; expression: string; receiverRoot: string | undefined }[] = []
     const calls: {
       policy: CallSitePolicy
       name: string
       receiverRoot: string | undefined
       argument: ESTree.Node
-      /** The DTO fhirType this site's expressions analyze against, when it fixes one. */
-      inputType: string | undefined
+      /** The call itself, for the argument that may name the type it runs against. */
+      node: ESTree.CallExpression
+      /** The class the call sits in, resolved to a root once the whole file is known. */
+      enclosing: ClassHeritage | undefined
     }[] = []
+    /** Every class in the file, so a DTO root can be followed through a base class. */
+    const classes: ClassHeritage[] = []
     // One per `@column` field in the file: a registered DTO column is callable
     // from any expression, so the calls between a file's own columns resolve.
     const columnFunctions: Record<string, DeclaredColumnFunction> = {}
-    const checkAt = (
-      node: ESTree.Node,
-      site: {
-        expression: string
-        inputType?: string
-        dto?: true
-        functions?: Readonly<Record<string, DeclaredColumnFunction>>
-      }
-    ): void => {
+    const checkAt = (node: ESTree.Node, expression: string, site: SiteContext = {}): void => {
       // ESLint severity comes from the rule's configuration, not per report, so
       // only error-severity diagnostics are reported; analyzer warnings (style
       // and possible-mistake findings) don't fail a lint run.
-      const diagnostics = analyzeSite(site, {
-        model: r4Model,
-        ...(options.variables !== undefined && { variables: options.variables }),
-        ...(options.functions !== undefined && { functions: options.functions }),
-      })
+      const diagnostics = analyzeSite(
+        {
+          expression,
+          ...site,
+          // The file's whole column vocabulary, shared by every site in it.
+          ...(Object.keys(columnFunctions).length > 0 && { functions: columnFunctions }),
+        },
+        {
+          model: r4Model,
+          ...(options.variables !== undefined && { variables: options.variables }),
+          ...(options.functions !== undefined && { functions: options.functions }),
+        }
+      )
       for (const diagnostic of diagnostics) {
         if (diagnostic.severity === 'error') {
           context.report({ node, message: `[${diagnostic.code}] ${diagnostic.message}` })
@@ -247,11 +276,13 @@ const noInvalidExpressions: Rule.RuleModule = {
       FunctionExpression: reboundFunction,
       ArrowFunctionExpression: reboundFunction,
       ClassDeclaration(node) {
+        classes.push(heritageOf(node))
         if (node.id) {
           rebound.add(node.id.name)
         }
       },
       ClassExpression(node) {
+        classes.push(heritageOf(node))
         if (node.id) {
           rebound.add(node.id.name)
         }
@@ -262,43 +293,41 @@ const noInvalidExpressions: Rule.RuleModule = {
         }
       },
       TaggedTemplateExpression(node) {
-        if (
-          node.tag.type === 'Identifier' &&
-          node.tag.name === TAG_NAME &&
-          node.quasi.expressions.length === 0 &&
-          node.quasi.quasis[0]
-        ) {
+        if (nameOf(node.tag) === TAG_NAME && node.quasi.expressions.length === 0 && node.quasi.quasis[0]) {
           // Report on the template literal, like the call shapes report on their literals.
-          tags.push({ literal: node.quasi, expression: node.quasi.quasis[0].value.cooked ?? '' })
+          tags.push({
+            literal: node.quasi,
+            expression: node.quasi.quasis[0].value.cooked ?? '',
+            receiverRoot: receiverRoot(node.tag),
+          })
         }
       },
       CallExpression(node) {
         const callee = node.callee
-        const name =
-          callee.type === 'Identifier'
-            ? callee.name
-            : callee.type === 'MemberExpression' && !callee.computed && callee.property.type === 'Identifier'
-              ? callee.property.name
-              : undefined
+        const name = nameOf(callee)
         const policy = name === undefined ? undefined : CALL_SITES.get(name)
         const argument = policy && node.arguments[policy.argIndex]
         if (name === undefined || policy === undefined || argument === undefined) {
           return
         }
-        const ancestors = policy.rootFromClass === true ? context.sourceCode.getAncestors(node) : []
-        const inputType =
-          policy.rootArg !== undefined
-            ? stringArgument(node.arguments[policy.rootArg])
-            : policy.rootFromClass === true
-              ? enclosingDtoRoot(ancestors)
-              : undefined
-        if (policy.dto === true && name === COLUMN_NAME) {
+        // Only the DTO decorators need to look up: the class they sit in, and the
+        // field they decorate.
+        const ancestors =
+          policy.rootFromClass === true || policy.declaresField === true ? context.sourceCode.getAncestors(node) : []
+        if (policy.declaresField === true) {
           const field = decoratedFieldName(ancestors)
           if (field !== undefined) {
             columnFunctions[field] = columnFunctionDeclaration<ESTree.Node>(node.arguments[1], estreeAst)
           }
         }
-        calls.push({ policy, name, receiverRoot: receiverRoot(callee), argument, inputType })
+        calls.push({
+          policy,
+          name,
+          receiverRoot: receiverRoot(callee),
+          argument,
+          node,
+          enclosing: policy.rootFromClass === true ? enclosingClass(ancestors) : undefined,
+        })
       },
       'Program:exit'() {
         const bindings: SourceBindings = { foreign, trusted, rebound }
@@ -311,25 +340,24 @@ const noInvalidExpressions: Rule.RuleModule = {
             rebound.add(localName)
           }
         }
-        if (!foreign.has(TAG_NAME)) {
-          for (const tag of tags) {
-            checkAt(tag.literal, {
-              expression: tag.expression,
-              ...(Object.keys(columnFunctions).length > 0 && { functions: columnFunctions }),
-            })
+        for (const tag of tags) {
+          if (isCheckedTag(tag.receiverRoot, bindings)) {
+            checkAt(tag.literal, tag.expression)
           }
         }
+        const dtoRoots = dtoRootsOf(classes)
         for (const call of calls) {
           if (!isCheckedCall(call.policy, call.name, call.receiverRoot, bindings)) {
             continue
           }
+          const site = siteContext<ESTree.Node>(
+            call.policy,
+            index => call.node.arguments[index],
+            rootOf(call.enclosing, dtoRoots),
+            estreeAst
+          )
           for (const entry of expressionEntries(call.argument, call.policy.shape, estreeAst)) {
-            checkAt(entry.node, {
-              expression: entry.expression,
-              ...(call.policy.dto === true && { dto: true as const }),
-              ...(call.inputType !== undefined && { inputType: call.inputType }),
-              ...(Object.keys(columnFunctions).length > 0 && { functions: columnFunctions }),
-            })
+            checkAt(entry.node, entry.expression, site)
           }
         }
       },

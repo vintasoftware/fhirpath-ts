@@ -43,8 +43,22 @@ What still follows:
   `fhirpath-ts/sites` for exactly that reason.
 - When a walker learns a new shape, the *decision* belongs in
   `src/analyzer/expression-policy.ts` (call table, argument positions, receiver
-  rules, shape extraction through the `ExpressionAst` adapter) and the *analysis*
-  in `analyzeSite`. A walker should only supply AST access.
+  rules, `isCheckedTag`, `siteContext`, `rootOf`/`dtoRootsOf`, shape extraction
+  through the `ExpressionAst` adapter) and the *analysis* in `analyzeSite`. A
+  walker should only supply AST access — which node kinds hold a name, a class, a
+  literal. In particular, a site kind that gates itself is the bug: the
+  `` fhirpath`…` `` tag hand-rolled its own `foreign.has(TAG_NAME)` test in each
+  walker, neither consulted the receiver, and a `hb.fhirpath` tag under a
+  handlebars namespace import was reported as invalid FHIRPath. Gates go through
+  `isCheckedCall`/`isCheckedTag`.
+- The line above is load-bearing, and `src/analyzer/expression-policy.test.ts` is
+  what holds it: one corpus through both walkers, compared on positions *and* on
+  the diagnostics `analyzeSite` produces from each. The context comparison exists
+  because the two once drifted where only context differed — the rule resolved a
+  tag name and an `extends defineDto(…)` callee with its own Identifier-only
+  tests, so a namespace-imported `api.fhirpath` tag and root went unchecked there
+  while `fhirpath-ts/sites` checked both. Positions alone did not catch it. Add
+  to that corpus whenever either walker learns a shape.
 
 ## The demo extracts sites inside Monaco's TS worker
 
@@ -80,16 +94,22 @@ Discovery is convention, not configuration, and each rule earns its keep:
   loader can see. A subclass is not discoverable at definition time — `@column`
   learns its class only when an instance is first constructed — so there is no
   way to enumerate "every DTO in the process".
-- Engines need **no** export: `recordEngines()`/`recordedEngines()` in
-  `src/api/engine.ts` record constructions while a checker asks for it (off by
-  default, so an application retains nothing). Engines are usually
-  module-private, which is why scanning exports is not enough.
+- Engines need **no** export: `recordEngines()` in `src/api/engine.ts` opens a
+  recording session and returns the way to close it, so a checker records around
+  its own imports and nothing is retained before or after. Engines are usually
+  module-private, which is why scanning exports is not enough. Keep the session
+  closable — an always-on switch would hold every engine, and its env, for the
+  life of the process.
 - Per-call env is the DTO's declaration (`DtoOptions.callerEnv`), not the
   checker's flag. If a checker needs to be told something about a DTO, the DTO is
   the place to say it.
 - No engine in reach means column-to-column calls cannot resolve, so those
   findings are reported as warnings and the run still passes. Do not "fix" that
   by failing the run.
+- A DTO no engine registers is checked against every engine's context *merged*,
+  not against each engine in turn with the quietest answer kept. "Some engine in
+  this project declares this" is the most that can be said without being told
+  which, and merging says exactly that, once and deterministically.
 
 Do not add a `fhirpath.config.ts`. It was considered and rejected: everything it
 would hold is discoverable (engines by recording, DTOs by convention plus export,
@@ -106,11 +126,15 @@ is worse than missing a check:
   `unknown-variable` is dropped on DTO sites.
 - A DTO in another module is invisible → `unknown-function` survives only when
   the name plausibly misspells a column the same file declares.
-- No statically-known `fhirType` (the class extends a base class or a
-  root-generic factory) → syntax findings only. A relative path is not just
-  uncheckable there: a leading `code`/`text`/`status` segment is itself a model
-  type name, so the analyzer would read it as a type-name root and report
-  nonsense.
+- No statically-known `fhirType` → syntax findings only. A relative path is not
+  just uncheckable there: a leading `code`/`text`/`status` segment is itself a
+  model type name, so the analyzer would read it as a type-name root and report
+  nonsense. What counts as statically known is `dtoRootsOf`: a class's own
+  `extends defineDto('X')`, or a base class *the same file declares* — sharing
+  columns through a base class is the documented pattern, and a base lends its
+  root along with them. A factory call (`extends keyedRow('Condition')`) or an
+  imported base is where it stops; so is a class name the file declares twice,
+  since a wrong root reports valid code.
 
 `analyzeDto` is the strict counterpart, for a test that has the classes loaded
 and the engine's real function set. Keep the two roles distinct: lint must never
@@ -128,6 +152,15 @@ carry the same pin.
 Legacy (`experimentalDecorators`) decorators are not an option: their signature
 has no `Value` type parameter, so the field's declared type cannot be checked
 against the column's inferred type — the whole point of the decorator form.
+
+A field decorator can only record through the initializer it returns, so
+`dtoDefinition` collects a class's columns by instantiating it once, with
+`collecting` naming the class for the duration. **Save and restore that variable,
+never clear it**: a plain field initializer can reach another DTO's definition
+(`new FhirPathEngine({ resourceDtos })` is enough), and clearing on the way out of
+the inner call ends the outer class's collection at that field — every column
+below it is dropped silently, or the class appears to declare none at all.
+`src/api/dto.test.ts` covers the re-entrant case for exactly this reason.
 
 ## Gates
 
