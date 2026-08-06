@@ -166,7 +166,7 @@ r4.project(searchset, { id: 'Patient.id' }) // arrays and Bundles: one row per r
 
 // Every column evaluates with %rowIndex/%rowTotal set to the row's position (0/1 for a
 // single resource), so a row key can fall back to the row number:
-r4.project(searchset, { key: { path: '(Patient.id | %rowIndex.toString()).first()', type: 'string' } })
+r4.project(searchset, { key: '(Patient.id | %rowIndex.toString()).first()' }) // string | undefined, inferred
 
 // `as: 'Date'` coerces a column to JS Dates: partial dates become the UTC start of
 // their period, and an unparseable value coerces to empty (the toX() contract).
@@ -364,7 +364,7 @@ That keeps join tables and their bindings inside the class:
 class OrderRow {
   static readonly fhirType = 'ServiceRequest'
   static readonly vars = { report: '%reports.where(orderId = %context.id).report' }
-  id = column('ServiceRequest.id', { type: 'string', default: '' })
+  id = column('ServiceRequest.id', { default: '' })
   reportStatus = column('%report.status', { type: 'string', default: 'waiting' })
 }
 fp.project(orders, OrderRow, { env: { reports } })
@@ -574,10 +574,9 @@ union cannot do, and it is the only way a column yields `null`:
 
 ```ts
 const cards: MedicationCard[] = r4.project(requests, {
-  id: { path: '(MedicationRequest.id | %rowIndex.toString()).first()', type: 'string', default: '' },
+  id: { path: '(MedicationRequest.id | %rowIndex.toString()).first()', default: '' },
   name: {
     path: '(MedicationRequest.medication.ofType(CodeableConcept).select(text | coding.display.first()) | MedicationRequest.medication.ofType(Reference).display).first()',
-    type: 'string',
     default: 'Medication',
   },
   sig: { path: 'MedicationRequest.dosageInstruction.first().text', default: '' },
@@ -586,11 +585,13 @@ const cards: MedicationCard[] = r4.project(requests, {
 })
 ```
 
-Only declare `type` when inference can't see the expression — union/`iif`/
-`%var` syntax, or a path built with `+`/template strings (TypeScript types
-those `string`, not a literal). A plain literal path like
-`MedicationRequest.authoredOn` infers on its own, often more precisely
-(`MedicationRequest.status` infers the R4 status-code union).
+Only declare `type` when inference can't see the expression — `iif`, a `%var`
+navigated without a fixed-return tail, or a path built with `+`/template
+strings (TypeScript types those `string`, not a literal). A plain literal
+path infers on its own, often more precisely (`MedicationRequest.status`
+infers the R4 status-code union), and that includes `a | b` unions,
+`(…)` groups, and `%var` roots ending in a fixed-return call like
+`%rowIndex.toString()`.
 
 ### Status labels from a code map
 
@@ -759,8 +760,10 @@ Three layers, from cheapest to most thorough:
    existence/comparison booleans (`exists()/empty()/not()/matches()/startsWith()`, …),
    `count()/length()/indexOf()` and the other integer/decimal results, the
    `toX()`/`convertsToX()` conversions, and the string functions
-   (`join()`, `trim()`, `replace()`, `substring()`, `split()`, …) — and choice
-   stems. Anything else degrades to `unknown[]` — never a type error.
+   (`join()`, `trim()`, `replace()`, `substring()`, `split()`, …) — choice
+   stems, `a | b` unions and `(…)` groups of inferable terms, and `%var`
+   roots (which stay `unknown[]` unless a fixed-return call ends the chain).
+   Anything else degrades to `unknown[]` — never a type error.
 2. **ESLint rule** (`fhirpath-ts/eslint`) — runs the analyzer as a lint rule over
    every literal expression at each API entry point: the `` fhirpath`...` `` tag,
    the expression-first calls (`fhirpath()`, `compile()`, `evaluate()`,

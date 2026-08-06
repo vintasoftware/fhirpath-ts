@@ -364,12 +364,17 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
     expectTypeOf<FhirpathResult<'Patient.name.family[0] = given[0]'>>().toEqualTypeOf<unknown[]>()
   })
 
-  it('a paren inside a string literal cannot make a glued operator look balanced', () => {
-    // Runtime: join → 11-char string → length() → [11]; the type layer cannot
-    // split this segment safely (the literal paren fools the paren counting),
-    // so it must degrade rather than claim string[].
-    expectTypeOf<FhirpathResult<"Patient.name.given.join('(').length()">>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<"Patient.name.where(family = 'A(').family.first()">>().toEqualTypeOf<unknown[]>()
+  it('a paren inside a string literal does not confuse the segment close', () => {
+    // The `).`-scan strips string literals before checking balance, so a
+    // literal paren neither ends the segment early nor degrades it.
+    const length = compile("Patient.name.given.join('(').length()").evaluate(patient, options)
+    expectTypeOf(length).toEqualTypeOf<number[]>()
+    expect(length).toEqual([15])
+
+    const filtered = compile("Patient.name.where(family = 'A(').family.first()").evaluate(patient, options)
+    expectTypeOf(filtered).toEqualTypeOf<string[]>()
+    expect(filtered).toEqual([])
+
     // A literal paren with no trailing segments is still precise.
     expectTypeOf<FhirpathResult<"Patient.name.given.join('(')">>().toEqualTypeOf<string[]>()
   })
@@ -390,6 +395,16 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
     const twoClauses = compile('Patient.name.where(use.exists() and given.exists())').evaluate(patient, options)
     expectTypeOf(twoClauses).toEqualTypeOf<HumanName[]>()
     expect(twoClauses).toHaveLength(2)
+
+    // A call inside the condition plus trailing segments: the `).`-scan finds
+    // the close that completes the argument, not the first `).` it sees.
+    const nestedCondition = compile('Patient.name.where(a.exists()).given').evaluate(patient, options)
+    expectTypeOf(nestedCondition).toEqualTypeOf<string[]>()
+    expect(nestedCondition).toEqual([])
+
+    const afterSelect = compile('Patient.name.select(given.first()).count()').evaluate(patient, options)
+    expectTypeOf(afterSelect).toEqualTypeOf<number[]>()
+    expect(afterSelect).toEqual([2])
   })
 
   it('select() stays sound without an argument guard, and keeps nested precision', () => {
@@ -416,9 +431,130 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
   })
 })
 
+describe('union groups and top-level unions', () => {
+  it('a top-level union infers the union of its term types', () => {
+    const strings = compile('Patient.name.given | Patient.name.family').evaluate(patient, options)
+    expectTypeOf(strings).toEqualTypeOf<string[]>()
+    expect(strings).toEqual(['Peter', 'James', 'Jim', 'Chalmers'])
+
+    const mixed = compile('Patient.active | Patient.name.given').evaluate(patient, options)
+    expectTypeOf(mixed).toEqualTypeOf<(boolean | string)[]>()
+    expect(mixed).toEqual([true, 'Peter', 'James', 'Jim'])
+  })
+
+  it('a group as the root continues through its trailing segments', () => {
+    const first = compile('(Patient.name.given | Patient.name.family).first()').evaluate(patient, options)
+    expectTypeOf(first).toEqualTypeOf<string[]>()
+    expect(first).toEqual(['Peter'])
+
+    // The dogfood Lab-history date column's shape.
+    expectTypeOf<
+      FhirpathResult<'(DiagnosticReport.effective.ofType(dateTime) | DiagnosticReport.issued).first().toString()'>
+    >().toEqualTypeOf<string[]>()
+  })
+
+  it('a nested group still resolves', () => {
+    const first = compile('((Patient.name.given | Patient.name.family) | Patient.id).first()').evaluate(
+      patient,
+      options
+    )
+    expectTypeOf(first).toEqualTypeOf<string[]>()
+    expect(first).toEqual(['Peter'])
+  })
+
+  it('unions work inside select()', () => {
+    const selected = compile('Patient.name.select((given | family).first())').evaluate(patient, options)
+    expectTypeOf(selected).toEqualTypeOf<string[]>()
+    expect(selected).toEqual(['Peter', 'Jim'])
+
+    // The dogfood routeText column's shape: a union inside select() with a
+    // call in one term, plus trailing segments after the select.
+    expectTypeOf<
+      FhirpathResult<'MedicationRequest.dosageInstruction.first().route.select(text | coding.display.first()).first()'>
+    >().toEqualTypeOf<string[]>()
+  })
+
+  it('a literal containing | or parens does not split or close the union', () => {
+    const filtered = compile("Patient.name.where(family = 'a|b').given").evaluate(patient, options)
+    expectTypeOf(filtered).toEqualTypeOf<string[]>()
+    expect(filtered).toEqual([])
+
+    const grouped = compile("(Patient.name.given.join('(') | Patient.name.family).first()").evaluate(patient, options)
+    expectTypeOf(grouped).toEqualTypeOf<string[]>()
+    expect(grouped).toEqual(['Peter(James(Jim'])
+  })
+})
+
+describe('union adversarial battery: glued operators and garbage terms degrade', () => {
+  it('an operator glued after a group cannot claim the group type', () => {
+    // Runtime: [false] / [true] — comparisons; both must degrade.
+    expectTypeOf<FhirpathResult<"(Patient.name.given | Patient.name.family) = ('x')">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'(Patient.name.given | Patient.name.family).count() > (0)'>>().toEqualTypeOf<
+      unknown[]
+    >()
+    expectTypeOf<FhirpathResult<"(Patient.name.given | Patient.name.family) | (Patient.id) = ('x')">>().toEqualTypeOf<
+      unknown[]
+    >()
+  })
+
+  it('one garbage term poisons the whole union', () => {
+    // Runtime yields mixed strings and the number 8 — string[] would be a lie.
+    expectTypeOf<FhirpathResult<'Patient.name.select((given | 5 + 3).first())'>>().toEqualTypeOf<unknown[]>()
+    // A relative term has no root at the top level (the id | %rowIndex idiom
+    // needs a projection context), so the union degrades rather than guessing.
+    expectTypeOf<FhirpathResult<'(id | %rowIndex.toString()).first()'>>().toEqualTypeOf<unknown[]>()
+  })
+
+  it('a word or symbol operator glued into a middle segment degrades', () => {
+    // Regression: these used to widen to the broad state and let the trailing
+    // fixed-return call claim integer[] — a wrong type, the runtime evaluates
+    // a comparison. GluedName sends them to 'opaque' instead.
+    expectTypeOf<FhirpathResult<'Patient.name and x.count()'>>().toEqualTypeOf<unknown[]>()
+    const compared = compile('Patient.gender = gender.count()').evaluate(patient, options)
+    expectTypeOf(compared).toEqualTypeOf<unknown[]>()
+    expect(compared).toEqual([])
+    expectTypeOf<FhirpathResult<'%a = b.count()'>>().toEqualTypeOf<unknown[]>()
+  })
+})
+
+describe('%var roots enter the broad state', () => {
+  it('plain %var navigation stays unknown[], fixed returns keep their types', () => {
+    expectTypeOf<FhirpathResult<'%report.effective'>>().toEqualTypeOf<unknown[]>()
+
+    const key = compile('%rowIndex.toString()').evaluate(patient, { ...options, env: { rowIndex: 3 } })
+    expectTypeOf(key).toEqualTypeOf<string[]>()
+    expect(key).toEqual(['3'])
+  })
+
+  it('%var terms union with typed terms as the broad state', () => {
+    // Broad absorbs the union: the join is unknowable, but the trailing
+    // fixed-return call is input-independent and stays concrete.
+    expectTypeOf<FhirpathResult<'(%missing | Patient.name.given).first()'>>().toEqualTypeOf<unknown[]>()
+    const count = compile('(%missing | Patient.name.given).count()').evaluate(patient, {
+      ...options,
+      env: { missing: undefined },
+    })
+    expectTypeOf(count).toEqualTypeOf<number[]>()
+    expect(count).toEqual([3])
+
+    // The dogfood Lab-results date column's shape.
+    expectTypeOf<
+      FhirpathResult<'(%report.effective.ofType(dateTime) | %report.issued | ServiceRequest.authoredOn | ServiceRequest.occurrence.ofType(dateTime)).first().toString()'>
+    >().toEqualTypeOf<string[]>()
+  })
+
+  it('broad stays broad: deeper navigation neither errors nor regains a type', () => {
+    expectTypeOf<FhirpathResult<'%report.effective.nested.toString()'>>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<'Patient.nope.given'>>().toEqualTypeOf<unknown[]>()
+
+    const count = compile('Patient.nope.given.count()').evaluate(patient, options)
+    expectTypeOf(count).toEqualTypeOf<number[]>()
+    expect(count).toEqual([0])
+  })
+})
+
 describe('degradation to unknown[]', () => {
   it('constructs outside the subset degrade instead of erroring', () => {
-    expectTypeOf<FhirpathResult<'Patient.name.given | Patient.name.family'>>().toEqualTypeOf<unknown[]>()
     // power's result depends on its input (integer^integer vs decimal), so it
     // stays out of FIXED_RETURNS and degrades; abs is type-preserving at
     // runtime but the analyzer declares it unknown, so it stays out too.
@@ -428,7 +564,6 @@ describe('degradation to unknown[]', () => {
     expectTypeOf<FhirpathResult<'Patient.name.unknownFn()'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'name.given'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.nope'>>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<'Patient.name.where(a.exists()).given'>>().toEqualTypeOf<unknown[]>()
   })
 
   it('non-literal expressions stay unknown[]', () => {

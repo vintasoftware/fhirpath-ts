@@ -125,3 +125,19 @@ export type T119 = FhirpathResult<'Patient.name.given.distinct()'>
 export type T120 = FhirpathResult<'Patient.name.given.skip(1).take(2)'>
 export type T121 = FhirpathResult<"Patient.name.given.first().split('e')">
 export type T122 = FhirpathResult<'Patient.name.all(use.exists())'>
+// Union groups, top-level unions, and %var roots.
+export type T123 = FhirpathResult<'Patient.name.given | Patient.name.family'>
+export type T124 = FhirpathResult<'(Patient.name.given | Patient.name.family).first()'>
+export type T125 =
+  FhirpathResult<'(DiagnosticReport.effective.ofType(dateTime) | DiagnosticReport.issued).first().toString()'>
+export type T126 = FhirpathResult<'((Patient.name.given | Patient.name.family) | Patient.id).first()'>
+export type T127 = FhirpathResult<'Patient.name.select((given | family).first())'>
+export type T128 =
+  FhirpathResult<'MedicationRequest.dosageInstruction.first().route.select(text | coding.display.first()).first()'>
+export type T129 = FhirpathResult<'%rowIndex.toString()'>
+export type T130 =
+  FhirpathResult<'(%report.effective.ofType(dateTime) | %report.issued | ServiceRequest.authoredOn | ServiceRequest.occurrence.ofType(dateTime)).first().toString()'>
+export type T131 = FhirpathResult<'(id | %rowIndex.toString()).first()'>
+export type T132 = FhirpathResult<"Patient.name.where(family = 'a|b').given">
+export type T133 = FhirpathResult<'Patient.name.where(a.exists()).given'>
+export type T134 = FhirpathResult<'Patient.name.select(given.first()).count()'>
