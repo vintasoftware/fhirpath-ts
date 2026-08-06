@@ -14,7 +14,8 @@ import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { printExpression } from '../parser/printer.ts'
-import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
+import type { R4TypeOf } from '../r4/generated/type-maps.ts'
+import type { FhirpathInput, FhirpathResult, FhirpathResultIn } from '../typed/infer.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
 
@@ -135,12 +136,25 @@ export class CompiledExpression<
   }
 }
 
-/** Parse an expression once for reuse. Unlike `evaluate()`, does not touch the parse cache. */
+/**
+ * Parse an expression once for reuse. Unlike `evaluate()`, does not touch the
+ * parse cache. A second argument declares the type the expression runs against,
+ * so a relative path infers like a DTO column and the static checkers analyze it
+ * against that type — see `fhirpath`, which takes the same declaration.
+ */
+export function compile<
+  const Expr extends string,
+  const Root extends keyof R4TypeOf & string,
+  TResult extends unknown[] = FhirpathResultIn<Expr, Root>,
+>(expression: Expr, inputType: Root): CompiledExpression<Expr, R4TypeOf[Root], TResult>
 export function compile<
   const Expr extends string,
   TInput = FhirpathInput<Expr>,
   TResult extends unknown[] = FhirpathResult<Expr>,
->(expression: Expr): CompiledExpression<Expr, TInput, TResult> {
+>(expression: Expr): CompiledExpression<Expr, TInput, TResult>
+export function compile(expression: string): CompiledExpression {
+  // A declared input type is a compile-time and check-time declaration (see
+  // `fhirpath`), with nothing for the evaluator to do.
   return new CompiledExpression(expression)
 }
 

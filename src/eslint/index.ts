@@ -112,7 +112,7 @@ function decoratedFieldName(ancestors: readonly ESTree.Node[]): string | undefin
  * `class Row extends defineDto('Condition', …)` — what a `@column` field's
  * expressions analyze against. A class extending a base class or a root-generic
  * factory yields undefined: the root is not statically known there, so the
- * expression is analyzed without an input type (see `CallSitePolicy.dtoRoot`).
+ * expression is analyzed without an input type (see `CallSitePolicy.rootFromClass`).
  */
 function enclosingDtoRoot(ancestors: readonly ESTree.Node[]): string | undefined {
   for (let index = ancestors.length - 1; index >= 0; index--) {
@@ -285,10 +285,14 @@ const noInvalidExpressions: Rule.RuleModule = {
         if (name === undefined || policy === undefined || argument === undefined) {
           return
         }
-        const ancestors = policy.dtoRoot === 'class' ? context.sourceCode.getAncestors(node) : []
+        const ancestors = policy.rootFromClass === true ? context.sourceCode.getAncestors(node) : []
         const inputType =
-          policy.dtoRoot === 'argument' ? stringArgument(node.arguments[0]) : enclosingDtoRoot(ancestors)
-        if (policy.dtoRoot === 'class' && name === COLUMN_NAME) {
+          policy.rootArg !== undefined
+            ? stringArgument(node.arguments[policy.rootArg])
+            : policy.rootFromClass === true
+              ? enclosingDtoRoot(ancestors)
+              : undefined
+        if (policy.dto === true && name === COLUMN_NAME) {
           const field = decoratedFieldName(ancestors)
           if (field !== undefined) {
             columnFunctions[field] = columnFunctionDeclaration<ESTree.Node>(node.arguments[1], estreeAst)
@@ -322,7 +326,7 @@ const noInvalidExpressions: Rule.RuleModule = {
           for (const entry of expressionEntries(call.argument, call.policy.shape, estreeAst)) {
             checkAt(entry.node, {
               expression: entry.expression,
-              ...(call.policy.dtoRoot !== undefined && { dto: true as const }),
+              ...(call.policy.dto === true && { dto: true as const }),
               ...(call.inputType !== undefined && { inputType: call.inputType }),
               ...(Object.keys(columnFunctions).length > 0 && { functions: columnFunctions }),
             })

@@ -6,6 +6,7 @@ import type {
   Patient,
   ServiceRequest,
 } from '@medplum/fhirtypes'
+import { fhirpath } from 'fhirpath-ts'
 
 import {
   fp,
@@ -32,14 +33,18 @@ import type {
 // lives here so the high-level API keeps working the way an app uses it — the
 // row shapes are in patient-view.dto.ts beside this file, and these are the
 // functions an app calls. The test beside this file asserts every exported mapper
-// end to end, analyzes the expressions no checker can discover (see
-// ANALYZED_EXPRESSIONS), and runs `fhirpath-check` over this directory's DTOs.
+// end to end, and runs `fhirpath-check` over this directory's DTOs. Nothing in
+// here needs listing for the checkers: the DTOs are discovered, every literal is
+// a checked call site, and the shared expressions declare their own root.
 
 // --- helpers ---
 
-const PATIENT_DISPLAY_NAME =
-  "(Patient.name.where(use = 'official') | Patient.name).first()" +
-  ".select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))"
+// One literal each, not a `+` concatenation: a concatenated argument is dynamic,
+// and these are the expressions only `fhirpath(expr, root)` can make checkable —
+// they live in a `const` and are evaluated elsewhere, so the root travels with
+// the declaration.
+// prettier-ignore
+const PATIENT_DISPLAY_NAME = fhirpath("(Patient.name.where(use = 'official') | Patient.name).first().select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))", 'Patient')
 
 /** Greeting and avatar name, e.g. "Mary Miller": first given name + family, else `text`, family, or "there". */
 export function patientDisplayName(patient: Patient): string {
@@ -49,7 +54,7 @@ export function patientDisplayName(patient: Patient): string {
 // A record with no status fails this criteria (empty → false). R4 makes
 // MedicationRequest.status 1..1, so that only affects malformed records, and
 // hiding a statusless record from the patient is the safe direction.
-const VISIBLE_MEDICATION = "(status in ('entered-in-error' | 'draft')).not()"
+const VISIBLE_MEDICATION = fhirpath("(status in ('entered-in-error' | 'draft')).not()", 'MedicationRequest')
 
 /**
  * Whether a MedicationRequest may be shown to the patient. Drops entered-in-error
@@ -87,11 +92,10 @@ function trendPercent(series: number[]): number | null {
 // A reading must carry a UCUM code the engine can convert ('kg', '[lb_av]', 'cm',
 // '[in_i]', …). convertsToQuantity() drops a display-only unit like `unit: "lbs"`
 // with no code instead of guessing what it means.
-const WEIGHT_CRITERIA =
-  "code.coding.exists(system = %loinc and code in ('29463-7' | '3141-9'))" +
-  " and value.ofType(Quantity).convertsToQuantity('kg')"
-const HEIGHT_CRITERIA =
-  "code.coding.exists(system = %loinc and code = '8302-2')" + " and value.ofType(Quantity).convertsToQuantity('m')"
+// prettier-ignore
+const WEIGHT_CRITERIA = fhirpath("code.coding.exists(system = %loinc and code in ('29463-7' | '3141-9')) and value.ofType(Quantity).convertsToQuantity('kg')", 'Observation')
+// prettier-ignore
+const HEIGHT_CRITERIA = fhirpath("code.coding.exists(system = %loinc and code = '8302-2') and value.ofType(Quantity).convertsToQuantity('m')", 'Observation')
 
 /**
  * Builds the vitals view-model from vital-sign Observations. Weight comes straight
@@ -195,22 +199,3 @@ export function mapLabResults(
   const reports = [...reportsByOrderId].map(([orderId, report]) => ({ orderId, report }))
   return fp.project(orders.filter(isTopLevelOrder), LabResultRow, { env: { reports } })
 }
-
-// --- static-analysis surface ---
-
-/**
- * The expressions here that no checker can find on its own: they live in `const`s
- * (shared between a mapper and the exported predicate beside it), so every source
- * walker sees a variable rather than a literal, and they belong to no DTO. The
- * test beside this file analyzes each against the type it runs on.
- *
- * Nothing else needs listing. The DTOs are discovered — `fhirpath-check` imports
- * `patient-view.dto.ts` and checks every one against the engine it exports — and
- * every literal expression is checked by the ESLint rule.
- */
-export const ANALYZED_EXPRESSIONS = [
-  { expression: WEIGHT_CRITERIA, inputType: 'Observation' },
-  { expression: HEIGHT_CRITERIA, inputType: 'Observation' },
-  { expression: VISIBLE_MEDICATION, inputType: 'MedicationRequest' },
-  { expression: PATIENT_DISPLAY_NAME, inputType: 'Patient' },
-] as const

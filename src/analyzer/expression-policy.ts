@@ -44,27 +44,38 @@ export interface CallSitePolicy {
    */
   receiver: 'any' | 'engine' | 'import'
   /**
-   * Marks a DTO member site (see `defineDto`) and says where its `fhirType` —
-   * the type its expression is analyzed against — comes from:
-   *
-   * - `argument`: this call's first argument, for `defineDto('Condition', { vars })`.
-   * - `class`: the enclosing class's `extends defineDto('Condition')` clause,
-   *   for a `@column`/`@criteria` field. A class extending anything else (a
-   *   base class, a root-generic factory) has no statically-known fhirType, and
-   *   the expression is analyzed without an input type.
-   *
-   * A DTO site's `%variables` are never judged: they come from the DTO's own
-   * `vars`/`env`, from a base class, or from the projecting call, none of which
-   * a source walker can see in full. `analyzeDto` checks those.
+   * The argument that names the type the expression runs against, when the call
+   * takes one: `fhirpath('status', 'MedicationRequest')` declares it at index 1,
+   * `defineDto('Condition', { vars })` at index 0. A site with a declared root is
+   * analyzed against it, which is the only way a walker can check a relative
+   * expression — see `analyzeSite`.
    */
-  dtoRoot?: 'argument' | 'class'
+  rootArg?: number
+  /**
+   * The root comes from the enclosing class's `extends defineDto('Condition')`
+   * clause: a `@column`/`@criteria` field. A class extending anything else (a
+   * base class, a root-generic factory) has no statically-known fhirType, and
+   * the expression is analyzed without an input type.
+   */
+  rootFromClass?: true
+  /**
+   * A DTO member site. Its `%variables` are never judged — they come from the
+   * DTO's own `vars`/`env`, from a base class, or from the projecting call, none
+   * of which a source walker can see in full — and an unresolved function is
+   * reported only when it misspells a column of the same file. `analyzeDto`
+   * checks all of it properly.
+   */
+  dto?: true
 }
 
 /** Call names that take FHIRPath expressions, and where/how/on-what they take them. */
 export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   // Expression-first: the low-level API and the evaluate family of FhirPathEngine.
-  ['fhirpath', { argIndex: 0, shape: 'expression', receiver: 'any' }],
-  ['compile', { argIndex: 0, shape: 'expression', receiver: 'any' }],
+  // `fhirpath`/`compile` take the type the expression runs against as their
+  // second argument, which is what makes an expression held in a `const` — and
+  // evaluated somewhere else entirely — checkable.
+  ['fhirpath', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
+  ['compile', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
   ['evaluate', { argIndex: 0, shape: 'expression', receiver: 'any' }],
   ['evaluateTyped', { argIndex: 0, shape: 'expression', receiver: 'any' }],
   ['first', { argIndex: 0, shape: 'expression', receiver: 'engine' }],
@@ -76,9 +87,9 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   ['checkConstraints', { argIndex: 1, shape: 'constraints', receiver: 'any' }],
   // DTO declarations: the column/criteria expressions of a `@column` field, and
   // the `vars` a DTO binds per row.
-  ['column', { argIndex: 0, shape: 'expression', receiver: 'import', dtoRoot: 'class' }],
-  ['criteria', { argIndex: 0, shape: 'expression', receiver: 'import', dtoRoot: 'class' }],
-  ['defineDto', { argIndex: 1, shape: 'dto-vars', receiver: 'import', dtoRoot: 'argument' }],
+  ['column', { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true }],
+  ['criteria', { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true }],
+  ['defineDto', { argIndex: 1, shape: 'dto-vars', receiver: 'import', rootArg: 0, dto: true }],
 ])
 
 /** The `defineDto` call whose first argument fixes a DTO's fhirType. */

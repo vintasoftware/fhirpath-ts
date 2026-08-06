@@ -488,6 +488,20 @@ describe('analyzeSite', () => {
     expect(analyzeSite({ expression: 'Patient.name' }, options)).toEqual([])
   })
 
+  it('analyzes an ordinary site against the root it declares', () => {
+    // fhirpath("…", 'MedicationRequest'): a relative expression becomes checkable.
+    const rooted = { expression: "(statuss in ('draft')).not()", inputType: 'MedicationRequest' }
+    expect(analyzeSite(rooted, options).map(d => d.code)).toEqual(['unknown-element'])
+    expect(analyzeSite({ ...rooted, expression: "(status in ('draft')).not()" }, options)).toEqual([])
+    // Declaring where an expression runs says nothing about the data bound to it,
+    // so engine env is left alone.
+    expect(
+      analyzeSite({ expression: 'code.coding.exists(system = %loinc)', inputType: 'Observation' }, options)
+    ).toEqual([])
+    // Without the root, the same expression is muted rather than mis-checked.
+    expect(analyzeSite({ expression: "(statuss in ('draft')).not()" }, options)).toEqual([])
+  })
+
   it('analyzes a DTO column against its fhirType', () => {
     expect(
       analyzeSite({ expression: 'clinicalStatus.coding.first().code', inputType: 'Condition', dto: true }, options)

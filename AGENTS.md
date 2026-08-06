@@ -14,9 +14,14 @@ they are deliberately *not* three implementations of that search:
   an AST and must report on its nodes.
 - **`src/analyzer/lexical-sites.ts`** is a `typescript`-free scanner, and it is
   what everything else uses: the `fhirpath-check` CLI, the demo playground's
-  editor markers, and any bundler plugin. A browser host cannot ship the
-  TypeScript compiler, and the CLI's whole reason to exist is being usable in a
-  repo that does not install our lint stack — so it stays dependency-light.
+  editor markers, and any bundler plugin. Two reasons, in order:
+  - `fhirpath-ts` has **no runtime dependencies**, and `fhirpath-ts/analyzer` is
+    imported by browser and edge hosts. Walking the TypeScript AST in a shipped
+    path would put the compiler in `dependencies` for all of them.
+  - A browser host that *does* have TypeScript cannot reach it: the demo ships
+    it, but behind Monaco's async worker, while `lint()` runs synchronously on the
+    main thread per keystroke. Using it would mean bundling a second copy or
+    making linting async.
 - **`src/analyzer/reference-sites.ts`** is the same policy over a real TypeScript
   AST, and exists **only as the test oracle**. `lexical-sites.test.ts` runs it
   and the scanner over every `.ts` file in the repo and fails on any
@@ -31,6 +36,10 @@ What follows from that:
   CLI's niche (Biome and other non-ESLint repos) and silently drop
   warning-severity diagnostics such as `regex-backtracking`, because ESLint
   severity is per-rule, not per-report.
+- The CLI's *source* half is TypeScript-free; its DTO half is not —
+  `src/cli/ts-loader.mjs` imports `typescript` to compile the modules it loads,
+  which is why the package declares it as an optional peer. `--no-import` is the
+  path that touches no compiler.
 - When a walker learns a new shape, the *decision* belongs in
   `src/analyzer/expression-policy.ts` (call table, argument positions, receiver
   rules, shape extraction through the `ExpressionAst` adapter) and the *analysis*

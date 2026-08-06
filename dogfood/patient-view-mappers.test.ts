@@ -2,13 +2,11 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 import type { Condition, DiagnosticReport, MedicationRequest, Observation, ServiceRequest } from '@medplum/fhirtypes'
-import { analyzeEngineDtos, analyzeExpression } from 'fhirpath-ts/analyzer'
-import { r4Model } from 'fhirpath-ts/r4'
+import { analyzeEngineDtos } from 'fhirpath-ts/analyzer'
 import { describe, expect, it } from 'vitest'
 
 import { fp } from './patient-view.dto.ts'
 import {
-  ANALYZED_EXPRESSIONS,
   isTopLevelOrder,
   isVisibleMedicationRequest,
   mapLabResults,
@@ -32,17 +30,10 @@ describe('static analysis', () => {
     expect(analyzeEngineDtos(fp)).toEqual([])
   })
 
-  it('every standalone expression analyzes clean', () => {
-    const options = {
-      model: r4Model,
-      functions: fp.defaults.functions ?? {},
-      variables: { loinc: { types: ['System.String'], single: true } },
-    }
-    for (const { expression, inputType } of ANALYZED_EXPRESSIONS) {
-      expect(analyzeExpression(expression, { ...options, inputType }), expression).toEqual([])
-    }
-  })
-
+  // The expressions this module holds in `const`s declare their own root
+  // (`fhirpath(expr, 'Observation')`), so they are checked as call sites like any
+  // literal — by the ESLint rule on every commit, and by the run below.
+  //
   // The other half, in the process it is meant to run in: `fhirpath-check`
   // discovers this directory's `*.dto.ts`, imports it, finds the engine it
   // constructs and analyzes every DTO it exports — including the base classes no

@@ -4,7 +4,14 @@ import { FUNCTION_SIGNATURES } from '../analyzer/signatures.ts'
 import { compile } from '../api/compile.ts'
 import { column, defineDto } from '../api/dto.ts'
 import { fhirpath } from '../api/tagged.ts'
-import type { HumanName, Identifier, Patient, PatientContact, Quantity } from '../r4/generated/type-maps.ts'
+import type {
+  HumanName,
+  Identifier,
+  MedicationRequest,
+  Patient,
+  PatientContact,
+  Quantity,
+} from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
 import { type FhirpathInput, type FhirpathResult, FIXED_RETURNS, IDENTITY_RETURNS } from './infer.ts'
 
@@ -328,6 +335,21 @@ describe('the tables cannot drift from the analyzer', () => {
       // untouched, so the function is genuinely type-preserving.
       expect(result?.types, `${fn}() does not preserve its input type`).toBe(input.types)
     }
+  })
+})
+
+describe('a declared root types a relative expression', () => {
+  it('infers against the root instead of degrading', () => {
+    // fhirpath(expr, root) / compile(expr, root): the same inference a DTO column
+    // gets, for an expression that lives in a const and runs somewhere else.
+    const kg = fhirpath("value.ofType(Quantity).toQuantity('kg').value", 'Observation')
+    expectTypeOf(kg.evaluate).returns.toEqualTypeOf<number[]>()
+    const status = compile('status', 'MedicationRequest')
+    expectTypeOf(status.evaluate).returns.toEqualTypeOf<string[]>()
+    // The declared root is also the input type, rather than one guessed from the path.
+    expectTypeOf(status.evaluate).parameter(0).toEqualTypeOf<MedicationRequest | undefined>()
+    // Without a root, a relative expression degrades as before.
+    expectTypeOf(fhirpath('status').evaluate).returns.toEqualTypeOf<unknown[]>()
   })
 })
 

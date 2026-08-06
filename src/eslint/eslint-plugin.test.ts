@@ -181,6 +181,13 @@ dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressi
     {
       code: `${DTO_IMPORT}class W extends defineDto('Observation') { @column('code.reportBadge()', { type: 'string' }) badge!: string | undefined }`,
     },
+    // A declared root makes a shared const checkable; its %env stays unjudged.
+    {
+      code: "import { fhirpath } from 'fhirpath-ts'; const V = fhirpath(\"(status in ('draft')).not()\", 'MedicationRequest')",
+    },
+    {
+      code: "import { fhirpath } from 'fhirpath-ts'; const W = fhirpath('code.coding.exists(system = %loinc)', 'Observation')",
+    },
     // A `column` that is not the package's own.
     { code: "import { column } from 'some-table-library'; column('id')" },
     { code: "const column = (name: string) => name; column('not.a.fhirpath.expression')" },
@@ -211,6 +218,15 @@ dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressi
     {
       code: `${DTO_IMPORT}class C extends defineDto('CodeableConcept') { @column('text', { type: 'string' }) displayText!: string | undefined } class W extends defineDto('Observation') { @column('code.displayText() + 1', { type: 'string' }) bad!: string | undefined }`,
       errors: [{ message: /operand-type/ }],
+    },
+    // The root is what lets a relative expression be checked at all.
+    {
+      code: "import { fhirpath } from 'fhirpath-ts'; const V = fhirpath(\"(statuss in ('draft')).not()\", 'MedicationRequest')",
+      errors: [{ message: /unknown-element.*did you mean 'status'/ }],
+    },
+    {
+      code: "import { compile } from 'fhirpath-ts'; const H = compile('value.ofType(Quantityy).value', 'Observation')",
+      errors: [{ message: /unknown-type/ }],
     },
     // Even with no root, a malformed expression is still a syntax error.
     {

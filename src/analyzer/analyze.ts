@@ -205,7 +205,9 @@ export function analyzeSite(
   }
   const diagnostics = analyzeExpression(site.expression, merged)
   if (site.dto !== true) {
-    return diagnostics
+    return site.inputType === undefined
+      ? diagnostics
+      : diagnostics.filter(diagnostic => diagnostic.code !== 'unknown-variable')
   }
   if (site.inputType === undefined) {
     return diagnostics.filter(diagnostic => diagnostic.code === 'syntax')

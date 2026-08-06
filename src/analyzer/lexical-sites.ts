@@ -107,8 +107,13 @@ export function findLexicalExpressionSites(
     if (argument === undefined) {
       continue
     }
-    const inputType = policy.dtoRoot === 'argument' ? dtoRootArgument(tokens, index) : classRoot
-    if (policy.dtoRoot === 'class' && token.value === COLUMN_NAME) {
+    const inputType =
+      policy.rootArg !== undefined
+        ? rootArgument(tokens, index, policy.rootArg)
+        : policy.rootFromClass === true
+          ? classRoot
+          : undefined
+    if (policy.dto === true && token.value === COLUMN_NAME) {
       const parsed = parseArguments(tokens, index + 1)
       const field = decoratedFieldName(tokens, parsed.end)
       if (field !== undefined) {
@@ -119,8 +124,8 @@ export function findLexicalExpressionSites(
       sites.push({
         expression: entry.expression,
         start: entry.node.start,
-        ...(policy.dtoRoot !== undefined && { dto: true as const }),
-        ...(policy.dtoRoot !== undefined && inputType !== undefined && { inputType }),
+        ...(policy.dto === true && { dto: true as const }),
+        ...(inputType !== undefined && { inputType }),
       })
     }
   }
@@ -175,10 +180,10 @@ function extendedDtoRoot(tokens: Token[], extendsIndex: number): string | undefi
   return first.value
 }
 
-/** The fhirType a `defineDto('Condition', …)` call fixes, read off its own first argument. */
-function dtoRootArgument(tokens: Token[], calleeIndex: number): string | undefined {
-  const first = parseArguments(tokens, calleeIndex + 1).nodes[0]
-  return first?.kind === 'string' ? first.expression : undefined
+/** The type name a call declares in `argIndex`, e.g. `fhirpath('status', 'MedicationRequest')`. */
+function rootArgument(tokens: Token[], calleeIndex: number, argIndex: number): string | undefined {
+  const argument = parseArguments(tokens, calleeIndex + 1).nodes[argIndex]
+  return argument?.kind === 'string' ? argument.expression : undefined
 }
 
 // --- Tokens -----------------------------------------------------------------

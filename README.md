@@ -292,6 +292,24 @@ expressions, declare `rowIndex` and `rowTotal` there too — the runtime sets
 them per row, but the analyzer has no notion of the call site that will run an
 expression.
 
+An expression kept in a `const` and evaluated elsewhere can declare the type it
+runs against, which is what makes it checkable — the checkers see the literal but
+not the call that will run it:
+
+```ts
+const VISIBLE_MEDICATION = fhirpath("(status in ('entered-in-error' | 'draft')).not()", 'MedicationRequest')
+const WEIGHT_KG = compile("value.ofType(Quantity).toQuantity('kg').value", 'Observation') // number[]
+
+fp.test(request, VISIBLE_MEDICATION)
+```
+
+The declared type does three things: a relative path infers like a DTO column
+(`number[]` above, rather than degrading to `unknown[]`), the expression's input
+type becomes that resource instead of one guessed from the path, and the ESLint
+rule and `fhirpath-check` analyze the expression against it — so an element typo
+in a shared criteria fails the same way it would inside a `@column`. Like a
+column's `type`, it is a declaration: nothing checks it at runtime.
+
 A function can also be defined in FHIRPath itself — `expression` instead of
 `fn`. The body evaluates as if spliced at the call site: the call's input is
 the focus, while `%context` and the environment stay the caller's. This is the

@@ -85,7 +85,11 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
   // A site points at the first character inside the quote/backtick (node start
   // + 1), so fhirpath-check can add a diagnostic's span offsets directly. The
   // ESLint rule reports on the literal node itself, one column earlier.
-  const record = (text: string, literalNode: ts.Node, context?: { inputType: string | undefined }): void => {
+  const record = (
+    text: string,
+    literalNode: ts.Node,
+    context?: { dto: boolean; inputType: string | undefined }
+  ): void => {
     const literalStart = literalNode.getStart(source) + 1
     const { line, character } = source.getLineAndCharacterOfPosition(literalStart)
     sites.push({
@@ -93,7 +97,7 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
       start: literalStart,
       line: line + 1,
       column: character + 1,
-      ...(context !== undefined && { dto: true as const }),
+      ...(context?.dto === true && { dto: true as const }),
       ...(context?.inputType !== undefined && { inputType: context.inputType }),
     })
   }
@@ -112,13 +116,18 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
         argument !== undefined &&
         isCheckedCall(policy, callee, receiverRoot(node.expression), bindings)
       ) {
-        const inputType = policy.dtoRoot === 'argument' ? stringArgument(node.arguments[0]) : classRoot
-        const field = policy.dtoRoot === 'class' && callee === COLUMN_NAME ? decoratedFieldName(node) : undefined
+        const inputType =
+          policy.rootArg !== undefined
+            ? stringArgument(node.arguments[policy.rootArg])
+            : policy.rootFromClass === true
+              ? classRoot
+              : undefined
+        const field = policy.dto === true && callee === COLUMN_NAME ? decoratedFieldName(node) : undefined
         if (field !== undefined) {
           functions[field] = columnFunctionDeclaration<ts.Node>(node.arguments[1], tsAst)
         }
         for (const entry of expressionEntries<ts.Node>(argument, policy.shape, tsAst)) {
-          record(entry.expression, entry.node, policy.dtoRoot === undefined ? undefined : { inputType })
+          record(entry.expression, entry.node, { dto: policy.dto === true, inputType })
         }
       }
     }

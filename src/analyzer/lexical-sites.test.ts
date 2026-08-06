@@ -225,6 +225,12 @@ const CASES: Record<string, string> = {
       label!: string
     }
   `,
+  'a declared root on fhirpath and compile': `
+    import { compile, fhirpath } from 'fhirpath-ts'
+    const VISIBLE = fhirpath("(status in ('draft')).not()", 'MedicationRequest')
+    const HEIGHT = compile('value.ofType(Quantity).value', 'Observation')
+    const BARE = fhirpath('Patient.name.given')
+  `,
   'a numeric column key keeps its value': `
     import { r4 } from 'fhirpath-ts/r4'
     r4.project(rows, { 1: 'Patient.id' })
@@ -419,6 +425,21 @@ describe('findLexicalExpressionSites', () => {
     const decoratorOnly =
       "import { column, defineDto } from 'fhirpath-ts'\nclass Row extends defineDto('Coding') { @column('code') @ }"
     expect(findLexicalExpressionSites(decoratorOnly)).toHaveLength(1)
+  })
+
+  it('carries a declared root, and does not read it as a DTO site', () => {
+    const source = `
+      import { compile, fhirpath } from 'fhirpath-ts'
+      const VISIBLE = fhirpath("(status in ('draft')).not()", 'MedicationRequest')
+      const HEIGHT = compile('value.ofType(Quantity).value', 'Observation')
+      const BARE = fhirpath('Patient.name.given')
+    `
+    expect(findLexicalExpressionSites(source).map(site => [site.expression, site.inputType, site.dto])).toEqual([
+      ["(status in ('draft')).not()", 'MedicationRequest', undefined],
+      ['value.ofType(Quantity).value', 'Observation', undefined],
+      // No second argument: no root, and nothing else changes.
+      ['Patient.name.given', undefined, undefined],
+    ])
   })
 
   it('reads relative imports as the API when localImports is on', () => {
