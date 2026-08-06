@@ -295,7 +295,11 @@ describe('findLexicalExpressionSites', () => {
   // shapes nobody thought of. Every .ts file in the package goes through both
   // walkers, so real code — generated models, tests full of odd literals, the
   // demo's own sources — has to agree too.
-  it('matches the TypeScript walker across the package source', () => {
+  //
+  // Its own timeout: the reference walker parses the whole package with the
+  // TypeScript compiler, which runs a few seconds normally and several times
+  // that under coverage instrumentation.
+  it('matches the TypeScript walker across the package source', { timeout: 60_000 }, () => {
     const root = fileURLToPath(new URL('../..', import.meta.url))
     const files = [...sourceFiles(root, ['src', 'demo/src', 'scripts', 'benchmarks'])]
     expect(files.length).toBeGreaterThan(50)
