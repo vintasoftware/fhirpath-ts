@@ -42,6 +42,13 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # The other half of the analyzer story: `fhirpath-check` imports the
+      # project's *.dto.ts modules and checks every DTO against the engine that
+      # projects it — resolving column-to-column calls and per-row vars, which a
+      # source walker (and therefore the lint step above) cannot.
+      - name: Check DTOs (fhirpath-check)
+        run: pnpm check:fhirpath
+
       # Instantiation counts are deterministic for the lockfile-pinned
       # TypeScript version, so inference-cost regressions in FhirpathResult
       # fail here against scripts/type-perf-budget.json instead of landing

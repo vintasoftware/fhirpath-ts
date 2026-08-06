@@ -85,6 +85,15 @@ export interface DtoOptions {
   env?: Record<string, unknown>
   /** Per-row bindings the columns read (EvaluateOptions.vars semantics; may reference per-call env). */
   vars?: Record<string, AnyExpression | readonly TypedValue[]>
+  /**
+   * Env names the *projecting call* supplies rather than the DTO —
+   * `project(orders, LabResultRow, { env: { reports } })` declares
+   * `callerEnv: ['reports']`. Data that varies per request cannot live on the
+   * DTO or the engine, but which names it uses is part of the DTO's contract, so
+   * declaring them here is what lets `analyzeDto` (and the `fhirpath-check` CLI)
+   * check the expressions that read them instead of reporting them as undefined.
+   */
+  callerEnv?: readonly string[]
 }
 
 /** Everything a DTO class was declared with; `project()`, the engine, and `analyzeDto` all read it from here. */
@@ -93,6 +102,8 @@ export interface DtoDefinition {
   readonly columns: ProjectionColumns
   readonly env: Record<string, unknown> | undefined
   readonly vars: Record<string, AnyExpression | readonly TypedValue[]> | undefined
+  /** Env names the projecting call supplies (see DtoOptions.callerEnv). */
+  readonly callerEnv: readonly string[] | undefined
 }
 
 /** The `fhirType`/`env`/`vars` a `defineDto()` base was created with, by that base class. */
@@ -216,6 +227,15 @@ function baseOf(cls: object): ({ fhirType: string } & DtoOptions) | undefined {
 }
 
 /**
+ * Whether a value is a DTO class — one `defineDto()` produced, or a subclass of
+ * one. Lets tooling pick the DTOs out of a module's exports (see the
+ * `fhirpath-check` CLI) without instantiating anything that is not one.
+ */
+export function isDtoClass(value: unknown): value is DtoClass {
+  return typeof value === 'function' && baseOf(value) !== undefined
+}
+
+/**
  * The definition a DTO class declared: its base's `fhirType`/`env`/`vars`, and
  * every `@column`/`@criteria` field it or its bases declare. Collected by
  * instantiating the class once — field initializers are where the decorators
@@ -242,7 +262,13 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
     throw new FhirPathTypeError(`DTO ${cls.name} declares a column named 'fhirType', which every row already carries`)
   }
   /* v8 ignore stop */
-  const definition: DtoDefinition = { fhirType: base.fhirType, columns, env: base.env, vars: base.vars }
+  const definition: DtoDefinition = {
+    fhirType: base.fhirType,
+    columns,
+    env: base.env,
+    vars: base.vars,
+    callerEnv: base.callerEnv,
+  }
   definitions.set(cls, definition)
   return definition
 }

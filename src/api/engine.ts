@@ -37,6 +37,36 @@ export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | re
 export type TypedEvaluateOptions<T extends keyof R4TypeOf> = EvaluateOptions & { type: T }
 
 /**
+ * Engines constructed while recording is on. Off by default, so an application
+ * retains nothing: only a checker turns it on, and only around the imports it
+ * makes (see the `fhirpath-check` CLI, which discovers the engines a project
+ * builds without needing them exported).
+ */
+const recorded: FhirPathEngine[] = []
+let recording = false
+
+/**
+ * Start recording engine constructions, for tooling that needs to find the
+ * engines a project builds: call it, then import the modules that construct
+ * them, then read `recordedEngines()`. An engine is usually module-private, so
+ * scanning a module's exports would miss it.
+ */
+export function recordEngines(): void {
+  recording = true
+}
+
+/** The engines constructed since `recordEngines()`, in construction order. */
+export function recordedEngines(): readonly FhirPathEngine[] {
+  return recorded
+}
+
+function recordEngine(engine: FhirPathEngine): void {
+  if (recording) {
+    recorded.push(engine)
+  }
+}
+
+/**
  * What a `FhirPathEngine` takes at construction: the `EvaluateOptions` it binds
  * as per-call defaults, plus settings that belong to the engine itself.
  */
@@ -84,11 +114,19 @@ export interface EngineOptions extends EvaluateOptions {
 export class FhirPathEngine {
   /** The per-call options bound at construction; engine-only settings are not part of them. */
   readonly defaults: EvaluateOptions
+  /**
+   * The DTO classes registered at construction (EngineOptions.resourceDtos), in
+   * order. Kept so tooling can check them against this engine's own model,
+   * functions and env — see `analyzeEngineDtos` in `fhirpath-ts/analyzer`.
+   */
+  readonly dtos: readonly DtoClass[]
   private readonly compileCached: Compiler
 
   constructor({ cacheSize, resourceDtos, ...defaults }: EngineOptions = {}) {
     this.compileCached = createCachedCompiler(cacheSize)
-    this.defaults = this.precompiled(withDtos(defaults, resourceDtos ?? [], this.compileCached))
+    this.dtos = resourceDtos ?? []
+    this.defaults = this.precompiled(withDtos(defaults, this.dtos, this.compileCached))
+    recordEngine(this)
   }
 
   /** Compile (LRU-cached by expression text) and evaluate in one call; typed like `compile().evaluate()`. */

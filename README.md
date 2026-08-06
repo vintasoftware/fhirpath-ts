@@ -440,16 +440,25 @@ inside the expression strings. `analyzeDto` from `fhirpath-ts/analyzer` closes
 that gap — run it in a test next to each DTO:
 
 ```ts
-import { analyzeDto } from 'fhirpath-ts/analyzer'
+import { analyzeDto, analyzeEngineDtos } from 'fhirpath-ts/analyzer'
 
-// Columns, criteria, and DTO vars all analyze against the fhirType.
-// Pass what the DTO doesn't declare itself: the engine's functions, and
-// names for per-call env (%reports here).
-expect(analyzeDto(LabResultRow, {
-  model: r4Model,
-  functions: fp.defaults.functions,
-  variables: { reports: {} },
-})).toEqual([])
+// The engine carries everything the check needs: its model, the functions its
+// registered DTOs contribute, and its env names.
+expect(analyzeDto(LabResultRow, { engine: fp })).toEqual([])
+
+// And it knows which DTOs it registered, so the vocabulary needs no list:
+expect(analyzeEngineDtos(fp)).toEqual([])
+```
+
+Data that arrives per call is the DTO's own declaration, not the checker's
+configuration: `callerEnv` names the env the projecting call supplies, so the
+expressions reading it are checked instead of reported as undefined.
+
+```ts
+class LabResultRow extends defineDto('ServiceRequest', {
+  callerEnv: ['reports'], // fp.project(orders, LabResultRow, { env: { reports } })
+  vars: { report: '%reports.where(orderId = %context.id).report' },
+}) { … }
 ```
 
 Each finding carries the `member` it came from (a column name, or
@@ -855,8 +864,57 @@ Three layers, from cheapest to most thorough:
 
 3. **`fhirpath-check` CLI** — the same analyzer (and the same call-site policy) as a
    standalone command, for repos that do not lint with ESLint (e.g. Biome repos, whose
-   GritQL plugins cannot execute the analyzer): `pnpm exec fhirpath-check src/**/*.ts`.
-   It exits non-zero on the first diagnostic, so it drops into any CI or pre-commit hook.
+   GritQL plugins cannot execute the analyzer). It does two things:
+
+   ```sh
+   # Every expression literal in the given files, read from source.
+   pnpm exec fhirpath-check "src/**/*.ts"
+
+   # Plus every DTO in the project's *.dto.ts modules, imported and checked
+   # against the engine that projects it. This half needs no arguments.
+   pnpm exec fhirpath-check
+   ```
+
+   The second half is the one a source walker cannot do. DTO modules are
+   *imported*, so `analyzeDto` runs with the real thing: calls between columns
+   resolve through the engine's registered DTOs, `vars` and `env` are known, and a
+   declared column `type` is cross-checked against the analyzer's own inference.
+   Findings carry the class, the member and a source position:
+
+   ```
+   src/fhir/patient.dto.ts:18:42 ProblemRow.statusCode [unknown-element] Element 'codee' is not defined on FHIR.Coding — did you mean 'code'?
+   fhirpath-check: analyzed 13 DTO(s) from 1 module(s) against 1 engine(s)
+   ```
+
+   Discovery needs no configuration, which is why the convention matters:
+
+   - **DTOs live in `*.dto.ts`.** That is the default glob; `--dtos "<glob>"`
+     (repeatable) points elsewhere.
+   - **Export the DTO classes** you want checked — the checker reads a module's
+     exports. Engines need no export: constructions are recorded, so a
+     module-private `const fp = new FhirPathEngine(…)` is still found.
+   - Put the engine where the DTOs are (the same `*.dto.ts` file is fine) or point
+     `--dtos` at both. Without an engine in reach, column-to-column calls cannot
+     resolve, and the CLI says so instead of failing the run.
+   - `--no-import` skips this half entirely, for a source-only pass.
+
+   It exits non-zero on any error-severity diagnostic, so both halves drop into CI
+   and pre-commit as they are:
+
+   ```yaml
+   # .github/workflows/ci.yml
+   - run: pnpm exec fhirpath-check "src/**/*.ts"   # source literals + the DTO sweep
+   ```
+
+   ```json
+   // package.json — with lint-staged, on pre-commit
+   { "lint-staged": { "*.ts": ["fhirpath-check --no-import"] } }
+   ```
+
+   A pre-commit hook usually wants `--no-import` on the staged files (fast, no
+   module side effects), with the DTO sweep in CI where importing is fine. This
+   repo does exactly that: the ESLint rule covers the source half on every commit,
+   and `pnpm check:fhirpath` runs the sweep in CI.
 
 Both read the same call-site policy (`src/analyzer/expression-policy.ts`) and
 analyze each site through the same `analyzeSite`, so they agree on what counts as

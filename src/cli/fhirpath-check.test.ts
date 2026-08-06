@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -8,14 +8,14 @@ import { describe, expect, it } from 'vitest'
 describe('fhirpath-check CLI', () => {
   const cli = resolve(import.meta.dirname, 'fhirpath-check.ts')
 
-  function run(files: string[]): { status: number; output: string } {
-    try {
-      const stdout = execFileSync(process.execPath, [cli, ...files], { encoding: 'utf8', stdio: 'pipe' })
-      return { status: 0, output: stdout }
-    } catch (error) {
-      const failure = error as { status: number; stdout: string; stderr: string }
-      return { status: failure.status, output: `${failure.stdout}${failure.stderr}` }
-    }
+  function run(args: string[], cwd?: string): { status: number; output: string } {
+    // The file half needs no imports; every test that only checks literals passes
+    // --no-import so a stray *.dto.ts in the working directory cannot affect it.
+    const result = spawnSync(process.execPath, [cli, ...args], {
+      encoding: 'utf8',
+      ...(cwd !== undefined && { cwd }),
+    })
+    return { status: result.status ?? 0, output: `${result.stdout}${result.stderr}` }
   }
 
   it("resolves calls between a file's own DTO columns, and flags a near-miss", () => {
@@ -34,10 +34,10 @@ describe('fhirpath-check CLI', () => {
       ].join('\n')
     const good = join(directory, 'good.ts')
     writeFileSync(good, dto('code.displayText()'))
-    expect(run([good]).status).toBe(0)
+    expect(run(['--no-import', good]).status).toBe(0)
     const typo = join(directory, 'typo.ts')
     writeFileSync(typo, dto('code.displayTxt()'))
-    const result = run([typo])
+    const result = run(['--no-import', typo])
     expect(result.status).toBe(1)
     expect(result.output).toContain("Unrecognized function 'displayTxt' — did you mean 'displayText'?")
   })
@@ -59,11 +59,11 @@ describe('fhirpath-check CLI', () => {
       ].join('\n')
     )
 
-    const ok = run([clean])
+    const ok = run(['--no-import', clean])
     expect(ok.status).toBe(0)
     expect(ok.output).toContain('no problems found')
 
-    const failed = run([clean, dirty])
+    const failed = run(['--no-import', clean, dirty])
     expect(failed.status).toBe(1)
     expect(failed.output).toContain('dirty.ts:2:')
     expect(failed.output).toContain('unknown-element')
@@ -74,8 +74,61 @@ describe('fhirpath-check CLI', () => {
     expect(failed.output).toContain('4 problem(s) found')
   })
 
-  it('exits with usage when no files are given', () => {
-    const result = run([])
+  it("discovers, imports and analyzes the project's *.dto.ts modules", () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-project-'))
+    // A package link, so the DTO module's `fhirpath-ts` import resolves the way
+    // it would in a real project.
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'patient.dto.ts'),
+      [
+        "import { column, defineDto, FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        '',
+        "export class ConceptDto extends defineDto('CodeableConcept') {",
+        "  @column('(text | coding.display.first()).first()', { type: 'string' })",
+        '  displayText!: string | undefined',
+        '}',
+        '',
+        '// Module-private on purpose: discovery records constructions, so an engine',
+        '// does not have to be exported to be found.',
+        'const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [ConceptDto] })',
+        '',
+        "export class ProblemRow extends defineDto('Condition') {",
+        '  // Resolves only through the engine above.',
+        "  @column('code.displayText()', { type: 'string', default: '' })",
+        '  name!: string',
+        '',
+        "  @column('clinicalStatus.coding.first().codee')",
+        '  statusCode!: string | undefined',
+        '}',
+        '',
+        'export const rows = (input: unknown[]): unknown => fp.project(input, ProblemRow)',
+      ].join('\n')
+    )
+    const result = run([], directory)
+    expect(result.status).toBe(1)
+    // The valid cross-DTO call is silent; the typo is reported with a position
+    // and the member it came from.
+    expect(result.output).not.toContain('displayText')
+    expect(result.output).toMatch(/patient\.dto\.ts:\d+:\d+ ProblemRow\.statusCode \[unknown-element\]/)
+    expect(result.output).toContain('analyzed 2 DTO(s) from 1 module(s) against 1 engine(s)')
+  })
+
+  it('says so when nothing matches, and skips the DTO half on --no-import', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-empty-'))
+    writeFileSync(join(directory, 'plain.ts'), 'const q = fhirpath`Patient.name.given`\n')
+    const matched = run([], directory)
+    expect(matched.status).toBe(0)
+    expect(matched.output).toContain('no DTO modules matched **/*.dto.ts')
+    const skipped = run(['--no-import', 'plain.ts'], directory)
+    expect(skipped.status).toBe(0)
+    expect(skipped.output).not.toContain('no DTO modules matched')
+  })
+
+  it('exits with usage when there is nothing to do', () => {
+    const result = run(['--no-import'])
     expect(result.status).toBe(2)
     expect(result.output).toContain('usage:')
   })

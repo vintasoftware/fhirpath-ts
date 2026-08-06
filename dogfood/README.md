@@ -1,9 +1,12 @@
 # Real-usage tests
 
 Modules in this directory come from real apps and use the engine the way an
-app does. The mappers here use DTO definitions, shared columns, `vars` joins,
-display tables, and `enum` columns, with `@medplum/fhirtypes` inputs. Each
-module has a test beside it that:
+app does. `patient-view.dto.ts` holds the row shapes and the engine that projects
+them — DTO definitions, shared base classes, `vars` joins, display choices, and
+`enum` columns; `patient-view-mappers.ts` holds the functions an app calls, with
+`@medplum/fhirtypes` inputs. The split follows the `*.dto.ts` convention
+`fhirpath-check` discovers, so `pnpm check:fhirpath` imports this directory's
+DTOs and checks them against their engine. Each module has a test beside it that:
 
 - asserts every exported function end to end, on synthetic FHIR data;
 - runs `analyzeDto` over every DTO and `analyzeExpression` over every

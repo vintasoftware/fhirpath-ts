@@ -6,7 +6,7 @@ export type { ConstraintCheckResult, ConstraintIssue, FhirConstraint, OperationO
 export type { ColumnTypeMismatch, DtoBase, DtoClass, DtoInstance, DtoOptions, DtoRow, FhirTypeName } from './api/dto.ts'
 export { column, criteria, defineDto } from './api/dto.ts'
 export type { EngineInput, EngineOptions, TypedEvaluateOptions } from './api/engine.ts'
-export { BoundExpression, FhirPathEngine } from './api/engine.ts'
+export { BoundExpression, FhirPathEngine, recordedEngines, recordEngines } from './api/engine.ts'
 export { evaluate } from './api/evaluate.ts'
 export type { ColumnOptions, ColumnResult, Projection, ProjectionColumn, ProjectionColumns } from './api/project.ts'
 export { fhirpath } from './api/tagged.ts'

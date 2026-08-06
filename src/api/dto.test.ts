@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { analyzeDto, analyzeExpression } from '../analyzer/index.ts'
+import { analyzeDto, analyzeEngineDtos, analyzeExpression } from '../analyzer/index.ts'
 import type { Condition, Observation, ServiceRequest } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
@@ -378,6 +378,47 @@ describe('analyzeDto', () => {
     }
     expect(analyzeDto(Bound, { model: r4Model }).map(f => [f.member, f.code])).toEqual([
       ['vars.compiled', 'unknown-element'],
+    ])
+  })
+
+  it('takes model, functions and env names from the engine it is given', () => {
+    class ConceptFns extends defineDto('CodeableConcept') {
+      @column('(text | coding.display.first()).first()', { type: 'string' })
+      displayText!: string | undefined
+    }
+    class Named extends defineDto('Condition', {
+      env: { fallback: 'Condition' },
+      // The join table arrives per call, so the DTO declares only the name.
+      callerEnv: ['reports'],
+      vars: { report: '%reports.where(id = %context.id).first()' },
+    }) {
+      @column('(code.displayText() | %fallback).first()', { type: 'string', default: '' })
+      name!: string
+
+      @column('%report.status', { type: 'string', default: '' })
+      reportStatus!: string
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [ConceptFns] })
+    // Without the engine: the function is unknown and %reports undeclared.
+    expect(
+      analyzeDto(Named, { model: r4Model })
+        .map(f => f.code)
+        .sort()
+    ).toEqual(['unknown-function'])
+    expect(analyzeDto(Named, { engine })).toEqual([])
+    // The sweep covers what the engine registered, with the class on each finding.
+    expect(analyzeEngineDtos(engine)).toEqual([])
+    expect(engine.dtos).toEqual([ConceptFns])
+  })
+
+  it('sweeps an engine and names the DTO each finding came from', () => {
+    class Broken extends defineDto('Observation') {
+      @column('statuss', { type: 'string', default: '' })
+      status!: string
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Broken] })
+    expect(analyzeEngineDtos(engine).map(f => [f.dto, f.member, f.expression, f.code])).toEqual([
+      ['Broken', 'status', 'statuss', 'unknown-element'],
     ])
   })
 

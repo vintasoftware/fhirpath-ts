@@ -38,6 +38,37 @@ What follows from that:
 - Never repair a scanner/oracle disagreement by changing the oracle to match the
   scanner. The oracle is the reference; the scanner is what may be wrong.
 
+## `fhirpath-check` has two halves, and DTOs live in `*.dto.ts`
+
+The CLI reads source (half one, the scanner) *and* imports the project (half two,
+`src/cli/dto-check.ts`): DTO modules are loaded through `src/cli/ts-loader.mjs`,
+the engines they construct are discovered, and `analyzeDto` runs with the real
+context. Keep the halves distinct — the first must never be wrong, the second is
+allowed to be exhaustive because it has the engine.
+
+Discovery is convention, not configuration, and each rule earns its keep:
+
+- `*.dto.ts` is the default glob (`--dtos` overrides). One convention beats a
+  config file the user has to write and keep in step.
+- DTO classes must be **exported** to be found: a module's exports are all a
+  loader can see. A subclass is not discoverable at definition time — `@column`
+  learns its class only when an instance is first constructed — so there is no
+  way to enumerate "every DTO in the process".
+- Engines need **no** export: `recordEngines()`/`recordedEngines()` in
+  `src/api/engine.ts` record constructions while a checker asks for it (off by
+  default, so an application retains nothing). Engines are usually
+  module-private, which is why scanning exports is not enough.
+- Per-call env is the DTO's declaration (`DtoOptions.callerEnv`), not the
+  checker's flag. If a checker needs to be told something about a DTO, the DTO is
+  the place to say it.
+- No engine in reach means column-to-column calls cannot resolve, so those
+  findings are reported as warnings and the run still passes. Do not "fix" that
+  by failing the run.
+
+Do not add a `fhirpath.config.ts`. It was considered and rejected: everything it
+would hold is discoverable (engines by recording, DTOs by convention plus export,
+env names from the engine and `callerEnv`).
+
 ## `analyzeSite` decides what a source walker may claim
 
 `analyzeSite` (`src/analyzer/analyze.ts`) is the single place that turns a found
@@ -74,7 +105,8 @@ against the column's inferred type — the whole point of the decorator form.
 
 ## Gates
 
-`pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm check:type-perf` (an
+`pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm check:fhirpath` (the DTO
+sweep), `pnpm check:type-perf` (an
 instantiation budget in `scripts/type-perf-budget.json`; raise it in the same
 change and say why), and `pnpm coverage` thresholds. The demo has its own
 `typecheck`, and `demo/src/monaco/*.d.ts` are generated — run

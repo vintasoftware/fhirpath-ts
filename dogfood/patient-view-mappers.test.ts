@@ -1,5 +1,5 @@
 import type { Condition, DiagnosticReport, MedicationRequest, Observation, ServiceRequest } from '@medplum/fhirtypes'
-import { analyzeDto, analyzeExpression } from 'fhirpath-ts/analyzer'
+import { analyzeDto, analyzeEngineDtos, analyzeExpression } from 'fhirpath-ts/analyzer'
 import { r4Model } from 'fhirpath-ts/r4'
 import { describe, expect, it } from 'vitest'
 
@@ -21,13 +21,10 @@ import {
 const HG_INTERPRETATION = 'https://www.healthgorilla.com/fhir/StructureDefinition/diagnosticreport-interpretation'
 
 describe('static analysis', () => {
-  const options = {
-    model: r4Model,
-    functions: ANALYZED_USAGE.functions,
-    // Names the module cannot declare itself: the engine env, and the per-call
-    // order→report join table mapLabResults passes.
-    variables: { loinc: { types: ['System.String'], single: true }, reports: {} },
-  }
+  // Everything the checks need comes off the engine: its model, the functions its
+  // registered DTOs contribute, and its env names. A DTO's per-call env is its
+  // own declaration (`callerEnv`), so nothing is threaded in by hand.
+  const options = { engine: ANALYZED_USAGE.engine }
 
   it('every DTO class analyzes clean against its fhirType', () => {
     for (const dto of ANALYZED_USAGE.dtos) {
@@ -35,9 +32,18 @@ describe('static analysis', () => {
     }
   })
 
+  it('the engine sweep covers every DTO it registered', () => {
+    expect(analyzeEngineDtos(ANALYZED_USAGE.engine)).toEqual([])
+  })
+
   it('every standalone expression analyzes clean', () => {
+    const expressionOptions = {
+      model: r4Model,
+      functions: ANALYZED_USAGE.engine.defaults.functions ?? {},
+      variables: { loinc: { types: ['System.String'], single: true } },
+    }
     for (const { expression, inputType } of ANALYZED_USAGE.expressions) {
-      expect(analyzeExpression(expression, { ...options, inputType }), expression).toEqual([])
+      expect(analyzeExpression(expression, { ...expressionOptions, inputType }), expression).toEqual([])
     }
   })
 })
