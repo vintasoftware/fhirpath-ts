@@ -67,6 +67,27 @@ export function configureMonaco(): void {
   ts.typescriptDefaults.addExtraLib(r4Dts, 'file:///node_modules/fhirpath-ts/r4/index.d.ts')
   ts.typescriptDefaults.addExtraLib(analyzerDts, 'file:///node_modules/fhirpath-ts/analyzer/index.d.ts')
   monaco.editor.defineTheme(THEME_NAME, screenTheme())
+  bindWordNavigation()
+}
+
+/**
+ * Ctrl + arrow moves by word, and with Shift selects by word — the binding
+ * everything else on the page (the browser's own inputs included) uses.
+ *
+ * Only the literal Ctrl key is bound, which is `WinCtrl` in Monaco's vocabulary:
+ * `CtrlCmd` would mean Cmd on macOS, where Cmd + arrow is line start/end and
+ * stealing it would be worse than the gap this closes. On Windows and Linux
+ * Ctrl + arrow is already word navigation, and `WinCtrl` there is the Super key
+ * the window manager takes first, so these rules are a no-op.
+ */
+function bindWordNavigation(): void {
+  const { KeyMod, KeyCode } = monaco
+  monaco.editor.addKeybindingRules([
+    { keybinding: KeyMod.WinCtrl | KeyCode.LeftArrow, command: 'cursorWordLeft' },
+    { keybinding: KeyMod.WinCtrl | KeyCode.RightArrow, command: 'cursorWordRight' },
+    { keybinding: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow, command: 'cursorWordLeftSelect' },
+    { keybinding: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow, command: 'cursorWordRightSelect' },
+  ])
 }
 
 /**
