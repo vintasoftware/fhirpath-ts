@@ -19,7 +19,9 @@ import type * as TS from 'typescript'
 import {
   CALL_SITES,
   type ClassHeritage,
+  type ColumnDeclaration,
   columnFunctionDeclaration,
+  columnVocabulary,
   constructsEngine,
   type DeclaredColumnFunction,
   DTO_BASE_NAME,
@@ -259,7 +261,9 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
     const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
     const { bindings, dtoRoots, heritage } = collectFile(source, options)
     const sites: ExpressionSite[] = []
-    const functions: Record<string, DeclaredColumnFunction> = {}
+    // Collected rather than merged in place: a field name declared twice in one
+    // file only keeps the claims both declarations agree on (columnVocabulary).
+    const columns: ColumnDeclaration[] = []
     // A site points at the first character inside the quote/backtick (node start
     // + 1), so fhirpath-check can add a diagnostic's span offsets directly. The
     // ESLint rule reports on the literal node itself, one column earlier.
@@ -296,7 +300,10 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
           const declares = policy.declaresField
           const field = declares === undefined ? undefined : decoratedFieldName(node)
           if (declares !== undefined && field !== undefined) {
-            functions[field] = columnFunctionDeclaration<TS.Node>(declares, node.arguments[1], tsAst, classRoot)
+            columns.push({
+              field,
+              declaration: columnFunctionDeclaration<TS.Node>(declares, node.arguments[1], tsAst, classRoot),
+            })
           }
           const context = siteContext<TS.Node>(policy, index => node.arguments[index], classRoot, tsAst)
           for (const entry of expressionEntries<TS.Node>(argument, policy.shape, tsAst)) {
@@ -308,6 +315,7 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
       ts.forEachChild(node, child => visit(child, nested))
     }
     visit(source, undefined)
+    const functions = columnVocabulary(columns)
     return Object.keys(functions).length === 0 ? sites : sites.map(site => ({ ...site, functions }))
   }
 }

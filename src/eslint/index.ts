@@ -7,6 +7,7 @@ import {
   type CallSitePolicy,
   type ClassHeritage,
   columnFunctionDeclaration,
+  columnVocabulary,
   constructsEngine,
   type DeclaredColumnFunction,
   DTO_BASE_NAME,
@@ -363,14 +364,20 @@ const noInvalidExpressions: Rule.RuleModule = {
         const dtoRoots = dtoRootsOf(classes)
         // Build the column names first. `checkAt` reads them, and every site in
         // the file shares them, including the tags.
-        for (const { kind, field, options: columnOptions, enclosing } of columnDeclarations) {
-          columnFunctions[field] = columnFunctionDeclaration<ESTree.Node>(
-            kind,
-            columnOptions,
-            estreeAst,
-            rootOf(enclosing, dtoRoots)
+        Object.assign(
+          columnFunctions,
+          columnVocabulary(
+            columnDeclarations.map(({ kind, field, options: columnOptions, enclosing }) => ({
+              field,
+              declaration: columnFunctionDeclaration<ESTree.Node>(
+                kind,
+                columnOptions,
+                estreeAst,
+                rootOf(enclosing, dtoRoots)
+              ),
+            }))
           )
-        }
+        )
         for (const tag of tags) {
           if (isCheckedTag(tag.receiverRoot, bindings)) {
             checkAt(tag.literal, tag.expression)

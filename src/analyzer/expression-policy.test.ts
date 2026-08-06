@@ -364,6 +364,58 @@ describe('the walkers agree on a site’s context', () => {
       expected: ['input-type: displayText() expects FHIR.CodeableConcept as input, found FHIR.string'],
     },
     {
+      name: 'one field name declared against two roots claims neither',
+      // Only one `label` can register on an engine, and the source does not say
+      // which. Keeping the last one seen would report this valid call.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class ConceptRow extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class CodingRow extends defineDto('Coding') {",
+        "  @column('display', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('code.label()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'one field name declared with two result types claims neither',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Text extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class Count extends defineDto('CodeableConcept') {",
+        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('code.label().length()') n!: unknown",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'agreeing declarations of one field name keep their claims',
+      // Same name, same root, same result — nothing is in doubt, so the wrong
+      // focus is still reported.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class A extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class B extends defineDto('CodeableConcept') {",
+        "  @column('coding.first().display', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('subject.reference.label()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: label() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
       name: 'a column on a root-generic factory declares no input, so calls stay unchecked',
       code: [
         "import { column, defineDto } from 'fhirpath-ts'",
