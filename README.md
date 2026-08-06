@@ -336,6 +336,32 @@ resolves them at arity 0 from the same record. An engine pre-parses bodies
 through its parse cache; pass a `CompiledExpression` body to get the same
 effect with the free `evaluate()`.
 
+Two signature fields say what a function is *for*, rather than only what it
+returns:
+
+```ts
+const functions = {
+  displayText: {
+    expression: '(text | coding.display.first() | coding.first().code).first()',
+    // Written against a CodeableConcept: reaching it on anything that can never
+    // be one throws at runtime and reports `input-type` in the analyzer.
+    signature: { input: { types: ['CodeableConcept'] }, result: { types: ['string'], single: true } },
+  },
+  isFinal: {
+    expression: "status = 'final'",
+    // Read the result as a criteria (spec §4.5: empty → false), so the call is
+    // always one boolean and `isFinal().not()` composes.
+    singletonBoolean: true,
+  },
+} satisfies Record<string, CustomFunction>
+```
+
+`input.types` only speaks when it can prove the focus is wrong. An empty focus,
+no model, a value the model does not describe (plain `env` data, a pre-resolved
+var), or a focus where any one candidate fits all pass silently — and the
+hierarchy is read in both directions, so a `Quantity` function accepts a
+`SimpleQuantity`.
+
 ### DTOs
 
 A DTO is a class: `defineDto(fhirType)` fixes the resource or datatype its
@@ -374,9 +400,10 @@ statusCode!: number
 
 `@column` takes the same options as a `project()` column — `type`, `as`,
 `choices`/`pick`, `enum`, `default`, `collection` — and `@criteria` declares a
-boolean criteria column (spec §4.5 semantics: empty → false). Rows are real
-instances, so anything derived from the columns belongs on the class as a getter
-or method rather than in a column shaper.
+boolean criteria column (spec §4.5 semantics: empty → false), which reads the
+same way when it is called as a function. Rows are real instances, so anything
+derived from the columns belongs on the class as a getter or method rather than
+in a column shaper.
 
 **Decorators need a build step.** They are TC39 standard decorators, so the
 consuming build must lower them: `tsc` (with `target` ES2024 or lower — at
@@ -387,10 +414,10 @@ decorator-capable build, `project(input, { … })` with a plain columns record
 still works.
 
 Registering DTOs engine-wide turns every column into an expression-defined
-function (named by the field, unique across the engine, analyzer signature
-derived from the column's `type`), and merges each DTO's `env` into the engine
-env. Only one DTO registers per fhirType — it is *the* engine-wide vocabulary
-for that resource:
+function (named by the field, unique across the engine and not a built-in name,
+analyzer signature derived from the column's `type`), and merges each DTO's
+`env` into the engine env. Only one DTO registers per fhirType — it is *the*
+engine-wide vocabulary for that resource:
 
 ```ts
 class CodeableConceptDto extends defineDto('CodeableConcept') {
@@ -400,7 +427,23 @@ class CodeableConceptDto extends defineDto('CodeableConcept') {
 
 const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
 fp.first('Condition.code.displayText()', condition, { type: 'string' })
+fp.first('Condition.subject.reference.displayText()', condition) // throws: a reference is not a CodeableConcept
 ```
+
+The namespace is flat — a name resolves the same way from anywhere — but each
+column declares its DTO's `fhirType` as the input it expects, so a call on a
+focus that can never hold that type is an error at both ends instead of an
+expression that quietly comes back empty. A `@criteria` registers the same way,
+carrying its §4.5 coercion, so `isFinal()` yields one boolean whether it is
+projected as a column or called from an expression:
+
+```ts
+fp.evaluate('isFinal().not()', observationWithNoStatus) // [true], the same answer the column holds
+```
+
+Column and criteria fields share one name space, so a field name that collides
+with another registered column — or with a built-in function — fails at engine
+construction rather than shadowing anything.
 
 `vars` and `env` travel with the DTO, as the second argument to `defineDto`.
 `vars` are not registered — they may reference per-call env, so they apply when

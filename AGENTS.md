@@ -140,38 +140,57 @@ is worse than missing a check:
 and the engine's real function set. Keep the two roles distinct: lint must never
 be wrong, `analyzeDto` must never be lenient.
 
-## Registering a DTO is a namespace, not type dispatch
+## Registering a DTO is a namespace, checked at the edges
 
-`EngineOptions.resourceDtos` turns each `@column` into an ordinary
-expression-defined function in one flat namespace. It is **not** bound to the
-DTO's `fhirType`, and there is no receiver check: `code.displayText()` reads well
-only because a CodeableConcept happens to be in focus there. Call the same
-function anywhere else and its path navigates from whatever *is* in focus —
-`status.displayText()` and a bare `displayText()` both come back empty, and
-neither the engine nor the analyzer objects.
+`EngineOptions.resourceDtos` turns each `@column` and `@criteria` into an
+expression-defined function in one flat namespace. The namespace is flat: there
+is no dispatch on `fhirType`, and a name resolves the same way from anywhere.
+What each function does carry is the type it was *written against*
+(`CustomFunctionSignature.input.types`, from the DTO's `fhirType`), and both the
+engine and the analyzer reject a call whose focus can never hold it. So
+`code.displayText()` on a Condition runs, while `status.displayText()` throws
+`FhirPathTypeError` instead of navigating to nothing.
 
-That silence is consistent rather than an oversight. The runtime is loud about
-unknown **functions** — `FhirPathTypeError: Unrecognized function 'x'`, thrown
-even with no model bound — and silent about unknown **elements**, which navigate
-to empty per the spec. A registered column on the wrong focus is the second case
-wearing the first's clothes: the call resolves, its body finds nothing. So
-`fhirType` buys two things only — the inference and analysis root for that DTO's
-own columns, and the one-DTO-per-type rule that keeps the vocabulary coherent.
+**What the check deliberately does not do.** It speaks only when it can prove
+incompatibility, because reporting valid code is worse than missing a mistake.
+It stays silent on: an empty focus (the spec's own propagation); no model bound;
+a focus type the model has never heard of — the `Object` placeholder that plain
+env data, a pre-resolved `%var`, and a datatype root all carry; a declared name
+this model rejects; and a mixed focus where *any* item could fit. It is also
+permissive about what "can be" means: either direction of the model hierarchy
+counts, `System.Quantity` and `FHIR.Quantity` are one type, and sibling
+primitives (`code`, `uri`) do not distinguish. `values/type-compat.ts` holds that
+rule for both halves — note that its kind clause must not gate the model check,
+or a `Quantity` column on `Dosage.doseAndRate.dose` (kind `Complex`, since
+`SimpleQuantity` is not `Quantity`) would be rejected.
 
-Worth closing when someone has a reason to: a column function does know the
-`fhirType` it was written against, so the analyzer could reject a call on an
-incompatible focus. `CustomFunction.signature` records only `result` today, which
-is why it cannot.
+No **builtin** may declare `input.types`: spec functions are polymorphic, and one
+that named types would start reporting valid official-suite expressions.
+`signatures.test.ts` holds that as a gate.
 
-`@criteria` is deliberately absent from that namespace, and the reason is where
-its semantics live: the spec §4.5 coercion (empty → false, a single boolean →
-itself) is applied by `planColumn` in JavaScript, not inside FHIRPath. Register it
-as-is and one declaration would mean two things — `false` as a projected column,
-empty inside an expression, so `isFinal().not()` on a resource with no `status`
-would yield empty rather than true. Making criteria callable therefore means
-giving that coercion a home first (a flag on `CustomFunction` that applies
-singleton-boolean semantics to a function's result), not just registering it.
-Until then, a boolean `@column` is the chainable form, with empty propagating.
+The lint/editor half guesses its host types, and can be wrong where the engine
+cannot: it reads a class's root out of the syntax, so two files declaring a
+same-named column against different roots collapse to whichever the walker saw
+last (only one of them can actually register). That is the same species as the
+already-guessed result signature, and nothing in one file's source distinguishes
+the two. Accepted.
+
+`@criteria` registers with `singletonBoolean` on its `CustomFunction`. That flag
+is where its spec §4.5 coercion lives — `criteriaBoolean` (values/collection.ts)
+applied to the body's result, on the function rather than in `planColumn`. It is
+what makes one declaration mean one thing: `isFinal()` yields exactly one boolean
+in both positions, so `isFinal().not()` on a resource with no `status` is `true`
+whether it is projected or called. **Do not push `?? false` down into
+`booleanSingleton`** — `engine/operators/logic.ts` feeds its `undefined` into the
+three-valued and/or/xor/implies tables, and collapsing it there breaks `{}`
+against `false`. `where()`/`exists()`/`all()`/`iif()` keep their own `=== true`
+tests for the same reason: arithmetically identical, but they express spec text
+per item, not this rule.
+
+The caveat a criteria call carries: its body runs against the *call's* focus, not
+the DTO's root. Absent the input-type check, `code.isFinal()` would answer a
+confident `false` — total coercion turns a wrong focus into a plausible answer
+rather than an empty one, so the two features depend on each other.
 
 `analyzeEngineDtos(engine)` sweeps only what the engine registered, so a row
 shape you merely project is invisible to it. Do not read it as exhaustive — the
