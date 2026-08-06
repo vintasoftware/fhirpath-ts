@@ -44,7 +44,12 @@ interface MonacoEnvironmentShape {
 export function configureMonaco(): void {
   const ts = monaco.languages.typescript
   ts.typescriptDefaults.setCompilerOptions({
-    target: ts.ScriptTarget.ESNext,
+    // Not ESNext: the DTO samples use standard decorators, which tsc only lowers
+    // below an esnext target — at esnext it emits them as-is and the sandbox's
+    // `new Function` would throw. (ES2022 would do; Monaco's bundled enum stops
+    // at ES2020.)
+    target: ts.ScriptTarget.ES2020,
+    useDefineForClassFields: true,
     // CommonJS so the transpiled buffer runs in a `new Function` sandbox (imports
     // become `require(...)` calls we can intercept); inference is unaffected.
     module: ts.ModuleKind.CommonJS,

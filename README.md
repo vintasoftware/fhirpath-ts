@@ -320,110 +320,132 @@ effect with the free `evaluate()`.
 
 ### DTOs
 
-`defineDto` declares one row shape: the resource it reads, its columns, and the
-per-row `vars` and `env` tables those columns need — so the declaration travels
-as one unit. `fhirType` is the context every column path infers against, so
-paths stay relative and still carry their types; each builder call takes the
-same options as a `project()` column. What comes back is the DTO class itself —
-its instances are the rows, and subclassing it adds getters and methods over the
-projected values:
+A DTO is a class: `defineDto(fhirType)` fixes the resource or datatype its
+columns read, and each `@column` field declares one column — the expression on
+the decorator, the column's type on the field below it. `fhirType` is the
+context every path infers against, so paths stay relative, and **the field's
+declared type is checked against what its expression yields**:
 
 ```ts
-const WeightDto = defineDto({
-  fhirType: 'Observation',
-  columns: c => ({
-    lbs: c("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 }),
-    at: c('(effective.ofType(dateTime) | issued).first()', { as: 'Date' }),
-  }),
-})
+class WeightRow extends defineDto('Observation') {
+  @column("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
+  lbs!: number
 
-class WeightRow extends WeightDto {
+  @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+  at!: Date | undefined
+
+  @criteria("status = 'final'")
+  isFinal!: boolean
+
   get rounded(): number {
     return Math.round(this.lbs)
   }
 }
-const rows = fp.project(observations, WeightRow) // WeightRow[]: lbs is number, at is Date | undefined
+const rows = fp.project(observations, WeightRow) // WeightRow[], getters and methods included
 ```
 
-Registering DTOs engine-wide turns every column into an expression-defined
-function (named by the column, unique across the engine, analyzer signature
-derived from the column's `type`), and merges each DTO's `env` into the engine
-env. Only one DTO registers per fhirType — it is *the* engine-wide vocabulary
-for that resource. A DTO you never call into needs no registration, and a DTO
-you never subclass is complete as it stands:
+Declare a type the column cannot hold and the checker names both sides on the
+offending decorator:
 
 ```ts
-const CodeableConceptDto = defineDto({
-  fhirType: 'CodeableConcept',
-  columns: c => ({ displayText: c('(text | coding.display.first() | coding.first().code).first()') }),
-})
+@column('clinicalStatus.coding.first().code')
+statusCode!: number
+//        ^ Decorator function return type 'ColumnTypeMismatch<number, string | undefined>'
+//          is not assignable to type 'void | ((this: ProblemRow, value: number) => number)'
+```
+
+`@column` takes the same options as a `project()` column — `type`, `as`,
+`choices`/`pick`, `enum`, `default`, `collection` — and `@criteria` declares a
+boolean criteria column (spec §4.5 semantics: empty → false). Rows are real
+instances, so anything derived from the columns belongs on the class as a getter
+or method rather than in a column shaper.
+
+**Decorators need a build step.** They are TC39 standard decorators, so the
+consuming build must lower them: `tsc` (with `target` ES2024 or lower — at
+`esnext` it emits them untouched), swc, or Babel. esbuild, oxc, and
+`node --experimental-strip-types` do not support them; this repo's own vitest
+config carries a small tsc transform for exactly that reason. Without a
+decorator-capable build, `project(input, { … })` with a plain columns record
+still works.
+
+Registering DTOs engine-wide turns every column into an expression-defined
+function (named by the field, unique across the engine, analyzer signature
+derived from the column's `type`), and merges each DTO's `env` into the engine
+env. Only one DTO registers per fhirType — it is *the* engine-wide vocabulary
+for that resource:
+
+```ts
+class CodeableConceptDto extends defineDto('CodeableConcept') {
+  @column('(text | coding.display.first() | coding.first().code).first()')
+  displayText!: string | undefined
+}
 
 const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
 fp.first('Condition.code.displayText()', condition, { type: 'string' })
 ```
 
+`vars` and `env` travel with the DTO, as the second argument to `defineDto`.
 `vars` are not registered — they may reference per-call env, so they apply when
 the DTO itself is projected, merged under any per-call `vars`. That keeps join
 tables and their bindings inside the DTO:
 
 ```ts
-const OrderRow = defineDto({
-  fhirType: 'ServiceRequest',
+class OrderRow extends defineDto('ServiceRequest', {
   vars: { report: '%reports.where(orderId = %context.id).report' },
-  columns: c => ({
-    id: c('id', { default: '' }),
-    reportStatus: c('%report.status', { type: 'string', default: 'waiting' }),
-  }),
-})
+}) {
+  @column('id', { default: '' })
+  id!: string
 
+  @column('%report.status', { type: 'string', default: 'waiting' })
+  reportStatus!: string
+}
 fp.project(orders, OrderRow, { env: { reports } })
 ```
 
-A column several DTOs share is a plain function of the builder — no API of its
-own, and the column's type comes along with it:
+Columns several DTOs share live on a base class — extend it and its columns come
+along, so the row key or a badge group is written once:
 
 ```ts
-const observedAt = <Root extends string>(c: ColumnBuilder<Root>) =>
-  c('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
-
-const WeightRow = defineDto({ fhirType: 'Observation', columns: c => ({ at: observedAt(c), … }) })
-const HeightRow = defineDto({ fhirType: 'Observation', columns: c => ({ at: observedAt(c), … }) })
+class ObservationRow extends defineDto('Observation') {
+  @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+  at!: Date | undefined
+}
+class WeightRow extends ObservationRow { … }
+class HeightRow extends ObservationRow { … }
 ```
 
-The same shape groups several columns at once — a function returning a record,
-spread into `columns` (`{ ...badgeColumns(c), id: … }`).
+For a group shared across *different* resources, make the base a function of the
+root — `function keyedRow<Root extends FhirTypeName>(fhirType: Root) { class KeyedRow extends defineDto(fhirType) { … } return KeyedRow }` —
+and the columns keep inferring against whatever root each DTO passes.
 
 For a column that yields one of a few known codes, `enum` gives a cast-free
 literal-union type and checks it at runtime (a value outside the list becomes
 empty, so `default` catches it):
 
 ```ts
-group: c('iif(dosageInstruction.asNeeded.ofType(boolean) = true, …)', {
+@column('iif(dosageInstruction.asNeeded.ofType(boolean) = true, …)', {
   enum: ['asNeeded', 'continuous'],
   default: 'continuous',
-}) // 'asNeeded' | 'continuous'
+})
+group!: 'asNeeded' | 'continuous'
 ```
-
-`c.test(criteria)` declares a criteria column — always `boolean`, and
-projection-only: a criteria never registers as a function.
 
 `project()` checks every row's `resourceType` against the DTO's `fhirType` and
 throws on a mismatch — without the check, wrong input would come back as
 well-typed rows full of defaults. Filter the input first to project a subset; a
 subject with no `resourceType` (a datatype value) has nothing to check.
 
-TypeScript checks the declaration shapes (`fhirType` against the model's type
-names, `pick` against the table's row keys) but never looks inside the
-expression strings. `analyzeDto` from `fhirpath-ts/analyzer` closes that gap —
-run it in a test next to each DTO:
+TypeScript checks the declaration shapes and the field types, but never looks
+inside the expression strings. `analyzeDto` from `fhirpath-ts/analyzer` closes
+that gap — run it in a test next to each DTO:
 
 ```ts
 import { analyzeDto } from 'fhirpath-ts/analyzer'
 
-// Columns, test criteria, and DTO vars all analyze against the fhirType.
+// Columns, criteria, and DTO vars all analyze against the fhirType.
 // Pass what the DTO doesn't declare itself: the engine's functions, and
 // names for per-call env (%reports here).
-expect(analyzeDto(LabResultDto, {
+expect(analyzeDto(LabResultRow, {
   model: r4Model,
   functions: fp.defaults.functions,
   variables: { reports: {} },
@@ -433,6 +455,12 @@ expect(analyzeDto(LabResultDto, {
 Each finding carries the `member` it came from (a column name, or
 `vars.<name>`), the diagnostic code, and the message — so a typo inside an
 expression fails CI pointing at the exact column.
+
+`analyzeDto` also cross-checks a column's declared `type` (or `enum`) against
+what the analyzer infers the expression yields, which covers the whole language
+rather than the inference subset. That is the check for an expression TypeScript
+cannot see through — a `&` concatenation, a custom-function call: declare the
+column's `type` and a wrong claim becomes a `column-type` finding.
 
 ### Parse caching
 
@@ -598,30 +626,32 @@ infers the R4 status-code union), and that includes `a | b` unions,
 `(…)` groups, and `%var` roots ending in a fixed-return call like
 `%rowIndex.toString()`.
 
-### Status labels from a code map
+### Status labels from code choices
 
-`map` decodes a code into your display vocabulary in TypeScript — no cast, no
-env-table join. Give it a display table (rows keyed by `code`) and `pick` the
-field each column reads, typed from the row; a miss becomes empty, so
-`default` doubles as the fallback for unexpected or future codes:
+`choices` decodes a code into your display vocabulary in TypeScript — no cast,
+no env-table join — the way a Django field's `choices` name the values it may
+hold. Give it a display table (rows keyed by `code`) and `pick` the field each
+column reads, typed from the row; a miss becomes empty, so `default` doubles as
+the fallback for unexpected or future codes:
 
 ```ts
-const statusMeta = [
+const STATUS_CHOICES = [
   { code: 'active', label: 'Active', tone: 'info' },
   { code: 'recurrence', label: 'Recurrence', tone: 'danger' },
   { code: 'resolved', label: 'Resolved', tone: 'neutral' },
 ] as const
 r4.project(conditions, {
-  label: { path: 'Condition.clinicalStatus.coding.first().code', map: statusMeta, pick: 'label', default: 'Unknown' },
-  tone: { path: 'Condition.clinicalStatus.coding.first().code', map: statusMeta, pick: 'tone', default: 'neutral' as const },
+  label: { path: 'Condition.clinicalStatus.coding.first().code', choices: STATUS_CHOICES, pick: 'label', default: 'Unknown' },
+  tone: { path: 'Condition.clinicalStatus.coding.first().code', choices: STATUS_CHOICES, pick: 'tone', default: 'neutral' as const },
 })
 ```
 
 Omit `pick` to yield the whole matching row, or pass a plain Record
-(`map: { active: 'info', … }`) when there is a single field to decode. When
-the fallback is computed rather than constant — say, title-casing the raw
-code — use an `as` function instead:
-`as: code => statusMeta.find(row => row.code === code)?.label ?? titleCase(String(code))`.
+(`choices: { active: 'info', … }`) when there is a single field to decode. When
+the fallback is computed rather than constant — say, title-casing the raw code —
+a DTO getter reads the code column back off the row (see [DTOs](#dtos)), and a
+bare `project()` call can use an `as` function:
+`as: code => STATUS_CHOICES.find(row => row.code === code)?.label ?? titleCase(String(code))`.
 
 ### Join related resources
 

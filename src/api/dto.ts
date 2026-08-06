@@ -6,78 +6,88 @@ import { toSubjects } from './bundle.ts'
 import type { AnyExpression, Compiler, CustomFunction, EvaluateOptions } from './compile.ts'
 import type { ColumnOptions, ColumnResult, ProjectionColumn, ProjectionColumns } from './project.ts'
 
-/** The object forms of ProjectionColumn — everything a column builder produces. */
+/** The object forms of ProjectionColumn — what a `@column` decorator records. */
 type ColumnSpec = Exclude<ProjectionColumn, string>
 
 /**
- * Ties `pick` to the table's row keys: with a table `map`, `pick` must name a
- * row field; without one, `pick` is rejected outright. Applied as a validation
- * intersection on the options parameter, so a `pick` typo is a compile error
- * at the call site.
+ * Ties `pick` to the table's row keys: with a table `choices`, `pick` must name
+ * a row field; without one, `pick` is rejected outright. Applied as a validation
+ * intersection on the options parameter, so a `pick` typo is a compile error at
+ * the decorator.
  */
-type PickConstraint<Options> = Options extends { map: readonly (infer Row extends { code: string })[] }
+type PickConstraint<Options> = Options extends { choices: readonly (infer Row extends { code: string })[] }
   ? { pick?: keyof Row & string }
   : { pick?: never }
 
 /**
- * Declares the columns of one DTO (see `defineDto`), bound to its `fhirType` —
- * so paths stay relative to it and still infer their type:
- * `c('clinicalStatus.coding.first().code')` is `string | undefined` on a
- * Condition DTO. Takes the same options as a `project()` column: `type`,
- * `as`, `map`/`pick`, `enum`, `default`, `collection`.
- *
- * The static type of a builder call is the column's *value* (what a projected
- * row holds there) while its runtime value is the column spec; `defineDto`
- * keeps the specs and `project()` produces rows of values, which is what makes
- * the row type readable straight off the declaration.
+ * Reported by the checker when a field's declared type cannot hold what its
+ * column expression yields. Surfaces as
+ * `Decorator function return type 'ColumnTypeMismatch<…>' is not assignable to …`
+ * on the offending `@column`, naming both sides.
  */
-export interface ColumnBuilder<Root extends string> {
-  <const Expr extends string>(path: Expr): ColumnResult<{ path: Expr }, Root>
-  <const Expr extends string, const Options extends ColumnOptions>(
-    path: Expr,
-    options: Options & PickConstraint<Options>
-  ): ColumnResult<{ path: Expr } & Options, Root>
-  /**
-   * A criteria column, with the same spec §4.5 semantics as
-   * `FhirPathEngine.test()`: empty → false, a single boolean → itself. Always
-   * a `boolean`, and projection-only — a criteria never registers as a function.
-   */
-  test<const Expr extends string>(criteria: Expr): boolean
-}
-
-/** What `defineDto` takes: the columns of one row shape, plus the data they read. */
-export interface DtoDeclaration<Root extends string, Row> {
-  /**
-   * The resource or datatype the columns read, e.g. 'Observation' —
-   * typo-checked against the model's type names, and the context every column
-   * path infers against. `project()` checks each row's `resourceType` against
-   * it and throws on a mismatch; a subject with no `resourceType` (a datatype
-   * value) has nothing to check.
-   */
-  fhirType: Root
-  /** Env data the DTO owns: lookup tables, system URLs. Registered engine-wide via EngineOptions.resourceDtos, and always applied when projecting the DTO. */
-  env?: Record<string, unknown>
-  /** Per-row bindings the columns read (EvaluateOptions.vars semantics; may reference per-call env). */
-  vars?: Record<string, AnyExpression | readonly TypedValue[]>
-  /** The columns, built through `c` so each one's value type comes from its expression. */
-  columns: (c: ColumnBuilder<Root>) => Row
+export interface ColumnTypeMismatch<Declared, Inferred> {
+  readonly __brand: 'fhirpath-ts: the declared field type cannot hold what this column yields'
+  readonly declared: Declared
+  readonly inferred: Inferred
 }
 
 /**
- * What `defineDto` returns: the DTO's class — projectable and registrable as
- * it is, carrying its `fhirType` as a static, and instantiating to the row.
- * Subclass it to add getters and methods over the projected values —
- * `class ProblemRow extends ProblemDto { get label() { … } }`.
+ * The declared field type must be able to hold the column's inferred value. An
+ * expression outside the inference subset yields `unknown` — the escape valve —
+ * and passes here; declare the column's `type` to have `analyzeDto` check it
+ * against the analyzer's own inference instead.
  */
-export type DefinedDto<Root extends string, Row> = (new () => Row) & { readonly fhirType: Root }
+type Checked<Inferred, Declared> = unknown extends Inferred
+  ? (initial: Declared) => Declared
+  : [Inferred] extends [Declared]
+    ? (initial: Declared) => Declared
+    : ColumnTypeMismatch<Declared, Inferred>
 
-/** A DTO class: what `defineDto` returns, or a subclass of one adding getters and methods. */
-export type DtoClass = (new () => object) & { readonly fhirType: string }
+/** A type name the bound model knows — what a DTO's `fhirType` must be. */
+export type FhirTypeName = keyof R4TypeOf & string
+
+/** Every DTO instance carries the type its columns read, which is also their inference root. */
+export interface DtoInstance {
+  readonly fhirType: string
+}
+
+/** The inference root for a DTO's columns: the `fhirType` of the class they are declared on. */
+type RootOf<This> = This extends { readonly fhirType: infer Root extends string } ? Root : 'opaque'
+
+/** A checked field decorator for a column whose value type is already fixed (a criteria). */
+type ColumnDecorator<Value> = <This extends DtoInstance, Declared>(
+  target: undefined,
+  context: ClassFieldDecoratorContext<This, Declared>
+) => Checked<Value, Declared>
+
+/** A checked field decorator whose column value depends on the root it lands on. */
+type PathDecorator<Column extends { path: string }> = <This extends DtoInstance, Declared>(
+  target: undefined,
+  context: ClassFieldDecoratorContext<This, Declared>
+) => Checked<ColumnResult<Column, RootOf<This>>, Declared>
+
+/**
+ * The DTO class a `@column`-decorated class extends: it fixes the resource or
+ * datatype the columns read — their inference root — and carries the `vars` and
+ * `env` those columns need.
+ */
+export type DtoBase<Root extends string> = (new () => { readonly fhirType: Root }) & { readonly fhirType: Root }
+
+/** A DTO class: a `defineDto()` base, or any class extending one. */
+export type DtoClass = (new () => DtoInstance) & { readonly fhirType: string }
 
 /** The rows a DTO projection produces: the instance type itself, so getters and methods come along. */
 export type DtoRow<C extends DtoClass> = InstanceType<C>
 
-/** Everything a DTO class was defined with; `project()`, the engine, and `analyzeDto` all read it from here. */
+/** The data a DTO's columns read besides the resource itself. */
+export interface DtoOptions {
+  /** Env data the DTO owns: lookup tables, system URLs. Registered engine-wide via EngineOptions.resourceDtos, and always applied when projecting the DTO. */
+  env?: Record<string, unknown>
+  /** Per-row bindings the columns read (EvaluateOptions.vars semantics; may reference per-call env). */
+  vars?: Record<string, AnyExpression | readonly TypedValue[]>
+}
+
+/** Everything a DTO class was declared with; `project()`, the engine, and `analyzeDto` all read it from here. */
 export interface DtoDefinition {
   readonly fhirType: string
   readonly columns: ProjectionColumns
@@ -85,99 +95,162 @@ export interface DtoDefinition {
   readonly vars: Record<string, AnyExpression | readonly TypedValue[]> | undefined
 }
 
+/** The `fhirType`/`env`/`vars` a `defineDto()` base was created with, by that base class. */
+const bases = new WeakMap<object, { fhirType: string } & DtoOptions>()
+
 /**
- * Definitions by the class `defineDto` created, kept outside the class so the
- * public class type stays `new () => Row` — nothing to declare, nothing for a
- * subclass to override by accident.
+ * Columns by the class that declared them. A field decorator runs before its
+ * class exists, so it records through the initializer it returns, where `this`
+ * is the instance being built and `this.constructor` the class — `definitionOf`
+ * instantiates each DTO once to collect them.
  */
+const declaredColumns = new WeakMap<object, Record<string, ColumnSpec>>()
+
+/** Definitions already collected, keyed by the DTO class. */
 const definitions = new WeakMap<object, DtoDefinition>()
 
 /**
- * The definition a DTO class was created with, found by walking up from a
- * subclass (`class Row extends Schema.class {}` inherits it). A class that
- * never came from `defineDto` fails here rather than projecting to empty rows.
- */
-export function dtoDefinition(cls: DtoClass): DtoDefinition {
-  for (let current: unknown = cls; typeof current === 'function'; current = Object.getPrototypeOf(current)) {
-    const definition = definitions.get(current as object)
-    if (definition !== undefined) {
-      return definition
-    }
-  }
-  throw new FhirPathTypeError(`${cls.name || 'The class'} is not a DTO class; define it with defineDto()`)
-}
-
-/** The builder handed to `columns`: every call returns the spec it describes. */
-function columnBuilder(): ColumnBuilder<string> {
-  const build = (path: string, options?: ColumnOptions): ColumnSpec => ({ path, ...options })
-  return Object.assign(build, {
-    test: (criteria: string): ColumnSpec => ({ test: criteria }),
-  }) as unknown as ColumnBuilder<string>
-}
-
-/**
- * A column value must be something `project()` can plan: a builder call, or a
- * bare path string. Anything else (a forgotten `c(…)`, a stray computed value)
- * would reach plan time as an unreadable column, so it fails at definition.
- */
-function assertColumns(fhirType: string, columns: Record<string, unknown>): asserts columns is ProjectionColumns {
-  for (const [name, spec] of Object.entries(columns)) {
-    const isSpec =
-      typeof spec === 'string' || (typeof spec === 'object' && spec !== null && ('path' in spec || 'test' in spec))
-    if (!isSpec) {
-      throw new FhirPathTypeError(
-        `defineDto(${fhirType}): column '${name}' is not a column; build it with the c() argument`
-      )
-    }
-  }
-}
-
-/**
- * Defines one row shape: the resource it reads, the columns it projects, and
- * the `vars`/`env` those columns need — so the declaration travels as one unit.
- * Column paths are relative to `fhirType` and keep their inferred types. The
- * returned class is the DTO: pass it to `project()` and
- * `EngineOptions.resourceDtos`, or subclass it to add getters and methods.
+ * Declares the resource or datatype a DTO reads, plus the `vars`/`env` its
+ * columns need. Extend the result and declare the columns as `@column` fields:
+ * `fhirType` is the context their paths infer against, so the paths stay
+ * relative and each field's declared type is checked against what its
+ * expression yields.
  *
  * ```ts
- * const WeightDto = defineDto({
- *   fhirType: 'Observation',
- *   columns: c => ({
- *     lbs: c("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 }),
- *     at: c('(effective.ofType(dateTime) | issued).first()', { as: 'Date' }),
- *   }),
- * })
+ * class WeightRow extends defineDto('Observation') {
+ *   @column("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
+ *   lbs!: number
  *
- * class WeightRow extends WeightDto {
+ *   @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+ *   at!: Date | undefined
+ *
  *   get rounded(): number {
  *     return Math.round(this.lbs)
  *   }
  * }
- * const rows = fp.project(observations, WeightRow) // WeightRow[]: lbs is number, at is Date | undefined
+ * const rows = fp.project(observations, WeightRow) // WeightRow[]
  * ```
  *
- * A column several DTOs share is a plain function of the builder —
- * `at: observedAt(c)` — and needs nothing from this API.
+ * Columns a DTO shares with others live on a shared base class — extend it
+ * instead of repeating them, and `project()` sees the inherited columns too.
  */
-export function defineDto<const Root extends keyof R4TypeOf & string, Row extends object>(
-  declaration: DtoDeclaration<Root, Row>
-): DefinedDto<Root, Row> {
-  const { fhirType, env, vars } = declaration
-  const columns = declaration.columns(columnBuilder() as unknown as ColumnBuilder<Root>) as Record<string, unknown>
-  assertColumns(fhirType, columns)
-  const dtoClass = class {}
-  // A readable name: it identifies the DTO in project()/registration errors,
-  // and a subclass replaces it with its own.
-  Object.defineProperty(dtoClass, 'name', { value: `${fhirType}Dto` })
-  Object.defineProperty(dtoClass, 'fhirType', { value: fhirType, enumerable: true })
-  definitions.set(dtoClass, { fhirType, columns, env, vars })
-  return dtoClass as unknown as DefinedDto<Root, Row>
+export function defineDto<const Root extends FhirTypeName>(fhirType: Root, options: DtoOptions = {}): DtoBase<Root> {
+  const base = class {
+    /** On the prototype, so it stays out of a projected row's own keys. */
+    get fhirType(): Root {
+      return fhirType
+    }
+  }
+  // A readable name for project()/registration errors; a subclass replaces it.
+  Object.defineProperty(base, 'name', { value: `${fhirType}Dto` })
+  Object.defineProperty(base, 'fhirType', { value: fhirType, enumerable: true })
+  bases.set(base, { fhirType, ...options })
+  return base as unknown as DtoBase<Root>
+}
+
+/**
+ * Records one column against the class being constructed. Every projected row
+ * runs the same initializers, so once the class's definition is collected there
+ * is nothing left to record.
+ */
+function recordColumn(instance: object, name: string, spec: ColumnSpec): void {
+  const cls = instance.constructor as object
+  if (definitions.has(cls)) {
+    return
+  }
+  const own = declaredColumns.get(cls) ?? {}
+  own[name] = spec
+  declaredColumns.set(cls, own)
+}
+
+/** The decorator both `column()` and `criteria()` return: record on construction, leave the field empty. */
+function fieldDecorator(spec: ColumnSpec): (target: undefined, context: ClassFieldDecoratorContext) => unknown {
+  return (_target, context) => {
+    if (context.static || context.private) {
+      throw new FhirPathTypeError(`Column '${String(context.name)}' must be a public instance field`)
+    }
+    const name = String(context.name)
+    return function (this: object): undefined {
+      recordColumn(this, name, spec)
+      return undefined
+    }
+  }
+}
+
+/**
+ * Declares one column of a DTO: the expression it reads, relative to the
+ * class's `fhirType`, plus the same options a `project()` column takes —
+ * `type`, `as`, `choices`/`pick`, `enum`, `default`, `collection`. The field's
+ * declared type is checked against what the expression yields, and is the type
+ * a projected row holds there.
+ */
+export function column<const Expr extends string>(path: Expr): PathDecorator<{ path: Expr }>
+export function column<const Expr extends string, const Options extends ColumnOptions>(
+  path: Expr,
+  options: Options & PickConstraint<Options>
+): PathDecorator<{ path: Expr } & Options>
+export function column(path: string, options?: ColumnOptions): unknown {
+  return fieldDecorator({ path, ...options })
+}
+
+/**
+ * Declares a criteria column: the expression evaluates with the same spec §4.5
+ * semantics as `FhirPathEngine.test()` (empty → false, a single boolean →
+ * itself), so the field is always a `boolean`. Projection-only — a criteria
+ * never registers as a function.
+ */
+export function criteria<const Expr extends string>(expr: Expr): ColumnDecorator<boolean>
+export function criteria(expr: string): unknown {
+  return fieldDecorator({ test: expr })
+}
+
+/** The `defineDto()` base a class descends from, with the fhirType/env/vars it fixed. */
+function baseOf(cls: object): ({ fhirType: string } & DtoOptions) | undefined {
+  for (let current: unknown = cls; typeof current === 'function'; current = Object.getPrototypeOf(current)) {
+    const base = bases.get(current as object)
+    if (base !== undefined) {
+      return base
+    }
+  }
+  return undefined
+}
+
+/**
+ * The definition a DTO class declared: its base's `fhirType`/`env`/`vars`, and
+ * every `@column`/`@criteria` field it or its bases declare. Collected by
+ * instantiating the class once — field initializers are where the decorators
+ * record — and cached per class, since a declaration never changes.
+ */
+export function dtoDefinition(cls: DtoClass): DtoDefinition {
+  const cached = definitions.get(cls)
+  if (cached !== undefined) {
+    return cached
+  }
+  const base = baseOf(cls)
+  if (base === undefined) {
+    throw new FhirPathTypeError(
+      `${cls.name || 'The class'} is not a DTO class; extend defineDto('<fhirType>') to declare one`
+    )
+  }
+  new cls()
+  const columns = declaredColumns.get(cls) ?? {}
+  if (Object.keys(columns).length === 0) {
+    throw new FhirPathTypeError(`DTO ${cls.name} declares no columns; add a @column field`)
+  }
+  /* v8 ignore start -- TypeScript rejects a field that shadows the base's fhirType; this only fires for an untyped host (the demo playground runs transpile-only code) */
+  if ('fhirType' in columns) {
+    throw new FhirPathTypeError(`DTO ${cls.name} declares a column named 'fhirType', which every row already carries`)
+  }
+  /* v8 ignore stop */
+  const definition: DtoDefinition = { fhirType: base.fhirType, columns, env: base.env, vars: base.vars }
+  definitions.set(cls, definition)
+  return definition
 }
 
 /**
  * Fold registered DTO classes into the engine defaults: each column becomes an
  * expression-defined function (its analyzer signature derived from the column's
- * `type` when no `as`/`map` reshapes the value), and each DTO's `env` merges
+ * `type` when no `as`/`choices` reshapes the value), and each DTO's `env` merges
  * in. Redefining an existing function or env variable is an error — silent
  * shadowing between DTOs would be impossible to debug from an expression.
  */
@@ -221,11 +294,11 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
 /**
  * A column's path as an expression-defined function; the analyzer signature
  * derives from `type` — or, for an `enum` column, plain String — as long as no
- * `as`/`map` reshapes the value outside FHIRPath.
+ * `as`/`choices` reshapes the value outside FHIRPath.
  */
 function columnFunction(spec: Extract<ProjectionColumn, { path: string }>, compile: Compiler): CustomFunction {
   const resultType =
-    spec.as !== undefined || spec.map !== undefined
+    spec.as !== undefined || spec.choices !== undefined
       ? undefined
       : (spec.type ?? (spec.enum !== undefined ? 'System.String' : undefined))
   return {

@@ -120,32 +120,36 @@ console.log(rows)
     id: 'dto',
     label: 'dto',
     runnable: true,
-    code: `import { defineDto, FhirPathEngine } from 'fhirpath-ts'
+    code: `import { column, criteria, defineDto, FhirPathEngine } from 'fhirpath-ts'
 import { r4Model } from 'fhirpath-ts/r4'
 
-// defineDto binds columns to one resource type: fhirType is the context every
-// column path infers against, so paths stay relative. Registered on the engine,
-// each column doubles as a function any expression can call — displayText() below.
-const CodeableConceptDto = defineDto({
-  fhirType: 'CodeableConcept',
-  columns: c => ({ displayText: c('(text | coding.display.first() | coding.first().code).first()') }),
-})
+// A DTO is a class: defineDto fixes the resource its columns read, and each
+// @column field declares one — the expression above, its type below. fhirType is
+// the context the paths infer against, so they stay relative. Registered on the
+// engine, each column doubles as a function any expression can call.
+class CodeableConceptDto extends defineDto('CodeableConcept') {
+  @column('(text | coding.display.first() | coding.first().code).first()')
+  displayText!: string | undefined
+}
 
 const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
 
-// defineDto returns the DTO class itself, and projected rows ARE instances of it:
-// each field's static type is the column's value — kg is number, at is
-// Date | undefined — so getters on a subclass work on real values. Hover them.
-const WeightDto = defineDto({
-  fhirType: 'Observation',
-  columns: c => ({
-    name: c('code.displayText()', { type: 'string', default: 'Reading' }),
-    kg: c("value.ofType(Quantity).toQuantity('kg').value", { default: 0 }),
-    at: c('(effective.ofType(dateTime) | issued).first()', { as: 'Date' }),
-  }),
-})
+// The field's declared type is checked against what its expression yields — try
+// changing kg to a string and watch the @column line light up. Projected rows are
+// real instances, so getters see the values. Hover the fields to see the types.
+class WeightRow extends defineDto('Observation') {
+  @column('code.displayText()', { type: 'string', default: 'Reading' })
+  name!: string
 
-class WeightRow extends WeightDto {
+  @column("value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
+  kg!: number
+
+  @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+  at!: Date | undefined
+
+  @criteria("status = 'final'")
+  isFinal!: boolean
+
   get label(): string {
     return this.name + ': ' + Math.round(this.kg * 10) / 10 + ' kg'
   }

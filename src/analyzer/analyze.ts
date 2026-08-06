@@ -131,6 +131,15 @@ function forkScope(scope: VariableScope): VariableScope {
 export interface AnalysisDetails {
   diagnostics: AnalyzerDiagnostic[]
   /**
+   * The expression's inferred result: canonical type names and cardinality, the
+   * same StaticState the checks run on. `types: undefined` means the analyzer
+   * cannot see through the expression (an unknown region), and `single`
+   * undefined means the cardinality is unknown — neither is an error. Lets a
+   * caller cross-check a declared type against what the expression really
+   * yields (see `analyzeDto`).
+   */
+  result: { types: string[] | undefined; single: boolean | undefined }
+  /**
    * `Type.element` paths the expression reads (local type names), deduped in
    * first-visit order — HAPI's `elementDependencies`. Lets callers know which
    * elements an expression depends on, e.g. for change tracking or editors.
@@ -147,7 +156,7 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
   return analyzeExpressionDetailed(expression, options).diagnostics
 }
 
-/** `analyzeExpression` plus the element paths the expression touches. */
+/** `analyzeExpression` plus the element paths the expression touches and its inferred result type. */
 export function analyzeExpressionDetailed(expression: string, options?: AnalyzeOptions): AnalysisDetails {
   let ast: AstNode
   try {
@@ -161,11 +170,16 @@ export function analyzeExpressionDetailed(expression: string, options?: AnalyzeO
     return {
       diagnostics: [{ severity: 'error', code: 'syntax', message: error.message, span: error.span }],
       elementDependencies: [],
+      result: { types: undefined, single: undefined },
     }
   }
   const analyzer = new Analyzer(options)
-  analyzer.walk(ast, analyzer.rootState(), emptyScope())
-  return { diagnostics: analyzer.diagnostics, elementDependencies: [...analyzer.dependencies] }
+  const state = analyzer.walk(ast, analyzer.rootState(), emptyScope())
+  return {
+    diagnostics: analyzer.diagnostics,
+    elementDependencies: [...analyzer.dependencies],
+    result: { types: state.types, single: state.single },
+  }
 }
 
 class Analyzer {

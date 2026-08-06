@@ -169,13 +169,13 @@ describe('README usage recipes', () => {
     const rows = r4.project(conditions, {
       label: {
         path: 'Condition.clinicalStatus.coding.first().code',
-        map: statusMeta,
+        choices: statusMeta,
         pick: 'label',
         default: 'Unknown',
       },
       tone: {
         path: 'Condition.clinicalStatus.coding.first().code',
-        map: statusMeta,
+        choices: statusMeta,
         pick: 'tone',
         default: 'neutral' as const,
       },
