@@ -5,7 +5,10 @@ import { analyzeSite, type DeclaredFunction, type DeclaredVariable } from '../an
 import {
   CALL_SITES,
   type CallSitePolicy,
+  COLUMN_NAME,
+  columnFunctionDeclaration,
   constructsEngine,
+  type DeclaredColumnFunction,
   DTO_BASE_NAME,
   type ExpressionAst,
   expressionEntries,
@@ -89,6 +92,19 @@ function receiverRoot(callee: ESTree.Expression | ESTree.Super): string | undefi
 /** A call argument's text when it is a string literal. */
 function stringArgument(argument: ESTree.Node | undefined): string | undefined {
   return argument !== undefined && isStringLiteral(argument) ? argument.value : undefined
+}
+
+/** The name of the field a `@column(...)` decorator belongs to, from the call's ancestors. */
+function decoratedFieldName(ancestors: readonly ESTree.Node[]): string | undefined {
+  const member = ancestors.at(-2) as (ESTree.Node & { key?: ESTree.Node }) | undefined
+  if (member?.type !== 'PropertyDefinition') {
+    return undefined
+  }
+  const key = member.key
+  if (key?.type === 'Identifier') {
+    return key.name
+  }
+  return key !== undefined && isStringLiteral(key) ? key.value : undefined
 }
 
 /**
@@ -180,7 +196,18 @@ const noInvalidExpressions: Rule.RuleModule = {
       /** The DTO fhirType this site's expressions analyze against, when it fixes one. */
       inputType: string | undefined
     }[] = []
-    const checkAt = (node: ESTree.Node, site: { expression: string; inputType?: string; dto?: true }): void => {
+    // One per `@column` field in the file: a registered DTO column is callable
+    // from any expression, so the calls between a file's own columns resolve.
+    const columnFunctions: Record<string, DeclaredColumnFunction> = {}
+    const checkAt = (
+      node: ESTree.Node,
+      site: {
+        expression: string
+        inputType?: string
+        dto?: true
+        functions?: Readonly<Record<string, DeclaredColumnFunction>>
+      }
+    ): void => {
       // ESLint severity comes from the rule's configuration, not per report, so
       // only error-severity diagnostics are reported; analyzer warnings (style
       // and possible-mistake findings) don't fail a lint run.
@@ -258,12 +285,15 @@ const noInvalidExpressions: Rule.RuleModule = {
         if (name === undefined || policy === undefined || argument === undefined) {
           return
         }
+        const ancestors = policy.dtoRoot === 'class' ? context.sourceCode.getAncestors(node) : []
         const inputType =
-          policy.dtoRoot === 'argument'
-            ? stringArgument(node.arguments[0])
-            : policy.dtoRoot === 'class'
-              ? enclosingDtoRoot(context.sourceCode.getAncestors(node))
-              : undefined
+          policy.dtoRoot === 'argument' ? stringArgument(node.arguments[0]) : enclosingDtoRoot(ancestors)
+        if (policy.dtoRoot === 'class' && name === COLUMN_NAME) {
+          const field = decoratedFieldName(ancestors)
+          if (field !== undefined) {
+            columnFunctions[field] = columnFunctionDeclaration<ESTree.Node>(node.arguments[1], estreeAst)
+          }
+        }
         calls.push({ policy, name, receiverRoot: receiverRoot(callee), argument, inputType })
       },
       'Program:exit'() {
@@ -279,7 +309,10 @@ const noInvalidExpressions: Rule.RuleModule = {
         }
         if (!foreign.has(TAG_NAME)) {
           for (const tag of tags) {
-            checkAt(tag.literal, { expression: tag.expression })
+            checkAt(tag.literal, {
+              expression: tag.expression,
+              ...(Object.keys(columnFunctions).length > 0 && { functions: columnFunctions }),
+            })
           }
         }
         for (const call of calls) {
@@ -291,6 +324,7 @@ const noInvalidExpressions: Rule.RuleModule = {
               expression: entry.expression,
               ...(call.policy.dtoRoot !== undefined && { dto: true as const }),
               ...(call.inputType !== undefined && { inputType: call.inputType }),
+              ...(Object.keys(columnFunctions).length > 0 && { functions: columnFunctions }),
             })
           }
         }

@@ -2,7 +2,10 @@ import ts from 'typescript'
 
 import {
   CALL_SITES,
+  COLUMN_NAME,
+  columnFunctionDeclaration,
   constructsEngine,
+  type DeclaredColumnFunction,
   DTO_BASE_NAME,
   type ExpressionAst,
   expressionEntries,
@@ -22,6 +25,12 @@ export interface ExpressionSite {
   inputType?: string
   /** A DTO member site: its `%variables` are not the walker's to judge (see `analyzeSite`). */
   dto?: true
+  /**
+   * The functions the file declares: one per `@column` field, since a registered
+   * DTO column is callable from any expression. Shared by every site of the
+   * file, and absent when it declares none.
+   */
+  functions?: Readonly<Record<string, DeclaredColumnFunction>>
 }
 
 /** How the shared shape extractor reads TypeScript AST nodes. */
@@ -52,12 +61,15 @@ function propertyKeyName(name: ts.PropertyName): string | undefined {
  *
  * A `@column` site is analyzed against its class's fhirType, taken from the
  * class's `extends defineDto('…')` clause and threaded down the walk; a class
- * extending a base class or a root-generic factory has none.
+ * extending a base class or a root-generic factory has none. Each `@column` also
+ * declares a function named by the field it decorates, so calls between a file's
+ * own columns resolve.
  */
 export function findExpressionSites(sourceText: string, fileName: string): ExpressionSite[] {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
   const bindings = collectBindings(source)
   const sites: ExpressionSite[] = []
+  const functions: Record<string, DeclaredColumnFunction> = {}
   // A site points at the first character inside the quote/backtick (node start
   // + 1), so fhirpath-check can add a diagnostic's span offsets directly. The
   // ESLint rule reports on the literal node itself, one column earlier.
@@ -89,6 +101,10 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
         isCheckedCall(policy, callee, receiverRoot(node.expression), bindings)
       ) {
         const inputType = policy.dtoRoot === 'argument' ? stringArgument(node.arguments[0]) : classRoot
+        const field = policy.dtoRoot === 'class' && callee === COLUMN_NAME ? decoratedFieldName(node) : undefined
+        if (field !== undefined) {
+          functions[field] = columnFunctionDeclaration<ts.Node>(node.arguments[1], tsAst)
+        }
         for (const entry of expressionEntries<ts.Node>(argument, policy.shape, tsAst)) {
           record(entry.expression, entry.node, policy.dtoRoot === undefined ? undefined : { inputType })
         }
@@ -98,7 +114,23 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
     ts.forEachChild(node, child => visit(child, nested))
   }
   visit(source, undefined)
-  return sites
+  return Object.keys(functions).length === 0 ? sites : sites.map(site => ({ ...site, functions }))
+}
+
+/** The name of the field a `@column(...)` decorator belongs to. */
+function decoratedFieldName(call: ts.CallExpression): string | undefined {
+  const decorator = call.parent
+  const member = decorator?.parent
+  if (
+    decorator === undefined ||
+    !ts.isDecorator(decorator) ||
+    member === undefined ||
+    !ts.isPropertyDeclaration(member) ||
+    !(ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))
+  ) {
+    return undefined
+  }
+  return member.name.text
 }
 
 /** The fhirType of a class's `extends defineDto('Condition', …)` clause; undefined for anything else. */

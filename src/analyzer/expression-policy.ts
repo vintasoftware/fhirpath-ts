@@ -84,6 +84,9 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
 /** The `defineDto` call whose first argument fixes a DTO's fhirType. */
 export const DTO_BASE_NAME = 'defineDto'
 
+/** The decorator that declares a DTO column — and, with it, a function named by its field. */
+export const COLUMN_NAME = 'column'
+
 /** The tag name whose no-substitution template holds a FHIRPath expression. */
 export const TAG_NAME = 'fhirpath'
 
@@ -261,4 +264,47 @@ function namedStringEntries<N>(object: N, name: string, ast: ExpressionAst<N>): 
     const entry = ast.string(value)
     return entry ? [entry] : []
   })
+}
+
+/**
+ * What a DTO column declares as a function: every `@column` field of a
+ * registered DTO becomes a zero-argument expression function named by the field
+ * (see `withDtos`), so a walker that reads a file's columns can resolve the
+ * calls between them. Shaped to be assignable to the analyzer's
+ * `DeclaredFunction`.
+ */
+export interface DeclaredColumnFunction {
+  minArity: 0
+  maxArity: 0
+  signature?: { result: { types: string[]; single: boolean } }
+}
+
+/**
+ * The function a `@column(path, options)` declaration contributes, derived from
+ * the options the same way the runtime derives it: the result type comes from
+ * `type` — or plain String for an `enum` — and only when no `as`/`choices`
+ * reshapes the value outside FHIRPath. A `collection` key leaves the signature
+ * off entirely rather than guessing a cardinality from a boolean the walkers
+ * cannot read, so the result stays an unknown region instead of a wrong one.
+ */
+export function columnFunctionDeclaration<N>(options: N | undefined, ast: ExpressionAst<N>): DeclaredColumnFunction {
+  const declaration: DeclaredColumnFunction = { minArity: 0, maxArity: 0 }
+  const properties = options === undefined ? undefined : ast.properties(options)
+  if (properties === undefined) {
+    return declaration
+  }
+  const named = (name: string): N | undefined => properties.find(property => property.name === name)?.value
+  if (named('as') !== undefined || named('choices') !== undefined || named('collection') !== undefined) {
+    return declaration
+  }
+  const declaredType = named('type')
+  const resultType =
+    declaredType !== undefined
+      ? ast.string(declaredType)?.expression
+      : named('enum') !== undefined
+        ? 'System.String'
+        : undefined
+  return resultType === undefined
+    ? declaration
+    : { ...declaration, signature: { result: { types: [resultType], single: true } } }
 }

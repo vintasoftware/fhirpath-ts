@@ -508,6 +508,27 @@ describe('analyzeSite', () => {
     expect(analyzeSite({ expression: '%badge.label' }, options).map(d => d.code)).toEqual(['unknown-variable'])
   })
 
+  it('resolves calls into the columns the site file declares', () => {
+    const functions = {
+      displayText: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } },
+    }
+    const site = { inputType: 'Observation', dto: true as const, functions }
+    // The call resolves, and its declared result type carries downstream.
+    expect(analyzeSite({ ...site, expression: 'code.displayText()' }, options)).toEqual([])
+    expect(analyzeSite({ ...site, expression: 'code.displayText().length()' }, options)).toEqual([])
+    expect(analyzeSite({ ...site, expression: 'code.displayText() + 1' }, options).map(d => d.code)).toEqual([
+      'operand-type',
+    ])
+    // A near-miss of a declared column is a typo worth reporting…
+    expect(analyzeSite({ ...site, expression: 'code.displayTxt()' }, options).map(d => d.message)).toEqual([
+      "Unrecognized function 'displayTxt' — did you mean 'displayText'?",
+    ])
+    // …while an unrelated unresolved name is most likely a DTO in another module.
+    expect(analyzeSite({ ...site, expression: 'code.reportBadge()' }, options)).toEqual([])
+    // An ordinary site sees the file's columns too, so a valid call is not a finding.
+    expect(analyzeSite({ expression: 'Observation.code.displayText()', functions }, options)).toEqual([])
+  })
+
   it('reports only syntax findings for a DTO column with no known root', () => {
     // A leading `code`/`text` segment is also a model type name, so without a
     // root the analyzer would read it as a type-name root and report nonsense.

@@ -27,6 +27,13 @@ export { findLexicalExpressionSites, type LexicalExpressionSite } from './lexica
 
 export interface AnalyzerDiagnostic {
   severity: 'error' | 'warning'
+  /**
+   * The unresolved name, for the codes that name one (`unknown-element`,
+   * `unknown-function`, `unknown-variable`) — so a caller can act on the name
+   * without parsing the message, e.g. to weigh a suggestion (see `analyzeSite`)
+   * or offer a quick fix.
+   */
+  name?: string
   /** Stable rule identifier, e.g. `unknown-element` or `singleton-required`. */
   code: string
   message: string
@@ -166,8 +173,11 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
  *
  * - `unknown-variable`: a DTO's `vars`/`env` may come from a base class or from
  *   the projecting call, so the declared set is not visible here.
- * - `unknown-function`: every registered DTO column becomes an engine function,
- *   and which DTOs an engine registers is a runtime fact.
+ * - `unknown-function`, unless the name plausibly misspells one of the columns
+ *   the site's own file declares (`site.functions`). Every registered DTO column
+ *   becomes an engine function, and a DTO the file merely imports is invisible
+ *   here — so an unresolved call is usually valid code, while a near-miss of a
+ *   name declared right there is a typo.
  * - everything but `syntax`, when the DTO's `fhirType` is unknown (the class
  *   extends a base class or a root-generic factory). A relative path is not
  *   merely uncheckable without a root — it can be *mis*read, because a leading
@@ -178,12 +188,20 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
  * this is the editor-and-lint half, which must never report valid code.
  */
 export function analyzeSite(
-  site: { expression: string; inputType?: string; dto?: true },
+  site: {
+    expression: string
+    inputType?: string
+    dto?: true
+    /** Functions the site's file declares — a DTO's `@column` fields (see `columnFunctionDeclaration`). */
+    functions?: Readonly<Record<string, DeclaredFunction>>
+  },
   options?: AnalyzeOptions
 ): AnalyzerDiagnostic[] {
+  const declared = { ...site.functions, ...options?.functions }
   const merged: AnalyzeOptions = {
     ...options,
     ...(site.inputType !== undefined && { inputType: site.inputType }),
+    ...(Object.keys(declared).length > 0 && { functions: declared }),
   }
   const diagnostics = analyzeExpression(site.expression, merged)
   if (site.dto !== true) {
@@ -192,9 +210,16 @@ export function analyzeSite(
   if (site.inputType === undefined) {
     return diagnostics.filter(diagnostic => diagnostic.code === 'syntax')
   }
-  return diagnostics.filter(
-    diagnostic => diagnostic.code !== 'unknown-variable' && diagnostic.code !== 'unknown-function'
-  )
+  const columns = Object.keys(site.functions ?? {})
+  return diagnostics.filter(diagnostic => {
+    if (diagnostic.code === 'unknown-variable') {
+      return false
+    }
+    if (diagnostic.code !== 'unknown-function') {
+      return true
+    }
+    return diagnostic.name !== undefined && nearestName(diagnostic.name, columns) !== undefined
+  })
 }
 
 /** `analyzeExpression` plus the element paths the expression touches and its inferred result type. */
@@ -350,7 +375,7 @@ class Analyzer {
     // A dynamically-named defineVariable() earlier in the chain may have bound
     // this name, so reporting it as undefined could be wrong — stay quiet.
     if (!scope.hasDynamic) {
-      this.report('unknown-variable', `Undefined environment variable %${node.name}`, node.span)
+      this.report('unknown-variable', `Undefined environment variable %${node.name}`, node.span, 'error', node.name)
     }
     return UNKNOWN
   }
@@ -438,7 +463,9 @@ class Analyzer {
         this.report(
           'unknown-element',
           `Element '${node.name}' is not defined on ${input.types.join(' | ')}${hint}`,
-          node.span
+          node.span,
+          'error',
+          node.name
         )
       }
       return UNKNOWN
@@ -531,7 +558,9 @@ class Analyzer {
       this.report(
         'unknown-function',
         `Unrecognized function '${node.name}'${didYouMean(node.name, [...functions.keys(), ...this.customFunctions.keys()])}`,
-        node.span
+        node.span,
+        'error',
+        node.name
       )
       this.walkUncheckedArguments(node, input, scope)
       return UNKNOWN
@@ -953,8 +982,14 @@ class Analyzer {
     }
   }
 
-  private report(code: string, message: string, span: SourceSpan, severity: 'error' | 'warning' = 'error'): void {
-    this.diagnostics.push({ severity, code, message, span })
+  private report(
+    code: string,
+    message: string,
+    span: SourceSpan,
+    severity: 'error' | 'warning' = 'error',
+    name?: string
+  ): void {
+    this.diagnostics.push({ severity, code, message, span, ...(name !== undefined && { name }) })
   }
 }
 
@@ -1011,11 +1046,21 @@ function typeSpecifierParts(node: AstNode): string[] | undefined {
 
 /**
  * `— did you mean 'X'?` for a mistyped name, or `''` when nothing is close enough.
- * A suggestion only fires within a small edit budget scaled to the name's length,
- * so a genuine typo (`gven` → `given`, `lengthx` → `length`) is caught while an
- * unrelated name (`nope`) stays unsuggested.
  */
 function didYouMean(target: string, candidates: Iterable<string>): string {
+  const nearest = nearestName(target, candidates)
+  return nearest === undefined ? '' : ` — did you mean '${nearest}'?`
+}
+
+/**
+ * The candidate `target` most plausibly misspells, or undefined when none is
+ * close enough: a small edit budget scaled to the name's length, so a genuine
+ * typo (`gven` → `given`, `lengthx` → `length`) matches while an unrelated name
+ * (`nope`) does not. Exported so a caller weighing an unresolved name — a DTO
+ * column call that may instead live in another module (see `analyzeSite`) —
+ * applies the same budget the suggestions use.
+ */
+export function nearestName(target: string, candidates: Iterable<string>): string | undefined {
   // Budget grows with the name: 1 edit for short names (<=4), up to 3 for long ones.
   // Keeps suggestions high-precision — a real typo, not any name that happens to be near.
   const budget = Math.min(3, Math.ceil(target.length / 4))
@@ -1036,7 +1081,7 @@ function didYouMean(target: string, candidates: Iterable<string>): string {
       }
     }
   }
-  return best === undefined ? '' : ` — did you mean '${best}'?`
+  return best
 }
 
 /**

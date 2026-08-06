@@ -210,6 +210,21 @@ const CASES: Record<string, string> = {
     import { column } from 'some-table-library'
     column('id')
   `,
+  'columns calling other columns of the file': `
+    import { column, defineDto } from 'fhirpath-ts'
+    class ConceptDto extends defineDto('CodeableConcept') {
+      @column('(text | coding.display.first()).first()', { type: 'string' })
+      displayText!: string | undefined
+    }
+    class WeightRow extends defineDto('Observation') {
+      @column('code.displayText()', { type: 'string', default: '' })
+      readonly name!: string
+      @column('value.ofType(Quantity).value', { collection: true })
+      values!: number[]
+      @column('status', { choices: { final: 'Final' }, default: '' })
+      label!: string
+    }
+  `,
   'a numeric column key keeps its value': `
     import { r4 } from 'fhirpath-ts/r4'
     r4.project(rows, { 1: 'Patient.id' })
@@ -307,8 +322,8 @@ function* sourceFiles(base: string, roots: readonly string[]): Generator<string>
 
 /**
  * The TypeScript walker's sites in the lexical walker's shape: same fields, same
- * order, so a JSON comparison covers the DTO context too (`dto`, `inputType`)
- * and not just where the expressions are.
+ * order, so a JSON comparison covers the DTO context too (`dto`, `inputType`,
+ * the file's declared column `functions`) and not just where the expressions are.
  */
 function reference(source: string, fileName: string): LexicalExpressionSite[] {
   return findExpressionSites(source, fileName).map(site => ({
@@ -316,6 +331,7 @@ function reference(source: string, fileName: string): LexicalExpressionSite[] {
     start: site.start,
     ...(site.dto !== undefined && { dto: site.dto }),
     ...(site.inputType !== undefined && { inputType: site.inputType }),
+    ...(site.functions !== undefined && { functions: site.functions }),
   }))
 }
 
@@ -345,6 +361,64 @@ describe('findLexicalExpressionSites', () => {
       // Extending a factory: the site is found, but no fhirType is claimed for it.
       ['code.text', undefined, true],
     ])
+  })
+
+  it('declares one function per column field, typed from its options', () => {
+    const source = `
+      import { column, criteria, defineDto } from 'fhirpath-ts'
+      class Row extends defineDto('CodeableConcept') {
+        @column('text', { type: 'string' })
+        displayText!: string | undefined
+        @column('coding.count()', { type: 'integer' })
+        readonly codingCount!: number | undefined
+        @column('coding', { collection: true })
+        codings!: unknown[]
+        @column('text', { choices: { a: 'A' } })
+        decoded!: string | undefined
+        @criteria('text.exists()')
+        named!: boolean
+      }
+    `
+    const [site] = findLexicalExpressionSites(source)
+    // A criteria declares no function: it stays projection-only.
+    expect(site?.functions).toEqual({
+      displayText: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } },
+      codingCount: { minArity: 0, maxArity: 0, signature: { result: { types: ['integer'], single: true } } },
+      // A collection or a choices shaper leaves the result an unknown region
+      // rather than a guessed one.
+      codings: { minArity: 0, maxArity: 0 },
+      decoded: { minArity: 0, maxArity: 0 },
+    })
+  })
+
+  it('finds the field name past other decorators and modifiers', () => {
+    const source = `
+      import { column, defineDto } from 'fhirpath-ts'
+      class Row extends defineDto('CodeableConcept') {
+        @column('text', { type: 'string' })
+        @deprecated
+        @label('Display')
+        readonly displayText!: string | undefined
+      }
+    `
+    expect(findLexicalExpressionSites(source)[0]?.functions).toEqual({
+      displayText: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } },
+    })
+  })
+
+  it('declares nothing when no field follows the decorator', () => {
+    // A malformed buffer — what an editor sees mid-edit — must not throw or invent a name.
+    const source =
+      "import { column, defineDto } from 'fhirpath-ts'\nclass Row extends defineDto('Coding') { @column('code') }"
+    expect(findLexicalExpressionSites(source)).toEqual([
+      { expression: 'code', start: source.indexOf("'code'") + 1, dto: true, inputType: 'Coding' },
+    ])
+    const trailing =
+      "import { column, defineDto } from 'fhirpath-ts'\nclass Row extends defineDto('Coding') { @column('code')"
+    expect(findLexicalExpressionSites(trailing)).toHaveLength(1)
+    const decoratorOnly =
+      "import { column, defineDto } from 'fhirpath-ts'\nclass Row extends defineDto('Coding') { @column('code') @ }"
+    expect(findLexicalExpressionSites(decoratorOnly)).toHaveLength(1)
   })
 
   it('reads relative imports as the API when localImports is on', () => {

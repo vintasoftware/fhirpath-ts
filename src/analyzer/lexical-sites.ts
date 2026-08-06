@@ -25,7 +25,10 @@
 
 import {
   CALL_SITES,
+  COLUMN_NAME,
+  columnFunctionDeclaration,
   constructsEngine,
+  type DeclaredColumnFunction,
   DTO_BASE_NAME,
   type ExpressionAst,
   expressionEntries,
@@ -44,6 +47,12 @@ export interface LexicalExpressionSite {
   inputType?: string
   /** A DTO member site: its `%variables` are not the walker's to judge (see `analyzeSite`). */
   dto?: true
+  /**
+   * The functions the file declares: one per `@column` field, since a registered
+   * DTO column is callable from any expression. Shared by every site of the
+   * file, and absent when it declares none.
+   */
+  functions?: Readonly<Record<string, DeclaredColumnFunction>>
 }
 
 /**
@@ -57,7 +66,9 @@ export interface LexicalExpressionSite {
  * takes from the class's `extends defineDto('…')` clause — tracked by token,
  * since there is no tree to climb: a `class` keyword clears the current root and
  * an `extends defineDto('Literal'` sets it, so a class extending a base class or
- * a root-generic factory correctly has none.
+ * a root-generic factory correctly has none. Each `@column` also declares a
+ * function named by the field it decorates — the field name being the next
+ * identifier after the decorator — so calls between a file's own columns resolve.
  */
 export function findLexicalExpressionSites(
   sourceText: string,
@@ -66,6 +77,7 @@ export function findLexicalExpressionSites(
   const tokens = tokenize(sourceText)
   const bindings = collectBindings(tokens, options)
   const sites: LexicalExpressionSite[] = []
+  const functions: Record<string, DeclaredColumnFunction> = {}
   let classRoot: string | undefined
   for (let index = 0; index < tokens.length; index++) {
     const token = tokens[index]!
@@ -96,6 +108,13 @@ export function findLexicalExpressionSites(
       continue
     }
     const inputType = policy.dtoRoot === 'argument' ? dtoRootArgument(tokens, index) : classRoot
+    if (policy.dtoRoot === 'class' && token.value === COLUMN_NAME) {
+      const parsed = parseArguments(tokens, index + 1)
+      const field = decoratedFieldName(tokens, parsed.end)
+      if (field !== undefined) {
+        functions[field] = columnFunctionDeclaration(parsed.nodes[1], NODE_AST)
+      }
+    }
     for (const entry of expressionEntries(argument, policy.shape, NODE_AST)) {
       sites.push({
         expression: entry.expression,
@@ -105,8 +124,45 @@ export function findLexicalExpressionSites(
       })
     }
   }
-  return sites
+  return Object.keys(functions).length === 0 ? sites : sites.map(site => ({ ...site, functions }))
 }
+
+/** The name of a `@column`-decorated field: the next identifier, past any further decorators and modifiers. */
+function decoratedFieldName(tokens: Token[], from: number): string | undefined {
+  for (let index = from; index < tokens.length; index++) {
+    const token = tokens[index]!
+    if (isPunct(token, '@')) {
+      // Another decorator on the same field; skip its name and any arguments.
+      const callee = tokens[index + 1]
+      index = isPunct(tokens[index + 2], '(') ? parseArguments(tokens, index + 2).end - 1 : index + 1
+      if (callee?.kind !== 'id') {
+        return undefined
+      }
+      continue
+    }
+    if (token.kind !== 'id') {
+      return undefined
+    }
+    if (FIELD_MODIFIERS.has(token.value)) {
+      continue
+    }
+    return token.value
+  }
+  return undefined
+}
+
+/** Modifiers that may sit between a decorator and the field name it belongs to. */
+const FIELD_MODIFIERS = new Set([
+  'readonly',
+  'declare',
+  'public',
+  'protected',
+  'private',
+  'static',
+  'override',
+  'accessor',
+  'abstract',
+])
 
 /** The fhirType of an `extends defineDto('Condition', …)` clause; undefined for anything else. */
 function extendedDtoRoot(tokens: Token[], extendsIndex: number): string | undefined {

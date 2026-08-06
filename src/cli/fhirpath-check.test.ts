@@ -188,6 +188,30 @@ describe('fhirpath-check CLI', () => {
     }
   }
 
+  it("resolves calls between a file's own DTO columns, and flags a near-miss", () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-dto-'))
+    const dto = (call: string): string =>
+      [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class ConceptDto extends defineDto('CodeableConcept') {",
+        "  @column('(text | coding.display.first()).first()', { type: 'string' })",
+        '  displayText!: string | undefined',
+        '}',
+        "class WeightRow extends defineDto('Observation') {",
+        `  @column('${call}', { type: 'string', default: '' })`,
+        '  name!: string',
+        '}',
+      ].join('\n')
+    const good = join(directory, 'good.ts')
+    writeFileSync(good, dto('code.displayText()'))
+    expect(run([good]).status).toBe(0)
+    const typo = join(directory, 'typo.ts')
+    writeFileSync(typo, dto('code.displayTxt()'))
+    const result = run([typo])
+    expect(result.status).toBe(1)
+    expect(result.output).toContain("Unrecognized function 'displayTxt' — did you mean 'displayText'?")
+  })
+
   it('passes clean files and fails files with bad expressions', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-'))
     const clean = join(directory, 'clean.ts')
@@ -256,6 +280,27 @@ describe('DTO declarations', () => {
       ['recordedDate.exists()', 'Condition', true],
       // Extending a factory: found, but with no fhirType to analyze against.
       ['code.text', undefined, true],
+    ])
+  })
+
+  it('declares a function per column field, and types it from the options', () => {
+    const withCalls = [
+      "import { column, defineDto } from 'fhirpath-ts'",
+      "class ConceptDto extends defineDto('CodeableConcept') {",
+      "  @column('text', { type: 'string' })",
+      '  displayText!: string | undefined',
+      '}',
+      "class WeightRow extends defineDto('Observation') {",
+      "  @column('code.displayText()', { type: 'string', default: '' })",
+      '  name!: string',
+      '}',
+    ].join('\n')
+    const string = { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } }
+    const sites = findExpressionSites(withCalls, 'sample.ts')
+    // Every site of the file carries the file's whole column vocabulary.
+    expect(sites.map(site => site.functions)).toEqual([
+      { displayText: string, name: string },
+      { displayText: string, name: string },
     ])
   })
 

@@ -824,13 +824,23 @@ Three layers, from cheapest to most thorough:
 
    A DTO field is analyzed against its class's `fhirType`, read from the class's
    `extends defineDto('…')` clause, so relative column paths are checked the same
-   way `analyzeDto` checks them. Where a source walker cannot know the whole
-   picture it stays quiet rather than guessing: a column's `%vars` (they may come
-   from a base class or the projecting call) and calls into registered DTO columns
-   are not judged, and a class extending a base class or a root-generic factory —
-   no statically-known `fhirType` — is checked for syntax only, since a relative
-   path with a leading `code`/`text` segment would otherwise be misread as a
-   type-name root. `analyzeDto` in a test is the complete check.
+   way `analyzeDto` checks them. Each `@column` field also *declares* a
+   zero-argument function named by the field — what registering the DTO does at
+   runtime — so calls between a file's own columns resolve, carry their declared
+   result type into the calling expression (`code.displayText() + 1` is an
+   operand-type error), and stop being reported at ordinary call sites.
+
+   Where a source walker cannot know the whole picture it stays quiet rather than
+   guessing: a column's `%vars` may come from a base class or the projecting call,
+   so they are not judged; a call into a DTO that lives in *another* module is
+   invisible here, so an unresolved function is reported only when it plausibly
+   misspells a column the same file declares (`code.displayTxt()` next to a
+   `displayText` column); and a class extending a base class or a root-generic
+   factory — no statically-known `fhirType` — is checked for syntax only, since a
+   relative path with a leading `code`/`text` segment would otherwise be misread
+   as a type-name root. For cross-module DTO vocabularies, list the column names
+   in the rule's `functions` option; `analyzeDto` in a test is the complete check
+   either way, since it sees the engine's real function set.
 
    The common-name helpers (`test`, `filter`, `first`, `project`) fire only on
    receivers the file binds to this package — an import like `r4`, or a
