@@ -267,7 +267,6 @@ class LabDTO extends LabBadgeRow {
   id = IdColumn()
   name = column('DiagnosticReport.code.displayText()', { type: 'string', default: 'Lab result' })
   date = column('(DiagnosticReport.effective.ofType(dateTime) | DiagnosticReport.issued).first().toString()', {
-    type: 'string',
     default: '',
   })
 }
@@ -300,10 +299,11 @@ class LabResultDTO extends LabBadgeRow {
     { type: 'string', default: 'Lab order' }
   )
   // An order with no report shows its order date instead of a result date.
+  // One literal (not a `+` concatenation): TypeScript types concatenation as
+  // plain `string`, which would put the expression outside the inference subset.
   date = column(
-    '(%report.effective.ofType(dateTime) | %report.issued' +
-      ' | ServiceRequest.authoredOn | ServiceRequest.occurrence.ofType(dateTime)).first().toString()',
-    { type: 'string', default: null }
+    '(%report.effective.ofType(dateTime) | %report.issued | ServiceRequest.authoredOn | ServiceRequest.occurrence.ofType(dateTime)).first().toString()',
+    { default: null }
   )
   orderedBy = column('ServiceRequest.requester.display', { default: null })
   reportId = column('%report.where(presentedForm.exists()).id', { type: 'string', default: null })
