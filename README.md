@@ -320,18 +320,21 @@ effect with the free `evaluate()`.
 
 ### Class-based DTOs
 
-A DTO class groups everything one resource's row shape needs — `column()`
+A DTO class groups everything one resource's row shape needs — column
 fields, the per-row `vars` they read, and the `env` tables they join — so the
-declaration travels as one unit. `column()` takes the same options as a
-`project()` column; its static type is the projected value, so
-`InstanceType<Dto>` is the row type and methods and getters on the class see
-real values:
+declaration travels as one unit. `columnsOf(fhirType)` returns a `column()`
+factory scoped to one resource or datatype: its columns are written as
+relative chains and their value types infer against the scoped type. A
+column's static type is the projected value — a plain value type, nothing
+extra rides along — so `InstanceType<Dto>` is the row type and methods and
+getters on the class see real values:
 
 ```ts
+const obs = columnsOf('Observation')
+
 class WeightRow {
-  static readonly fhirType = 'Observation'
-  lbs = column("Observation.value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
-  at = column('(Observation.effective.ofType(dateTime) | Observation.issued).first()', { as: 'Date' })
+  lbs = obs("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
+  at = obs('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
 
   get rounded(): number {
     return Math.round(this.lbs)
@@ -340,20 +343,28 @@ class WeightRow {
 const rows = fp.project(observations, WeightRow) // WeightRow[]: lbs is number, at is Date | undefined
 ```
 
-Registering classes engine-wide turns every `column()` field into an
+The factory's scope doubles as the class's `fhirType`, so no static
+declaration is needed (declaring one anyway is fine — contradicting the scope
+throws). The plain `column()` (same options, no scope) fits root-prefixed
+expressions, `%var` reads, and one-off classes; relative chains there need a
+`type` option since they have no context to infer against.
+
+Registering classes engine-wide turns every column field into an
 expression-defined function (named by the field, unique across the engine,
 analyzer signature derived from the column's `type`), and merges each class's
-static `env` into the engine env. A registered class must declare its
-`fhirType` (typo-checked against the model's type names), and only one class
-registers per fhirType — it is *the* engine-wide vocabulary for that resource:
+static `env` into the engine env. A registered class must have a `fhirType`
+— from its `columnsOf()` scope or a static — and only one class registers per
+fhirType: it is *the* engine-wide vocabulary for that resource. The functions
+exist at runtime and in the analyzer, not in the type system — a column
+calling one declares its result with `type`:
 
 ```ts
+const concept = columnsOf('CodeableConcept')
 class CodeableConceptDto {
-  static readonly fhirType = 'CodeableConcept'
-  displayText = column('(text | coding.display.first() | coding.first().code).first()', { type: 'string' })
+  displayText = concept('(text | coding.display.first() | coding.first().code).first()')
 }
 const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
-fp.first('Condition.code.displayText()', condition, { type: 'string' })
+fp.first('Condition.code.displayText()', condition) // works; type unknown — declare with { type: 'string' }
 ```
 
 Class `vars` are not registered — they may reference per-call env, so they
@@ -373,7 +384,10 @@ fp.project(orders, OrderRow, { env: { reports } })
 A column several classes share can be declared once with
 `declareColumn(functionName, path, options)` — call the declaration in field
 position, and list it in the engine's `columns` to make the chain callable
-engine-wide under `functionName`:
+engine-wide under `functionName`. Declared columns are also the engine's
+type-level function registry: a declaration whose expression the inference
+subset covers gets its result type at call sites on that engine's methods
+(a declaration calling another declared function resolves one level deep):
 
 ```ts
 const ObservedAt = declareColumn('observedAt', '(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
@@ -401,8 +415,9 @@ A class you only ever project needs no registration — pass it straight to
 read a `column()` field before projection: until then it holds the column
 spec, not a value.
 
-When a class declares a `fhirType`, `project()` checks every row's
-`resourceType` against it and throws on a mismatch — without the check, wrong
+When a class has a `fhirType` (a `columnsOf()` scope or a static),
+`project()` checks every row's `resourceType` against it and throws on a
+mismatch — without the check, wrong
 input would come back as well-typed rows full of defaults. Filter the input
 first to project a subset; a subject with no `resourceType` (a datatype value)
 has nothing to check.
@@ -761,9 +776,11 @@ Three layers, from cheapest to most thorough:
    `count()/length()/indexOf()` and the other integer/decimal results, the
    `toX()`/`convertsToX()` conversions, and the string functions
    (`join()`, `trim()`, `replace()`, `substring()`, `split()`, …) — choice
-   stems, `a | b` unions and `(…)` groups of inferable terms, and `%var`
-   roots (which stay `unknown[]` unless a fixed-return call ends the chain).
-   Anything else degrades to `unknown[]` — never a type error.
+   stems, `a | b` unions and `(…)` groups of inferable terms, `%var`
+   roots (which stay `unknown[]` unless a fixed-return call ends the chain),
+   relative chains inside `columnsOf()` columns, and, on a `FhirPathEngine`'s
+   own methods, calls to its declared columns. Anything else degrades to
+   `unknown[]` — never a type error.
 2. **ESLint rule** (`fhirpath-ts/eslint`) — runs the analyzer as a lint rule over
    every literal expression at each API entry point: the `` fhirpath`...` `` tag,
    the expression-first calls (`fhirpath()`, `compile()`, `evaluate()`,

@@ -6,7 +6,7 @@ import type {
   Patient,
   ServiceRequest,
 } from '@medplum/fhirtypes'
-import { column, declareColumn, FhirPathEngine } from 'fhirpath-ts'
+import { column, columnsOf, declareColumn, FhirPathEngine } from 'fhirpath-ts'
 import { r4Model } from 'fhirpath-ts/r4'
 
 import type {
@@ -35,36 +35,42 @@ type LabBadge = { label: string; tone: StatusTone; flagged: boolean }
 type StatusMeta = { label: string; tone: StatusTone }
 
 // --- resource DTOs ---
-// Each class binds recurring chains to one resource or datatype. Registered on the
-// engine below, every column becomes a function any expression can call, and each
-// class's env tables register engine-wide with it.
+// Each class binds recurring chains to one resource or datatype, declared as
+// relative paths through a `columnsOf()` factory — the factory's scope is the
+// class's fhirType, so no static declaration is needed. Registered on the
+// engine below, every column becomes a function any expression can call, and
+// each class's env tables register engine-wide with it.
+
+const concept = columnsOf('CodeableConcept')
 
 class CodeableConceptDTO {
-  static readonly fhirType = 'CodeableConcept'
   /** The text | display | code fallback. */
-  displayText = column('(text | coding.display.first() | coding.first().code).first()', { type: 'string' })
+  displayText = concept('(text | coding.display.first() | coding.first().code).first()')
 }
 
+const med = columnsOf('MedicationRequest')
+
 class MedicationRequestDTO {
-  static readonly fhirType = 'MedicationRequest'
-  medicationName = column(
+  // `type` on medicationName and doseText: displayText() is a custom function
+  // (registered at runtime, invisible to the type system) and combine()'s
+  // result is argument-dependent — both chains are outside the inference subset.
+  medicationName = med(
     '(medication.ofType(CodeableConcept).displayText() | medication.ofType(Reference).display).first()',
     { type: 'string' }
   )
-  doseText = column(
+  doseText = med(
     'dosageInstruction.first().doseAndRate.first().dose.ofType(Quantity)' +
       ".select(value.toString().combine((unit | code).first()).join(' '))",
     { type: 'string' }
   )
-  routeText = column('dosageInstruction.first().route.select(text | coding.display.first()).first()', {
-    type: 'string',
-  })
-  sigText = column('dosageInstruction.first().text', { type: 'string' })
+  routeText = med('dosageInstruction.first().route.select(text | coding.display.first()).first()')
+  sigText = med('dosageInstruction.first().text')
 }
 
+const cond = columnsOf('Condition')
+
 class ConditionDTO {
-  static readonly fhirType = 'Condition'
-  clinicalStatusCode = column('clinicalStatus.coding.first().code', { type: 'string' })
+  clinicalStatusCode = cond('clinicalStatus.coding.first().code')
 }
 
 /**
@@ -73,8 +79,9 @@ class ConditionDTO {
  * row. Inside `where()` the focus is the table row being scanned, so the body
  * first saves its own input as %r to keep the report reachable by name.
  */
+const report = columnsOf('DiagnosticReport')
+
 class DiagnosticReportDTO {
-  static readonly fhirType = 'DiagnosticReport'
   static readonly env = {
     // Health Gorilla puts the report-level interpretation (Normal / Abnormal / High …)
     // in an extension on the DiagnosticReport, using HL7 v2-0078 codes.
@@ -104,11 +111,10 @@ class DiagnosticReportDTO {
       { code: 'appended', label: 'Amended', tone: 'neutral', flagged: false },
     ] as ({ code: string } & LabBadge)[],
   }
-  interpretation = column(
-    'extension.where(url = %hgInterpretation).first().value.ofType(CodeableConcept).coding.first().code',
-    { type: 'string' }
+  interpretation = report(
+    'extension.where(url = %hgInterpretation).first().value.ofType(CodeableConcept).coding.first().code'
   )
-  reportBadge = column(
+  reportBadge = report(
     "defineVariable('r')" +
       '.select((%interpretationMeta.where(code = %r.interpretation()) | %reportStatusMeta.where(code = %r.status)).first())'
   )
@@ -143,36 +149,37 @@ const fp = new FhirPathEngine({
 
 // --- view DTOs ---
 
+const obs = columnsOf('Observation')
+
 /** Both lbs and kg on one row, so the weight trend and the BMI series come from one pass. */
 class WeightRowDTO {
-  static readonly fhirType = 'Observation'
-  lbs = column("Observation.value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
-  kg = column("Observation.value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
+  lbs = obs("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
+  kg = obs("value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
   at = ObservedAt()
 }
 
 class HeightRowDTO {
-  static readonly fhirType = 'Observation'
-  meters = column("Observation.value.ofType(Quantity).toQuantity('m').value", { default: 0 })
+  meters = obs("value.ofType(Quantity).toQuantity('m').value", { default: 0 })
   at = ObservedAt()
 }
 
 /** The Home-card medication view-model. */
 class MedicationCardDTO {
-  static readonly fhirType = 'MedicationRequest'
   id = IdColumn()
-  name = column('MedicationRequest.medicationName()', { type: 'string', default: 'Medication' })
-  // The sig text, else "dose • route" from the recorded parts (empty when neither exists).
-  instructions = column(
-    "(MedicationRequest.sigText() | MedicationRequest.doseText().combine(MedicationRequest.routeText()).join(' • ')).first()",
-    { type: 'string', default: '' }
-  )
+  // Custom-function calls (medicationName(), sigText(), …) are typed by
+  // `type`: the functions exist at runtime only.
+  name = med('medicationName()', { type: 'string', default: 'Medication' })
+  // The sig text, else "dose • route" from the recorded parts (empty when
+  // neither exists).
+  instructions = med("(sigText() | doseText().combine(routeText()).join(' • ')).first()", {
+    type: 'string',
+    default: '',
+  })
   group = GroupColumn()
 }
 
 /** The Medications page view-model row. */
 class MedicationDetailDTO {
-  static readonly fhirType = 'MedicationRequest'
   /**
    * MedicationRequest.status display table. No rows for draft and entered-in-error:
    * the mapper filters those out before the lookup. The `unknown` row is the real
@@ -187,38 +194,36 @@ class MedicationDetailDTO {
     { code: 'unknown', label: 'Unknown', tone: 'neutral' },
   ]
   id = IdColumn()
-  name = column('MedicationRequest.medicationName()', { type: 'string', default: 'Medication' })
-  dose = column('MedicationRequest.doseText()', { type: 'string', default: '' })
-  route = column('MedicationRequest.routeText()', { type: 'string', default: '' })
-  instructions = column('MedicationRequest.sigText()', { type: 'string', default: '' })
+  // The custom-function columns (medicationName(), doseText(), …) are typed
+  // by `type`: the functions exist at runtime only.
+  name = med('medicationName()', { type: 'string', default: 'Medication' })
+  dose = med('doseText()', { type: 'string', default: '' })
+  route = med('routeText()', { type: 'string', default: '' })
+  instructions = med('sigText()', { type: 'string', default: '' })
   group = GroupColumn()
   // 'unknown' is itself a status code, so the default stays inside the inferred union.
-  status = column('MedicationRequest.status', { default: 'unknown' })
-  statusLabel = column('MedicationRequest.status', {
+  status = med('status', { default: 'unknown' })
+  statusLabel = med('status', {
     map: MedicationDetailDTO.statusMeta,
     pick: 'label',
     default: 'Unknown',
   })
-  tone = column('MedicationRequest.status', {
+  tone = med('status', {
     map: MedicationDetailDTO.statusMeta,
     pick: 'tone',
     default: 'neutral' as StatusTone,
   })
-  isActive = column({ test: "MedicationRequest.status = 'active'" })
-  prescribedOn = column('MedicationRequest.authoredOn', { default: null })
+  isActive = med({ test: "status = 'active'" })
+  prescribedOn = med('authoredOn', { default: null })
   // When a non-active request ended: the dispense validity end. Deliberately not
   // meta.lastUpdated — that is when the record row was last touched, not a clinical
   // end date, and the patient would see it as a real "ended on" date.
-  endedOn = column(
-    "iif(MedicationRequest.status = 'active', {}, MedicationRequest.dispenseRequest.validityPeriod.end)",
-    { type: 'dateTime', default: null }
-  )
-  prescriber = column('MedicationRequest.requester.display', { default: null })
+  endedOn = med("iif(status = 'active', {}, dispenseRequest.validityPeriod.end)", { type: 'dateTime', default: null })
+  prescriber = med('requester.display', { default: null })
 }
 
 /** The problem-list view-model row, keyed off clinicalStatus. */
 class ProblemDTO {
-  static readonly fhirType = 'Condition'
   /** Problem-list Condition.clinicalStatus display table. */
   static readonly statusMeta: ({ code: string } & StatusMeta)[] = [
     { code: 'active', label: 'Active', tone: 'info' },
@@ -236,19 +241,21 @@ class ProblemDTO {
   }
 
   id = IdColumn()
-  name = column('Condition.code.displayText()', { type: 'string', default: 'Condition' })
+  // displayText() and clinicalStatusCode() are runtime-registered functions,
+  // so `type`/`as`/`map` decide the column types.
+  name = cond('code.displayText()', { type: 'string', default: 'Condition' })
   // The label needs a computed fallback (title-case the raw code), so it is an
   // `as` function; the tone's fallback is constant, so `map` + `default` do.
-  statusLabel = column('Condition.clinicalStatusCode()', {
+  statusLabel = cond('clinicalStatusCode()', {
     as: value => ProblemDTO.statusMeta.find(row => row.code === value)?.label ?? ProblemDTO.titleCase(String(value)),
     default: 'Unknown',
   })
-  tone = column('Condition.clinicalStatusCode()', {
+  tone = cond('clinicalStatusCode()', {
     map: ProblemDTO.statusMeta,
     pick: 'tone',
     default: 'neutral' as StatusTone,
   })
-  lastUpdated = column('Condition.meta.lastUpdated', { default: null })
+  lastUpdated = cond('meta.lastUpdated', { default: null })
 }
 
 /** The badge columns every lab row renders, reading the per-row %badge binding. */
@@ -262,13 +269,10 @@ class LabBadgeRow {
 
 /** The Lab History view-model row; the report itself carries the badge. */
 class LabDTO extends LabBadgeRow {
-  static readonly fhirType = 'DiagnosticReport'
   static readonly vars = { badge: 'reportBadge()' }
   id = IdColumn()
-  name = column('DiagnosticReport.code.displayText()', { type: 'string', default: 'Lab result' })
-  date = column('(DiagnosticReport.effective.ofType(dateTime) | DiagnosticReport.issued).first().toString()', {
-    default: '',
-  })
+  name = report('code.displayText()', { type: 'string', default: 'Lab result' })
+  date = report('(effective.ofType(dateTime) | issued).first().toString()', { default: '' })
 }
 
 /**
@@ -278,8 +282,9 @@ class LabDTO extends LabBadgeRow {
  * own state — a revoked order will never produce results, so it is cancelled
  * rather than waiting.
  */
+const order = columnsOf('ServiceRequest')
+
 class LabResultDTO extends LabBadgeRow {
-  static readonly fhirType = 'ServiceRequest'
   static readonly env = {
     // Badges for a lab order no table row can describe, because there is no report to read.
     waitingBadge: { label: 'Waiting', tone: 'warning', flagged: false } as LabBadge,
@@ -293,20 +298,19 @@ class LabResultDTO extends LabBadgeRow {
   id = IdColumn()
   // The ordered test names joined with commas; a blank join is dropped so the
   // order's own text can apply.
-  name = column(
-    "(ServiceRequest.code.coding.select((display | code).first()).distinct().join(', ')" +
-      ".where($this != '') | ServiceRequest.code.text).first()",
+  name = order(
+    "(code.coding.select((display | code).first()).distinct().join(', ')" + ".where($this != '') | code.text).first()",
     { type: 'string', default: 'Lab order' }
   )
   // An order with no report shows its order date instead of a result date.
   // One literal (not a `+` concatenation): TypeScript types concatenation as
   // plain `string`, which would put the expression outside the inference subset.
-  date = column(
-    '(%report.effective.ofType(dateTime) | %report.issued | ServiceRequest.authoredOn | ServiceRequest.occurrence.ofType(dateTime)).first().toString()',
+  date = order(
+    '(%report.effective.ofType(dateTime) | %report.issued | authoredOn | occurrence.ofType(dateTime)).first().toString()',
     { default: null }
   )
-  orderedBy = column('ServiceRequest.requester.display', { default: null })
-  reportId = column('%report.where(presentedForm.exists()).id', { type: 'string', default: null })
+  orderedBy = order('requester.display', { default: null })
+  reportId = order('%report.where(presentedForm.exists()).id', { type: 'string', default: null })
 }
 
 // --- helpers ---

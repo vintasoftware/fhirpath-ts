@@ -1,6 +1,6 @@
 import { mergeEnvKeys } from '../engine/context.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
+import type { EmptyRegistry, FhirpathInput, FhirpathResult, Registry } from '../typed/infer.ts'
 import { booleanSingleton } from '../values/collection.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { type BundleLike, isBundle, normalizeInput, toSubjects } from './bundle.ts'
@@ -18,6 +18,7 @@ import {
   dtoCallOptions,
   type DtoClass,
   dtoColumns,
+  type EngineRegistry,
   withDtos,
 } from './dto.ts'
 import { type Projection, type ProjectionColumns, projectRows } from './project.ts'
@@ -45,9 +46,11 @@ export type TypedEvaluateOptions<T extends keyof R4TypeOf> = EvaluateOptions & {
 
 /**
  * What a `FhirPathEngine` takes at construction: the `EvaluateOptions` it binds
- * as per-call defaults, plus settings that belong to the engine itself.
+ * as per-call defaults, plus settings that belong to the engine itself. The
+ * `Col` parameter captures the declared columns so the engine can build its
+ * type-level function registry from them.
  */
-export interface EngineOptions extends EvaluateOptions {
+export interface EngineOptions<Col extends DeclaredColumn = DeclaredColumn> extends EvaluateOptions {
   /**
    * Max number of distinct expression texts this engine keeps parsed, in its own
    * LRU (not shared with other engines or the free `evaluate()`). Defaults to 500;
@@ -62,9 +65,10 @@ export interface EngineOptions extends EvaluateOptions {
    * field becomes an expression-defined function callable from any expression
    * this engine evaluates (its name must be unique across the engine's
    * functions; `{ test }` fields stay projection-only), and each class's
-   * static `env` merges into the engine env. A registered class must declare
-   * its `fhirType`, and only one class may register per fhirType — the class
-   * is *the* engine-wide vocabulary for that resource. Class `vars` are not
+   * static `env` merges into the engine env. A registered class must have a
+   * `fhirType` — declared as a static or carried by its `columnsOf()` columns
+   * — and only one class may register per fhirType: the class is *the*
+   * engine-wide vocabulary for that resource. Class `vars` are not
    * registered — they may reference per-call env, so they apply only when
    * projecting the class. A class you only ever project (never call into from
    * other expressions) does not need to be listed here.
@@ -76,7 +80,7 @@ export interface EngineOptions extends EvaluateOptions {
    * uniqueness rule as `functions` and DTO members. `{ test }` declarations are
    * projection-only and cannot be listed here.
    */
-  columns?: readonly DeclaredColumn[]
+  columns?: readonly Col[]
 }
 
 /**
@@ -95,13 +99,19 @@ export interface EngineOptions extends EvaluateOptions {
  * values override the bound defaults field by field, except `env`, `vars`, and
  * `functions`, which merge per name (per-call entries add to the bound ones
  * and win on the same name).
+ *
+ * The `Col` type parameter is inferred from `columns` at construction; from
+ * it the engine derives its type-level function registry (see
+ * EngineRegistry), so literal expressions calling declared columns infer
+ * their result types on this engine's methods. Free-standing `compile()` and
+ * the `` fhirpath`…` `` tag have no engine and keep the empty registry.
  */
-export class FhirPathEngine {
+export class FhirPathEngine<Col extends DeclaredColumn = never> {
   /** The per-call options bound at construction; engine-only settings are not part of them. */
   readonly defaults: EvaluateOptions
   private readonly compileCached: Compiler
 
-  constructor({ cacheSize, resourceDtos, columns, ...defaults }: EngineOptions = {}) {
+  constructor({ cacheSize, resourceDtos, columns, ...defaults }: EngineOptions<Col> = {}) {
     this.compileCached = createCachedCompiler(cacheSize)
     this.defaults = this.precompiled(withDtos(defaults, resourceDtos ?? [], columns ?? [], this.compileCached))
   }
@@ -116,7 +126,7 @@ export class FhirPathEngine {
     expression: Expr | CompiledExpression<Expr>,
     input?: EngineInput<Expr>,
     options?: EvaluateOptions
-  ): FhirpathResult<Expr>
+  ): FhirpathResult<Expr, EngineRegistry<Col>>
   evaluate(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown[] {
     const compiled = this.compileCached(expression)
     const merged = this.merged(options)
@@ -131,7 +141,7 @@ export class FhirPathEngine {
   }
 
   /** Parse once for reuse, with this engine's defaults bound. Does not touch the parse cache. */
-  compile<const Expr extends string>(expression: Expr): BoundExpression<Expr> {
+  compile<const Expr extends string>(expression: Expr): BoundExpression<Expr, EngineRegistry<Col>> {
     return new BoundExpression(this, new CompiledExpression(expression))
   }
 
@@ -145,7 +155,7 @@ export class FhirPathEngine {
     expression: Expr | CompiledExpression<Expr>,
     input?: EngineInput<Expr>,
     options?: EvaluateOptions
-  ): FhirpathResult<Expr>[number] | undefined
+  ): FhirpathResult<Expr, EngineRegistry<Col>>[number] | undefined
   first(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown {
     return this.evaluate(expression, input, options)[0]
   }
@@ -196,12 +206,12 @@ export class FhirPathEngine {
     input: readonly unknown[] | BundleLike,
     columns: Columns,
     options?: EvaluateOptions
-  ): Projection<Columns>[]
+  ): Projection<Columns, EngineRegistry<Col>>[]
   project<const Columns extends ProjectionColumns>(
     input: unknown,
     columns: Columns,
     options?: EvaluateOptions
-  ): Projection<Columns>
+  ): Projection<Columns, EngineRegistry<Col>>
   project(input: unknown, columns: ProjectionColumns | DtoClass, options?: EvaluateOptions): unknown {
     if (typeof columns === 'function') {
       assertInputMatchesDto(input, columns)
@@ -289,12 +299,24 @@ export class FhirPathEngine {
   }
 }
 
-/** A compiled expression carrying an engine's defaults, so `evaluate(input)` needs nothing else. */
-export class BoundExpression<Expr extends string = string> {
-  readonly expression: CompiledExpression<Expr>
-  private readonly engine: FhirPathEngine
+/** What BoundExpression needs from its engine, generics erased — typing lives on BoundExpression's own signatures. */
+interface EngineLike {
+  evaluate(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown[]
+  evaluateTyped(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): TypedValue[]
+  first(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown
+  test(input: unknown, expression: AnyExpression, options?: EvaluateOptions): boolean
+}
 
-  constructor(engine: FhirPathEngine, expression: CompiledExpression<Expr>) {
+/**
+ * A compiled expression carrying an engine's defaults, so `evaluate(input)`
+ * needs nothing else. `Fns` is the owning engine's type-level function
+ * registry, so registered custom functions infer here too.
+ */
+export class BoundExpression<Expr extends string = string, Fns extends Registry = EmptyRegistry> {
+  readonly expression: CompiledExpression<Expr>
+  private readonly engine: EngineLike
+
+  constructor(engine: EngineLike, expression: CompiledExpression<Expr>) {
     this.engine = engine
     this.expression = expression
   }
@@ -307,7 +329,7 @@ export class BoundExpression<Expr extends string = string> {
     input: EngineInput<Expr> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T][]
-  evaluate(input?: EngineInput<Expr>, options?: EvaluateOptions): FhirpathResult<Expr>
+  evaluate(input?: EngineInput<Expr>, options?: EvaluateOptions): FhirpathResult<Expr, Fns>
   evaluate(input?: EngineInput<Expr>, options?: EvaluateOptions): unknown {
     return this.engine.evaluate(this.expression, input, options)
   }
@@ -320,7 +342,7 @@ export class BoundExpression<Expr extends string = string> {
     input: EngineInput<Expr> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T] | undefined
-  first(input?: EngineInput<Expr>, options?: EvaluateOptions): FhirpathResult<Expr>[number] | undefined
+  first(input?: EngineInput<Expr>, options?: EvaluateOptions): FhirpathResult<Expr, Fns>[number] | undefined
   first(input?: EngineInput<Expr>, options?: EvaluateOptions): unknown {
     return this.engine.first(this.expression, input, options)
   }

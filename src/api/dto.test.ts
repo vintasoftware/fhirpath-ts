@@ -1,9 +1,9 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeDto, analyzeExpression } from '../analyzer/index.ts'
-import type { Condition, Observation, ServiceRequest } from '../r4/generated/type-maps.ts'
+import type { Condition, Observation, Patient, ServiceRequest } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
-import { column, declareColumn } from './dto.ts'
+import { column, columnsOf, declareColumn } from './dto.ts'
 import { FhirPathEngine } from './engine.ts'
 
 const weighed: Observation = {
@@ -230,7 +230,7 @@ describe('DTOs registered engine-wide', () => {
       id = column('id', { type: 'string' })
     }
     expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [Anonymous] })).toThrow(
-      'DTO Anonymous must declare a fhirType to register'
+      'DTO Anonymous must declare a fhirType (or use columnsOf) to register'
     )
     class AlsoCodeableConcept {
       static readonly fhirType = 'CodeableConcept'
@@ -242,7 +242,124 @@ describe('DTOs registered engine-wide', () => {
   })
 })
 
+describe('the engine type-level function registry (dual type + runtime assertions)', () => {
+  const FirstGiven = declareColumn('firstGiven', 'Patient.name.given.first()')
+  const FirstGivenLength = declareColumn('firstGivenLength', '%context.firstGiven().length()')
+  const engine = new FhirPathEngine({ model: r4Model, columns: [FirstGiven, FirstGivenLength] })
+  const patient: Patient = { resourceType: 'Patient', name: [{ given: ['Peter'] }] }
+
+  it('a declared column infers on evaluate()/first() at its call sites', () => {
+    const given = engine.evaluate('Patient.firstGiven()', patient)
+    expectTypeOf(given).toEqualTypeOf<string[]>()
+    expect(given).toEqual(['Peter'])
+
+    const first = engine.first('Patient.firstGiven()', patient)
+    expectTypeOf(first).toEqualTypeOf<string | undefined>()
+    expect(first).toBe('Peter')
+  })
+
+  it('a declaration calling another declared function resolves (two passes)', () => {
+    const length = engine.evaluate('Patient.firstGivenLength()', patient)
+    expectTypeOf(length).toEqualTypeOf<number[]>()
+    expect(length).toEqual([5])
+  })
+
+  it('BoundExpression carries the registry', () => {
+    const bound = engine.compile('Patient.firstGiven()')
+    const given = bound.evaluate(patient)
+    expectTypeOf(given).toEqualTypeOf<string[]>()
+    expect(given).toEqual(['Peter'])
+  })
+
+  it('DTO-class functions register at runtime only — calls evaluate but stay unknown[]', () => {
+    const concept = columnsOf('CodeableConcept')
+    class Concepts {
+      displayText = concept('(text | coding.display.first() | coding.first().code).first()')
+    }
+    const withDto = new FhirPathEngine({ model: r4Model, resourceDtos: [Concepts] })
+    const condition: Condition = {
+      resourceType: 'Condition',
+      subject: { reference: 'Patient/p1' },
+      code: { coding: [{ code: 'I10', display: 'Hypertension' }] },
+    }
+    const name = withDto.evaluate('Condition.code.displayText()', condition)
+    expectTypeOf(name).toEqualTypeOf<unknown[]>()
+    expect(name).toEqual(['Hypertension'])
+  })
+
+  it('an engine without registrations keeps the empty registry (and the call throws)', () => {
+    const bare = new FhirPathEngine({ model: r4Model })
+    expect(() => bare.evaluate('Patient.firstGiven()', patient)).toThrow("Unrecognized function 'firstGiven'")
+    // Type-only: never executed, just inferred.
+    const typeOnly = () => {
+      const result = bare.evaluate('Patient.firstGiven()', patient)
+      expectTypeOf(result).toEqualTypeOf<unknown[]>()
+    }
+    void typeOnly
+  })
+})
+
+describe('columnsOf', () => {
+  const obsCol = columnsOf('Observation')
+  class ScopedWeight {
+    lbs = obsCol("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
+    at = obsCol('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+    note = obsCol('code.text')
+    isFinal = obsCol({ test: "status = 'final'" })
+  }
+
+  it('relative chains infer against the scoped type, as plain values', () => {
+    expectTypeOf(new ScopedWeight().lbs).toEqualTypeOf<number>()
+    expectTypeOf(new ScopedWeight().at).toEqualTypeOf<Date | undefined>()
+    expectTypeOf(new ScopedWeight().note).toEqualTypeOf<string | undefined>()
+    expectTypeOf(new ScopedWeight().isFinal).toEqualTypeOf<boolean>()
+    const rows = r4.project([weighed], ScopedWeight)
+    expectTypeOf(rows).toEqualTypeOf<ScopedWeight[]>()
+    expect(rows[0]).toMatchObject({ note: 'Weight', isFinal: true })
+    expect(rows[0]!.lbs).toBeCloseTo(176.4, 1)
+  })
+
+  it("the factory's scope substitutes for the fhirType static", () => {
+    // project() checks the input against the derived type…
+    expect(() => r4.project({ resourceType: 'Patient' }, ScopedWeight)).toThrow(
+      "row 0 is a Patient, but ScopedWeight declares fhirType 'Observation'"
+    )
+    // …and registration derives it too.
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [ScopedWeight] })
+    expect(engine.evaluate('Observation.note()', weighed)).toEqual(['Weight'])
+  })
+
+  it('a fhirType static contradicting the scope throws', () => {
+    class Contradiction {
+      static readonly fhirType = 'Patient'
+      note = obsCol('code.text')
+    }
+    expect(() => r4.project(weighed, Contradiction)).toThrow(
+      "DTO Contradiction declares fhirType 'Patient', but its columns come from columnsOf('Observation')"
+    )
+  })
+
+  it('mixing factories of two types in one class throws', () => {
+    const patCol = columnsOf('Patient')
+    class Mixed {
+      note = obsCol('code.text')
+      gender = patCol('gender')
+    }
+    expect(() => r4.project(weighed, Mixed)).toThrow(
+      "DTO Mixed mixes columnsOf('Observation') and columnsOf('Patient') columns"
+    )
+  })
+})
+
 describe('analyzeDto', () => {
+  it('derives the input type from columnsOf columns', () => {
+    const obsCol = columnsOf('Observation')
+    class Scoped {
+      kg = obsCol("valu.ofType(Quantity).toQuantity('kg').value", { default: 0 })
+    }
+    expect(analyzeDto(Scoped, { model: r4Model }).map(f => [f.member, f.code])).toEqual([['kg', 'unknown-element']])
+  })
+
   it('checks every column and var against the fhirType, tagged by member', () => {
     class Weight {
       static readonly fhirType = 'Observation'

@@ -257,12 +257,34 @@ export const IDENTITY_RETURNS = [
   'exclude',
   'intersect',
   'trace',
+  'defineVariable',
+  'sort',
 ] as const
 
 type IdentityFn = (typeof IDENTITY_RETURNS)[number]
 
-/** One call segment, dispatched on the function name. */
-type Call<S extends string, Fn extends string, Arg extends string> = Fn extends IdentityFn
+/**
+ * A type-level function registry: registered custom function name → the
+ * input state its result state was computed against, and that result state.
+ * An entry computed relative to a specific input state only holds there —
+ * `in` pins it. A declared column parses with no relative context, so its
+ * state is input-independent: `in` is the broad `string`, which every state
+ * matches.
+ */
+export type Registry = Record<string, { in: string; out: string }>
+
+/** The registry with nothing registered — what compile() and the tag use. */
+export type EmptyRegistry = Record<never, never>
+
+/**
+ * One call segment, dispatched on the function name. The registry is
+ * consulted last, so a built-in name can never be shadowed (matching the
+ * runtime rule), and only for zero-argument calls (expression-defined
+ * functions take no arguments) on a matching input state. A registry `out`
+ * may itself be 'opaque' or the broad `string` state — both flow through as
+ * themselves, and 'opaque' is never rescued downstream.
+ */
+type Call<S extends string, Fn extends string, Arg extends string, Fns extends Registry> = Fn extends IdentityFn
   ? S
   : Fn extends 'ofType' | 'as'
     ? Arg extends keyof R4TypeOf & string
@@ -270,17 +292,23 @@ type Call<S extends string, Fn extends string, Arg extends string> = Fn extends 
       : 'opaque'
     : Fn extends keyof FixedReturns
       ? FixedReturns[Fn]
-      : 'opaque'
+      : Fn extends keyof Fns
+        ? Arg extends ''
+          ? [S] extends [Fns[Fn]['in']]
+            ? Fns[Fn]['out'] & string
+            : 'opaque'
+          : 'opaque'
+        : 'opaque'
 
 /** One `.`-separated segment: a call the subset knows, an indexer, or an element. */
-type Step<S extends string, Seg extends string> = [S] extends ['opaque']
+type Step<S extends string, Seg extends string, Fns extends Registry> = [S] extends ['opaque']
   ? 'opaque'
   : Seg extends `${infer Fn}(${infer Arg})`
     ? Fn extends 'select'
       ? // select's argument is a sub-expression: parsing it is the guard.
-        ParseExpr<Arg, S>
+        ParseExpr<Arg, S, Fns>
       : CleanArg<Arg> extends true
-        ? Call<S, Fn, Arg>
+        ? Call<S, Fn, Arg, Fns>
         : 'opaque'
     : Seg extends `${infer N}[${infer I}]`
       ? I extends `${string}]${string}` | `${string}[${string}`
@@ -291,14 +319,14 @@ type Step<S extends string, Seg extends string> = [S] extends ['opaque']
       : Navigate<S, Seg>
 
 /** Walk the remaining `.`-separated segments. */
-type ParseSegments<Expr extends string, S extends string> = Expr extends ''
+type ParseSegments<Expr extends string, S extends string, Fns extends Registry> = Expr extends ''
   ? S
   : Expr extends `${infer Head}.${infer Rest}`
     ? Head extends `${string}(` | `${string}(${string}`
       ? // A '.' inside parentheses split the segment: rejoin before stepping.
-        StepAcrossParen<Expr, S>
-      : ParseSegments<Rest, Step<S, Head>>
-    : Step<S, Expr>
+        StepAcrossParen<Expr, S, Fns>
+      : ParseSegments<Rest, Step<S, Head, Fns>, Fns>
+    : Step<S, Expr, Fns>
 
 /**
  * A segment whose parentheses contain dots (e.g. `select(name.given)`) runs
@@ -308,17 +336,18 @@ type ParseSegments<Expr extends string, S extends string> = Expr extends ''
  * With no valid `).` split, the whole rest is one segment ending at its
  * final `)`.
  */
-type StepAcrossParen<Expr extends string, S extends string> = ScanSegmentEnd<Expr, '', S>
+type StepAcrossParen<Expr extends string, S extends string, Fns extends Registry> = ScanSegmentEnd<Expr, '', S, Fns>
 
 type ScanSegmentEnd<
   Expr extends string,
   Acc extends string,
   S extends string,
+  Fns extends Registry,
 > = Expr extends `${infer Head}).${infer Rest}`
   ? SegmentComplete<`${Acc}${Head}`> extends true
-    ? ParseSegments<Rest, Step<S, `${Acc}${Head})`>>
-    : ScanSegmentEnd<Rest, `${Acc}${Head}).`, S>
-  : WholeParenSegment<`${Acc}${Expr}`, S>
+    ? ParseSegments<Rest, Step<S, `${Acc}${Head})`, Fns>, Fns>
+    : ScanSegmentEnd<Rest, `${Acc}${Head}).`, S, Fns>
+  : WholeParenSegment<`${Acc}${Expr}`, S, Fns>
 
 /** Whether `Body)` is one complete call segment: its argument closes exactly there. */
 type SegmentComplete<Body extends string> = `${Body})` extends `${infer _Fn}(${infer Arg})`
@@ -326,8 +355,8 @@ type SegmentComplete<Body extends string> = `${Body})` extends `${infer _Fn}(${i
   : false
 
 /** The rest of the expression is a single paren segment ending at its final `)`. */
-type WholeParenSegment<Expr extends string, S extends string> = Expr extends `${infer Head})${''}`
-  ? Step<S, `${Head})`>
+type WholeParenSegment<Expr extends string, S extends string, Fns extends Registry> = Expr extends `${infer Head})${''}`
+  ? Step<S, `${Head})`, Fns>
   : 'opaque'
 
 /**
@@ -336,15 +365,16 @@ type WholeParenSegment<Expr extends string, S extends string> = Expr extends `${
  * and nothing else: the `|` gate skips the union scanner, and the second gate
  * skips Trim and the group/%var term forms.
  */
-type ParseExpr<Expr extends string, S extends string> = Expr extends `${string}|${string}` | `(${string}` | `%${string}`
-  ? ParseUnion<Expr, S>
+type ParseExpr<Expr extends string, S extends string, Fns extends Registry> = Expr extends
+  `${string}|${string}` | `(${string}` | `%${string}`
+  ? ParseUnion<Expr, S, Fns>
   : Expr extends `${infer Root}.${infer Rest}`
     ? Root extends keyof R4Resources & string
-      ? ParseSegments<Rest, Root>
-      : ParseSegments<Expr, S>
+      ? ParseSegments<Rest, Root, Fns>
+      : ParseSegments<Expr, S, Fns>
     : Expr extends keyof R4Resources & string
       ? Expr
-      : ParseSegments<Expr, S>
+      : ParseSegments<Expr, S, Fns>
 
 /**
  * Split off the leftmost top-level `|`. A candidate fragment whose quotes or
@@ -360,11 +390,11 @@ type SplitUnion<Expr extends string, Acc extends string = ''> = Expr extends `${
   : { whole: `${Acc}${Expr}` }
 
 /** Fold the split terms into one union state. */
-type ParseUnion<Expr extends string, S extends string> =
+type ParseUnion<Expr extends string, S extends string, Fns extends Registry> =
   SplitUnion<Expr> extends { term: infer T extends string; rest: infer R extends string }
-    ? UnionStates<ParseTerm<Trim<T>, S>, ParseUnion<R, S>>
+    ? UnionStates<ParseTerm<Trim<T>, S, Fns>, ParseUnion<R, S, Fns>>
     : SplitUnion<Expr> extends { whole: infer W extends string }
-      ? ParseTerm<Trim<W>, S>
+      ? ParseTerm<Trim<W>, S, Fns>
       : 'opaque'
 
 /**
@@ -385,17 +415,17 @@ type UnionStates<A extends string, B extends string> = [A] extends ['opaque']
  * state `S`. The top level passes S = 'opaque', so relative terms degrade
  * there; select() passes its input state, so its sub-paths resolve.
  */
-type ParseTerm<Term extends string, S extends string> = Term extends `(${infer Body}`
-  ? ExtractGroup<Body, '', S>
+type ParseTerm<Term extends string, S extends string, Fns extends Registry> = Term extends `(${infer Body}`
+  ? ExtractGroup<Body, '', S, Fns>
   : Term extends `%${infer Var}`
-    ? ParseVarTerm<Var>
+    ? ParseVarTerm<Var, Fns>
     : Term extends `${infer Root}.${infer Rest}`
       ? Root extends keyof R4Resources & string
-        ? ParseSegments<Rest, Root>
-        : ParseSegments<Term, S>
+        ? ParseSegments<Rest, Root, Fns>
+        : ParseSegments<Term, S, Fns>
       : Term extends keyof R4Resources & string
         ? Term
-        : ParseSegments<Term, S>
+        : ParseSegments<Term, S, Fns>
 
 /**
  * A `%var` root enters the broad state: the variable's value is unknowable
@@ -404,10 +434,10 @@ type ParseTerm<Term extends string, S extends string> = Term extends `(${infer B
  * input-independent type. The name must look like a name: a glued operator
  * (`%a = b`) would make the runtime evaluate a comparison, not a variable.
  */
-type ParseVarTerm<Var extends string> = Var extends `${infer Name}.${infer Rest}`
+type ParseVarTerm<Var extends string, Fns extends Registry> = Var extends `${infer Name}.${infer Rest}`
   ? GluedName<Name> extends true
     ? 'opaque'
-    : ParseSegments<Rest, string>
+    : ParseSegments<Rest, string, Fns>
   : GluedName<Var> extends true
     ? 'opaque'
     : string
@@ -418,17 +448,22 @@ type ParseVarTerm<Var extends string> = Var extends `${infer Name}.${infer Rest}
  * follows must be nothing or a `.`-chain — anything else (`(A | B) = (C)`)
  * is a glued operator.
  */
-type ExtractGroup<Body extends string, Acc extends string, S extends string> = Body extends `${infer L})${infer R}`
+type ExtractGroup<
+  Body extends string,
+  Acc extends string,
+  S extends string,
+  Fns extends Registry,
+> = Body extends `${infer L})${infer R}`
   ? CompleteFragment<`${Acc}${L}`> extends true
-    ? GroupTail<ParseExpr<`${Acc}${L}`, S>, R>
-    : ExtractGroup<R, `${Acc}${L})`, S>
+    ? GroupTail<ParseExpr<`${Acc}${L}`, S, Fns>, R, Fns>
+    : ExtractGroup<R, `${Acc}${L})`, S, Fns>
   : 'opaque'
 
 /** Continue after a group: `(…)` ends the term, `(…).rest` walks on from the group's state. */
-type GroupTail<G extends string, Tail extends string> = Tail extends ''
+type GroupTail<G extends string, Tail extends string, Fns extends Registry> = Tail extends ''
   ? G
   : Tail extends `.${infer Rest}`
-    ? ParseSegments<Rest, G>
+    ? ParseSegments<Rest, G, Fns>
     : 'opaque'
 
 /** The unwrapped result element type for a state; `[…]` keeps unions whole. */
@@ -440,8 +475,39 @@ type ResultOf<S extends string> = [S] extends [keyof R4TypeOf] ? R4TypeOf[S][] :
  * `unknown[]`. The top-level context is 'opaque': terms must be resource-
  * rooted, `%var`-rooted, or parenthesized groups of those — a relative term
  * (`id | …`) has no root to resolve against here and degrades.
+ *
+ * `Fns` is the type-level function registry (registered custom function name
+ * → result state name), threaded from a `FhirPathEngine`'s declared columns.
+ * Free-standing `compile()` and the `` fhirpath`…` `` tag have no engine and
+ * keep the empty registry, so custom-function calls degrade to `unknown[]`
+ * there.
  */
-export type FhirpathResult<Expr extends string> = string extends Expr ? unknown[] : ResultOf<ParseExpr<Expr, 'opaque'>>
+export type FhirpathResult<Expr extends string, Fns extends Registry = EmptyRegistry> = string extends Expr
+  ? unknown[]
+  : ResultOf<ParseExpr<Expr, 'opaque', Fns>>
+
+/**
+ * The inferred result of `Expr` evaluated with `Root` as the context state —
+ * how a `columnsOf()` column's relative chains resolve against its scoped
+ * type. Rooted and `%var` terms behave exactly as in FhirpathResult.
+ */
+export type FhirpathResultIn<
+  Root extends string,
+  Expr extends string,
+  Fns extends Registry = EmptyRegistry,
+> = string extends Expr ? unknown[] : ResultOf<ParseExpr<Expr, Root, Fns>>
+
+/**
+ * The state NAME `Expr` parses to (not the TS type): a type name or union of
+ * names, 'opaque', or the broad `string` state. This is what a registered
+ * function contributes to the registry — computing it for a definition and
+ * looking it up at a call site is how custom-function calls infer.
+ */
+export type StateOf<
+  Expr extends string,
+  Root extends string = 'opaque',
+  Fns extends Registry = EmptyRegistry,
+> = string extends Expr ? 'opaque' : ParseExpr<Expr, Root, Fns>
 
 /** The expected input resource for `Expr` (`Patient.name` wants a Patient). */
 export type FhirpathInput<Expr extends string> = string extends Expr

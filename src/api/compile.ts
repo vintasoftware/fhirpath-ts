@@ -100,6 +100,8 @@ export interface EvaluateOptions {
  * A parsed expression, reusable across inputs. Create via `compile()` or the
  * `fhirpath` tag: literal expressions carry inferred result and input types for
  * the supported subset (see src/typed/infer.ts), everything else is unknown[].
+ * There is no engine here, so the type-level function registry is empty —
+ * custom-function calls infer only on a `FhirPathEngine`'s own methods.
  *
  * `TInput`/`TResult` default to the built-in inference but can be overridden,
  * e.g. with `@medplum/fhirtypes` types, for full type-level fidelity with

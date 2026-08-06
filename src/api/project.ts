@@ -2,7 +2,7 @@ import { type EvaluationContext, forkVariables } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { FhirpathResult } from '../typed/infer.ts'
+import type { EmptyRegistry, FhirpathResultIn, Registry } from '../typed/infer.ts'
 import { booleanSingleton } from '../values/collection.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
@@ -80,8 +80,10 @@ type ColumnPath<Column> = Column extends string
     ? Path
     : never
 
-/** `as` wins (function return type, or Date), then `map` (row/`pick` field for tables, value types for Records), then `enum` (union of its strings), then a declared `type`; otherwise inference. */
-type ColumnValues<Column> = Column extends { as: (value: never) => infer R }
+/** `as` wins (function return type, or Date), then `map` (row/`pick` field for tables, value types for Records), then `enum` (union of its strings), then a declared `type`; otherwise inference — with `Fns` (the engine's type-level function registry) and `Root` (a DTO's fhirType context) threaded into it. */
+type ColumnValues<Column, Fns extends Registry = EmptyRegistry, Root extends string = 'opaque'> = Column extends {
+  as: (value: never) => infer R
+}
   ? R[]
   : Column extends { as: 'Date' }
     ? Date[]
@@ -95,7 +97,7 @@ type ColumnValues<Column> = Column extends { as: (value: never) => infer R }
           ? V[]
           : Column extends { type: infer T extends keyof R4TypeOf }
             ? R4TypeOf[T][]
-            : FhirpathResult<ColumnPath<Column>>
+            : FhirpathResultIn<Root, ColumnPath<Column>, Fns>
 
 /**
  * A `default` replaces the empty case, so it substitutes for `undefined` in
@@ -103,19 +105,23 @@ type ColumnValues<Column> = Column extends { as: (value: never) => infer R }
  * (api/dto.ts) can apply it to a generic `{ path } & Options` intersection the
  * checker cannot prove is one ProjectionColumn member.
  */
-export type ColumnResult<Column extends string | { path: string } | { test: string }> = Column extends {
+export type ColumnResult<
+  Column extends string | { path: string } | { test: string },
+  Fns extends Registry = EmptyRegistry,
+  Root extends string = 'opaque',
+> = Column extends {
   test: string
 }
   ? boolean
   : Column extends { collection: true }
-    ? ColumnValues<Column>
+    ? ColumnValues<Column, Fns, Root>
     : Column extends { default: infer D }
-      ? ColumnValues<Column>[number] | D
-      : ColumnValues<Column>[number] | undefined
+      ? ColumnValues<Column, Fns, Root>[number] | D
+      : ColumnValues<Column, Fns, Root>[number] | undefined
 
 /** The row shape `project()` produces: each column's type inferred from its expression. */
-export type Projection<Columns extends ProjectionColumns> = {
-  -readonly [K in keyof Columns]: ColumnResult<Columns[K]>
+export type Projection<Columns extends ProjectionColumns, Fns extends Registry = EmptyRegistry> = {
+  -readonly [K in keyof Columns]: ColumnResult<Columns[K], Fns>
 }
 
 /** The `as: 'Date'` coercion; a value that is not a parseable date string becomes empty. */

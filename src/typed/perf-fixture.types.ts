@@ -1,6 +1,6 @@
 // tsc-perf fixture: keeps roughly a hundred typed expressions in the normal
 // typecheck run so type-level inference cost regressions surface in CI.
-import type { FhirpathResult } from './infer.ts'
+import type { FhirpathResult, StateOf } from './infer.ts'
 
 export type T001 = FhirpathResult<'Patient.name.given'>
 export type T002 = FhirpathResult<'Patient.name.family'>
@@ -141,3 +141,20 @@ export type T131 = FhirpathResult<'(id | %rowIndex.toString()).first()'>
 export type T132 = FhirpathResult<"Patient.name.where(family = 'a|b').given">
 export type T133 = FhirpathResult<'Patient.name.where(a.exists()).given'>
 export type T134 = FhirpathResult<'Patient.name.select(given.first()).count()'>
+// The type-level function registry (custom-function calls and relative StateOf).
+type DemoFns = {
+  displayText: { in: 'CodeableConcept'; out: 'string' }
+  rowKey: { in: string; out: 'opaque' }
+}
+export type T135 = FhirpathResult<'Condition.code.displayText()', DemoFns>
+export type T136 = FhirpathResult<'Patient.name.displayText()', DemoFns>
+export type T137 = StateOf<'(text | coding.display.first() | coding.first().code).first()', 'CodeableConcept'>
+export type T138 = StateOf<
+  '(medication.ofType(CodeableConcept).displayText() | medication.ofType(Reference).display).first()',
+  'MedicationRequest',
+  DemoFns
+>
+export type T139 = StateOf<
+  'dosageInstruction.first().route.select(text | coding.display.first()).first()',
+  'MedicationRequest'
+>

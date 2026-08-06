@@ -1,4 +1,4 @@
-import { type DtoClass, dtoColumns } from '../api/dto.ts'
+import { type DtoClass, dtoColumns, dtoFhirType } from '../api/dto.ts'
 import { analyzeExpression, type AnalyzeOptions, type AnalyzerDiagnostic, type DeclaredVariable } from './analyze.ts'
 
 /** One `analyzeDto` finding: an analyzer diagnostic plus the class member it came from. */
@@ -13,7 +13,8 @@ export interface DtoDiagnostic extends AnalyzerDiagnostic {
  * since it never looks inside the expression strings. Meant for CI: assert
  * `analyzeDto(Dto, options)` is empty next to the class.
  *
- * The class's `fhirType` becomes the analyzer's input type (overridable via
+ * The class's `fhirType` — declared as a static or carried by its
+ * `columnsOf()` columns — becomes the analyzer's input type (overridable via
  * `options.inputType`). Class `env` names and `%rowIndex`/`%rowTotal` come
  * pre-declared; class `vars` analyze in declaration order, each seeing the
  * earlier ones, and every column sees them all. Anything the class does not
@@ -23,7 +24,7 @@ export interface DtoDiagnostic extends AnalyzerDiagnostic {
  * and is only declared.
  */
 export function analyzeDto(dto: DtoClass, options?: AnalyzeOptions): DtoDiagnostic[] {
-  const inputType = options?.inputType ?? dto.fhirType
+  const inputType = options?.inputType ?? dtoFhirType(dto)
   const declared: Record<string, DeclaredVariable> = {
     rowIndex: { types: ['System.Integer'], single: true },
     rowTotal: { types: ['System.Integer'], single: true },

@@ -6,7 +6,7 @@ import { column } from '../api/dto.ts'
 import { fhirpath } from '../api/tagged.ts'
 import type { HumanName, Identifier, Patient, PatientContact, Quantity } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
-import { type FhirpathInput, type FhirpathResult, FIXED_RETURNS, IDENTITY_RETURNS } from './infer.ts'
+import { type FhirpathInput, type FhirpathResult, FIXED_RETURNS, IDENTITY_RETURNS, type StateOf } from './infer.ts'
 
 const patient: Patient = {
   resourceType: 'Patient',
@@ -550,6 +550,54 @@ describe('%var roots enter the broad state', () => {
     const count = compile('Patient.nope.given.count()').evaluate(patient, options)
     expectTypeOf(count).toEqualTypeOf<number[]>()
     expect(count).toEqual([0])
+  })
+})
+
+describe('the type-level function registry', () => {
+  type Fns = {
+    displayText: { in: 'CodeableConcept'; out: 'string' }
+    anyFn: { in: string; out: string }
+    badFn: { in: string; out: 'opaque' }
+  }
+
+  it('a registered call infers its result on a matching input state', () => {
+    expectTypeOf<FhirpathResult<'Condition.code.displayText()', Fns>>().toEqualTypeOf<string[]>()
+  })
+
+  it('a mismatched input state degrades instead of trusting the registry', () => {
+    // displayText's state was computed relative to CodeableConcept; on a
+    // HumanName input the expression navigates something else entirely.
+    expectTypeOf<FhirpathResult<'Patient.name.displayText()', Fns>>().toEqualTypeOf<unknown[]>()
+  })
+
+  it("an 'opaque' registry value flows through as opaque and is never rescued", () => {
+    expectTypeOf<FhirpathResult<'Condition.code.badFn()', Fns>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Condition.code.badFn().exists()', Fns>>().toEqualTypeOf<unknown[]>()
+  })
+
+  it('a broad registry value degrades alone but keeps fixed-return tails', () => {
+    expectTypeOf<FhirpathResult<'Condition.code.anyFn()', Fns>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Condition.code.anyFn().toString()', Fns>>().toEqualTypeOf<string[]>()
+  })
+
+  it('a registered name never shadows a built-in and never takes arguments', () => {
+    expectTypeOf<FhirpathResult<'Patient.name.count()', { count: { in: string; out: 'string' } }>>().toEqualTypeOf<
+      number[]
+    >()
+    expectTypeOf<FhirpathResult<"Condition.code.displayText('x')", Fns>>().toEqualTypeOf<unknown[]>()
+  })
+
+  it('the default registry is empty (compile() and the tag never infer custom calls)', () => {
+    expectTypeOf<FhirpathResult<'Condition.code.displayText()'>>().toEqualTypeOf<unknown[]>()
+  })
+
+  it('StateOf resolves relative chains against a root context', () => {
+    expectTypeOf<
+      StateOf<'(text | coding.display.first() | coding.first().code).first()', 'CodeableConcept'>
+    >().toEqualTypeOf<'string' | 'code'>()
+    expectTypeOf<StateOf<'dosageInstruction.first().text', 'MedicationRequest'>>().toEqualTypeOf<'string'>()
+    // With no context, a relative chain is honestly opaque.
+    expectTypeOf<StateOf<'dosageInstruction.first().text'>>().toEqualTypeOf<'opaque'>()
   })
 })
 
