@@ -802,9 +802,10 @@ Three layers, from cheapest to most thorough:
 2. **ESLint rule** (`fhirpath-ts/eslint`) — runs the analyzer as a lint rule over
    every literal expression at each API entry point: the `` fhirpath`...` `` tag,
    the expression-first calls (`fhirpath()`, `compile()`, `evaluate()`,
-   `evaluateTyped()`, `first()`, `analyzeExpression()`) and the subject-first
+   `evaluateTyped()`, `first()`, `analyzeExpression()`), the subject-first
    `FhirPathEngine` helpers (`test()`, `filter()`, `project()` column expressions,
-   `checkConstraints()` constraint expressions). This repo dogfoods it, so
+   `checkConstraints()` constraint expressions), and DTO declarations —
+   `@column`/`@criteria` fields and a `defineDto()` `vars`. This repo dogfoods it, so
    `pnpm lint` — locally, on pre-commit, and in CI — statically checks the
    library's own expressions alongside the ordinary JS/TS rules:
 
@@ -821,6 +822,16 @@ Three layers, from cheapest to most thorough:
    as the API — which is how this repo dogfoods the rule on its own relatively-imported
    source (see `eslint.config.ts`).
 
+   A DTO field is analyzed against its class's `fhirType`, read from the class's
+   `extends defineDto('…')` clause, so relative column paths are checked the same
+   way `analyzeDto` checks them. Where a source walker cannot know the whole
+   picture it stays quiet rather than guessing: a column's `%vars` (they may come
+   from a base class or the projecting call) and calls into registered DTO columns
+   are not judged, and a class extending a base class or a root-generic factory —
+   no statically-known `fhirType` — is checked for syntax only, since a relative
+   path with a leading `code`/`text` segment would otherwise be misread as a
+   type-name root. `analyzeDto` in a test is the complete check.
+
    The common-name helpers (`test`, `filter`, `first`, `project`) fire only on
    receivers the file binds to this package — an import like `r4`, or a
    `new FhirPathEngine(...)` local — so other libraries' `.filter()`/`.first()`
@@ -828,11 +839,22 @@ Three layers, from cheapest to most thorough:
    (a `function query(r4)` parameter) loses that trust for the whole file, favoring
    silence over false positives. The flip side: an engine reached through an
    untracked alias (`this.engine`, a function parameter) is not statically checked.
+   The DTO vocabulary (`column`, `criteria`, `defineDto`) goes further: those names
+   are checked only when the file imports them from the package, so another
+   library's `column('id')` is never read as FHIRPath.
 
 3. **`fhirpath-check` CLI** — the same analyzer (and the same call-site policy) as a
    standalone command, for repos that do not lint with ESLint (e.g. Biome repos, whose
    GritQL plugins cannot execute the analyzer): `pnpm exec fhirpath-check src/**/*.ts`.
    It exits non-zero on the first diagnostic, so it drops into any CI or pre-commit hook.
+
+All three read the same call-site policy (`src/analyzer/expression-policy.ts`) and
+analyze each site through the same `analyzeSite`, so they agree on what counts as
+an expression and on what a site's context is. A fourth walker,
+`findLexicalExpressionSites`, applies that policy without the TypeScript compiler
+for hosts that cannot ship it — the demo playground lints the editor buffer with
+it — and a parity test runs it against the compiler-based walker over every file
+in this repo.
 
 The analyzer (`fhirpath-ts/analyzer`, `analyzeExpression(expr, { model, inputType })`)
 implements the spec's strict-mode rules: singleton misuse on inputs, operands and

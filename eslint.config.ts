@@ -53,12 +53,14 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'off',
     },
   },
-  // Dogfood: run the analyzer over the library's own source. `localImports` treats
-  // the repo's relative imports of its API as the real FHIRPath API (not foreign),
-  // so those call sites are actually checked. Test files are excluded because they
-  // deliberately hold malformed expressions as fixtures.
+  // Dogfood: run the analyzer over the library's own source, the demo, and the
+  // real-usage mappers — including their DTO `@column`/`@criteria` fields.
+  // `localImports` treats the repo's relative imports of its API as the real
+  // FHIRPath API (not foreign), so those call sites are actually checked. Test
+  // files are excluded because they deliberately hold malformed expressions as
+  // fixtures.
   {
-    files: ['src/**/*.ts', 'demo/src/**/*.ts'],
+    files: ['src/**/*.ts', 'demo/src/**/*.ts', 'dogfood/**/*.ts'],
     ignores: ['**/*.test.ts'],
     plugins: { fhirpath },
     rules: { 'fhirpath/no-invalid-expressions': ['error', { localImports: true }] },

@@ -233,3 +233,34 @@ describe('extraction ignores computed callees', () => {
     expect(sites).toEqual([])
   })
 })
+
+describe('DTO declarations', () => {
+  const source = [
+    "import { column, criteria, defineDto } from 'fhirpath-ts'",
+    "class ProblemRow extends defineDto('Condition', { vars: { badge: 'clinicalStatus' } }) {",
+    "  @column('code.text', { type: 'string', default: '' })",
+    '  name!: string',
+    "  @criteria('recordedDate.exists()')",
+    '  recorded!: boolean',
+    '}',
+    "class LabRow extends badgedRow('DiagnosticReport') {",
+    "  @column('code.text')",
+    '  name!: string | undefined',
+    '}',
+  ].join('\n')
+
+  it('finds column, criteria and vars expressions with the class fhirType', () => {
+    expect(findExpressionSites(source, 'sample.ts').map(site => [site.expression, site.inputType, site.dto])).toEqual([
+      ['clinicalStatus', 'Condition', true],
+      ['code.text', 'Condition', true],
+      ['recordedDate.exists()', 'Condition', true],
+      // Extending a factory: found, but with no fhirType to analyze against.
+      ['code.text', undefined, true],
+    ])
+  })
+
+  it('skips a column that is not the package export', () => {
+    const local = ['const column = (name: string) => name', "column('not.a.fhirpath.expression')"].join('\n')
+    expect(findExpressionSites(local, 'sample.ts')).toEqual([])
+  })
+})

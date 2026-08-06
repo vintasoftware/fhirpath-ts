@@ -156,6 +156,47 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
   return analyzeExpressionDetailed(expression, options).diagnostics
 }
 
+/**
+ * One expression site a source walker found (`findExpressionSites`,
+ * `findLexicalExpressionSites`, the ESLint rule), analyzed with the context the
+ * site carries. An ordinary site is analyzed as written; a DTO member (a
+ * `@column`/`@criteria` field, a DTO's `vars`) runs against its class's
+ * `fhirType` and drops the findings a source walker is not in a position to
+ * make:
+ *
+ * - `unknown-variable`: a DTO's `vars`/`env` may come from a base class or from
+ *   the projecting call, so the declared set is not visible here.
+ * - `unknown-function`: every registered DTO column becomes an engine function,
+ *   and which DTOs an engine registers is a runtime fact.
+ * - everything but `syntax`, when the DTO's `fhirType` is unknown (the class
+ *   extends a base class or a root-generic factory). A relative path is not
+ *   merely uncheckable without a root — it can be *mis*read, because a leading
+ *   `code`/`text`/`status` segment is also a model type name and would resolve
+ *   as a type-name root against an unknown input.
+ *
+ * `analyzeDto` has all of that context and checks the same expressions in full;
+ * this is the editor-and-lint half, which must never report valid code.
+ */
+export function analyzeSite(
+  site: { expression: string; inputType?: string; dto?: true },
+  options?: AnalyzeOptions
+): AnalyzerDiagnostic[] {
+  const merged: AnalyzeOptions = {
+    ...options,
+    ...(site.inputType !== undefined && { inputType: site.inputType }),
+  }
+  const diagnostics = analyzeExpression(site.expression, merged)
+  if (site.dto !== true) {
+    return diagnostics
+  }
+  if (site.inputType === undefined) {
+    return diagnostics.filter(diagnostic => diagnostic.code === 'syntax')
+  }
+  return diagnostics.filter(
+    diagnostic => diagnostic.code !== 'unknown-variable' && diagnostic.code !== 'unknown-function'
+  )
+}
+
 /** `analyzeExpression` plus the element paths the expression touches and its inferred result type. */
 export function analyzeExpressionDetailed(expression: string, options?: AnalyzeOptions): AnalysisDetails {
   let ast: AstNode

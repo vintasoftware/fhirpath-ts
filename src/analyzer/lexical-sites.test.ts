@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 import { findExpressionSites } from '../cli/expression-sites.ts'
-import { findLexicalExpressionSites } from './lexical-sites.ts'
+import { findLexicalExpressionSites, type LexicalExpressionSite } from './lexical-sites.ts'
 
 /**
  * Every case runs through both walkers and must come out the same. The TypeScript
@@ -166,6 +166,50 @@ const CASES: Record<string, string> = {
     import { r4 } from 'fhirpath-ts/r4'
     r4.project(rows, 'Patient.id')
   `,
+  'DTO column and criteria fields': `
+    import { column, criteria, defineDto } from 'fhirpath-ts'
+    class ProblemRow extends defineDto('Condition') {
+      @column('clinicalStatus.coding.first().code')
+      statusCode!: string | undefined
+      @column('code.text', { type: 'string', default: '' })
+      name!: string
+      @criteria('verificationStatus.coding.exists()')
+      verified!: boolean
+    }
+  `,
+  'DTO vars come off the defineDto options': `
+    import { column, defineDto } from 'fhirpath-ts'
+    class OrderRow extends defineDto('ServiceRequest', {
+      env: { waiting: 'Waiting' },
+      vars: { report: '%reports.first()', badge: 'status' },
+    }) {
+      @column('id')
+      id!: string | undefined
+    }
+  `,
+  'a DTO class extending a factory has no root': `
+    import { column, defineDto } from 'fhirpath-ts'
+    class LabRow extends badgedRow('DiagnosticReport') {
+      @column('code.text')
+      name!: string | undefined
+    }
+    class Plain extends defineDto('Observation') {
+      @column('status')
+      status!: string | undefined
+    }
+  `,
+  'a column that is not the imported one is skipped': `
+    import { defineDto } from 'fhirpath-ts'
+    const column = (name: string) => name
+    class Row extends defineDto('Observation') {
+      @column('not.a.fhirpath.expression')
+      value!: string
+    }
+  `,
+  'a foreign column import is skipped': `
+    import { column } from 'some-table-library'
+    column('id')
+  `,
   'a numeric column key keeps its value': `
     import { r4 } from 'fhirpath-ts/r4'
     r4.project(rows, { 1: 'Patient.id' })
@@ -261,13 +305,46 @@ function* sourceFiles(base: string, roots: readonly string[]): Generator<string>
   }
 }
 
+/**
+ * The TypeScript walker's sites in the lexical walker's shape: same fields, same
+ * order, so a JSON comparison covers the DTO context too (`dto`, `inputType`)
+ * and not just where the expressions are.
+ */
+function reference(source: string, fileName: string): LexicalExpressionSite[] {
+  return findExpressionSites(source, fileName).map(site => ({
+    expression: site.expression,
+    start: site.start,
+    ...(site.dto !== undefined && { dto: site.dto }),
+    ...(site.inputType !== undefined && { inputType: site.inputType }),
+  }))
+}
+
 describe('findLexicalExpressionSites', () => {
   it.each(Object.entries(CASES))('matches the TypeScript walker: %s', (_name, source) => {
-    const reference = findExpressionSites(source, 'case.ts').map(site => ({
-      expression: site.expression,
-      start: site.start,
-    }))
-    expect(findLexicalExpressionSites(source)).toEqual(reference)
+    expect(findLexicalExpressionSites(source)).toEqual(reference(source, 'case.ts'))
+  })
+
+  it('carries the DTO context: root from the class, none from a factory', () => {
+    const source = `
+      import { column, criteria, defineDto } from 'fhirpath-ts'
+      class ProblemRow extends defineDto('Condition', { vars: { badge: 'clinicalStatus' } }) {
+        @column('code.text')
+        name!: string | undefined
+        @criteria('recordedDate.exists()')
+        recorded!: boolean
+      }
+      class LabRow extends badgedRow('DiagnosticReport') {
+        @column('code.text')
+        name!: string | undefined
+      }
+    `
+    expect(findLexicalExpressionSites(source).map(site => [site.expression, site.inputType, site.dto])).toEqual([
+      ['clinicalStatus', 'Condition', true],
+      ['code.text', 'Condition', true],
+      ['recordedDate.exists()', 'Condition', true],
+      // Extending a factory: the site is found, but no fhirType is claimed for it.
+      ['code.text', undefined, true],
+    ])
   })
 
   it('reads relative imports as the API when localImports is on', () => {
@@ -301,15 +378,11 @@ describe('findLexicalExpressionSites', () => {
   // that under coverage instrumentation.
   it('matches the TypeScript walker across the package source', { timeout: 60_000 }, () => {
     const root = fileURLToPath(new URL('../..', import.meta.url))
-    const files = [...sourceFiles(root, ['src', 'demo/src', 'scripts', 'benchmarks'])]
+    const files = [...sourceFiles(root, ['src', 'demo/src', 'dogfood', 'scripts', 'benchmarks'])]
     expect(files.length).toBeGreaterThan(50)
     const disagreements = files.filter(file => {
       const source = readFileSync(file, 'utf8')
-      const reference = findExpressionSites(source, file).map(site => ({
-        expression: site.expression,
-        start: site.start,
-      }))
-      return JSON.stringify(findLexicalExpressionSites(source)) !== JSON.stringify(reference)
+      return JSON.stringify(findLexicalExpressionSites(source)) !== JSON.stringify(reference(source, file))
     })
     expect(disagreements).toEqual([])
   })

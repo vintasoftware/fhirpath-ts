@@ -14,7 +14,7 @@
 /* v8 ignore file -- covered end-to-end as a subprocess in fhirpath-check.test.ts */
 import { readFileSync } from 'node:fs'
 
-import { analyzeExpression } from '../analyzer/analyze.ts'
+import { analyzeSite } from '../analyzer/analyze.ts'
 import { r4Model } from '../r4/index.ts'
 import { findExpressionSites } from './expression-sites.ts'
 
@@ -34,7 +34,7 @@ for (const file of files) {
     process.exit(2)
   }
   for (const site of findExpressionSites(text, file)) {
-    for (const diagnostic of analyzeExpression(site.expression, { model: r4Model })) {
+    for (const diagnostic of analyzeSite(site, { model: r4Model })) {
       // Warnings print but only errors fail the run.
       if (diagnostic.severity === 'error') {
         failures += 1

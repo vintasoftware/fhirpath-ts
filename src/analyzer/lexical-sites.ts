@@ -26,6 +26,7 @@
 import {
   CALL_SITES,
   constructsEngine,
+  DTO_BASE_NAME,
   type ExpressionAst,
   expressionEntries,
   isCheckedCall,
@@ -39,13 +40,24 @@ export interface LexicalExpressionSite {
   expression: string
   /** 0-based offset of the expression's first character in the source text. */
   start: number
+  /** The DTO fhirType the expression is analyzed against, when the site fixes one. */
+  inputType?: string
+  /** A DTO member site: its `%variables` are not the walker's to judge (see `analyzeSite`). */
+  dto?: true
 }
 
 /**
  * Find the FHIRPath expression literals in `sourceText`: `` fhirpath`...` `` tags
  * plus the literal expression arguments of the calls in `CALL_SITES`, including
- * the ones nested in `project()` columns and `checkConstraints()` constraints.
- * `options` widens which import sources count as the real FHIRPath API.
+ * the ones nested in `project()` columns, `checkConstraints()` constraints, a
+ * DTO's `vars`, and its `@column`/`@criteria` fields. `options` widens which
+ * import sources count as the real FHIRPath API.
+ *
+ * A `@column` site is analyzed against its class's fhirType, which the scan
+ * takes from the class's `extends defineDto('…')` clause — tracked by token,
+ * since there is no tree to climb: a `class` keyword clears the current root and
+ * an `extends defineDto('Literal'` sets it, so a class extending a base class or
+ * a root-generic factory correctly has none.
  */
 export function findLexicalExpressionSites(
   sourceText: string,
@@ -54,10 +66,16 @@ export function findLexicalExpressionSites(
   const tokens = tokenize(sourceText)
   const bindings = collectBindings(tokens, options)
   const sites: LexicalExpressionSite[] = []
+  let classRoot: string | undefined
   for (let index = 0; index < tokens.length; index++) {
     const token = tokens[index]!
     if (token.kind !== 'id') {
       continue
+    }
+    if (token.value === 'class') {
+      classRoot = undefined
+    } else if (token.value === 'extends') {
+      classRoot = extendedDtoRoot(tokens, index)
     }
     const next = tokens[index + 1]
     if (token.value === TAG_NAME && next?.kind === 'tmpl' && next.value !== null) {
@@ -77,11 +95,34 @@ export function findLexicalExpressionSites(
     if (argument === undefined) {
       continue
     }
+    const inputType = policy.dtoRoot === 'argument' ? dtoRootArgument(tokens, index) : classRoot
     for (const entry of expressionEntries(argument, policy.shape, NODE_AST)) {
-      sites.push({ expression: entry.expression, start: entry.node.start })
+      sites.push({
+        expression: entry.expression,
+        start: entry.node.start,
+        ...(policy.dtoRoot !== undefined && { dto: true as const }),
+        ...(policy.dtoRoot !== undefined && inputType !== undefined && { inputType }),
+      })
     }
   }
   return sites
+}
+
+/** The fhirType of an `extends defineDto('Condition', …)` clause; undefined for anything else. */
+function extendedDtoRoot(tokens: Token[], extendsIndex: number): string | undefined {
+  const callee = tokens[extendsIndex + 1]
+  const open = tokens[extendsIndex + 2]
+  const first = tokens[extendsIndex + 3]
+  if (callee?.kind !== 'id' || callee.value !== DTO_BASE_NAME || !isPunct(open, '(') || first?.kind !== 'str') {
+    return undefined
+  }
+  return first.value
+}
+
+/** The fhirType a `defineDto('Condition', …)` call fixes, read off its own first argument. */
+function dtoRootArgument(tokens: Token[], calleeIndex: number): string | undefined {
+  const first = parseArguments(tokens, calleeIndex + 1).nodes[0]
+  return first?.kind === 'string' ? first.expression : undefined
 }
 
 // --- Tokens -----------------------------------------------------------------

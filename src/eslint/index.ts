@@ -1,11 +1,12 @@
 import type { Rule } from 'eslint'
 import type * as ESTree from 'estree'
 
-import { analyzeExpression, type DeclaredFunction, type DeclaredVariable } from '../analyzer/analyze.ts'
+import { analyzeSite, type DeclaredFunction, type DeclaredVariable } from '../analyzer/analyze.ts'
 import {
   CALL_SITES,
   type CallSitePolicy,
   constructsEngine,
+  DTO_BASE_NAME,
   type ExpressionAst,
   expressionEntries,
   isCheckedCall,
@@ -85,6 +86,32 @@ function receiverRoot(callee: ESTree.Expression | ESTree.Super): string | undefi
   return current.type === 'Identifier' ? current.name : undefined
 }
 
+/** A call argument's text when it is a string literal. */
+function stringArgument(argument: ESTree.Node | undefined): string | undefined {
+  return argument !== undefined && isStringLiteral(argument) ? argument.value : undefined
+}
+
+/**
+ * The fhirType of the nearest enclosing class declared as
+ * `class Row extends defineDto('Condition', …)` — what a `@column` field's
+ * expressions analyze against. A class extending a base class or a root-generic
+ * factory yields undefined: the root is not statically known there, so the
+ * expression is analyzed without an input type (see `CallSitePolicy.dtoRoot`).
+ */
+function enclosingDtoRoot(ancestors: readonly ESTree.Node[]): string | undefined {
+  for (let index = ancestors.length - 1; index >= 0; index--) {
+    const node = ancestors[index]
+    if (node === undefined || (node.type !== 'ClassDeclaration' && node.type !== 'ClassExpression')) {
+      continue
+    }
+    const base = node.superClass
+    return base?.type === 'CallExpression' && base.callee.type === 'Identifier' && base.callee.name === DTO_BASE_NAME
+      ? stringArgument(base.arguments[0])
+      : undefined
+  }
+  return undefined
+}
+
 /**
  * ESLint flat-config plugin that checks every literal FHIRPath expression with
  * the spec §11 analyzer and the R4 model. Which call sites carry expressions,
@@ -150,12 +177,14 @@ const noInvalidExpressions: Rule.RuleModule = {
       name: string
       receiverRoot: string | undefined
       argument: ESTree.Node
+      /** The DTO fhirType this site's expressions analyze against, when it fixes one. */
+      inputType: string | undefined
     }[] = []
-    const checkAt = (node: ESTree.Node, expression: string): void => {
+    const checkAt = (node: ESTree.Node, site: { expression: string; inputType?: string; dto?: true }): void => {
       // ESLint severity comes from the rule's configuration, not per report, so
       // only error-severity diagnostics are reported; analyzer warnings (style
       // and possible-mistake findings) don't fail a lint run.
-      const diagnostics = analyzeExpression(expression, {
+      const diagnostics = analyzeSite(site, {
         model: r4Model,
         ...(options.variables !== undefined && { variables: options.variables }),
         ...(options.functions !== undefined && { functions: options.functions }),
@@ -229,7 +258,13 @@ const noInvalidExpressions: Rule.RuleModule = {
         if (name === undefined || policy === undefined || argument === undefined) {
           return
         }
-        calls.push({ policy, name, receiverRoot: receiverRoot(callee), argument })
+        const inputType =
+          policy.dtoRoot === 'argument'
+            ? stringArgument(node.arguments[0])
+            : policy.dtoRoot === 'class'
+              ? enclosingDtoRoot(context.sourceCode.getAncestors(node))
+              : undefined
+        calls.push({ policy, name, receiverRoot: receiverRoot(callee), argument, inputType })
       },
       'Program:exit'() {
         const bindings: SourceBindings = { foreign, trusted, rebound }
@@ -244,7 +279,7 @@ const noInvalidExpressions: Rule.RuleModule = {
         }
         if (!foreign.has(TAG_NAME)) {
           for (const tag of tags) {
-            checkAt(tag.literal, tag.expression)
+            checkAt(tag.literal, { expression: tag.expression })
           }
         }
         for (const call of calls) {
@@ -252,7 +287,11 @@ const noInvalidExpressions: Rule.RuleModule = {
             continue
           }
           for (const entry of expressionEntries(call.argument, call.policy.shape, estreeAst)) {
-            checkAt(entry.node, entry.expression)
+            checkAt(entry.node, {
+              expression: entry.expression,
+              ...(call.policy.dtoRoot !== undefined && { dto: true as const }),
+              ...(call.inputType !== undefined && { inputType: call.inputType }),
+            })
           }
         }
       },

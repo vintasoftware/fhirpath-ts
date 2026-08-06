@@ -1,4 +1,5 @@
 import { RuleTester } from 'eslint'
+import tseslint from 'typescript-eslint'
 
 import plugin from './index.ts'
 
@@ -129,6 +130,70 @@ tester.run('no-invalid-expressions', plugin.rules['no-invalid-expressions'], {
       code: "import { compile } from '@myorg/fhir'; const t = compile('Patient.frobnicate()')",
       options: [{ packages: ['@myorg/fhir'] }],
       errors: [{ message: /unknown-function/ }],
+    },
+  ],
+})
+
+/**
+ * DTO fields carry decorators, which the default parser cannot read — the same
+ * TypeScript parser the repo lints with supplies them.
+ */
+const dtoTester = new RuleTester({
+  languageOptions: { parser: tseslint.parser, ecmaVersion: 2022, sourceType: 'module' },
+})
+
+const DTO_IMPORT = "import { column, criteria, defineDto } from 'fhirpath-ts'; "
+
+dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressions'], {
+  valid: [
+    // A column analyzed against the class's fhirType.
+    {
+      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { @column('clinicalStatus.coding.first().code') code!: string | undefined }`,
+    },
+    {
+      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { @criteria('recordedDate.exists()') seen!: boolean }`,
+    },
+    // A DTO's vars, off the defineDto options.
+    {
+      code: `${DTO_IMPORT}class Row extends defineDto('Observation', { vars: { at: 'issued' } }) { @column('status') s!: string | undefined }`,
+    },
+    // %vars and registered DTO functions are not this rule's to judge.
+    {
+      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { @column('%badge.label', { type: 'string' }) label!: string | undefined }`,
+    },
+    {
+      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { @column('code.displayText()', { type: 'string' }) name!: string | undefined }`,
+    },
+    // No statically-known root: a relative path is not reported, because a
+    // leading `code` segment is also a model type name.
+    {
+      code: `${DTO_IMPORT}class Row extends badgedRow('DiagnosticReport') { @column('code.coding.first().display') name!: string | undefined }`,
+    },
+    // A `column` that is not the package's own.
+    { code: "import { column } from 'some-table-library'; column('id')" },
+    { code: "const column = (name: string) => name; column('not.a.fhirpath.expression')" },
+  ],
+  invalid: [
+    {
+      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { @column('clinicalStatus.codingg.first()') code!: unknown }`,
+      errors: [{ message: /unknown-element/ }],
+    },
+    {
+      code: `${DTO_IMPORT}class Row extends defineDto('CodeableConcept') { @column('(texxt | coding.display.first()).first()') text!: string | undefined }`,
+      errors: [{ message: /unknown-element.*texxt/ }],
+    },
+    {
+      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { @criteria('verificationStatuss.exists()') bad!: boolean }`,
+      errors: [{ message: /unknown-element/ }],
+    },
+    {
+      code: `${DTO_IMPORT}class Row extends defineDto('Observation', { vars: { at: 'issuedd' } }) { @column('status') s!: string | undefined }`,
+      errors: [{ message: /unknown-element/ }],
+    },
+    // Even with no root, a malformed expression is still a syntax error.
+    {
+      code: `${DTO_IMPORT}class Row extends badgedRow('DiagnosticReport') { @column('code.text(') name!: unknown }`,
+      errors: [{ message: /syntax/ }],
     },
   ],
 })

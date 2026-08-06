@@ -3,6 +3,7 @@ import ts from 'typescript'
 import {
   CALL_SITES,
   constructsEngine,
+  DTO_BASE_NAME,
   type ExpressionAst,
   expressionEntries,
   isCheckedCall,
@@ -17,6 +18,10 @@ export interface ExpressionSite {
   start: number
   line: number
   column: number
+  /** The DTO fhirType the expression is analyzed against, when the site fixes one. */
+  inputType?: string
+  /** A DTO member site: its `%variables` are not the walker's to judge (see `analyzeSite`). */
+  dto?: true
 }
 
 /** How the shared shape extractor reads TypeScript AST nodes. */
@@ -39,10 +44,15 @@ function propertyKeyName(name: ts.PropertyName): string | undefined {
 /**
  * Find FHIRPath expression literals in a TypeScript source file: `` fhirpath`...` ``
  * tags plus literal expression arguments to the call names in `CALL_SITES` —
- * including expressions inside project() columns objects and checkConstraints()
- * constraint arrays. Which calls count, and which are skipped, is the shared
- * policy's decision — see src/analyzer/expression-policy.ts. Dynamic expressions
- * cannot be checked statically and are left alone.
+ * including expressions inside project() columns objects, checkConstraints()
+ * constraint arrays, a DTO's `vars`, and its `@column`/`@criteria` fields. Which
+ * calls count, and which are skipped, is the shared policy's decision — see
+ * src/analyzer/expression-policy.ts. Dynamic expressions cannot be checked
+ * statically and are left alone.
+ *
+ * A `@column` site is analyzed against its class's fhirType, taken from the
+ * class's `extends defineDto('…')` clause and threaded down the walk; a class
+ * extending a base class or a root-generic factory has none.
  */
 export function findExpressionSites(sourceText: string, fileName: string): ExpressionSite[] {
   const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
@@ -51,12 +61,19 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
   // A site points at the first character inside the quote/backtick (node start
   // + 1), so fhirpath-check can add a diagnostic's span offsets directly. The
   // ESLint rule reports on the literal node itself, one column earlier.
-  const record = (text: string, literalNode: ts.Node): void => {
+  const record = (text: string, literalNode: ts.Node, context?: { inputType: string | undefined }): void => {
     const literalStart = literalNode.getStart(source) + 1
     const { line, character } = source.getLineAndCharacterOfPosition(literalStart)
-    sites.push({ expression: text, start: literalStart, line: line + 1, column: character + 1 })
+    sites.push({
+      expression: text,
+      start: literalStart,
+      line: line + 1,
+      column: character + 1,
+      ...(context !== undefined && { dto: true as const }),
+      ...(context?.inputType !== undefined && { inputType: context.inputType }),
+    })
   }
-  const visit = (node: ts.Node): void => {
+  const visit = (node: ts.Node, classRoot: string | undefined): void => {
     if (ts.isTaggedTemplateExpression(node) && nameOf(node.tag) === TAG_NAME && !bindings.foreign.has(TAG_NAME)) {
       if (ts.isNoSubstitutionTemplateLiteral(node.template)) {
         record(node.template.text, node.template)
@@ -71,15 +88,38 @@ export function findExpressionSites(sourceText: string, fileName: string): Expre
         argument !== undefined &&
         isCheckedCall(policy, callee, receiverRoot(node.expression), bindings)
       ) {
+        const inputType = policy.dtoRoot === 'argument' ? stringArgument(node.arguments[0]) : classRoot
         for (const entry of expressionEntries<ts.Node>(argument, policy.shape, tsAst)) {
-          record(entry.expression, entry.node)
+          record(entry.expression, entry.node, policy.dtoRoot === undefined ? undefined : { inputType })
         }
       }
     }
-    ts.forEachChild(node, visit)
+    const nested = ts.isClassLike(node) ? extendedDtoRoot(node) : classRoot
+    ts.forEachChild(node, child => visit(child, nested))
   }
-  visit(source)
+  visit(source, undefined)
   return sites
+}
+
+/** The fhirType of a class's `extends defineDto('Condition', …)` clause; undefined for anything else. */
+function extendedDtoRoot(node: ts.ClassLikeDeclaration): string | undefined {
+  for (const clause of node.heritageClauses ?? []) {
+    if (clause.token !== ts.SyntaxKind.ExtendsKeyword) {
+      continue
+    }
+    for (const type of clause.types) {
+      const call = type.expression
+      if (ts.isCallExpression(call) && nameOf(call.expression) === DTO_BASE_NAME) {
+        return stringArgument(call.arguments[0])
+      }
+    }
+  }
+  return undefined
+}
+
+/** A call argument's text when it is a string literal. */
+function stringArgument(argument: ts.Expression | undefined): string | undefined {
+  return argument !== undefined && ts.isStringLiteralLike(argument) ? argument.text : undefined
 }
 
 /**

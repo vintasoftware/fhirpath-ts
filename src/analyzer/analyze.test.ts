@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { r4Model } from '../r4/index.ts'
-import { analyzeExpression, analyzeExpressionDetailed, type AnalyzerDiagnostic } from './analyze.ts'
+import { analyzeExpression, analyzeExpressionDetailed, type AnalyzerDiagnostic, analyzeSite } from './analyze.ts'
 
 const options = { model: r4Model, inputType: 'Patient' }
 
@@ -477,5 +477,46 @@ describe('resolve() reference-target typing', () => {
     expect(codes('Patient.generalPractitioner.reference.resolve().anything')).toEqual([])
     // Bundle.entry.resource is any resource: no targets, still muted.
     expect(codes('Bundle.entry.resource.resolve().anything', { model: r4Model, inputType: 'Bundle' })).toEqual([])
+  })
+})
+
+describe('analyzeSite', () => {
+  const options = { model: r4Model }
+
+  it('analyzes an ordinary site as written', () => {
+    expect(analyzeSite({ expression: 'Patient.namee' }, options).map(d => d.code)).toEqual(['unknown-element'])
+    expect(analyzeSite({ expression: 'Patient.name' }, options)).toEqual([])
+  })
+
+  it('analyzes a DTO column against its fhirType', () => {
+    expect(
+      analyzeSite({ expression: 'clinicalStatus.coding.first().code', inputType: 'Condition', dto: true }, options)
+    ).toEqual([])
+    expect(
+      analyzeSite({ expression: 'clinicalStatus.codingg.first()', inputType: 'Condition', dto: true }, options).map(
+        d => d.code
+      )
+    ).toEqual(['unknown-element'])
+  })
+
+  it('leaves a DTO column vars and functions unjudged', () => {
+    // %badge is declared by the DTO, a base class, or the projecting call, and
+    // displayText() by whichever DTO the engine registers — neither is visible here.
+    expect(analyzeSite({ expression: '%badge.label', inputType: 'DiagnosticReport', dto: true }, options)).toEqual([])
+    expect(analyzeSite({ expression: 'code.displayText()', inputType: 'Condition', dto: true }, options)).toEqual([])
+    // The same expressions outside a DTO site keep their findings.
+    expect(analyzeSite({ expression: '%badge.label' }, options).map(d => d.code)).toEqual(['unknown-variable'])
+  })
+
+  it('reports only syntax findings for a DTO column with no known root', () => {
+    // A leading `code`/`text` segment is also a model type name, so without a
+    // root the analyzer would read it as a type-name root and report nonsense.
+    expect(analyzeSite({ expression: 'code.coding.first().display', dto: true }, options)).toEqual([])
+    expect(analyzeSite({ expression: 'code.text', dto: true }, options)).toEqual([])
+    expect(analyzeSite({ expression: 'code.text(', dto: true }, options).map(d => d.code)).toEqual(['syntax'])
+    // Unguarded, that first expression is a false positive.
+    expect(analyzeSite({ expression: 'code.coding.first().display' }, options).map(d => d.code)).toEqual([
+      'unknown-element',
+    ])
   })
 })

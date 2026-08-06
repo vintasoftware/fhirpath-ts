@@ -15,8 +15,10 @@
  *   is an expression string, a `{ path }` object, or a `{ test }` criteria object.
  * - `constraints`: the argument is a `checkConstraints()` array of
  *   `{ expression }` constraint objects.
+ * - `dto-vars`: the argument is a `defineDto()` options object — each `vars`
+ *   property value is an expression.
  */
-export type CallSiteShape = 'expression' | 'columns' | 'constraints'
+export type CallSiteShape = 'expression' | 'columns' | 'constraints' | 'dto-vars'
 
 export interface CallSitePolicy {
   /** Which argument holds the expression(s): 0 for expression-first calls, 1 for subject-first helpers. */
@@ -34,8 +36,28 @@ export interface CallSitePolicy {
    *   `_.filter(...)`) that flag-by-default would report other libraries' code.
    *   The cost: an engine reached through an untracked alias (`this.engine`,
    *   a function parameter) is not checked.
+   * - `import`: checked only when the callee name itself is a trusted binding —
+   *   a name this file imported from the package. Right for the DTO vocabulary
+   *   (`column`, `criteria`, `defineDto`): the names are ordinary words other
+   *   libraries use too (a table's `column('id')`), and a DTO always imports
+   *   them, so requiring the import costs nothing and reports nobody else.
    */
-  receiver: 'any' | 'engine'
+  receiver: 'any' | 'engine' | 'import'
+  /**
+   * Marks a DTO member site (see `defineDto`) and says where its `fhirType` —
+   * the type its expression is analyzed against — comes from:
+   *
+   * - `argument`: this call's first argument, for `defineDto('Condition', { vars })`.
+   * - `class`: the enclosing class's `extends defineDto('Condition')` clause,
+   *   for a `@column`/`@criteria` field. A class extending anything else (a
+   *   base class, a root-generic factory) has no statically-known fhirType, and
+   *   the expression is analyzed without an input type.
+   *
+   * A DTO site's `%variables` are never judged: they come from the DTO's own
+   * `vars`/`env`, from a base class, or from the projecting call, none of which
+   * a source walker can see in full. `analyzeDto` checks those.
+   */
+  dtoRoot?: 'argument' | 'class'
 }
 
 /** Call names that take FHIRPath expressions, and where/how/on-what they take them. */
@@ -52,7 +74,15 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   ['filter', { argIndex: 1, shape: 'expression', receiver: 'engine' }],
   ['project', { argIndex: 1, shape: 'columns', receiver: 'engine' }],
   ['checkConstraints', { argIndex: 1, shape: 'constraints', receiver: 'any' }],
+  // DTO declarations: the column/criteria expressions of a `@column` field, and
+  // the `vars` a DTO binds per row.
+  ['column', { argIndex: 0, shape: 'expression', receiver: 'import', dtoRoot: 'class' }],
+  ['criteria', { argIndex: 0, shape: 'expression', receiver: 'import', dtoRoot: 'class' }],
+  ['defineDto', { argIndex: 1, shape: 'dto-vars', receiver: 'import', dtoRoot: 'argument' }],
 ])
+
+/** The `defineDto` call whose first argument fixes a DTO's fhirType. */
+export const DTO_BASE_NAME = 'defineDto'
 
 /** The tag name whose no-substitution template holds a FHIRPath expression. */
 export const TAG_NAME = 'fhirpath'
@@ -119,6 +149,9 @@ export function isCheckedCall(
 ): boolean {
   if (policy.receiver === 'engine') {
     return receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot)
+  }
+  if (policy.receiver === 'import') {
+    return receiverRoot === undefined && bindings.trusted.has(calleeName) && !bindings.rebound.has(calleeName)
   }
   return !bindings.foreign.has(receiverRoot ?? calleeName)
 }
@@ -203,6 +236,17 @@ export function expressionEntries<N>(argument: N, shape: CallSiteShape, ast: Exp
       const entry = ast.string(value)
       return entry ? [entry] : [...namedStringEntries(value, 'path', ast), ...namedStringEntries(value, 'test', ast)]
     })
+  }
+  if (shape === 'dto-vars') {
+    // defineDto() options: { vars: { name: 'expr' }, env: { ... } }. Only vars
+    // hold expressions; env holds data.
+    const vars = (ast.properties(argument) ?? []).filter(({ name }) => name === 'vars')
+    return vars.flatMap(({ value }) =>
+      (ast.properties(value) ?? []).flatMap(({ value: expression }) => {
+        const entry = ast.string(expression)
+        return entry ? [entry] : []
+      })
+    )
   }
   // checkConstraints() constraints: [{ key, expression: 'expr', ... }].
   return (ast.elements(argument) ?? []).flatMap(element => namedStringEntries(element, 'expression', ast))
