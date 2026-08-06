@@ -13,6 +13,7 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: 'fhirpath-ts/analyzer', replacement: src('analyzer/index.ts') },
+      { find: 'fhirpath-ts/sites', replacement: src('sites/index.ts') },
       { find: 'fhirpath-ts/r4', replacement: src('r4/index.ts') },
       { find: 'fhirpath-ts', replacement: src('index.ts') },
     ],

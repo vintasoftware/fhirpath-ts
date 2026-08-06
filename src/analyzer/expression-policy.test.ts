@@ -1,8 +1,11 @@
 import { Linter } from 'eslint'
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 import eslintPlugin from '../eslint/index.ts'
-import { findExpressionSites } from './reference-sites.ts'
+import { createSiteFinder } from '../sites/index.ts'
+
+const findExpressionSites = createSiteFinder(ts)
 
 /**
  * Both walkers — the CLI (TypeScript AST) and the ESLint rule (ESTree AST) —

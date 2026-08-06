@@ -882,7 +882,9 @@ Three layers, from cheapest to most thorough:
 
 3. **`fhirpath-check` CLI** — the same analyzer (and the same call-site policy) as a
    standalone command, for repos that do not lint with ESLint (e.g. Biome repos, whose
-   GritQL plugins cannot execute the analyzer). It does two things:
+   GritQL plugins cannot execute the analyzer). It needs `typescript` installed (an
+   optional peer dependency — the compiler both parses your files and loads your DTO
+   modules). It does two things:
 
    ```sh
    # Every expression literal in the given files, read from source.
@@ -936,12 +938,15 @@ Three layers, from cheapest to most thorough:
 
 Both read the same call-site policy (`src/analyzer/expression-policy.ts`) and
 analyze each site through the same `analyzeSite`, so they agree on what counts as
-an expression and on what a site's context is. The rule walks ESLint's AST; the
-CLI uses `findLexicalExpressionSites`, a `typescript`-free scanner that applies
-the same policy — which is also how the demo playground lints the editor buffer,
-and how a bundler plugin would. A parity test pins the scanner to a
-compiler-based reference walker over every file in this repo, so the
-dependency-light path is not the less accurate one.
+an expression and on what a site's context is. The rule walks ESLint's AST;
+everything else — the CLI, the demo playground's editor markers, a bundler
+plugin — extracts sites with `fhirpath-ts/sites`, which walks the real
+TypeScript AST. Its `createSiteFinder(ts)` takes the compiler as an argument
+rather than importing it, so the package itself stays dependency-free and each
+caller supplies the TypeScript it already has: the CLI uses the `typescript`
+package (an optional peer dependency), and the demo hands in the copy Monaco
+ships inside its worker — extraction runs there, off the main thread, and no one
+bundles a second compiler.
 
 The analyzer (`fhirpath-ts/analyzer`, `analyzeExpression(expr, { model, inputType })`)
 implements the spec's strict-mode rules: singleton misuse on inputs, operands and

@@ -3,18 +3,20 @@
  * type-checks the buffer against fhirpath-ts's real declarations (bundled into
  * src/monaco/*.d.ts), so the inferred result types and the input mismatches surface
  * exactly as they would in your editor. On top of that the §11 analyzer runs over
- * the FHIRPath literals the buffer contains, found with the same walker policy the
- * fhirpath-check CLI and the ESLint rule use.
+ * the FHIRPath literals the buffer contains — found with the same TypeScript-AST
+ * walker the fhirpath-check CLI uses, running inside Monaco's own worker where
+ * the compiler already lives (see ts.custom.worker.ts).
  *
  * Each sample owns its model, so its markers, its output and the reader's edits all
  * belong to it and a tab switch cannot spill one tab's state into another.
  */
 
-import { analyzeSite, findLexicalExpressionSites } from 'fhirpath-ts/analyzer'
+import { analyzeSite } from 'fhirpath-ts/analyzer'
 import { r4Model } from 'fhirpath-ts/r4'
+import type { ExpressionSite } from 'fhirpath-ts/sites'
 
 import { $, renderTabs } from '../dom.ts'
-import { ANALYZER_OWNER, configureMonaco, monaco, THEME_NAME } from './monaco.ts'
+import { ANALYZER_OWNER, configureMonaco, monaco, THEME_NAME, tsWorkerHandle } from './monaco.ts'
 import { renderPanel } from './panel.ts'
 import { type Sample, SAMPLES } from './samples.ts'
 import { type OutputLine, runModel } from './sandbox.ts'
@@ -37,10 +39,45 @@ const PROJECT_ROW_VARIABLES = {
   rowTotal: { types: ['System.Integer'], single: true },
 }
 
+/**
+ * Ask the TypeScript worker for the buffer's expression sites. Extraction rides
+ * the worker Monaco already runs (see ts.custom.worker.ts) — the compiler is
+ * there, the main thread stays free, and each request is matched to its reply
+ * by id so answers can never cross.
+ */
+let sitesRequestId = 0
+const pendingSites = new Map<number, (sites: ExpressionSite[]) => void>()
+
+async function requestSites(text: string): Promise<ExpressionSite[]> {
+  const worker = await tsWorkerHandle()
+  const id = ++sitesRequestId
+  if (pendingSites.size === 0) {
+    worker.addEventListener('message', receiveSites)
+  }
+  return new Promise(resolve => {
+    pendingSites.set(id, resolve)
+    worker.postMessage({ fhirpathSites: id, text })
+  })
+}
+
+function receiveSites(event: MessageEvent): void {
+  const data = event.data as { fhirpathSites?: number; sites?: ExpressionSite[] } | null
+  if (typeof data?.fhirpathSites !== 'number' || data.sites === undefined) {
+    return // Monaco protocol traffic on the same worker.
+  }
+  pendingSites.get(data.fhirpathSites)?.(data.sites)
+  pendingSites.delete(data.fhirpathSites)
+}
+
 /** Publish the analyzer's findings for `model` under its own marker owner. */
-function lint(model: monaco.editor.ITextModel): void {
+async function lint(model: monaco.editor.ITextModel): Promise<void> {
+  const version = model.getVersionId()
+  const sites = await requestSites(model.getValue())
+  if (model.isDisposed() || model.getVersionId() !== version) {
+    return // The buffer moved on; the keystroke that changed it re-linted.
+  }
   const markers: monaco.editor.IMarkerData[] = []
-  for (const site of findLexicalExpressionSites(model.getValue())) {
+  for (const site of sites) {
     // analyzeSite applies each site's own context: a DTO `@column` field runs
     // against its class's fhirType (see the dto sample).
     for (const diagnostic of analyzeSite(site, { model: r4Model, variables: PROJECT_ROW_VARIABLES })) {
@@ -82,9 +119,9 @@ export function mountPlayground(root: HTMLElement): void {
     let timer: ReturnType<typeof setTimeout> | undefined
     model.onDidChangeContent(() => {
       clearTimeout(timer)
-      timer = setTimeout(() => lint(model), LINT_DELAY_MS)
+      timer = setTimeout(() => void lint(model), LINT_DELAY_MS)
     })
-    lint(model)
+    void lint(model)
     tabs.set(sample.id, tab)
     return tab
   }

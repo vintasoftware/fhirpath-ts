@@ -1,10 +1,13 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
-import { findExpressionSites } from './reference-sites.ts'
+import { createSiteFinder } from './index.ts'
 
-// The reference walker's own suite. It is the oracle the lexical scanner is
-// pinned to (see lexical-sites.test.ts), so its behaviour is spelled out here
-// rather than left implicit in the parity comparison.
+const findExpressionSites = createSiteFinder(ts)
 
 describe('expression site extraction', () => {
   it('finds tags and literal call arguments with positions', () => {
@@ -230,5 +233,103 @@ describe('DTO declarations', () => {
   it('skips a column that is not the package export', () => {
     const local = ['const column = (name: string) => name', "column('not.a.fhirpath.expression')"].join('\n')
     expect(findExpressionSites(local, 'sample.ts')).toEqual([])
+  })
+})
+
+describe('DTO context and declared roots', () => {
+  it('carries a declared root, and does not read it as a DTO site', () => {
+    const source = [
+      "import { compile, fhirpath } from 'fhirpath-ts'",
+      "const VISIBLE = fhirpath(\"(status in ('draft')).not()\", 'MedicationRequest')",
+      "const HEIGHT = compile('value.ofType(Quantity).value', 'Observation')",
+      "const BARE = fhirpath('Patient.name.given')",
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => [site.expression, site.inputType, site.dto])).toEqual([
+      ["(status in ('draft')).not()", 'MedicationRequest', undefined],
+      ['value.ofType(Quantity).value', 'Observation', undefined],
+      ['Patient.name.given', undefined, undefined],
+    ])
+  })
+
+  it('declares one function per column field, typed from its options', () => {
+    const source = [
+      "import { column, criteria, defineDto } from 'fhirpath-ts'",
+      "class Row extends defineDto('CodeableConcept') {",
+      "  @column('text', { type: 'string' })",
+      '  displayText!: string | undefined',
+      "  @column('coding.count()', { type: 'integer' })",
+      '  readonly codingCount!: number | undefined',
+      "  @column('coding', { collection: true })",
+      '  codings!: unknown[]',
+      "  @column('text', { choices: { a: 'A' } })",
+      '  decoded!: string | undefined',
+      "  @criteria('text.exists()')",
+      '  named!: boolean',
+      '}',
+    ].join('\n')
+    const [site] = findExpressionSites(source, 'sample.ts')
+    // A criteria declares no function: it stays projection-only. A collection or
+    // a choices shaper leaves the result an unknown region rather than a guessed one.
+    expect(site?.functions).toEqual({
+      displayText: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } },
+      codingCount: { minArity: 0, maxArity: 0, signature: { result: { types: ['integer'], single: true } } },
+      codings: { minArity: 0, maxArity: 0 },
+      decoded: { minArity: 0, maxArity: 0 },
+    })
+  })
+
+  it('finds the field name past other decorators and modifiers', () => {
+    const source = [
+      "import { column, defineDto } from 'fhirpath-ts'",
+      "class Row extends defineDto('CodeableConcept') {",
+      "  @column('text', { type: 'string' })",
+      '  @deprecated',
+      "  @label('Display')",
+      '  readonly displayText!: string | undefined',
+      '}',
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts')[0]?.functions).toEqual({
+      displayText: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } },
+    })
+  })
+
+  it('survives a buffer that is mid-edit', () => {
+    // What an editor sees between keystrokes: the parser recovers, the walker
+    // neither throws nor invents a field name for a decorator with no field.
+    const decoratorOnly =
+      "import { column, defineDto } from 'fhirpath-ts'\nclass Row extends defineDto('Coding') { @column('code') }"
+    expect(findExpressionSites(decoratorOnly, 'sample.ts').map(site => site.expression)).toEqual(['code'])
+    const truncated = "import { r4 } from 'fhirpath-ts/r4'\nr4.evaluate('Patient.na"
+    expect(() => findExpressionSites(truncated, 'sample.ts')).not.toThrow()
+  })
+})
+
+describe('module options', () => {
+  it('reads relative imports as the API when localImports is on', () => {
+    const source = "import { compile } from '../api/compile.ts'\nconst q = compile('Patient.name')"
+    expect(findExpressionSites(source, 'sample.ts')).toEqual([])
+    expect(findExpressionSites(source, 'sample.ts', { localImports: true }).map(site => site.expression)).toEqual([
+      'Patient.name',
+    ])
+  })
+
+  it('reads extra package prefixes as the API', () => {
+    const source = "import { compile } from '@acme/fhirpath'\nconst q = compile('active = true')"
+    expect(findExpressionSites(source, 'sample.ts')).toEqual([])
+    expect(
+      findExpressionSites(source, 'sample.ts', { packages: ['@acme/fhirpath'] }).map(site => site.expression)
+    ).toEqual(['active = true'])
+  })
+})
+
+describe('real source', () => {
+  it('walks the dogfood modules without noise', () => {
+    // A smoke test over real files: the walker parses production code and finds
+    // the DTO sites the dogfood declares (patient-view.dto.ts holds 30+ columns).
+    const root = fileURLToPath(new URL('../..', import.meta.url))
+    const dto = readFileSync(join(root, 'dogfood/patient-view.dto.ts'), 'utf8')
+    const sites = findExpressionSites(dto, 'patient-view.dto.ts')
+    expect(sites.length).toBeGreaterThan(30)
+    expect(sites.every(site => site.dto === true || site.inputType === undefined)).toBe(true)
   })
 })
