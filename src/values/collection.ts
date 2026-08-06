@@ -32,10 +32,30 @@ function matchesExpectedType(item: TypedValue, expectedType: string): boolean {
   )
 }
 
-/** Singleton coerced to a boolean, applying the implicit-true rule. Empty → undefined. */
+/**
+ * Singleton coerced to a boolean, applying the implicit-true rule. Empty →
+ * undefined, which the three-valued logic operators need as a distinct answer —
+ * do not fold it into `false` here (see `criteriaBoolean`).
+ */
 export function booleanSingleton(collection: TypedValue[]): boolean | undefined {
   const item = singleton(collection, SYSTEM_BOOLEAN)
   return item === undefined ? undefined : (item.value as boolean)
+}
+
+/**
+ * The criteria reading of a collection: `booleanSingleton` with empty as
+ * `false`, so the answer is always one of two. This is the rule FHIR invariants,
+ * Subscription criteria and `enableWhen` share, and what `FhirPathEngine.test()`,
+ * `filter()`, a `{ test }` column and a `@criteria` all mean by "the criteria
+ * holds" — one function, so a criteria cannot mean two things depending on where
+ * it is read.
+ *
+ * `where()`, `exists()`, `all()` and `iif()` keep their own `=== true` tests.
+ * They are arithmetically identical but express spec text about one item, not
+ * this rule about a whole expression.
+ */
+export function criteriaBoolean(collection: TypedValue[]): boolean {
+  return booleanSingleton(collection) ?? false
 }
 
 export function wrapBoolean(value: boolean | undefined): TypedValue[] {

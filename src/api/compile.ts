@@ -44,10 +44,19 @@ import { LruCache } from './cache.ts'
  * expressions using the function analyze as unknown regions.
  */
 export type CustomFunction =
-  | (HostNativeFunction & { signature?: CustomFunctionSignature; expression?: never })
+  | (HostNativeFunction & { signature?: CustomFunctionSignature; expression?: never; singletonBoolean?: never })
   | {
       expression: AnyExpression
       signature?: CustomFunctionSignature
+      /**
+       * Read the body's result as a criteria (spec §4.5: empty → false, a
+       * single boolean → itself), so the function always yields exactly one
+       * Boolean. A `@criteria` field registers this way, which is what makes
+       * one declaration mean the same thing projected as a column and called
+       * from an expression — without it, `isFinal().not()` on a resource with
+       * no status is empty rather than true.
+       */
+      singletonBoolean?: boolean
       fn?: never
       minArity?: never
       maxArity?: never
@@ -270,6 +279,7 @@ function hostExpressionFunction(
   return {
     ast: typeof expression === 'string' ? parse(expression) : expression.ast,
     ...(inputTypes !== undefined && { inputTypes }),
+    ...(custom.singletonBoolean === true && { singletonBoolean: true }),
   }
 }
 

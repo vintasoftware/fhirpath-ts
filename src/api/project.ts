@@ -3,7 +3,7 @@ import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathResultIn } from '../typed/infer.ts'
-import { booleanSingleton } from '../values/collection.ts'
+import { criteriaBoolean } from '../values/collection.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
 import { type Compiler, contextFactory, type EvaluateOptions } from './compile.ts'
@@ -46,7 +46,8 @@ import { type Compiler, contextFactory, type EvaluateOptions } from './compile.t
  *   so this is also the way a column yields one.
  * - `{ test }` evaluates the expression as a boolean criteria, with the same
  *   spec §4.5 semantics as `FhirPathEngine.test()`: empty → false, a single
- *   boolean → itself. The column is always a `boolean`.
+ *   boolean → itself (`criteriaBoolean`, values/collection.ts — the one place
+ *   that rule lives). The column is always a `boolean`.
  *
  * `as`, `choices`, and `enum` are alternatives — a column declares at most one —
  * and each decides the column's JS type, so a `type` given alongside any of
@@ -246,7 +247,7 @@ type ColumnReader = (root: TypedValue[], context: EvaluationContext) => unknown
 function planColumn(name: string, column: ProjectionColumn, compile: Compiler): ColumnReader {
   if (typeof column !== 'string' && 'test' in column) {
     const criteria = compile(column.test)
-    return (root, context) => booleanSingleton(evaluateNode(criteria.ast, forkVariables(context), root)) ?? false
+    return (root, context) => criteriaBoolean(evaluateNode(criteria.ast, forkVariables(context), root))
   }
   const spec: Extract<ProjectionColumn, { path: string }> = typeof column === 'string' ? { path: column } : column
   assertShaperOptions(name, spec)

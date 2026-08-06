@@ -3,7 +3,7 @@ import '../functions/install.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { describeArity, lookupFunction } from '../functions/registry.ts'
 import type { AstNode } from '../parser/ast.ts'
-import { singleton } from '../values/collection.ts'
+import { criteriaBoolean, singleton, wrapBoolean } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
 import { wrapNumeric } from '../values/numeric.ts'
@@ -74,7 +74,10 @@ function evaluateHostFunction(
     try {
       // withFrame rebinds $this to the input and forks variables, so the
       // body's defineVariable() bindings stay local to the body.
-      return withFrame(context, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))
+      const result = withFrame(context, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))
+      // Inside the try, so a body yielding several items still clears the
+      // recursion guard on its way out.
+      return host.singletonBoolean === true ? wrapBoolean(criteriaBoolean(result)) : result
     } finally {
       context.activeExpressionFunctions.delete(name)
     }

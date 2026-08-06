@@ -233,6 +233,7 @@ const noInvalidExpressions: Rule.RuleModule = {
      * file — the same reason the call sites themselves are decided there.
      */
     const columnDeclarations: {
+      kind: 'column' | 'criteria'
       field: string
       options: ESTree.Node | undefined
       enclosing: ClassHeritage | undefined
@@ -323,11 +324,15 @@ const noInvalidExpressions: Rule.RuleModule = {
         // Only the DTO decorators need to look up: the class they sit in, and the
         // field they decorate.
         const ancestors =
-          policy.rootFromClass === true || policy.declaresField === true ? context.sourceCode.getAncestors(node) : []
-        if (policy.declaresField === true) {
+          policy.rootFromClass === true || policy.declaresField !== undefined
+            ? context.sourceCode.getAncestors(node)
+            : []
+        const declares = policy.declaresField
+        if (declares !== undefined) {
           const field = decoratedFieldName(ancestors)
           if (field !== undefined) {
             columnDeclarations.push({
+              kind: declares,
               field,
               options: node.arguments[1],
               enclosing: enclosingClass(ancestors),
@@ -357,8 +362,9 @@ const noInvalidExpressions: Rule.RuleModule = {
         const dtoRoots = dtoRootsOf(classes)
         // The column vocabulary first: `checkAt` reads it, and every site of the
         // file shares it — including the tags.
-        for (const { field, options: columnOptions, enclosing } of columnDeclarations) {
+        for (const { kind, field, options: columnOptions, enclosing } of columnDeclarations) {
           columnFunctions[field] = columnFunctionDeclaration<ESTree.Node>(
+            kind,
             columnOptions,
             estreeAst,
             rootOf(enclosing, dtoRoots)

@@ -39,6 +39,13 @@ export interface HostExpressionFunction {
   ast: AstNode
   /** See HostNativeFunction.inputTypes — the same rule, checked the same way. */
   inputTypes?: readonly string[]
+  /**
+   * Coerce the body's result by the criteria rule (spec §4.5: empty → false, a
+   * single boolean → itself), so the function always yields exactly one Boolean.
+   * What makes a `@criteria` mean the same thing projected as a column and
+   * called from an expression.
+   */
+  singletonBoolean?: boolean
 }
 
 export type HostFunction = HostNativeFunction | HostExpressionFunction

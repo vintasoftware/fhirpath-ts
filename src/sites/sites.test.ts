@@ -359,15 +359,17 @@ describe('DTO context and declared roots', () => {
       '}',
     ].join('\n')
     const [site] = findExpressionSites(source, 'sample.ts')
-    // A criteria declares no function: it stays projection-only. A collection or
-    // a choices shaper leaves the result an unknown region rather than a guessed
-    // one, while the class's own type is known for every column.
+    // A collection or a choices shaper leaves the result an unknown region
+    // rather than a guessed one, while the class's own type is known for every
+    // column. A criteria has no options to read: it is a single Boolean whatever
+    // its expression yields, because the coercion lives on the function.
     const input = { types: ['CodeableConcept'] }
     expect(site?.functions).toEqual({
       displayText: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['string'], single: true } } },
       codingCount: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['integer'], single: true } } },
       codings: { minArity: 0, maxArity: 0, signature: { input } },
       decoded: { minArity: 0, maxArity: 0, signature: { input } },
+      named: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['System.Boolean'], single: true } } },
     })
   })
 

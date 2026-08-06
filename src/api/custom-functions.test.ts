@@ -215,6 +215,36 @@ describe('custom functions in the analyzer', () => {
   })
 })
 
+describe('singletonBoolean: the criteria rule on the function', () => {
+  const observation = { resourceType: 'Observation', status: 'final', code: { text: 'Weight' } }
+  const criterion = (expression: string): Record<string, CustomFunction> => ({
+    holds: { expression, singletonBoolean: true },
+  })
+  const run = (expression: string, functions: Record<string, CustomFunction>): unknown[] =>
+    evaluate(expression, observation, { functions, model: r4Model })
+
+  it('answers exactly one boolean, whatever the body yields', () => {
+    expect(run('holds()', criterion("status = 'final'"))).toEqual([true])
+    expect(run('holds()', criterion("status = 'amended'"))).toEqual([false])
+    // Empty is false, which is the whole point: the call composes as a boolean.
+    expect(run('holds()', criterion('nothing.here'))).toEqual([false])
+    expect(run('holds().not()', criterion('nothing.here'))).toEqual([true])
+    // A single non-boolean item is true, per the implicit-exists rule.
+    expect(run('holds()', criterion('code.text'))).toEqual([true])
+  })
+
+  it('is falsified by dropping the flag: the same body comes back empty', () => {
+    expect(evaluate('holds()', observation, { functions: { holds: { expression: 'nothing.here' } } })).toEqual([])
+  })
+
+  it('keeps the >1-item error, and still clears the recursion guard', () => {
+    const many = criterion('code.text | status')
+    expect(() => run('holds()', many)).toThrow('Expected a collection with at most one item, but found 2')
+    // The guard is released even though the coercion threw, so a later call works.
+    expect(run('holds()', criterion("status = 'final'"))).toEqual([true])
+  })
+})
+
 describe('a declared input type', () => {
   /** Written against a CodeableConcept, in both host-function forms. */
   const asExpression: CustomFunction = {
@@ -297,10 +327,9 @@ describe('a declared input type', () => {
     })
 
     it('walks a surplus argument against $this, now that the column has a signature', () => {
-      // A column that claimed nothing used to have no signature at all, which
-      // sent its arguments down the unchecked path (analyzed against the call's
-      // input). The call earns wrong-arity either way; only where the argument
-      // resolves changes.
+      // Declaring an input type means every column has a signature, so a
+      // surplus argument takes the checked path: value arguments analyze
+      // against $this, which here is the Patient rather than the call's input.
       const messages = analyzeExpression('maritalStatus.displayText(nope)', {
         model: r4Model,
         inputType: 'Patient',
@@ -354,3 +383,12 @@ const invalidSignature: CustomFunction = {
   signature: { args: ['expression'] },
 }
 void invalidSignature
+
+// singletonBoolean coerces an expression body's result; a native function
+// returns plain JS values and would silently ignore it.
+// @ts-expect-error -- singletonBoolean belongs to the expression form only
+const nativeCriteria: CustomFunction = {
+  fn: () => true,
+  singletonBoolean: true,
+}
+void nativeCriteria

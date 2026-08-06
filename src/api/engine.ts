@@ -1,7 +1,7 @@
 import { mergeEnvKeys } from '../engine/context.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
-import { booleanSingleton } from '../values/collection.ts'
+import { criteriaBoolean } from '../values/collection.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { type BundleLike, isBundle, normalizeInput, toSubjects } from './bundle.ts'
 import {
@@ -92,9 +92,13 @@ export interface EngineOptions extends EvaluateOptions {
   /**
    * DTO classes registered engine-wide (see `defineDto()`): every column
    * becomes an expression-defined function callable from any expression this
-   * engine evaluates (its name must be unique across the engine's functions;
-   * `test` columns stay projection-only), and each DTO's `env` merges into the
-   * engine env. Only one DTO may register per fhirType — it is *the*
+   * engine evaluates (its name must be unique across the engine's functions,
+   * and may not be a built-in), and each DTO's `env` merges into the engine
+   * env. A `@criteria` registers too, carrying its §4.5 coercion, so the call
+   * yields the same boolean the projected column holds. Every column declares
+   * the DTO's `fhirType` as the input it expects, so calling one on a focus
+   * that can never hold that type throws instead of navigating to nothing.
+   * Only one DTO may register per fhirType — it is *the*
    * engine-wide vocabulary for that resource. DTO `vars` are not registered —
    * they may reference per-call env, so they apply only when projecting the
    * DTO. A DTO you only ever project (never call into from other expressions)
@@ -189,7 +193,7 @@ export class FhirPathEngine {
    * than one item is an error.
    */
   test(input: unknown, expression: AnyExpression, options?: EvaluateOptions): boolean {
-    return booleanSingleton(this.evaluateTyped(expression, input, options)) ?? false
+    return criteriaBoolean(this.evaluateTyped(expression, input, options))
   }
 
   /**
@@ -204,7 +208,7 @@ export class FhirPathEngine {
     const merged = this.merged(options)
     return toSubjects(input)
       .map(subject => subject.value)
-      .filter(value => booleanSingleton(compiled.evaluateTyped(value, merged)) ?? false)
+      .filter(value => criteriaBoolean(compiled.evaluateTyped(value, merged)))
   }
 
   /**

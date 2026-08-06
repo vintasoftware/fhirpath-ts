@@ -8,7 +8,12 @@
  * must stay free of `typescript` and `eslint` imports so either walker can load
  * it alone; `column-signature.ts` is dependency-free for the same reason.
  */
-import { type ColumnFunctionSignature, columnSignature, type ColumnTypeClaim } from '../api/column-signature.ts'
+import {
+  type ColumnFunctionSignature,
+  columnSignature,
+  type ColumnTypeClaim,
+  criteriaSignature,
+} from '../api/column-signature.ts'
 
 /**
  * How a call site carries its FHIRPath expression(s):
@@ -69,14 +74,17 @@ export interface CallSitePolicy {
    */
   dto?: true
   /**
-   * The call declares a function named by the field it decorates. A registered
-   * `@column` becomes a zero-arity function every expression on that engine can
-   * call (see `withDtos`), so a walker collects one per decorated field and hands
-   * them to `analyzeSite` — which is how a call between a file's own columns
-   * resolves. A flag on the table rather than a name comparison in each walker,
-   * so the two cannot disagree about which call it is.
+   * The call declares a function named by the field it decorates, and which kind
+   * of column it is. A registered `@column`/`@criteria` becomes a zero-arity
+   * function every expression on that engine can call (see `withDtos`), so a
+   * walker collects one per decorated field and hands them to `analyzeSite` —
+   * which is how a call between a file's own columns resolves. The kind decides
+   * the signature: a criteria is a single Boolean whatever its expression
+   * yields, so there are no options to read. A field on the table rather than a
+   * name comparison in each walker, so the two cannot disagree about which call
+   * it is.
    */
-  declaresField?: true
+  declaresField?: 'column' | 'criteria'
 }
 
 /** Call names that take FHIRPath expressions, and where/how/on-what they take them. */
@@ -100,9 +108,12 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   // the `vars` a DTO binds per row.
   [
     'column',
-    { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true, declaresField: true },
+    { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true, declaresField: 'column' },
   ],
-  ['criteria', { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true }],
+  [
+    'criteria',
+    { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true, declaresField: 'criteria' },
+  ],
   ['defineDto', { argIndex: 1, shape: 'dto-vars', receiver: 'import', rootArg: 0, dto: true }],
 ])
 
@@ -448,11 +459,17 @@ export interface DeclaredColumnFunction {
  * `collection` drops the *result* claim while keeping the input one.
  */
 export function columnFunctionDeclaration<N>(
+  kind: 'column' | 'criteria',
   options: N | undefined,
   ast: ExpressionAst<N>,
   hostType: string | undefined
 ): DeclaredColumnFunction {
   const declaration: DeclaredColumnFunction = { minArity: 0, maxArity: 0 }
+  if (kind === 'criteria') {
+    // A criteria has no options object: its result is a single Boolean whatever
+    // the expression yields, because the coercion lives on the function.
+    return { ...declaration, signature: criteriaSignature(hostType) }
+  }
   const signature = columnSignature(columnClaim(options, ast) ?? {}, hostType)
   return signature === undefined ? declaration : { ...declaration, signature }
 }

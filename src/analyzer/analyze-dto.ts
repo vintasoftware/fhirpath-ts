@@ -172,8 +172,12 @@ function expressionOf(column: ColumnSpec): string {
 /**
  * The type a column claims its expression yields — `columnSignature`'s rule, the
  * one the engine registers and the walkers declare, so a cross-check can never
- * contradict a claim that was never made. A criteria claims nothing about its
- * expression: the column is a boolean whatever the expression yields.
+ * contradict a claim that was never made.
+ *
+ * A criteria claims nothing here, and that stays right even though its
+ * *function* declares a Boolean result: the Boolean is a property of the §4.5
+ * coercion applied to the result, not of the expression. `@criteria('name.given')`
+ * legally yields HumanName.given and reads as true.
  */
 function claimedType(column: ColumnSpec): string | undefined {
   return 'test' in column ? undefined : columnResultType(column)

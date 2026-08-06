@@ -262,8 +262,8 @@ describe('DTOs registered engine-wide', () => {
 
   it('a column knows the type it was written against, and says so on the wrong focus', () => {
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns] })
-    // Condition.code is a CodeableConcept; Condition.subject.reference is a
-    // string. The call used to resolve and navigate to nothing.
+    // displayText is written against CodeableConcept, which
+    // Condition.subject.reference — a string — can never be.
     expect(() => engine.evaluate('Condition.subject.reference.displayText()', condition)).toThrow(
       "Function 'displayText' expects FHIR.CodeableConcept as input, but the focus is FHIR.string"
     )
@@ -316,14 +316,62 @@ describe('DTOs registered engine-wide', () => {
     expect(engine.evaluate('%badgeTones.count()', weighed)).toEqual([1])
   })
 
-  it('a criteria column stays projection-only', () => {
+  it('a criteria means the same thing as a column and as a call', () => {
     class Flags extends defineDto('Observation') {
       @criteria("status = 'final'")
       isFinal!: boolean
     }
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Flags] })
     expect(engine.project(weighed, Flags).isFinal).toBe(true)
-    expect(() => engine.evaluate('isFinal()', weighed)).toThrow("Unrecognized function 'isFinal'")
+    expect(engine.evaluate('isFinal()', weighed)).toEqual([true])
+    // The §4.5 coercion travels with the function, so both readings agree on a
+    // resource the criteria finds nothing in — and the call composes as a
+    // boolean rather than propagating empty.
+    const statusless = { resourceType: 'Observation', code: { text: 'Weight' } }
+    expect(engine.project(statusless, Flags).isFinal).toBe(false)
+    expect(engine.evaluate('isFinal()', statusless)).toEqual([false])
+    expect(engine.evaluate('isFinal().not()', statusless)).toEqual([true])
+    // And it reads as a criteria wherever criteria are read.
+    expect(engine.filter([weighed, statusless], 'isFinal()')).toEqual([weighed])
+    expect(engine.test(statusless, 'isFinal()')).toBe(false)
+  })
+
+  it('a criteria carries its column signature and its host type', () => {
+    class Flags extends defineDto('Observation') {
+      @criteria("status = 'final'")
+      isFinal!: boolean
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Flags] })
+    const functions = engine.defaults.functions ?? {}
+    // The declared Boolean result feeds later checks, and the declared input
+    // catches the call on a focus that can never be an Observation.
+    const codes = (expression: string, inputType: string): string[] =>
+      analyzeExpression(expression, { model: r4Model, inputType, functions }).map(d => d.code)
+    expect(codes('isFinal().not()', 'Observation')).toEqual([])
+    expect(codes("isFinal() + 'x'", 'Observation')).toEqual(['operand-type'])
+    expect(codes('code.isFinal()', 'Observation')).toEqual(['input-type'])
+  })
+
+  it('a criteria yielding several items fails identically from both paths', () => {
+    class Many extends defineDto('Patient') {
+      @criteria('name.given')
+      hasGiven!: boolean
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Many] })
+    const patient = { resourceType: 'Patient', name: [{ given: ['Peter', 'James'] }] }
+    const message = 'Expected a collection with at most one item, but found 2'
+    expect(() => engine.project(patient, Many)).toThrow(message)
+    expect(() => engine.evaluate('hasGiven()', patient)).toThrow(message)
+  })
+
+  it('rejects a column whose name is a built-in function, naming the field', () => {
+    class Shadow extends defineDto('Observation') {
+      @column('code.text', { type: 'string' })
+      exists!: string | undefined
+    }
+    expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [Shadow] })).toThrow(
+      "DTO Shadow declares a column named 'exists', which is a built-in function; rename the field"
+    )
   })
 
   it('redefining a function or env variable across DTOs fails loudly', () => {
