@@ -376,11 +376,11 @@ describe('FhirPathEngine.project', () => {
     type Tone = 'success' | 'neutral'
     const tones: Record<string, Tone> = { final: 'success', amended: 'neutral' }
     const row = r4.project(observation, {
-      tone: { path: 'Observation.status', map: tones, default: 'neutral' as Tone },
+      tone: { path: 'Observation.status', choices: tones, default: 'neutral' as Tone },
       // A miss becomes empty, so default fills it — the retry-with-fallback idiom.
-      label: { path: 'Observation.status', map: { registered: 'Ordered' }, default: 'Result' },
+      label: { path: 'Observation.status', choices: { registered: 'Ordered' }, default: 'Result' },
       // Literal maps infer the union of their value types.
-      flagged: { path: 'Observation.status', map: { final: false, preliminary: true } },
+      flagged: { path: 'Observation.status', choices: { final: false, preliminary: true } },
     })
     expectTypeOf(row.tone).toEqualTypeOf<Tone>()
     expectTypeOf(row.flagged).toEqualTypeOf<boolean | undefined>()
@@ -390,24 +390,24 @@ describe('FhirPathEngine.project', () => {
   it('map matches own keys only and non-primitive values never match', () => {
     const row = r4.project(observation, {
       // 'toString' exists on Object.prototype; hasOwn keeps it a miss.
-      proto: { path: "'toString'", map: { final: 'x' }, default: 'missed' },
+      proto: { path: "'toString'", choices: { final: 'x' }, default: 'missed' },
       // Non-string primitives key via String(); complex values never match.
-      numeric: { path: 'Observation.value.ofType(Quantity).value', map: { '72.5': 'ok' } },
-      complex: { path: 'Observation.code', map: { '[object Object]': 'never' }, default: 'missed' },
+      numeric: { path: 'Observation.value.ofType(Quantity).value', choices: { '72.5': 'ok' } },
+      complex: { path: 'Observation.code', choices: { '[object Object]': 'never' }, default: 'missed' },
       // In a collection column, misses drop instead of erroring.
-      some: { path: "('final' | 'nope')", collection: true, map: { final: 'kept' } },
+      some: { path: "('final' | 'nope')", collection: true, choices: { final: 'kept' } },
     })
     expect(row).toEqual({ proto: 'missed', numeric: 'ok', complex: 'missed', some: ['kept'] })
   })
 
   it('a column declares at most one of as, map, enum — rejected at compile and plan time', () => {
     // @ts-expect-error -- as and map are mutually exclusive; plan time backstops untyped callers
-    expect(() => r4.project([], { bad: { path: 'Patient.gender', as: String, map: { male: 'M' } } })).toThrow(
-      "column 'bad' declares more than one of 'as', 'map', 'enum'"
+    expect(() => r4.project([], { bad: { path: 'Patient.gender', as: String, choices: { male: 'M' } } })).toThrow(
+      "column 'bad' declares more than one of 'as', 'choices', 'enum'"
     )
     // @ts-expect-error -- enum and as are mutually exclusive; plan time backstops untyped callers
     expect(() => r4.project([], { bad: { path: 'Patient.gender', enum: ['male'], as: String } })).toThrow(
-      "column 'bad' declares more than one of 'as', 'map', 'enum'"
+      "column 'bad' declares more than one of 'as', 'choices', 'enum'"
     )
   })
 
@@ -431,12 +431,12 @@ describe('FhirPathEngine.project', () => {
       { code: 'final', label: 'Shadowed', tone: 'neutral' },
     ]
     const row = r4.project(observation, {
-      label: { path: 'Observation.status', map: statusMeta, pick: 'label', default: 'Result' },
-      tone: { path: 'Observation.status', map: statusMeta, pick: 'tone', default: 'neutral' as Tone },
+      label: { path: 'Observation.status', choices: statusMeta, pick: 'label', default: 'Result' },
+      tone: { path: 'Observation.status', choices: statusMeta, pick: 'tone', default: 'neutral' as Tone },
       // No pick: the whole matching row.
-      meta: { path: 'Observation.status', map: statusMeta },
+      meta: { path: 'Observation.status', choices: statusMeta },
       // A value no row's code matches falls back to default.
-      missing: { path: "'cancelled'", map: statusMeta, pick: 'label', default: 'Result' },
+      missing: { path: "'cancelled'", choices: statusMeta, pick: 'label', default: 'Result' },
     })
     expectTypeOf(row.label).toEqualTypeOf<string>()
     expectTypeOf(row.tone).toEqualTypeOf<Tone>()
@@ -451,15 +451,15 @@ describe('FhirPathEngine.project', () => {
 
   it('pick requires the table form of map and a field its rows carry — rejected at compile and plan time', () => {
     // @ts-expect-error -- pick needs the table form of map; plan time backstops untyped callers
-    expect(() => r4.project([], { bad: { path: 'Patient.gender', map: { male: 'M' }, pick: 'label' } })).toThrow(
-      "column 'bad' has 'pick' without a table 'map'"
+    expect(() => r4.project([], { bad: { path: 'Patient.gender', choices: { male: 'M' }, pick: 'label' } })).toThrow(
+      "column 'bad' has 'pick' without a table 'choices'"
     )
     // @ts-expect-error -- pick without a map; plan time backstops untyped callers
     expect(() => r4.project([], { bad: { path: 'Patient.gender', pick: 'label' } })).toThrow(
-      "column 'bad' has 'pick' without a table 'map'"
+      "column 'bad' has 'pick' without a table 'choices'"
     )
     expect(() =>
-      r4.project([], { bad: { path: 'Patient.gender', map: [{ code: 'male', label: 'M' }], pick: 'lable' } })
+      r4.project([], { bad: { path: 'Patient.gender', choices: [{ code: 'male', label: 'M' }], pick: 'lable' } })
     ).toThrow("column 'bad' picks 'lable', which no row of its table has")
   })
 })

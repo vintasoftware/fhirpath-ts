@@ -1,10 +1,12 @@
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+
 import type { Condition, DiagnosticReport, MedicationRequest, Observation, ServiceRequest } from '@medplum/fhirtypes'
-import { analyzeDto, analyzeExpression } from 'fhirpath-ts/analyzer'
-import { r4Model } from 'fhirpath-ts/r4'
+import { analyzeEngineDtos } from 'fhirpath-ts/analyzer'
 import { describe, expect, it } from 'vitest'
 
+import { fp } from './patient-view.dto.ts'
 import {
-  ANALYZED_USAGE,
   isTopLevelOrder,
   isVisibleMedicationRequest,
   mapLabResults,
@@ -21,24 +23,33 @@ import {
 const HG_INTERPRETATION = 'https://www.healthgorilla.com/fhir/StructureDefinition/diagnosticreport-interpretation'
 
 describe('static analysis', () => {
-  const options = {
-    model: r4Model,
-    functions: ANALYZED_USAGE.functions,
-    // Names the module cannot declare itself: the engine env, and the per-call
-    // order→report join table mapLabResults passes.
-    variables: { loinc: { types: ['System.String'], single: true }, reports: {} },
-  }
-
-  it('every DTO class analyzes clean against its fhirType', () => {
-    for (const dto of ANALYZED_USAGE.dtos) {
-      expect(analyzeDto(dto, options), dto.name).toEqual([])
-    }
+  // The engine carries what the checks need — its model, the functions its
+  // registered DTOs contribute, its env — so nothing is threaded in by hand, and
+  // a DTO's per-call env is its own `callerEnv` declaration.
+  it('the engine sweep covers every DTO it registered', () => {
+    expect(analyzeEngineDtos(fp)).toEqual([])
   })
 
-  it('every standalone expression analyzes clean', () => {
-    for (const { expression, inputType } of ANALYZED_USAGE.expressions) {
-      expect(analyzeExpression(expression, { ...options, inputType }), expression).toEqual([])
-    }
+  // The expressions this module holds in `const`s declare their own root
+  // (`fhirpath(expr, 'Observation')`), so they are checked as call sites like any
+  // literal — by the ESLint rule on every commit, and by the run below.
+  //
+  // The other half, in the process it is meant to run in: `fhirpath-check`
+  // discovers this directory's `*.dto.ts`, imports it, finds the engine it
+  // constructs and analyzes every DTO it exports — including the base classes no
+  // list would have mentioned. Runs the real command, so the convention itself
+  // is under test: stop exporting a DTO, or move it out of a `*.dto.ts` file,
+  // and the count drops.
+  it('fhirpath-check discovers and analyzes the DTOs of this directory', () => {
+    const root = fileURLToPath(new URL('..', import.meta.url))
+    const cli = fileURLToPath(new URL('../src/cli/fhirpath-check.ts', import.meta.url))
+    const result = spawnSync(process.execPath, [cli, '--dtos', 'dogfood/**/*.dto.ts'], {
+      cwd: root,
+      encoding: 'utf8',
+    })
+    const output = `${result.stdout}${result.stderr}`
+    expect(output, output).toMatch(/analyzed 13 DTO\(s\) from 1 module\(s\) against 1 engine\(s\)/)
+    expect(result.status, output).toBe(0)
   })
 })
 

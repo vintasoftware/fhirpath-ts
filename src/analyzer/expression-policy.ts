@@ -15,8 +15,10 @@
  *   is an expression string, a `{ path }` object, or a `{ test }` criteria object.
  * - `constraints`: the argument is a `checkConstraints()` array of
  *   `{ expression }` constraint objects.
+ * - `dto-vars`: the argument is a `defineDto()` options object — each `vars`
+ *   property value is an expression.
  */
-export type CallSiteShape = 'expression' | 'columns' | 'constraints'
+export type CallSiteShape = 'expression' | 'columns' | 'constraints' | 'dto-vars'
 
 export interface CallSitePolicy {
   /** Which argument holds the expression(s): 0 for expression-first calls, 1 for subject-first helpers. */
@@ -34,15 +36,46 @@ export interface CallSitePolicy {
    *   `_.filter(...)`) that flag-by-default would report other libraries' code.
    *   The cost: an engine reached through an untracked alias (`this.engine`,
    *   a function parameter) is not checked.
+   * - `import`: checked only when the callee name itself is a trusted binding —
+   *   a name this file imported from the package. Right for the DTO vocabulary
+   *   (`column`, `criteria`, `defineDto`): the names are ordinary words other
+   *   libraries use too (a table's `column('id')`), and a DTO always imports
+   *   them, so requiring the import costs nothing and reports nobody else.
    */
-  receiver: 'any' | 'engine'
+  receiver: 'any' | 'engine' | 'import'
+  /**
+   * The argument that names the type the expression runs against, when the call
+   * takes one: `fhirpath('status', 'MedicationRequest')` declares it at index 1,
+   * `defineDto('Condition', { vars })` at index 0. A site with a declared root is
+   * analyzed against it, which is the only way a walker can check a relative
+   * expression — see `analyzeSite`.
+   */
+  rootArg?: number
+  /**
+   * The root comes from the enclosing class's `extends defineDto('Condition')`
+   * clause: a `@column`/`@criteria` field. A class extending anything else (a
+   * base class, a root-generic factory) has no statically-known fhirType, and
+   * the expression is analyzed without an input type.
+   */
+  rootFromClass?: true
+  /**
+   * A DTO member site. Its `%variables` are never judged — they come from the
+   * DTO's own `vars`/`env`, from a base class, or from the projecting call, none
+   * of which a source walker can see in full — and an unresolved function is
+   * reported only when it misspells a column of the same file. `analyzeDto`
+   * checks all of it properly.
+   */
+  dto?: true
 }
 
 /** Call names that take FHIRPath expressions, and where/how/on-what they take them. */
 export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   // Expression-first: the low-level API and the evaluate family of FhirPathEngine.
-  ['fhirpath', { argIndex: 0, shape: 'expression', receiver: 'any' }],
-  ['compile', { argIndex: 0, shape: 'expression', receiver: 'any' }],
+  // `fhirpath`/`compile` take the type the expression runs against as their
+  // second argument, which is what makes an expression held in a `const` — and
+  // evaluated somewhere else entirely — checkable.
+  ['fhirpath', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
+  ['compile', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
   ['evaluate', { argIndex: 0, shape: 'expression', receiver: 'any' }],
   ['evaluateTyped', { argIndex: 0, shape: 'expression', receiver: 'any' }],
   ['first', { argIndex: 0, shape: 'expression', receiver: 'engine' }],
@@ -52,7 +85,18 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   ['filter', { argIndex: 1, shape: 'expression', receiver: 'engine' }],
   ['project', { argIndex: 1, shape: 'columns', receiver: 'engine' }],
   ['checkConstraints', { argIndex: 1, shape: 'constraints', receiver: 'any' }],
+  // DTO declarations: the column/criteria expressions of a `@column` field, and
+  // the `vars` a DTO binds per row.
+  ['column', { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true }],
+  ['criteria', { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true }],
+  ['defineDto', { argIndex: 1, shape: 'dto-vars', receiver: 'import', rootArg: 0, dto: true }],
 ])
+
+/** The `defineDto` call whose first argument fixes a DTO's fhirType. */
+export const DTO_BASE_NAME = 'defineDto'
+
+/** The decorator that declares a DTO column — and, with it, a function named by its field. */
+export const COLUMN_NAME = 'column'
 
 /** The tag name whose no-substitution template holds a FHIRPath expression. */
 export const TAG_NAME = 'fhirpath'
@@ -119,6 +163,9 @@ export function isCheckedCall(
 ): boolean {
   if (policy.receiver === 'engine') {
     return receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot)
+  }
+  if (policy.receiver === 'import') {
+    return receiverRoot === undefined && bindings.trusted.has(calleeName) && !bindings.rebound.has(calleeName)
   }
   return !bindings.foreign.has(receiverRoot ?? calleeName)
 }
@@ -204,6 +251,17 @@ export function expressionEntries<N>(argument: N, shape: CallSiteShape, ast: Exp
       return entry ? [entry] : [...namedStringEntries(value, 'path', ast), ...namedStringEntries(value, 'test', ast)]
     })
   }
+  if (shape === 'dto-vars') {
+    // defineDto() options: { vars: { name: 'expr' }, env: { ... } }. Only vars
+    // hold expressions; env holds data.
+    const vars = (ast.properties(argument) ?? []).filter(({ name }) => name === 'vars')
+    return vars.flatMap(({ value }) =>
+      (ast.properties(value) ?? []).flatMap(({ value: expression }) => {
+        const entry = ast.string(expression)
+        return entry ? [entry] : []
+      })
+    )
+  }
   // checkConstraints() constraints: [{ key, expression: 'expr', ... }].
   return (ast.elements(argument) ?? []).flatMap(element => namedStringEntries(element, 'expression', ast))
 }
@@ -217,4 +275,47 @@ function namedStringEntries<N>(object: N, name: string, ast: ExpressionAst<N>): 
     const entry = ast.string(value)
     return entry ? [entry] : []
   })
+}
+
+/**
+ * What a DTO column declares as a function: every `@column` field of a
+ * registered DTO becomes a zero-argument expression function named by the field
+ * (see `withDtos`), so a walker that reads a file's columns can resolve the
+ * calls between them. Shaped to be assignable to the analyzer's
+ * `DeclaredFunction`.
+ */
+export interface DeclaredColumnFunction {
+  minArity: 0
+  maxArity: 0
+  signature?: { result: { types: string[]; single: boolean } }
+}
+
+/**
+ * The function a `@column(path, options)` declaration contributes, derived from
+ * the options the same way the runtime derives it: the result type comes from
+ * `type` — or plain String for an `enum` — and only when no `as`/`choices`
+ * reshapes the value outside FHIRPath. A `collection` key leaves the signature
+ * off entirely rather than guessing a cardinality from a boolean the walkers
+ * cannot read, so the result stays an unknown region instead of a wrong one.
+ */
+export function columnFunctionDeclaration<N>(options: N | undefined, ast: ExpressionAst<N>): DeclaredColumnFunction {
+  const declaration: DeclaredColumnFunction = { minArity: 0, maxArity: 0 }
+  const properties = options === undefined ? undefined : ast.properties(options)
+  if (properties === undefined) {
+    return declaration
+  }
+  const named = (name: string): N | undefined => properties.find(property => property.name === name)?.value
+  if (named('as') !== undefined || named('choices') !== undefined || named('collection') !== undefined) {
+    return declaration
+  }
+  const declaredType = named('type')
+  const resultType =
+    declaredType !== undefined
+      ? ast.string(declaredType)?.expression
+      : named('enum') !== undefined
+        ? 'System.String'
+        : undefined
+  return resultType === undefined
+    ? declaration
+    : { ...declaration, signature: { result: { types: [resultType], single: true } } }
 }

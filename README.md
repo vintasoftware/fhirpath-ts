@@ -292,6 +292,24 @@ expressions, declare `rowIndex` and `rowTotal` there too — the runtime sets
 them per row, but the analyzer has no notion of the call site that will run an
 expression.
 
+An expression kept in a `const` and evaluated elsewhere can declare the type it
+runs against, which is what makes it checkable — the checkers see the literal but
+not the call that will run it:
+
+```ts
+const VISIBLE_MEDICATION = fhirpath("(status in ('entered-in-error' | 'draft')).not()", 'MedicationRequest')
+const WEIGHT_KG = compile("value.ofType(Quantity).toQuantity('kg').value", 'Observation') // number[]
+
+fp.test(request, VISIBLE_MEDICATION)
+```
+
+The declared type does three things: a relative path infers like a DTO column
+(`number[]` above, rather than degrading to `unknown[]`), the expression's input
+type becomes that resource instead of one guessed from the path, and the ESLint
+rule and `fhirpath-check` analyze the expression against it — so an element typo
+in a shared criteria fails the same way it would inside a `@column`. Like a
+column's `type`, it is a declaration: nothing checks it at runtime.
+
 A function can also be defined in FHIRPath itself — `expression` instead of
 `fn`. The body evaluates as if spliced at the call site: the call's input is
 the focus, while `%context` and the environment stay the caller's. This is the
@@ -318,116 +336,158 @@ resolves them at arity 0 from the same record. An engine pre-parses bodies
 through its parse cache; pass a `CompiledExpression` body to get the same
 effect with the free `evaluate()`.
 
-### Class-based DTOs
+### DTOs
 
-A DTO class groups everything one resource's row shape needs — `column()`
-fields, the per-row `vars` they read, and the `env` tables they join — so the
-declaration travels as one unit. `column()` takes the same options as a
-`project()` column; its static type is the projected value, so
-`InstanceType<Dto>` is the row type and methods and getters on the class see
-real values:
+A DTO is a class: `defineDto(fhirType)` fixes the resource or datatype its
+columns read, and each `@column` field declares one column — the expression on
+the decorator, the column's type on the field below it. `fhirType` is the
+context every path infers against, so paths stay relative, and **the field's
+declared type is checked against what its expression yields**:
 
 ```ts
-class WeightRow {
-  static readonly fhirType = 'Observation'
-  lbs = column("Observation.value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
-  at = column('(Observation.effective.ofType(dateTime) | Observation.issued).first()', { as: 'Date' })
+class WeightRow extends defineDto('Observation') {
+  @column("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
+  lbs!: number
+
+  @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+  at!: Date | undefined
+
+  @criteria("status = 'final'")
+  isFinal!: boolean
 
   get rounded(): number {
     return Math.round(this.lbs)
   }
 }
-const rows = fp.project(observations, WeightRow) // WeightRow[]: lbs is number, at is Date | undefined
+const rows = fp.project(observations, WeightRow) // WeightRow[], getters and methods included
 ```
 
-Registering classes engine-wide turns every `column()` field into an
-expression-defined function (named by the field, unique across the engine,
-analyzer signature derived from the column's `type`), and merges each class's
-static `env` into the engine env. A registered class must declare its
-`fhirType` (typo-checked against the model's type names), and only one class
-registers per fhirType — it is *the* engine-wide vocabulary for that resource:
+Declare a type the column cannot hold and the checker names both sides on the
+offending decorator:
 
 ```ts
-class CodeableConceptDto {
-  static readonly fhirType = 'CodeableConcept'
-  displayText = column('(text | coding.display.first() | coding.first().code).first()', { type: 'string' })
+@column('clinicalStatus.coding.first().code')
+statusCode!: number
+//        ^ Decorator function return type 'ColumnTypeMismatch<number, string | undefined>'
+//          is not assignable to type 'void | ((this: ProblemRow, value: number) => number)'
+```
+
+`@column` takes the same options as a `project()` column — `type`, `as`,
+`choices`/`pick`, `enum`, `default`, `collection` — and `@criteria` declares a
+boolean criteria column (spec §4.5 semantics: empty → false). Rows are real
+instances, so anything derived from the columns belongs on the class as a getter
+or method rather than in a column shaper.
+
+**Decorators need a build step.** They are TC39 standard decorators, so the
+consuming build must lower them: `tsc` (with `target` ES2024 or lower — at
+`esnext` it emits them untouched), swc, or Babel. esbuild, oxc, and
+`node --experimental-strip-types` do not support them; this repo's own vitest
+config carries a small tsc transform for exactly that reason. Without a
+decorator-capable build, `project(input, { … })` with a plain columns record
+still works.
+
+Registering DTOs engine-wide turns every column into an expression-defined
+function (named by the field, unique across the engine, analyzer signature
+derived from the column's `type`), and merges each DTO's `env` into the engine
+env. Only one DTO registers per fhirType — it is *the* engine-wide vocabulary
+for that resource:
+
+```ts
+class CodeableConceptDto extends defineDto('CodeableConcept') {
+  @column('(text | coding.display.first() | coding.first().code).first()')
+  displayText!: string | undefined
 }
+
 const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
 fp.first('Condition.code.displayText()', condition, { type: 'string' })
 ```
 
-Class `vars` are not registered — they may reference per-call env, so they
-apply when the class itself is projected, merged under any per-call `vars`.
-That keeps join tables and their bindings inside the class:
+`vars` and `env` travel with the DTO, as the second argument to `defineDto`.
+`vars` are not registered — they may reference per-call env, so they apply when
+the DTO itself is projected, merged under any per-call `vars`. That keeps join
+tables and their bindings inside the DTO:
 
 ```ts
-class OrderRow {
-  static readonly fhirType = 'ServiceRequest'
-  static readonly vars = { report: '%reports.where(orderId = %context.id).report' }
-  id = column('ServiceRequest.id', { default: '' })
-  reportStatus = column('%report.status', { type: 'string', default: 'waiting' })
+class OrderRow extends defineDto('ServiceRequest', {
+  vars: { report: '%reports.where(orderId = %context.id).report' },
+}) {
+  @column('id', { default: '' })
+  id!: string
+
+  @column('%report.status', { type: 'string', default: 'waiting' })
+  reportStatus!: string
 }
 fp.project(orders, OrderRow, { env: { reports } })
 ```
 
-A column several classes share can be declared once with
-`declareColumn(functionName, path, options)` — call the declaration in field
-position, and list it in the engine's `columns` to make the chain callable
-engine-wide under `functionName`:
+Columns several DTOs share live on a base class — extend it and its columns come
+along, so the row key or a badge group is written once:
 
 ```ts
-const ObservedAt = declareColumn('observedAt', '(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
-class WeightRow {
-  at = ObservedAt()
+class ObservationRow extends defineDto('Observation') {
+  @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+  at!: Date | undefined
 }
-class HeightRow {
-  at = ObservedAt()
-}
+class WeightRow extends ObservationRow { … }
+class HeightRow extends ObservationRow { … }
 ```
+
+For a group shared across *different* resources, make the base a function of the
+root — `function keyedRow<Root extends FhirTypeName>(fhirType: Root) { class KeyedRow extends defineDto(fhirType) { … } return KeyedRow }` —
+and the columns keep inferring against whatever root each DTO passes.
 
 For a column that yields one of a few known codes, `enum` gives a cast-free
 literal-union type and checks it at runtime (a value outside the list becomes
 empty, so `default` catches it):
 
 ```ts
-const GroupColumn = declareColumn('medicationGroup', 'iif(dosageInstruction.asNeeded.ofType(boolean) = true, …)', {
+@column('iif(dosageInstruction.asNeeded.ofType(boolean) = true, …)', {
   enum: ['asNeeded', 'continuous'],
   default: 'continuous',
-}) // 'asNeeded' | 'continuous'
+})
+group!: 'asNeeded' | 'continuous'
 ```
 
-A class you only ever project needs no registration — pass it straight to
-`project()`. `{ test }` fields stay projection-only either way, and never
-read a `column()` field before projection: until then it holds the column
-spec, not a value.
+`project()` checks every row's `resourceType` against the DTO's `fhirType` and
+throws on a mismatch — without the check, wrong input would come back as
+well-typed rows full of defaults. Filter the input first to project a subset; a
+subject with no `resourceType` (a datatype value) has nothing to check.
 
-When a class declares a `fhirType`, `project()` checks every row's
-`resourceType` against it and throws on a mismatch — without the check, wrong
-input would come back as well-typed rows full of defaults. Filter the input
-first to project a subset; a subject with no `resourceType` (a datatype value)
-has nothing to check.
-
-TypeScript checks the declaration shapes (`fhirType` against the model's type
-names, `pick` against the table's row keys) but never looks inside the
-expression strings. `analyzeDto` from `fhirpath-ts/analyzer` closes that gap —
-run it in a test next to each class:
+TypeScript checks the declaration shapes and the field types, but never looks
+inside the expression strings. `analyzeDto` from `fhirpath-ts/analyzer` closes
+that gap — run it in a test next to each DTO:
 
 ```ts
-import { analyzeDto } from 'fhirpath-ts/analyzer'
+import { analyzeDto, analyzeEngineDtos } from 'fhirpath-ts/analyzer'
 
-// Columns, test criteria, and class vars all analyze against the fhirType.
-// Pass what the class doesn't declare itself: the engine's functions, and
-// names for per-call env (%reports here).
-expect(analyzeDto(LabResultDto, {
-  model: r4Model,
-  functions: fp.defaults.functions,
-  variables: { reports: {} },
-})).toEqual([])
+// The engine carries everything the check needs: its model, the functions its
+// registered DTOs contribute, and its env names.
+expect(analyzeDto(LabResultRow, { engine: fp })).toEqual([])
+
+// And it knows which DTOs it registered, so the vocabulary needs no list:
+expect(analyzeEngineDtos(fp)).toEqual([])
+```
+
+Data that arrives per call is the DTO's own declaration, not the checker's
+configuration: `callerEnv` names the env the projecting call supplies, so the
+expressions reading it are checked instead of reported as undefined.
+
+```ts
+class LabResultRow extends defineDto('ServiceRequest', {
+  callerEnv: ['reports'], // fp.project(orders, LabResultRow, { env: { reports } })
+  vars: { report: '%reports.where(orderId = %context.id).report' },
+}) { … }
 ```
 
 Each finding carries the `member` it came from (a column name, or
 `vars.<name>`), the diagnostic code, and the message — so a typo inside an
-expression fails CI pointing at the exact field.
+expression fails CI pointing at the exact column.
+
+`analyzeDto` also cross-checks a column's declared `type` (or `enum`) against
+what the analyzer infers the expression yields, which covers the whole language
+rather than the inference subset. That is the check for an expression TypeScript
+cannot see through — a `&` concatenation, a custom-function call: declare the
+column's `type` and a wrong claim becomes a `column-type` finding.
 
 ### Parse caching
 
@@ -593,30 +653,32 @@ infers the R4 status-code union), and that includes `a | b` unions,
 `(…)` groups, and `%var` roots ending in a fixed-return call like
 `%rowIndex.toString()`.
 
-### Status labels from a code map
+### Status labels from code choices
 
-`map` decodes a code into your display vocabulary in TypeScript — no cast, no
-env-table join. Give it a display table (rows keyed by `code`) and `pick` the
-field each column reads, typed from the row; a miss becomes empty, so
-`default` doubles as the fallback for unexpected or future codes:
+`choices` decodes a code into your display vocabulary in TypeScript — no cast,
+no env-table join — the way a Django field's `choices` name the values it may
+hold. Give it a display table (rows keyed by `code`) and `pick` the field each
+column reads, typed from the row; a miss becomes empty, so `default` doubles as
+the fallback for unexpected or future codes:
 
 ```ts
-const statusMeta = [
+const STATUS_CHOICES = [
   { code: 'active', label: 'Active', tone: 'info' },
   { code: 'recurrence', label: 'Recurrence', tone: 'danger' },
   { code: 'resolved', label: 'Resolved', tone: 'neutral' },
 ] as const
 r4.project(conditions, {
-  label: { path: 'Condition.clinicalStatus.coding.first().code', map: statusMeta, pick: 'label', default: 'Unknown' },
-  tone: { path: 'Condition.clinicalStatus.coding.first().code', map: statusMeta, pick: 'tone', default: 'neutral' as const },
+  label: { path: 'Condition.clinicalStatus.coding.first().code', choices: STATUS_CHOICES, pick: 'label', default: 'Unknown' },
+  tone: { path: 'Condition.clinicalStatus.coding.first().code', choices: STATUS_CHOICES, pick: 'tone', default: 'neutral' as const },
 })
 ```
 
 Omit `pick` to yield the whole matching row, or pass a plain Record
-(`map: { active: 'info', … }`) when there is a single field to decode. When
-the fallback is computed rather than constant — say, title-casing the raw
-code — use an `as` function instead:
-`as: code => statusMeta.find(row => row.code === code)?.label ?? titleCase(String(code))`.
+(`choices: { active: 'info', … }`) when there is a single field to decode. When
+the fallback is computed rather than constant — say, title-casing the raw code —
+a DTO getter reads the code column back off the row (see [DTOs](#dtos)), and a
+bare `project()` call can use an `as` function:
+`as: code => STATUS_CHOICES.find(row => row.code === code)?.label ?? titleCase(String(code))`.
 
 ### Join related resources
 
@@ -767,9 +829,10 @@ Three layers, from cheapest to most thorough:
 2. **ESLint rule** (`fhirpath-ts/eslint`) — runs the analyzer as a lint rule over
    every literal expression at each API entry point: the `` fhirpath`...` `` tag,
    the expression-first calls (`fhirpath()`, `compile()`, `evaluate()`,
-   `evaluateTyped()`, `first()`, `analyzeExpression()`) and the subject-first
+   `evaluateTyped()`, `first()`, `analyzeExpression()`), the subject-first
    `FhirPathEngine` helpers (`test()`, `filter()`, `project()` column expressions,
-   `checkConstraints()` constraint expressions). This repo dogfoods it, so
+   `checkConstraints()` constraint expressions), and DTO declarations —
+   `@column`/`@criteria` fields and a `defineDto()` `vars`. This repo dogfoods it, so
    `pnpm lint` — locally, on pre-commit, and in CI — statically checks the
    library's own expressions alongside the ordinary JS/TS rules:
 
@@ -786,6 +849,26 @@ Three layers, from cheapest to most thorough:
    as the API — which is how this repo dogfoods the rule on its own relatively-imported
    source (see `eslint.config.ts`).
 
+   A DTO field is analyzed against its class's `fhirType`, read from the class's
+   `extends defineDto('…')` clause, so relative column paths are checked the same
+   way `analyzeDto` checks them. Each `@column` field also *declares* a
+   zero-argument function named by the field — what registering the DTO does at
+   runtime — so calls between a file's own columns resolve, carry their declared
+   result type into the calling expression (`code.displayText() + 1` is an
+   operand-type error), and stop being reported at ordinary call sites.
+
+   Where a source walker cannot know the whole picture it stays quiet rather than
+   guessing: a column's `%vars` may come from a base class or the projecting call,
+   so they are not judged; a call into a DTO that lives in *another* module is
+   invisible here, so an unresolved function is reported only when it plausibly
+   misspells a column the same file declares (`code.displayTxt()` next to a
+   `displayText` column); and a class extending a base class or a root-generic
+   factory — no statically-known `fhirType` — is checked for syntax only, since a
+   relative path with a leading `code`/`text` segment would otherwise be misread
+   as a type-name root. For cross-module DTO vocabularies, list the column names
+   in the rule's `functions` option; `analyzeDto` in a test is the complete check
+   either way, since it sees the engine's real function set.
+
    The common-name helpers (`test`, `filter`, `first`, `project`) fire only on
    receivers the file binds to this package — an import like `r4`, or a
    `new FhirPathEngine(...)` local — so other libraries' `.filter()`/`.first()`
@@ -793,11 +876,72 @@ Three layers, from cheapest to most thorough:
    (a `function query(r4)` parameter) loses that trust for the whole file, favoring
    silence over false positives. The flip side: an engine reached through an
    untracked alias (`this.engine`, a function parameter) is not statically checked.
+   The DTO vocabulary (`column`, `criteria`, `defineDto`) goes further: those names
+   are checked only when the file imports them from the package, so another
+   library's `column('id')` is never read as FHIRPath.
 
 3. **`fhirpath-check` CLI** — the same analyzer (and the same call-site policy) as a
    standalone command, for repos that do not lint with ESLint (e.g. Biome repos, whose
-   GritQL plugins cannot execute the analyzer): `pnpm exec fhirpath-check src/**/*.ts`.
-   It exits non-zero on the first diagnostic, so it drops into any CI or pre-commit hook.
+   GritQL plugins cannot execute the analyzer). It does two things:
+
+   ```sh
+   # Every expression literal in the given files, read from source.
+   pnpm exec fhirpath-check "src/**/*.ts"
+
+   # Plus every DTO in the project's *.dto.ts modules, imported and checked
+   # against the engine that projects it. This half needs no arguments.
+   pnpm exec fhirpath-check
+   ```
+
+   The second half is the one a source walker cannot do. DTO modules are
+   *imported*, so `analyzeDto` runs with the real thing: calls between columns
+   resolve through the engine's registered DTOs, `vars` and `env` are known, and a
+   declared column `type` is cross-checked against the analyzer's own inference.
+   Findings carry the class, the member and a source position:
+
+   ```
+   src/fhir/patient.dto.ts:18:42 ProblemRow.statusCode [unknown-element] Element 'codee' is not defined on FHIR.Coding — did you mean 'code'?
+   fhirpath-check: analyzed 13 DTO(s) from 1 module(s) against 1 engine(s)
+   ```
+
+   Discovery needs no configuration, which is why the convention matters:
+
+   - **DTOs live in `*.dto.ts`.** That is the default glob; `--dtos "<glob>"`
+     (repeatable) points elsewhere.
+   - **Export the DTO classes** you want checked — the checker reads a module's
+     exports. Engines need no export: constructions are recorded, so a
+     module-private `const fp = new FhirPathEngine(…)` is still found.
+   - Put the engine where the DTOs are (the same `*.dto.ts` file is fine) or point
+     `--dtos` at both. Without an engine in reach, column-to-column calls cannot
+     resolve, and the CLI says so instead of failing the run.
+   - `--no-import` skips this half entirely, for a source-only pass.
+
+   It exits non-zero on any error-severity diagnostic, so both halves drop into CI
+   and pre-commit as they are:
+
+   ```yaml
+   # .github/workflows/ci.yml
+   - run: pnpm exec fhirpath-check "src/**/*.ts"   # source literals + the DTO sweep
+   ```
+
+   ```json
+   // package.json — with lint-staged, on pre-commit
+   { "lint-staged": { "*.ts": ["fhirpath-check --no-import"] } }
+   ```
+
+   A pre-commit hook usually wants `--no-import` on the staged files (fast, no
+   module side effects), with the DTO sweep in CI where importing is fine. This
+   repo does exactly that: the ESLint rule covers the source half on every commit,
+   and `pnpm check:fhirpath` runs the sweep in CI.
+
+Both read the same call-site policy (`src/analyzer/expression-policy.ts`) and
+analyze each site through the same `analyzeSite`, so they agree on what counts as
+an expression and on what a site's context is. The rule walks ESLint's AST; the
+CLI uses `findLexicalExpressionSites`, a `typescript`-free scanner that applies
+the same policy — which is also how the demo playground lints the editor buffer,
+and how a bundler plugin would. A parity test pins the scanner to a
+compiler-based reference walker over every file in this repo, so the
+dependency-light path is not the less accurate one.
 
 The analyzer (`fhirpath-ts/analyzer`, `analyzeExpression(expr, { model, inputType })`)
 implements the spec's strict-mode rules: singleton misuse on inputs, operands and

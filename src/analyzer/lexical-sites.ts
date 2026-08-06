@@ -25,7 +25,11 @@
 
 import {
   CALL_SITES,
+  COLUMN_NAME,
+  columnFunctionDeclaration,
   constructsEngine,
+  type DeclaredColumnFunction,
+  DTO_BASE_NAME,
   type ExpressionAst,
   expressionEntries,
   isCheckedCall,
@@ -39,13 +43,32 @@ export interface LexicalExpressionSite {
   expression: string
   /** 0-based offset of the expression's first character in the source text. */
   start: number
+  /** The DTO fhirType the expression is analyzed against, when the site fixes one. */
+  inputType?: string
+  /** A DTO member site: its `%variables` are not the walker's to judge (see `analyzeSite`). */
+  dto?: true
+  /**
+   * The functions the file declares: one per `@column` field, since a registered
+   * DTO column is callable from any expression. Shared by every site of the
+   * file, and absent when it declares none.
+   */
+  functions?: Readonly<Record<string, DeclaredColumnFunction>>
 }
 
 /**
  * Find the FHIRPath expression literals in `sourceText`: `` fhirpath`...` `` tags
  * plus the literal expression arguments of the calls in `CALL_SITES`, including
- * the ones nested in `project()` columns and `checkConstraints()` constraints.
- * `options` widens which import sources count as the real FHIRPath API.
+ * the ones nested in `project()` columns, `checkConstraints()` constraints, a
+ * DTO's `vars`, and its `@column`/`@criteria` fields. `options` widens which
+ * import sources count as the real FHIRPath API.
+ *
+ * A `@column` site is analyzed against its class's fhirType, which the scan
+ * takes from the class's `extends defineDto('…')` clause — tracked by token,
+ * since there is no tree to climb: a `class` keyword clears the current root and
+ * an `extends defineDto('Literal'` sets it, so a class extending a base class or
+ * a root-generic factory correctly has none. Each `@column` also declares a
+ * function named by the field it decorates — the field name being the next
+ * identifier after the decorator — so calls between a file's own columns resolve.
  */
 export function findLexicalExpressionSites(
   sourceText: string,
@@ -54,10 +77,17 @@ export function findLexicalExpressionSites(
   const tokens = tokenize(sourceText)
   const bindings = collectBindings(tokens, options)
   const sites: LexicalExpressionSite[] = []
+  const functions: Record<string, DeclaredColumnFunction> = {}
+  let classRoot: string | undefined
   for (let index = 0; index < tokens.length; index++) {
     const token = tokens[index]!
     if (token.kind !== 'id') {
       continue
+    }
+    if (token.value === 'class') {
+      classRoot = undefined
+    } else if (token.value === 'extends') {
+      classRoot = extendedDtoRoot(tokens, index)
     }
     const next = tokens[index + 1]
     if (token.value === TAG_NAME && next?.kind === 'tmpl' && next.value !== null) {
@@ -77,11 +107,83 @@ export function findLexicalExpressionSites(
     if (argument === undefined) {
       continue
     }
+    const inputType =
+      policy.rootArg !== undefined
+        ? rootArgument(tokens, index, policy.rootArg)
+        : policy.rootFromClass === true
+          ? classRoot
+          : undefined
+    if (policy.dto === true && token.value === COLUMN_NAME) {
+      const parsed = parseArguments(tokens, index + 1)
+      const field = decoratedFieldName(tokens, parsed.end)
+      if (field !== undefined) {
+        functions[field] = columnFunctionDeclaration(parsed.nodes[1], NODE_AST)
+      }
+    }
     for (const entry of expressionEntries(argument, policy.shape, NODE_AST)) {
-      sites.push({ expression: entry.expression, start: entry.node.start })
+      sites.push({
+        expression: entry.expression,
+        start: entry.node.start,
+        ...(policy.dto === true && { dto: true as const }),
+        ...(inputType !== undefined && { inputType }),
+      })
     }
   }
-  return sites
+  return Object.keys(functions).length === 0 ? sites : sites.map(site => ({ ...site, functions }))
+}
+
+/** The name of a `@column`-decorated field: the next identifier, past any further decorators and modifiers. */
+function decoratedFieldName(tokens: Token[], from: number): string | undefined {
+  for (let index = from; index < tokens.length; index++) {
+    const token = tokens[index]!
+    if (isPunct(token, '@')) {
+      // Another decorator on the same field; skip its name and any arguments.
+      const callee = tokens[index + 1]
+      index = isPunct(tokens[index + 2], '(') ? parseArguments(tokens, index + 2).end - 1 : index + 1
+      if (callee?.kind !== 'id') {
+        return undefined
+      }
+      continue
+    }
+    if (token.kind !== 'id') {
+      return undefined
+    }
+    if (FIELD_MODIFIERS.has(token.value)) {
+      continue
+    }
+    return token.value
+  }
+  return undefined
+}
+
+/** Modifiers that may sit between a decorator and the field name it belongs to. */
+const FIELD_MODIFIERS = new Set([
+  'readonly',
+  'declare',
+  'public',
+  'protected',
+  'private',
+  'static',
+  'override',
+  'accessor',
+  'abstract',
+])
+
+/** The fhirType of an `extends defineDto('Condition', …)` clause; undefined for anything else. */
+function extendedDtoRoot(tokens: Token[], extendsIndex: number): string | undefined {
+  const callee = tokens[extendsIndex + 1]
+  const open = tokens[extendsIndex + 2]
+  const first = tokens[extendsIndex + 3]
+  if (callee?.kind !== 'id' || callee.value !== DTO_BASE_NAME || !isPunct(open, '(') || first?.kind !== 'str') {
+    return undefined
+  }
+  return first.value
+}
+
+/** The type name a call declares in `argIndex`, e.g. `fhirpath('status', 'MedicationRequest')`. */
+function rootArgument(tokens: Token[], calleeIndex: number, argIndex: number): string | undefined {
+  const argument = parseArguments(tokens, calleeIndex + 1).nodes[argIndex]
+  return argument?.kind === 'string' ? argument.expression : undefined
 }
 
 // --- Tokens -----------------------------------------------------------------

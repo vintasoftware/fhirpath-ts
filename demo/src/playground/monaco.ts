@@ -44,7 +44,12 @@ interface MonacoEnvironmentShape {
 export function configureMonaco(): void {
   const ts = monaco.languages.typescript
   ts.typescriptDefaults.setCompilerOptions({
-    target: ts.ScriptTarget.ESNext,
+    // Not ESNext: the DTO samples use standard decorators, which tsc only lowers
+    // below an esnext target — at esnext it emits them as-is and the sandbox's
+    // `new Function` would throw. (ES2022 would do; Monaco's bundled enum stops
+    // at ES2020.)
+    target: ts.ScriptTarget.ES2020,
+    useDefineForClassFields: true,
     // CommonJS so the transpiled buffer runs in a `new Function` sandbox (imports
     // become `require(...)` calls we can intercept); inference is unaffected.
     module: ts.ModuleKind.CommonJS,
@@ -62,6 +67,27 @@ export function configureMonaco(): void {
   ts.typescriptDefaults.addExtraLib(r4Dts, 'file:///node_modules/fhirpath-ts/r4/index.d.ts')
   ts.typescriptDefaults.addExtraLib(analyzerDts, 'file:///node_modules/fhirpath-ts/analyzer/index.d.ts')
   monaco.editor.defineTheme(THEME_NAME, screenTheme())
+  bindWordNavigation()
+}
+
+/**
+ * Ctrl + arrow moves by word, and with Shift selects by word — the binding
+ * everything else on the page (the browser's own inputs included) uses.
+ *
+ * Only the literal Ctrl key is bound, which is `WinCtrl` in Monaco's vocabulary:
+ * `CtrlCmd` would mean Cmd on macOS, where Cmd + arrow is line start/end and
+ * stealing it would be worse than the gap this closes. On Windows and Linux
+ * Ctrl + arrow is already word navigation, and `WinCtrl` there is the Super key
+ * the window manager takes first, so these rules are a no-op.
+ */
+function bindWordNavigation(): void {
+  const { KeyMod, KeyCode } = monaco
+  monaco.editor.addKeybindingRules([
+    { keybinding: KeyMod.WinCtrl | KeyCode.LeftArrow, command: 'cursorWordLeft' },
+    { keybinding: KeyMod.WinCtrl | KeyCode.RightArrow, command: 'cursorWordRight' },
+    { keybinding: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow, command: 'cursorWordLeftSelect' },
+    { keybinding: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow, command: 'cursorWordRightSelect' },
+  ])
 }
 
 /**

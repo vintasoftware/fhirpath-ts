@@ -10,7 +10,7 @@
  * belong to it and a tab switch cannot spill one tab's state into another.
  */
 
-import { analyzeExpression, findLexicalExpressionSites } from 'fhirpath-ts/analyzer'
+import { analyzeSite, findLexicalExpressionSites } from 'fhirpath-ts/analyzer'
 import { r4Model } from 'fhirpath-ts/r4'
 
 import { $, renderTabs } from '../dom.ts'
@@ -41,10 +41,9 @@ const PROJECT_ROW_VARIABLES = {
 function lint(model: monaco.editor.ITextModel): void {
   const markers: monaco.editor.IMarkerData[] = []
   for (const site of findLexicalExpressionSites(model.getValue())) {
-    for (const diagnostic of analyzeExpression(site.expression, {
-      model: r4Model,
-      variables: PROJECT_ROW_VARIABLES,
-    })) {
+    // analyzeSite applies each site's own context: a DTO `@column` field runs
+    // against its class's fhirType (see the dto sample).
+    for (const diagnostic of analyzeSite(site, { model: r4Model, variables: PROJECT_ROW_VARIABLES })) {
       const start = model.getPositionAt(site.start + diagnostic.span.start)
       const end = model.getPositionAt(site.start + diagnostic.span.end)
       markers.push({

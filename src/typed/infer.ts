@@ -437,11 +437,22 @@ type ResultOf<S extends string> = [S] extends [keyof R4TypeOf] ? R4TypeOf[S][] :
 /**
  * The inferred result of evaluating `Expr` against its root resource.
  * `string` (a non-literal expression) and anything outside the subset give
- * `unknown[]`. The top-level context is 'opaque': terms must be resource-
- * rooted, `%var`-rooted, or parenthesized groups of those — a relative term
+ * `unknown[]`. The context is 'opaque': terms must be resource-rooted,
+ * `%var`-rooted, or parenthesized groups of those — a relative term
  * (`id | …`) has no root to resolve against here and degrades.
  */
-export type FhirpathResult<Expr extends string> = string extends Expr ? unknown[] : ResultOf<ParseExpr<Expr, 'opaque'>>
+export type FhirpathResult<Expr extends string> = FhirpathResultIn<Expr, 'opaque'>
+
+/**
+ * The inferred result of evaluating `Expr` with `Input` as the context type —
+ * what a DTO's `fhirType` gives its columns, so their paths can stay relative
+ * (`clinicalStatus.coding.first().code`). A resource-rooted term still resolves
+ * against its own root, and a type name outside the model degrades like any
+ * other out-of-subset expression.
+ */
+export type FhirpathResultIn<Expr extends string, Input extends string> = string extends Expr
+  ? unknown[]
+  : ResultOf<ParseExpr<Expr, Input>>
 
 /** The expected input resource for `Expr` (`Patient.name` wants a Patient). */
 export type FhirpathInput<Expr extends string> = string extends Expr

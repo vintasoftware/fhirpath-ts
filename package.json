@@ -31,6 +31,14 @@
     "check:fhirpath": "node src/cli/fhirpath-check.ts",
     "prepare": "husky"
   },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@medplum/definitions": "5.1.24",
