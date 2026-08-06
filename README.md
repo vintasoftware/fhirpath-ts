@@ -858,13 +858,14 @@ Three layers, from cheapest to most thorough:
    GritQL plugins cannot execute the analyzer): `pnpm exec fhirpath-check src/**/*.ts`.
    It exits non-zero on the first diagnostic, so it drops into any CI or pre-commit hook.
 
-All three read the same call-site policy (`src/analyzer/expression-policy.ts`) and
+Both read the same call-site policy (`src/analyzer/expression-policy.ts`) and
 analyze each site through the same `analyzeSite`, so they agree on what counts as
-an expression and on what a site's context is. A fourth walker,
-`findLexicalExpressionSites`, applies that policy without the TypeScript compiler
-for hosts that cannot ship it — the demo playground lints the editor buffer with
-it — and a parity test runs it against the compiler-based walker over every file
-in this repo.
+an expression and on what a site's context is. The rule walks ESLint's AST; the
+CLI uses `findLexicalExpressionSites`, a `typescript`-free scanner that applies
+the same policy — which is also how the demo playground lints the editor buffer,
+and how a bundler plugin would. A parity test pins the scanner to a
+compiler-based reference walker over every file in this repo, so the
+dependency-light path is not the less accurate one.
 
 The analyzer (`fhirpath-ts/analyzer`, `analyzeExpression(expr, { model, inputType })`)
 implements the spec's strict-mode rules: singleton misuse on inputs, operands and

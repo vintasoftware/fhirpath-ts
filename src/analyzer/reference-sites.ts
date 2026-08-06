@@ -1,3 +1,15 @@
+/**
+ * The reference expression-site walker: the shared policy applied over a real
+ * TypeScript AST. It is the *oracle*, not a shipped code path — the ESLint rule
+ * walks ESTree and everything else (the `fhirpath-check` CLI, editors, bundler
+ * plugins) uses the `typescript`-free scanner in lexical-sites.ts. Keeping one
+ * independent implementation is what makes the scanner trustworthy:
+ * lexical-sites.test.ts runs both over every file in this repo and fails on any
+ * disagreement, down to each site's DTO context.
+ *
+ * So: never call this from library or CLI code, and never "fix" the scanner by
+ * changing this to match it.
+ */
 import ts from 'typescript'
 
 import {

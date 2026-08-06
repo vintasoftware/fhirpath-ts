@@ -1,8 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { findExpressionSites } from '../cli/expression-sites.ts'
 import { findLexicalExpressionSites, type LexicalExpressionSite } from './lexical-sites.ts'
+import { findExpressionSites } from './reference-sites.ts'
 
 /**
  * Every case runs through both walkers and must come out the same. The TypeScript
