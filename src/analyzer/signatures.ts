@@ -1,29 +1,9 @@
-import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
+import type { ValueKind } from '../values/type-compat.ts'
 
-/** Behavior families used by the static checks. */
-export type ValueKind = 'Boolean' | 'String' | 'Numeric' | 'Temporal' | 'Quantity' | 'Complex'
-
-export function valueKindOfTypeName(canonical: string): ValueKind {
-  const system = canonical.startsWith('System.') ? canonical : FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(canonical)]
-  switch (system) {
-    case 'System.Boolean':
-      return 'Boolean'
-    case 'System.String':
-      return 'String'
-    case 'System.Integer':
-    case 'System.Long':
-    case 'System.Decimal':
-      return 'Numeric'
-    case 'System.Date':
-    case 'System.DateTime':
-    case 'System.Time':
-      return 'Temporal'
-    case 'System.Quantity':
-      return 'Quantity'
-    default:
-      return canonical === 'FHIR.Quantity' || typeLocalName(canonical) === 'Quantity' ? 'Quantity' : 'Complex'
-  }
-}
+// The value-kind families sit under both the analyzer and the engine (see
+// values/type-compat.ts) and are re-exported here, where every consumer already
+// looks for them.
+export { type ValueKind, valueKindOfTypeName } from '../values/type-compat.ts'
 
 interface StaticStateLike {
   types: string[] | undefined
