@@ -140,6 +140,43 @@ is worse than missing a check:
 and the engine's real function set. Keep the two roles distinct: lint must never
 be wrong, `analyzeDto` must never be lenient.
 
+## Registering a DTO is a namespace, not type dispatch
+
+`EngineOptions.resourceDtos` turns each `@column` into an ordinary
+expression-defined function in one flat namespace. It is **not** bound to the
+DTO's `fhirType`, and there is no receiver check: `code.displayText()` reads well
+only because a CodeableConcept happens to be in focus there. Call the same
+function anywhere else and its path navigates from whatever *is* in focus —
+`status.displayText()` and a bare `displayText()` both come back empty, and
+neither the engine nor the analyzer objects.
+
+That silence is consistent rather than an oversight. The runtime is loud about
+unknown **functions** — `FhirPathTypeError: Unrecognized function 'x'`, thrown
+even with no model bound — and silent about unknown **elements**, which navigate
+to empty per the spec. A registered column on the wrong focus is the second case
+wearing the first's clothes: the call resolves, its body finds nothing. So
+`fhirType` buys two things only — the inference and analysis root for that DTO's
+own columns, and the one-DTO-per-type rule that keeps the vocabulary coherent.
+
+Worth closing when someone has a reason to: a column function does know the
+`fhirType` it was written against, so the analyzer could reject a call on an
+incompatible focus. `CustomFunction.signature` records only `result` today, which
+is why it cannot.
+
+`@criteria` is deliberately absent from that namespace, and the reason is where
+its semantics live: the spec §4.5 coercion (empty → false, a single boolean →
+itself) is applied by `planColumn` in JavaScript, not inside FHIRPath. Register it
+as-is and one declaration would mean two things — `false` as a projected column,
+empty inside an expression, so `isFinal().not()` on a resource with no `status`
+would yield empty rather than true. Making criteria callable therefore means
+giving that coercion a home first (a flag on `CustomFunction` that applies
+singleton-boolean semantics to a function's result), not just registering it.
+Until then, a boolean `@column` is the chainable form, with empty propagating.
+
+`analyzeEngineDtos(engine)` sweeps only what the engine registered, so a row
+shape you merely project is invisible to it. Do not read it as exhaustive — the
+CLI's DTO half is the one that finds every DTO, by convention plus export.
+
 ## DTO decorators need a lowering step
 
 `@column`/`@criteria` are TC39 standard decorators. oxc (Vite/Vitest) cannot
