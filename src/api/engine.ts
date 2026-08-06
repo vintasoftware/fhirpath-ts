@@ -94,7 +94,7 @@ export interface EngineOptions extends EvaluateOptions {
    * becomes an expression-defined function callable from any expression this
    * engine evaluates (its name must be unique across the engine's functions,
    * and may not be a built-in), and each DTO's `env` merges into the engine
-   * env. A `@criteria` registers too, carrying its §4.5 coercion, so the call
+   * env. A `@criteria` registers too, carrying its criteria coercion, so the call
    * yields the same boolean the projected column holds. Every column declares
    * the DTO's `fhirType` as the input it expects, so calling one on a focus
    * that can never hold that type throws instead of navigating to nothing.
@@ -188,9 +188,10 @@ export class FhirPathEngine {
 
   /**
    * Boolean criteria evaluation, the semantics FHIR invariants, Subscription
-   * criteria, and `enableWhen` share (spec §4.5 singleton evaluation): empty →
-   * false, a single boolean → itself, a single non-boolean item → true, and more
-   * than one item is an error.
+   * criteria, and `enableWhen` share: a single boolean → itself, a single
+   * non-boolean item → true, more than one item is an error (spec §4.5
+   * singleton evaluation), and empty → false (the criteria convention on top of
+   * it — see `criteriaBoolean`).
    */
   test(input: unknown, expression: AnyExpression, options?: EvaluateOptions): boolean {
     return criteriaBoolean(this.evaluateTyped(expression, input, options))

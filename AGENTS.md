@@ -176,11 +176,17 @@ already-guessed result signature, and nothing in one file's source distinguishes
 the two. Accepted.
 
 `@criteria` registers with `singletonBoolean` on its `CustomFunction`. That flag
-is where its spec §4.5 coercion lives — `criteriaBoolean` (values/collection.ts)
+is where its criteria coercion lives — `criteriaBoolean` (values/collection.ts)
 applied to the body's result, on the function rather than in `planColumn`. It is
 what makes one declaration mean one thing: `isFinal()` yields exactly one boolean
 in both positions, so `isFinal().not()` on a resource with no `status` is `true`
-whether it is projected or called. **Do not push `?? false` down into
+whether it is projected or called.
+
+Two rules are stacked there, and the citation is worth keeping honest: §4.5
+(Singleton Evaluation of Collections) gives the single-item cases and the
+>1-item error, but its empty case is *empty*. The `?? false` is the calling
+environment's — FHIR invariants require the expression to evaluate to true, so an
+empty result has not satisfied the constraint. **Do not push `?? false` down into
 `booleanSingleton`** — `engine/operators/logic.ts` feeds its `undefined` into the
 three-valued and/or/xor/implies tables, and collapsing it there breaks `{}`
 against `false`. `where()`/`exists()`/`all()`/`iif()` keep their own `=== true`

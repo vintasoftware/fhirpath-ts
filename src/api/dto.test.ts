@@ -324,7 +324,7 @@ describe('DTOs registered engine-wide', () => {
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Flags] })
     expect(engine.project(weighed, Flags).isFinal).toBe(true)
     expect(engine.evaluate('isFinal()', weighed)).toEqual([true])
-    // The §4.5 coercion travels with the function, so both readings agree on a
+    // The criteria coercion travels with the function, so both readings agree on a
     // resource the criteria finds nothing in — and the call composes as a
     // boolean rather than propagating empty.
     const statusless = { resourceType: 'Observation', code: { text: 'Weight' } }

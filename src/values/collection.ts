@@ -44,15 +44,20 @@ export function booleanSingleton(collection: TypedValue[]): boolean | undefined 
 
 /**
  * The criteria reading of a collection: `booleanSingleton` with empty as
- * `false`, so the answer is always one of two. This is the rule FHIR invariants,
- * Subscription criteria and `enableWhen` share, and what `FhirPathEngine.test()`,
- * `filter()`, a `{ test }` column and a `@criteria` all mean by "the criteria
- * holds" — one function, so a criteria cannot mean two things depending on where
- * it is read.
+ * `false`, so the answer is always one of two.
+ *
+ * Two rules stacked, and worth keeping apart. §4.5 supplies the single-item
+ * cases and the >1-item error, but its empty case is *empty*, not false — the
+ * `?? false` is the calling environment's. FHIR invariants require the
+ * expression to evaluate to true, so a constraint that comes back empty has not
+ * been satisfied; Subscription criteria and `enableWhen` read it the same way.
+ * That convention is what `FhirPathEngine.test()`, `filter()`, a `{ test }`
+ * column and a `@criteria` all mean by "the criteria holds" — one function, so
+ * a criteria cannot mean two things depending on where it is read.
  *
  * `where()`, `exists()`, `all()` and `iif()` keep their own `=== true` tests.
  * They are arithmetically identical but express spec text about one item, not
- * this rule about a whole expression.
+ * this convention about a whole expression.
  */
 export function criteriaBoolean(collection: TypedValue[]): boolean {
   return booleanSingleton(collection) ?? false

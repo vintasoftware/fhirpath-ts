@@ -49,12 +49,12 @@ export type CustomFunction =
       expression: AnyExpression
       signature?: CustomFunctionSignature
       /**
-       * Read the body's result as a criteria (spec §4.5: empty → false, a
-       * single boolean → itself), so the function always yields exactly one
-       * Boolean. A `@criteria` field registers this way, which is what makes
-       * one declaration mean the same thing projected as a column and called
-       * from an expression — without it, `isFinal().not()` on a resource with
-       * no status is empty rather than true.
+       * Read the body's result as a criteria (`criteriaBoolean`: §4.5 singleton
+       * evaluation, with empty reading as false), so the function always yields
+       * exactly one Boolean. A `@criteria` field registers this way, which is
+       * what makes one declaration mean the same thing projected as a column
+       * and called from an expression — without it, `isFinal().not()` on a
+       * resource with no status is empty rather than true.
        */
       singletonBoolean?: boolean
       fn?: never

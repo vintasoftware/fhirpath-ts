@@ -40,8 +40,9 @@ export interface HostExpressionFunction {
   /** See HostNativeFunction.inputTypes — the same rule, checked the same way. */
   inputTypes?: readonly string[]
   /**
-   * Coerce the body's result by the criteria rule (spec §4.5: empty → false, a
-   * single boolean → itself), so the function always yields exactly one Boolean.
+   * Coerce the body's result by the criteria rule (`criteriaBoolean`: §4.5
+   * singleton evaluation, with empty reading as false), so the function always
+   * yields exactly one Boolean.
    * What makes a `@criteria` mean the same thing projected as a column and
    * called from an expression.
    */

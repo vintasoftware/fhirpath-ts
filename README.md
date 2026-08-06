@@ -135,7 +135,8 @@ helper for each:
 
 ```ts
 // Criteria — the boolean semantics FHIR invariants, Subscription criteria, and
-// Questionnaire enableWhen share (spec §4.5): empty → false, one boolean → itself.
+// Questionnaire enableWhen share: one boolean → itself (spec §4.5 singleton
+// evaluation), empty → false (those callers' own reading of an empty result).
 r4.test(patient, "name.family = 'Chalmers'")   // boolean
 r4.filter(patients, 'birthDate < @1990-01-01') // Patient[] — arrays and Bundles alike
 
@@ -349,8 +350,8 @@ const functions = {
   },
   isFinal: {
     expression: "status = 'final'",
-    // Read the result as a criteria (spec §4.5: empty → false), so the call is
-    // always one boolean and `isFinal().not()` composes.
+    // Read the result as a criteria (§4.5 singleton evaluation, with empty
+    // reading as false), so the call is one boolean and `isFinal().not()` composes.
     singletonBoolean: true,
   },
 } satisfies Record<string, CustomFunction>
@@ -400,8 +401,8 @@ statusCode!: number
 
 `@column` takes the same options as a `project()` column — `type`, `as`,
 `choices`/`pick`, `enum`, `default`, `collection` — and `@criteria` declares a
-boolean criteria column (spec §4.5 semantics: empty → false), which reads the
-same way when it is called as a function. Rows are real instances, so anything
+boolean criteria column (the `test()` semantics above), which reads the same way
+when it is called as a function. Rows are real instances, so anything
 derived from the columns belongs on the class as a getter or method rather than
 in a column shaper.
 
@@ -434,7 +435,7 @@ The namespace is flat — a name resolves the same way from anywhere — but eac
 column declares its DTO's `fhirType` as the input it expects, so a call on a
 focus that can never hold that type is an error at both ends instead of an
 expression that quietly comes back empty. A `@criteria` registers the same way,
-carrying its §4.5 coercion, so `isFinal()` yields one boolean whether it is
+carrying its criteria coercion, so `isFinal()` yields one boolean whether it is
 projected as a column or called from an expression:
 
 ```ts

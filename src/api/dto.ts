@@ -215,9 +215,10 @@ export function column(path: string, options?: ColumnOptions): unknown {
 }
 
 /**
- * Declares a criteria column: the expression evaluates with the same spec §4.5
- * semantics as `FhirPathEngine.test()` (empty → false, a single boolean →
- * itself), so the field is always a `boolean`.
+ * Declares a criteria column: the expression evaluates with the same criteria
+ * semantics as `FhirPathEngine.test()` (a single boolean → itself per spec §4.5,
+ * empty → false per the convention on top of it), so the field is always a
+ * `boolean`.
  *
  * A registered DTO's criteria is also callable from other expressions
  * (`isFinal()`), and the coercion travels with it — the call yields one Boolean,
@@ -352,7 +353,7 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
  * the DTO's own `fhirType` as the input it expects — a column is written against
  * one type, and calling it on anything else navigates to nothing.
  *
- * A criteria registers with `singletonBoolean`, so its spec §4.5 coercion rides
+ * A criteria registers with `singletonBoolean`, so its criteria coercion rides
  * on the function itself — the same rule `planColumn` applies when the criteria
  * is projected, which is what lets one declaration mean one thing in both
  * positions.

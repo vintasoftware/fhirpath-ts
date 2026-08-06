@@ -78,10 +78,10 @@ export function columnSignature(
 }
 
 /**
- * The signature a `@criteria` contributes. Its expression is coerced by spec
- * §4.5 (see `criteriaBoolean`), so the function is a single Boolean whatever the
- * expression yields — a function rather than a shared constant, so no consumer
- * can mutate what the next one reads.
+ * The signature a `@criteria` contributes. Its expression goes through the
+ * criteria rule (see `criteriaBoolean`), so the function is a single Boolean
+ * whatever the expression yields — a function rather than a shared constant, so
+ * no consumer can mutate what the next one reads.
  */
 export function criteriaSignature(hostType?: string): ColumnFunctionSignature {
   return {

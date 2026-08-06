@@ -175,9 +175,9 @@ function expressionOf(column: ColumnSpec): string {
  * contradict a claim that was never made.
  *
  * A criteria claims nothing here, and that stays right even though its
- * *function* declares a Boolean result: the Boolean is a property of the §4.5
- * coercion applied to the result, not of the expression. `@criteria('name.given')`
- * legally yields HumanName.given and reads as true.
+ * *function* declares a Boolean result: the Boolean is a property of the
+ * criteria coercion applied to the result, not of the expression.
+ * `@criteria('name.given')` legally yields HumanName.given and reads as true.
  */
 function claimedType(column: ColumnSpec): string | undefined {
   return 'test' in column ? undefined : columnResultType(column)
