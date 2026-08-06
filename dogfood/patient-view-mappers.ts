@@ -6,7 +6,7 @@ import type {
   Patient,
   ServiceRequest,
 } from '@medplum/fhirtypes'
-import { column, declareColumn, FhirPathEngine } from 'fhirpath-ts'
+import { type ColumnBuilder, defineDto, FhirPathEngine } from 'fhirpath-ts'
 import { r4Model } from 'fhirpath-ts/r4'
 
 import type {
@@ -22,7 +22,7 @@ import type {
 
 // Real-usage module: FHIR-to-view-model mappers from a patient-portal app.
 // It lives here so the high-level API keeps working the way an app uses it —
-// DTO classes, declared columns, vars joins, display tables, and enum columns,
+// DTO definitions, shared columns, vars joins, display tables, and enum columns,
 // with @medplum/fhirtypes inputs. The test beside this file asserts every
 // exported mapper end to end and runs both analyzers over every expression
 // (see ANALYZED_USAGE at the bottom).
@@ -35,37 +35,39 @@ type LabBadge = { label: string; tone: StatusTone; flagged: boolean }
 type StatusMeta = { label: string; tone: StatusTone }
 
 // --- resource DTOs ---
-// Each class binds recurring chains to one resource or datatype. Registered on the
+// Each DTO binds recurring chains to one resource or datatype. Registered on the
 // engine below, every column becomes a function any expression can call, and each
-// class's env tables register engine-wide with it.
+// DTO's env tables register engine-wide with it.
 
-class CodeableConceptDTO {
-  static readonly fhirType = 'CodeableConcept'
-  /** The text | display | code fallback. */
-  displayText = column('(text | coding.display.first() | coding.first().code).first()', { type: 'string' })
-}
+const CodeableConceptDTO = defineDto({
+  fhirType: 'CodeableConcept',
+  columns: c => ({
+    /** The text | display | code fallback. */
+    displayText: c('(text | coding.display.first() | coding.first().code).first()', { type: 'string' }),
+  }),
+})
 
-class MedicationRequestDTO {
-  static readonly fhirType = 'MedicationRequest'
-  medicationName = column(
-    '(medication.ofType(CodeableConcept).displayText() | medication.ofType(Reference).display).first()',
-    { type: 'string' }
-  )
-  doseText = column(
-    'dosageInstruction.first().doseAndRate.first().dose.ofType(Quantity)' +
-      ".select(value.toString().combine((unit | code).first()).join(' '))",
-    { type: 'string' }
-  )
-  routeText = column('dosageInstruction.first().route.select(text | coding.display.first()).first()', {
-    type: 'string',
-  })
-  sigText = column('MedicationRequest.dosageInstruction.first().text')
-}
+const MedicationRequestDTO = defineDto({
+  fhirType: 'MedicationRequest',
+  columns: c => ({
+    medicationName: c(
+      '(medication.ofType(CodeableConcept).displayText() | medication.ofType(Reference).display).first()',
+      { type: 'string' }
+    ),
+    doseText: c(
+      'dosageInstruction.first().doseAndRate.first().dose.ofType(Quantity)' +
+        ".select(value.toString().combine((unit | code).first()).join(' '))",
+      { type: 'string' }
+    ),
+    routeText: c('dosageInstruction.first().route.select(text | coding.display.first()).first()', { type: 'string' }),
+    sigText: c('dosageInstruction.first().text'),
+  }),
+})
 
-class ConditionDTO {
-  static readonly fhirType = 'Condition'
-  clinicalStatusCode = column('Condition.clinicalStatus.coding.first().code')
-}
+const ConditionDTO = defineDto({
+  fhirType: 'Condition',
+  columns: c => ({ clinicalStatusCode: c('clinicalStatus.coding.first().code') }),
+})
 
 /**
  * reportBadge() picks a report's badge row: the interpretation row when the Health
@@ -73,9 +75,9 @@ class ConditionDTO {
  * row. Inside `where()` the focus is the table row being scanned, so the body
  * first saves its own input as %r to keep the report reachable by name.
  */
-class DiagnosticReportDTO {
-  static readonly fhirType = 'DiagnosticReport'
-  static readonly env = {
+const DiagnosticReportDTO = defineDto({
+  fhirType: 'DiagnosticReport',
+  env: {
     // Health Gorilla puts the report-level interpretation (Normal / Abnormal / High …)
     // in an extension on the DiagnosticReport, using HL7 v2-0078 codes.
     hgInterpretation: 'https://www.healthgorilla.com/fhir/StructureDefinition/diagnosticreport-interpretation',
@@ -103,172 +105,177 @@ class DiagnosticReportDTO {
       { code: 'corrected', label: 'Corrected', tone: 'neutral', flagged: false },
       { code: 'appended', label: 'Amended', tone: 'neutral', flagged: false },
     ] as ({ code: string } & LabBadge)[],
-  }
-  interpretation = column(
-    'DiagnosticReport.extension.where(url = %hgInterpretation).first().value.ofType(CodeableConcept).coding.first().code'
-  )
-  reportBadge = column(
-    "defineVariable('r')" +
-      '.select((%interpretationMeta.where(code = %r.interpretation()) | %reportStatusMeta.where(code = %r.status)).first())'
-  )
-}
+  },
+  columns: c => ({
+    interpretation: c(
+      'extension.where(url = %hgInterpretation).first().value.ofType(CodeableConcept).coding.first().code'
+    ),
+    reportBadge: c(
+      "defineVariable('r')" +
+        '.select((%interpretationMeta.where(code = %r.interpretation()) | %reportStatusMeta.where(code = %r.status)).first())'
+    ),
+  }),
+})
 
-// --- shared columns, declared once and registered engine-wide ---
+// --- shared columns ---
+// A column several DTOs use is a plain function of the builder: call it in the
+// columns record and its type comes along.
 
 /**
  * Row key: the resource id, else the row number. The expression always yields a
  * value, so the `default` exists only to type the column `string` instead of
  * `string | undefined`.
  */
-const IdColumn = declareColumn('rowKey', '(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
+const idColumn = <Root extends string>(c: ColumnBuilder<Root>) =>
+  c('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
 
-const ObservedAt = declareColumn('observedAt', '(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+const observedAt = <Root extends string>(c: ColumnBuilder<Root>) =>
+  c('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
 
-const GroupColumn = declareColumn(
-  'medicationGroup',
-  'iif(dosageInstruction.first()' +
-    '.select(asNeeded.ofType(boolean) = true or asNeeded.ofType(CodeableConcept).exists())' +
-    ", 'asNeeded', 'continuous')",
-  { enum: ['asNeeded', 'continuous'], default: 'continuous' }
-)
+const medicationGroup = <Root extends string>(c: ColumnBuilder<Root>) =>
+  c(
+    'iif(dosageInstruction.first()' +
+      '.select(asNeeded.ofType(boolean) = true or asNeeded.ofType(CodeableConcept).exists())' +
+      ", 'asNeeded', 'continuous')",
+    { enum: ['asNeeded', 'continuous'], default: 'continuous' }
+  )
+
+/** The badge columns every lab row renders, reading the per-row %badge binding. */
+const badgeColumns = <Root extends string>(c: ColumnBuilder<Root>) => ({
+  statusLabel: c('%badge.label', { type: 'string', default: 'Result' }),
+  // The badge tables only hold StatusTone values; `enum` types the column as
+  // that union and drops anything else, so `default` catches the unexpected.
+  tone: c('%badge.tone', { enum: ['info', 'success', 'warning', 'danger', 'neutral'], default: 'neutral' }),
+  flagged: c('%badge.flagged', { type: 'boolean', default: false }),
+})
 
 // One engine for every mapper, module-level so its parse cache warms once per bundle.
 const fp = new FhirPathEngine({
   model: r4Model,
   env: { loinc: LOINC },
   resourceDtos: [CodeableConceptDTO, MedicationRequestDTO, ConditionDTO, DiagnosticReportDTO],
-  columns: [IdColumn, ObservedAt, GroupColumn],
 })
 
 // --- view DTOs ---
 
 /** Both lbs and kg on one row, so the weight trend and the BMI series come from one pass. */
-class WeightRowDTO {
-  static readonly fhirType = 'Observation'
-  lbs = column("Observation.value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
-  kg = column("Observation.value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
-  at = ObservedAt()
-}
+const WeightRowDTO = defineDto({
+  fhirType: 'Observation',
+  columns: c => ({
+    lbs: c("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 }),
+    kg: c("value.ofType(Quantity).toQuantity('kg').value", { default: 0 }),
+    at: observedAt(c),
+  }),
+})
 
-class HeightRowDTO {
-  static readonly fhirType = 'Observation'
-  meters = column("Observation.value.ofType(Quantity).toQuantity('m').value", { default: 0 })
-  at = ObservedAt()
-}
+const HeightRowDTO = defineDto({
+  fhirType: 'Observation',
+  columns: c => ({
+    meters: c("value.ofType(Quantity).toQuantity('m').value", { default: 0 }),
+    at: observedAt(c),
+  }),
+})
 
 /** The Home-card medication view-model. */
-class MedicationCardDTO {
-  static readonly fhirType = 'MedicationRequest'
-  id = IdColumn()
-  name = column('MedicationRequest.medicationName()', { type: 'string', default: 'Medication' })
-  // The sig text, else "dose • route" from the recorded parts (empty when neither exists).
-  instructions = column(
-    "(MedicationRequest.sigText() | MedicationRequest.doseText().combine(MedicationRequest.routeText()).join(' • ')).first()",
-    { type: 'string', default: '' }
-  )
-  group = GroupColumn()
-}
+const MedicationCardDTO = defineDto({
+  fhirType: 'MedicationRequest',
+  columns: c => ({
+    id: idColumn(c),
+    name: c('medicationName()', { type: 'string', default: 'Medication' }),
+    // The sig text, else "dose • route" from the recorded parts (empty when neither exists).
+    instructions: c("(sigText() | doseText().combine(routeText()).join(' • ')).first()", {
+      type: 'string',
+      default: '',
+    }),
+    group: medicationGroup(c),
+  }),
+})
+
+/**
+ * MedicationRequest.status display table. No rows for draft and entered-in-error:
+ * the mapper filters those out before the lookup. The `unknown` row is the real
+ * 'unknown' status code, not a fallback — unexpected codes take the columns' defaults.
+ */
+const MEDICATION_STATUS_META: ({ code: string } & StatusMeta)[] = [
+  { code: 'active', label: 'Active', tone: 'success' },
+  { code: 'on-hold', label: 'On Hold', tone: 'warning' },
+  { code: 'stopped', label: 'Stopped', tone: 'neutral' },
+  { code: 'cancelled', label: 'Cancelled', tone: 'danger' },
+  { code: 'completed', label: 'Completed', tone: 'neutral' },
+  { code: 'unknown', label: 'Unknown', tone: 'neutral' },
+]
 
 /** The Medications page view-model row. */
-class MedicationDetailDTO {
-  static readonly fhirType = 'MedicationRequest'
-  /**
-   * MedicationRequest.status display table. No rows for draft and entered-in-error:
-   * the mapper filters those out before the lookup. The `unknown` row is the real
-   * 'unknown' status code, not a fallback — unexpected codes take the columns' defaults.
-   */
-  static readonly statusMeta: ({ code: string } & StatusMeta)[] = [
-    { code: 'active', label: 'Active', tone: 'success' },
-    { code: 'on-hold', label: 'On Hold', tone: 'warning' },
-    { code: 'stopped', label: 'Stopped', tone: 'neutral' },
-    { code: 'cancelled', label: 'Cancelled', tone: 'danger' },
-    { code: 'completed', label: 'Completed', tone: 'neutral' },
-    { code: 'unknown', label: 'Unknown', tone: 'neutral' },
-  ]
-  id = IdColumn()
-  name = column('MedicationRequest.medicationName()', { type: 'string', default: 'Medication' })
-  dose = column('MedicationRequest.doseText()', { type: 'string', default: '' })
-  route = column('MedicationRequest.routeText()', { type: 'string', default: '' })
-  instructions = column('MedicationRequest.sigText()', { type: 'string', default: '' })
-  group = GroupColumn()
-  // 'unknown' is itself a status code, so the default stays inside the inferred union.
-  status = column('MedicationRequest.status', { default: 'unknown' })
-  statusLabel = column('MedicationRequest.status', {
-    map: MedicationDetailDTO.statusMeta,
-    pick: 'label',
-    default: 'Unknown',
-  })
-  tone = column('MedicationRequest.status', {
-    map: MedicationDetailDTO.statusMeta,
-    pick: 'tone',
-    default: 'neutral' as StatusTone,
-  })
-  isActive = column({ test: "MedicationRequest.status = 'active'" })
-  prescribedOn = column('MedicationRequest.authoredOn', { default: null })
-  // When a non-active request ended: the dispense validity end. Deliberately not
-  // meta.lastUpdated — that is when the record row was last touched, not a clinical
-  // end date, and the patient would see it as a real "ended on" date.
-  endedOn = column(
-    "iif(MedicationRequest.status = 'active', {}, MedicationRequest.dispenseRequest.validityPeriod.end)",
-    { type: 'dateTime', default: null }
-  )
-  prescriber = column('MedicationRequest.requester.display', { default: null })
+const MedicationDetailDTO = defineDto({
+  fhirType: 'MedicationRequest',
+  columns: c => ({
+    id: idColumn(c),
+    name: c('medicationName()', { type: 'string', default: 'Medication' }),
+    dose: c('doseText()', { type: 'string', default: '' }),
+    route: c('routeText()', { type: 'string', default: '' }),
+    instructions: c('sigText()', { type: 'string', default: '' }),
+    group: medicationGroup(c),
+    // 'unknown' is itself a status code, so the default stays inside the inferred union.
+    status: c('status', { default: 'unknown' }),
+    statusLabel: c('status', { map: MEDICATION_STATUS_META, pick: 'label', default: 'Unknown' }),
+    tone: c('status', { map: MEDICATION_STATUS_META, pick: 'tone', default: 'neutral' as StatusTone }),
+    isActive: c.test("status = 'active'"),
+    prescribedOn: c('authoredOn', { default: null }),
+    // When a non-active request ended: the dispense validity end. Deliberately not
+    // meta.lastUpdated — that is when the record row was last touched, not a clinical
+    // end date, and the patient would see it as a real "ended on" date.
+    endedOn: c("iif(status = 'active', {}, dispenseRequest.validityPeriod.end)", {
+      type: 'dateTime',
+      default: null,
+    }),
+    prescriber: c('requester.display', { default: null }),
+  }),
+})
+
+/** Problem-list Condition.clinicalStatus display table. */
+const PROBLEM_STATUS_META: ({ code: string } & StatusMeta)[] = [
+  { code: 'active', label: 'Active', tone: 'info' },
+  { code: 'recurrence', label: 'Recurrence', tone: 'danger' },
+  { code: 'relapse', label: 'Relapse', tone: 'danger' },
+  { code: 'remission', label: 'Remission', tone: 'warning' },
+  { code: 'resolved', label: 'Resolved', tone: 'neutral' },
+  { code: 'inactive', label: 'Inactive', tone: 'neutral' },
+  { code: 'unknown', label: 'Unknown', tone: 'neutral' },
+]
+
+/** Title-case echo of a raw code, the label fallback for codes outside the display table. */
+function titleCase(code: string): string {
+  return code.charAt(0).toUpperCase() + code.slice(1)
 }
 
 /** The problem-list view-model row, keyed off clinicalStatus. */
-class ProblemDTO {
-  static readonly fhirType = 'Condition'
-  /** Problem-list Condition.clinicalStatus display table. */
-  static readonly statusMeta: ({ code: string } & StatusMeta)[] = [
-    { code: 'active', label: 'Active', tone: 'info' },
-    { code: 'recurrence', label: 'Recurrence', tone: 'danger' },
-    { code: 'relapse', label: 'Relapse', tone: 'danger' },
-    { code: 'remission', label: 'Remission', tone: 'warning' },
-    { code: 'resolved', label: 'Resolved', tone: 'neutral' },
-    { code: 'inactive', label: 'Inactive', tone: 'neutral' },
-    { code: 'unknown', label: 'Unknown', tone: 'neutral' },
-  ]
-
-  /** Title-case echo of a raw code, the label fallback for codes outside the display table. */
-  private static titleCase(code: string): string {
-    return code.charAt(0).toUpperCase() + code.slice(1)
-  }
-
-  id = IdColumn()
-  name = column('Condition.code.displayText()', { type: 'string', default: 'Condition' })
-  // The label needs a computed fallback (title-case the raw code), so it is an
-  // `as` function; the tone's fallback is constant, so `map` + `default` do.
-  statusLabel = column('Condition.clinicalStatusCode()', {
-    as: value => ProblemDTO.statusMeta.find(row => row.code === value)?.label ?? ProblemDTO.titleCase(String(value)),
-    default: 'Unknown',
-  })
-  tone = column('Condition.clinicalStatusCode()', {
-    map: ProblemDTO.statusMeta,
-    pick: 'tone',
-    default: 'neutral' as StatusTone,
-  })
-  lastUpdated = column('Condition.meta.lastUpdated', { default: null })
-}
-
-/** The badge columns every lab row renders, reading the per-row %badge binding. */
-class LabBadgeRow {
-  statusLabel = column('%badge.label', { type: 'string', default: 'Result' })
-  // The badge tables only hold StatusTone values; `enum` types the column as
-  // that union and drops anything else, so `default` catches the unexpected.
-  tone = column('%badge.tone', { enum: ['info', 'success', 'warning', 'danger', 'neutral'], default: 'neutral' })
-  flagged = column('%badge.flagged', { type: 'boolean', default: false })
-}
+const ProblemDTO = defineDto({
+  fhirType: 'Condition',
+  columns: c => ({
+    id: idColumn(c),
+    name: c('code.displayText()', { type: 'string', default: 'Condition' }),
+    // The label needs a computed fallback (title-case the raw code), so it is an
+    // `as` function; the tone's fallback is constant, so `map` + `default` do.
+    statusLabel: c('clinicalStatusCode()', {
+      as: (value: unknown) => PROBLEM_STATUS_META.find(row => row.code === value)?.label ?? titleCase(String(value)),
+      default: 'Unknown',
+    }),
+    tone: c('clinicalStatusCode()', { map: PROBLEM_STATUS_META, pick: 'tone', default: 'neutral' as StatusTone }),
+    lastUpdated: c('meta.lastUpdated', { default: null }),
+  }),
+})
 
 /** The Lab History view-model row; the report itself carries the badge. */
-class LabDTO extends LabBadgeRow {
-  static readonly fhirType = 'DiagnosticReport'
-  static readonly vars = { badge: 'reportBadge()' }
-  id = IdColumn()
-  name = column('DiagnosticReport.code.displayText()', { type: 'string', default: 'Lab result' })
-  date = column('(DiagnosticReport.effective.ofType(dateTime) | DiagnosticReport.issued).first().toString()', {
-    default: '',
-  })
-}
+const LabDTO = defineDto({
+  fhirType: 'DiagnosticReport',
+  vars: { badge: 'reportBadge()' },
+  columns: c => ({
+    ...badgeColumns(c),
+    id: idColumn(c),
+    name: c('code.displayText()', { type: 'string', default: 'Lab result' }),
+    date: c('(effective.ofType(dateTime) | issued).first().toString()', { default: '' }),
+  }),
+})
 
 /**
  * The Lab Results view-model row, one per order. `%report` joins the
@@ -277,36 +284,38 @@ class LabDTO extends LabBadgeRow {
  * own state — a revoked order will never produce results, so it is cancelled
  * rather than waiting.
  */
-class LabResultDTO extends LabBadgeRow {
-  static readonly fhirType = 'ServiceRequest'
-  static readonly env = {
+const LabResultDTO = defineDto({
+  fhirType: 'ServiceRequest',
+  env: {
     // Badges for a lab order no table row can describe, because there is no report to read.
     waitingBadge: { label: 'Waiting', tone: 'warning', flagged: false } as LabBadge,
     cancelledBadge: { label: 'Cancelled', tone: 'neutral', flagged: false } as LabBadge,
-  }
-  static readonly vars = {
+  },
+  vars: {
     report: '%reports.where(orderId = %context.id).report',
     badge:
       "iif(%report.exists(), %report.reportBadge(), iif(%context.status = 'revoked', %cancelledBadge, %waitingBadge))",
-  }
-  id = IdColumn()
-  // The ordered test names joined with commas; a blank join is dropped so the
-  // order's own text can apply.
-  name = column(
-    "(ServiceRequest.code.coding.select((display | code).first()).distinct().join(', ')" +
-      ".where($this != '') | ServiceRequest.code.text).first()",
-    { type: 'string', default: 'Lab order' }
-  )
-  // An order with no report shows its order date instead of a result date.
-  // One literal (not a `+` concatenation): TypeScript types concatenation as
-  // plain `string`, which would put the expression outside the inference subset.
-  date = column(
-    '(%report.effective.ofType(dateTime) | %report.issued | ServiceRequest.authoredOn | ServiceRequest.occurrence.ofType(dateTime)).first().toString()',
-    { default: null }
-  )
-  orderedBy = column('ServiceRequest.requester.display', { default: null })
-  reportId = column('%report.where(presentedForm.exists()).id', { type: 'string', default: null })
-}
+  },
+  columns: c => ({
+    ...badgeColumns(c),
+    id: idColumn(c),
+    // The ordered test names joined with commas; a blank join is dropped so the
+    // order's own text can apply.
+    name: c(
+      "(code.coding.select((display | code).first()).distinct().join(', ').where($this != '') | code.text).first()",
+      { type: 'string', default: 'Lab order' }
+    ),
+    // An order with no report shows its order date instead of a result date.
+    // One literal (not a `+` concatenation): TypeScript types concatenation as
+    // plain `string`, which would put the expression outside the inference subset.
+    date: c(
+      '(%report.effective.ofType(dateTime) | %report.issued | authoredOn | occurrence.ofType(dateTime)).first().toString()',
+      { default: null }
+    ),
+    orderedBy: c('requester.display', { default: null }),
+    reportId: c('%report.where(presentedForm.exists()).id', { type: 'string', default: null }),
+  }),
+})
 
 // --- helpers ---
 
@@ -491,10 +500,10 @@ export function mapLabResults(
 // --- static-analysis surface ---
 
 /**
- * Everything the static checks need: the engine's functions, every DTO class,
- * and the standalone expressions with the type each runs against. The test
- * beside this file runs analyzeDto and analyzeExpression over it, so a typo
- * in any expression fails CI.
+ * Everything the static checks need: the engine's functions, every DTO, and the
+ * standalone expressions with the type each runs against. The test beside this
+ * file runs analyzeDto and analyzeExpression over it, so a typo in any
+ * expression fails CI.
  */
 export const ANALYZED_USAGE = {
   functions: fp.defaults.functions ?? {},

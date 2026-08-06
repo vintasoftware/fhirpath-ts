@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { FUNCTION_SIGNATURES } from '../analyzer/signatures.ts'
 import { compile } from '../api/compile.ts'
-import { column } from '../api/dto.ts'
+import { defineDto } from '../api/dto.ts'
 import { fhirpath } from '../api/tagged.ts'
 import type { HumanName, Identifier, Patient, PatientContact, Quantity } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
@@ -331,10 +331,19 @@ describe('the tables cannot drift from the analyzer', () => {
   })
 })
 
-describe('column() integration', () => {
+describe('DTO column integration', () => {
   it('infers the value type without a declared type option', () => {
-    const kg = column("Observation.value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
-    expectTypeOf(kg).toEqualTypeOf<number>()
+    const row = new (defineDto({
+      fhirType: 'Observation',
+      columns: c => ({
+        // Rooted at the resource name, and relative to the DTO's fhirType:
+        // both resolve, so a column never needs its type spelled out.
+        rooted: c("Observation.value.ofType(Quantity).toQuantity('kg').value", { default: 0 }),
+        relative: c("value.ofType(Quantity).toQuantity('kg').value", { default: 0 }),
+      }),
+    }))()
+    expectTypeOf(row.rooted).toEqualTypeOf<number>()
+    expectTypeOf(row.relative).toEqualTypeOf<number>()
   })
 })
 

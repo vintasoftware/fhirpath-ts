@@ -120,30 +120,32 @@ console.log(rows)
     id: 'dto',
     label: 'dto',
     runnable: true,
-    code: `import { column, declareColumn, FhirPathEngine } from 'fhirpath-ts'
+    code: `import { defineDto, FhirPathEngine } from 'fhirpath-ts'
 import { r4Model } from 'fhirpath-ts/r4'
 
-// A DTO class binds columns to one resource type. Registered on the engine,
-// each column doubles as a function any expression can call — displayText()
-// below. A declared column is one reusable column with an engine-wide name.
-class CodeableConceptDto {
-  static readonly fhirType = 'CodeableConcept'
-  displayText = column('(text | coding.display.first() | coding.first().code).first()', { type: 'string' })
-}
+// defineDto binds columns to one resource type: fhirType is the context every
+// column path infers against, so paths stay relative. Registered on the engine,
+// each column doubles as a function any expression can call — displayText() below.
+const CodeableConceptDto = defineDto({
+  fhirType: 'CodeableConcept',
+  columns: c => ({ displayText: c('(text | coding.display.first() | coding.first().code).first()') }),
+})
 
-const ObservedAt = declareColumn('observedAt', '(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
 
-const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto], columns: [ObservedAt] })
+// defineDto returns the DTO class itself, and projected rows ARE instances of it:
+// each field's static type is the column's value — kg is number, at is
+// Date | undefined — so getters on a subclass work on real values. Hover them.
+const WeightDto = defineDto({
+  fhirType: 'Observation',
+  columns: c => ({
+    name: c('code.displayText()', { type: 'string', default: 'Reading' }),
+    kg: c("value.ofType(Quantity).toQuantity('kg').value", { default: 0 }),
+    at: c('(effective.ofType(dateTime) | issued).first()', { as: 'Date' }),
+  }),
+})
 
-// Projected rows ARE instances of the class: each field's static type is the
-// column's value — kg is number, at is Date | undefined — so getters work on
-// real values. Hover the fields to see it.
-class WeightRow {
-  static readonly fhirType = 'Observation'
-  name = column('Observation.code.displayText()', { type: 'string', default: 'Reading' })
-  kg = column("Observation.value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
-  at = ObservedAt()
-
+class WeightRow extends WeightDto {
   get label(): string {
     return this.name + ': ' + Math.round(this.kg * 10) / 10 + ' kg'
   }

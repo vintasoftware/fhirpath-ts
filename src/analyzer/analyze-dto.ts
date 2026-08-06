@@ -1,4 +1,4 @@
-import { type DtoClass, dtoColumns } from '../api/dto.ts'
+import { type DtoClass, dtoDefinition } from '../api/dto.ts'
 import { analyzeExpression, type AnalyzeOptions, type AnalyzerDiagnostic, type DeclaredVariable } from './analyze.ts'
 
 /** One `analyzeDto` finding: an analyzer diagnostic plus the class member it came from. */
@@ -8,27 +8,28 @@ export interface DtoDiagnostic extends AnalyzerDiagnostic {
 }
 
 /**
- * Statically checks every expression a DTO class declares — column paths,
- * `{ test }` criteria, and class `vars` — the check TypeScript cannot do,
- * since it never looks inside the expression strings. Meant for CI: assert
- * `analyzeDto(Dto, options)` is empty next to the class.
+ * Statically checks every expression a DTO declares — column paths, `test`
+ * criteria, and its `vars` — the check TypeScript cannot do, since it never
+ * looks inside the expression strings. Meant for CI: assert
+ * `analyzeDto(Dto, options)` is empty next to the definition.
  *
- * The class's `fhirType` becomes the analyzer's input type (overridable via
- * `options.inputType`). Class `env` names and `%rowIndex`/`%rowTotal` come
- * pre-declared; class `vars` analyze in declaration order, each seeing the
- * earlier ones, and every column sees them all. Anything the class does not
+ * The DTO's `fhirType` becomes the analyzer's input type (overridable via
+ * `options.inputType`). Its `env` names and `%rowIndex`/`%rowTotal` come
+ * pre-declared; its `vars` analyze in declaration order, each seeing the
+ * earlier ones, and every column sees them all. Anything the DTO does not
  * itself declare travels through `options`: the engine's functions
  * (`functions: engine.defaults.functions`), engine env and per-call env names
  * (`variables`). A pre-bound `TypedValue[]` var has no expression to analyze
  * and is only declared.
  */
 export function analyzeDto(dto: DtoClass, options?: AnalyzeOptions): DtoDiagnostic[] {
-  const inputType = options?.inputType ?? dto.fhirType
+  const definition = dtoDefinition(dto)
+  const inputType = options?.inputType ?? definition.fhirType
   const declared: Record<string, DeclaredVariable> = {
     rowIndex: { types: ['System.Integer'], single: true },
     rowTotal: { types: ['System.Integer'], single: true },
   }
-  for (const name of Object.keys(dto.env ?? {})) {
+  for (const name of Object.keys(definition.env ?? {})) {
     declared[bare(name)] = {}
   }
   const diagnostics: DtoDiagnostic[] = []
@@ -42,14 +43,14 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeOptions): DtoDiagnost
       diagnostics.push({ member, ...diagnostic })
     }
   }
-  for (const [name, value] of Object.entries(dto.vars ?? {})) {
+  for (const [name, value] of Object.entries(definition.vars ?? {})) {
     const source = typeof value === 'string' ? value : sourceOf(value)
     if (source !== undefined) {
       analyze(`vars.${bare(name)}`, source)
     }
     declared[bare(name)] = {}
   }
-  for (const [name, spec] of Object.entries(dtoColumns(dto))) {
+  for (const [name, spec] of Object.entries(definition.columns)) {
     analyze(name, typeof spec === 'string' ? spec : 'test' in spec ? spec.test : spec.path)
   }
   return diagnostics

@@ -12,14 +12,7 @@ import {
   type EvaluateOptions,
 } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
-import {
-  assertInputMatchesDto,
-  type DeclaredColumn,
-  dtoCallOptions,
-  type DtoClass,
-  dtoColumns,
-  withDtos,
-} from './dto.ts'
+import { assertInputMatchesDto, dtoCallOptions, type DtoClass, dtoDefinition, withDtos } from './dto.ts'
 import { type Projection, type ProjectionColumns, projectRows } from './project.ts'
 
 /**
@@ -58,25 +51,17 @@ export interface EngineOptions extends EvaluateOptions {
    */
   cacheSize?: number
   /**
-   * DTO classes registered engine-wide (see `column()`): every `column()`
-   * field becomes an expression-defined function callable from any expression
-   * this engine evaluates (its name must be unique across the engine's
-   * functions; `{ test }` fields stay projection-only), and each class's
-   * static `env` merges into the engine env. A registered class must declare
-   * its `fhirType`, and only one class may register per fhirType — the class
-   * is *the* engine-wide vocabulary for that resource. Class `vars` are not
-   * registered — they may reference per-call env, so they apply only when
-   * projecting the class. A class you only ever project (never call into from
-   * other expressions) does not need to be listed here.
+   * DTO classes registered engine-wide (see `defineDto()`): every column
+   * becomes an expression-defined function callable from any expression this
+   * engine evaluates (its name must be unique across the engine's functions;
+   * `test` columns stay projection-only), and each DTO's `env` merges into the
+   * engine env. Only one DTO may register per fhirType — it is *the*
+   * engine-wide vocabulary for that resource. DTO `vars` are not registered —
+   * they may reference per-call env, so they apply only when projecting the
+   * DTO. A DTO you only ever project (never call into from other expressions)
+   * does not need to be listed here.
    */
   resourceDtos?: readonly DtoClass[]
-  /**
-   * Declared columns registered engine-wide (see `declareColumn()`): each one's
-   * expression becomes a function named by its `functionName`, under the same
-   * uniqueness rule as `functions` and DTO members. `{ test }` declarations are
-   * projection-only and cannot be listed here.
-   */
-  columns?: readonly DeclaredColumn[]
 }
 
 /**
@@ -101,9 +86,9 @@ export class FhirPathEngine {
   readonly defaults: EvaluateOptions
   private readonly compileCached: Compiler
 
-  constructor({ cacheSize, resourceDtos, columns, ...defaults }: EngineOptions = {}) {
+  constructor({ cacheSize, resourceDtos, ...defaults }: EngineOptions = {}) {
     this.compileCached = createCachedCompiler(cacheSize)
-    this.defaults = this.precompiled(withDtos(defaults, resourceDtos ?? [], columns ?? [], this.compileCached))
+    this.defaults = this.precompiled(withDtos(defaults, resourceDtos ?? [], this.compileCached))
   }
 
   /** Compile (LRU-cached by expression text) and evaluate in one call; typed like `compile().evaluate()`. */
@@ -208,9 +193,14 @@ export class FhirPathEngine {
     }
     const rows =
       typeof columns === 'function'
-        ? projectRows(input, dtoColumns(columns), this.merged(dtoCallOptions(columns, options)), this.compileCached)
-            // Materialize each row as a class instance: values replace the column
-            // specs the field initializers hold, and methods/getters see the values.
+        ? projectRows(
+            input,
+            dtoDefinition(columns).columns,
+            this.merged(dtoCallOptions(columns, options)),
+            this.compileCached
+          )
+            // Materialize each row as a class instance, so the DTO's own methods
+            // and getters see the projected values.
             .map(row => Object.assign(new columns(), row))
         : projectRows(input, columns, this.merged(options), this.compileCached)
     return Array.isArray(input) || isBundle(input) ? rows : rows[0]

@@ -2,7 +2,7 @@ import { type EvaluationContext, forkVariables } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { FhirpathResult } from '../typed/infer.ts'
+import type { FhirpathResultIn } from '../typed/infer.ts'
 import { booleanSingleton } from '../values/collection.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
@@ -55,8 +55,8 @@ import { type Compiler, contextFactory, type EvaluateOptions } from './compile.t
 export type ProjectionColumn = string | ({ path: string } & ColumnOptions) | { test: string }
 
 /**
- * A path column's options besides the path itself; `column()` and
- * `declareColumn()` (api/dto.ts) take the same set. The shaper members make
+ * A path column's options besides the path itself; a DTO's column builder
+ * (`defineDto`, api/dto.ts) takes the same set. The shaper members make
  * `as`/`map`/`enum` mutually exclusive at the type level, and tie `pick` to
  * the table form of `map`; `planColumn` re-checks both at plan time for
  * callers outside the type system.
@@ -80,8 +80,8 @@ type ColumnPath<Column> = Column extends string
     ? Path
     : never
 
-/** `as` wins (function return type, or Date), then `map` (row/`pick` field for tables, value types for Records), then `enum` (union of its strings), then a declared `type`; otherwise inference. */
-type ColumnValues<Column> = Column extends { as: (value: never) => infer R }
+/** `as` wins (function return type, or Date), then `map` (row/`pick` field for tables, value types for Records), then `enum` (union of its strings), then a declared `type`; otherwise inference in the `Root` context. */
+type ColumnValues<Column, Root extends string> = Column extends { as: (value: never) => infer R }
   ? R[]
   : Column extends { as: 'Date' }
     ? Date[]
@@ -95,27 +95,32 @@ type ColumnValues<Column> = Column extends { as: (value: never) => infer R }
           ? V[]
           : Column extends { type: infer T extends keyof R4TypeOf }
             ? R4TypeOf[T][]
-            : FhirpathResult<ColumnPath<Column>>
+            : FhirpathResultIn<ColumnPath<Column>, Root>
 
 /**
  * A `default` replaces the empty case, so it substitutes for `undefined` in
- * the type. Constrained by the columns' outer shapes only, so `column()`
- * (api/dto.ts) can apply it to a generic `{ path } & Options` intersection the
- * checker cannot prove is one ProjectionColumn member.
+ * the type. `Root` is the context the path infers against — a DTO's `fhirType`
+ * (see `defineDto`), or 'opaque' for a bare `project()` columns record, where
+ * every path carries its own root. Constrained by the columns' outer shapes
+ * only, so a column builder can apply it to a generic `{ path } & Options`
+ * intersection the checker cannot prove is one ProjectionColumn member.
  */
-export type ColumnResult<Column extends string | { path: string } | { test: string }> = Column extends {
+export type ColumnResult<
+  Column extends string | { path: string } | { test: string },
+  Root extends string = 'opaque',
+> = Column extends {
   test: string
 }
   ? boolean
   : Column extends { collection: true }
-    ? ColumnValues<Column>
+    ? ColumnValues<Column, Root>
     : Column extends { default: infer D }
-      ? ColumnValues<Column>[number] | D
-      : ColumnValues<Column>[number] | undefined
+      ? ColumnValues<Column, Root>[number] | D
+      : ColumnValues<Column, Root>[number] | undefined
 
 /** The row shape `project()` produces: each column's type inferred from its expression. */
-export type Projection<Columns extends ProjectionColumns> = {
-  -readonly [K in keyof Columns]: ColumnResult<Columns[K]>
+export type Projection<Columns extends ProjectionColumns, Root extends string = 'opaque'> = {
+  -readonly [K in keyof Columns]: ColumnResult<Columns[K], Root>
 }
 
 /** The `as: 'Date'` coercion; a value that is not a parseable date string becomes empty. */
