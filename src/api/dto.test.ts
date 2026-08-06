@@ -260,6 +260,38 @@ describe('DTOs registered engine-wide', () => {
     expect(engine.evaluate('Condition.code.displayText()', condition)).toEqual(['Hypertension'])
   })
 
+  it('a column knows the type it was written against, and says so on the wrong focus', () => {
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns] })
+    // Condition.code is a CodeableConcept; Condition.subject.reference is a
+    // string. The call used to resolve and navigate to nothing.
+    expect(() => engine.evaluate('Condition.subject.reference.displayText()', condition)).toThrow(
+      "Function 'displayText' expects FHIR.CodeableConcept as input, but the focus is FHIR.string"
+    )
+    // The static half says the same thing about the same call.
+    expect(
+      analyzeExpression('subject.reference.displayText()', {
+        model: r4Model,
+        inputType: 'Condition',
+        functions: engine.defaults.functions ?? {},
+      }).map(d => [d.code, d.message])
+    ).toEqual([['input-type', 'displayText() expects FHIR.CodeableConcept as input, found FHIR.string']])
+  })
+
+  it('leaves the call alone where the focus type proves nothing', () => {
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns] })
+    // An empty focus is the spec's own propagation, not a mistake.
+    expect(engine.evaluate('Condition.code.text.nothing.displayText()', condition)).toEqual([])
+    // The rest run: a value bound as plain env data and a datatype root both
+    // carry the Object placeholder, which no model describes.
+    expect(engine.evaluate('%loose.displayText()', condition, { env: { loose: { text: 'Hypertension' } } })).toEqual([
+      'Hypertension',
+    ])
+    expect(engine.evaluate('displayText()', condition.code)).toEqual(['Hypertension'])
+    // Without a model there is nothing to resolve the declared name against.
+    const modelless = new FhirPathEngine({ resourceDtos: [CodeableConceptFns] })
+    expect(modelless.evaluate('Condition.subject.reference.displayText()', condition)).toEqual([])
+  })
+
   it('derives the analyzer signature from the column type', () => {
     class Typed extends defineDto('CodeableConcept') {
       @column('(text | coding.display.first()).first()', { type: 'string' })

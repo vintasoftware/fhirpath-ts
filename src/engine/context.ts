@@ -14,6 +14,13 @@ export interface HostNativeFunction {
   minArity?: number
   maxArity?: number
   /**
+   * Canonical model type names the call's focus must be able to hold, resolved
+   * once by the API layer (see `hostInputTypes`, api/compile.ts). Absent means
+   * the function accepts any focus, which is every function that does not
+   * declare `signature.input.types`.
+   */
+  inputTypes?: readonly string[]
+  /**
    * The implementation. `input` is the unwrapped input collection; each
    * argument is eagerly evaluated against `$this` — the enclosing context
    * item, like built-in value arguments — and arrives as an unwrapped
@@ -30,6 +37,8 @@ export interface HostNativeFunction {
  */
 export interface HostExpressionFunction {
   ast: AstNode
+  /** See HostNativeFunction.inputTypes — the same rule, checked the same way. */
+  inputTypes?: readonly string[]
 }
 
 export type HostFunction = HostNativeFunction | HostExpressionFunction

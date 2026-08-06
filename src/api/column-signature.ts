@@ -42,13 +42,50 @@ export function columnResultType(column: ColumnTypeClaim): string | undefined {
 }
 
 /**
- * The analyzer signature a column contributes as a function, or undefined when it
- * claims no type. `collection: true` is the only way a column yields more than
- * one value, so everything else is a singleton.
+ * What a registered column declares as a function. `input` is the type the
+ * column was *written against* — the DTO class's `fhirType` — and `result` is
+ * what its expression yields; a column may declare either, both, or neither.
+ * Shaped to be assignable to `CustomFunctionSignature`.
+ */
+export interface ColumnFunctionSignature {
+  input?: { types: string[] }
+  result?: { types: string[]; single: boolean }
+}
+
+/**
+ * The analyzer signature a column contributes as a function, or undefined when
+ * it claims nothing at all. `collection: true` is the only way a column yields
+ * more than one value, so everything else is a singleton.
+ *
+ * `hostType` is the class's `fhirType`, which is not a column option — it comes
+ * from the DTO, so it is a separate parameter and `ColumnTypeClaim` stays about
+ * the column's own output. A caller that cannot see the class (a walker whose
+ * DTO extends an imported base) passes nothing, and calls stay unchecked.
+ * Passing an empty claim is how a caller keeps the input claim while dropping a
+ * result it cannot read out of the syntax.
  */
 export function columnSignature(
-  column: ColumnTypeClaim & { collection?: boolean }
-): { result: { types: string[]; single: boolean } } | undefined {
+  column: ColumnTypeClaim & { collection?: boolean },
+  hostType?: string
+): ColumnFunctionSignature | undefined {
   const type = columnResultType(column)
-  return type === undefined ? undefined : { result: { types: [type], single: column.collection !== true } }
+  const input = hostType === undefined ? undefined : { types: [hostType] }
+  const result = type === undefined ? undefined : { types: [type], single: column.collection !== true }
+  if (input === undefined && result === undefined) {
+    return undefined
+  }
+  return { ...(input !== undefined && { input }), ...(result !== undefined && { result }) }
+}
+
+/**
+ * The signature a `@criteria` contributes. Its expression is coerced by spec
+ * §4.5 (see `criteriaBoolean`), so the function is a single Boolean whatever the
+ * expression yields — a function rather than a shared constant, so no consumer
+ * can mutate what the next one reads.
+ */
+export function criteriaSignature(hostType?: string): ColumnFunctionSignature {
+  return {
+    ...(hostType !== undefined && { input: { types: [hostType] } }),
+    result: { types: ['System.Boolean'], single: true },
+  }
 }

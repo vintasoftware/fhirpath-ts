@@ -8,7 +8,7 @@
  * must stay free of `typescript` and `eslint` imports so either walker can load
  * it alone; `column-signature.ts` is dependency-free for the same reason.
  */
-import { columnSignature } from '../api/column-signature.ts'
+import { type ColumnFunctionSignature, columnSignature, type ColumnTypeClaim } from '../api/column-signature.ts'
 
 /**
  * How a call site carries its FHIRPath expression(s):
@@ -432,36 +432,57 @@ function namedStringEntries<N>(object: N, name: string, ast: ExpressionAst<N>): 
 export interface DeclaredColumnFunction {
   minArity: 0
   maxArity: 0
-  signature?: { result: { types: string[]; single: boolean } }
+  signature?: ColumnFunctionSignature
 }
 
 /**
- * The function a `@column(path, options)` declaration contributes. The result
- * type is `columnSignature`'s decision, the same one the runtime registers, so
- * the two cannot drift; all this adds is reading the options out of the syntax.
- * An option whose value is not a literal is not in the syntax at all, and a
- * guessed signature would be worse than none — so a dynamic `collection` leaves
- * the result an unknown region rather than a wrong one.
+ * The function a `@column(path, options)` declaration contributes, given the
+ * `fhirType` its class settled on. Both halves of the signature are
+ * `columnSignature`'s decision, the same one the runtime registers, so the two
+ * cannot drift; all this adds is reading the options out of the syntax.
+ *
+ * The two halves fail independently. A class whose root the file cannot resolve
+ * (an imported base, a root-generic factory) declares no input, so calls to its
+ * columns stay unchecked — see `dtoRootsOf` for why guessing one is worse. An
+ * option whose value is not a literal is not in the syntax at all, so a dynamic
+ * `collection` drops the *result* claim while keeping the input one.
  */
-export function columnFunctionDeclaration<N>(options: N | undefined, ast: ExpressionAst<N>): DeclaredColumnFunction {
+export function columnFunctionDeclaration<N>(
+  options: N | undefined,
+  ast: ExpressionAst<N>,
+  hostType: string | undefined
+): DeclaredColumnFunction {
   const declaration: DeclaredColumnFunction = { minArity: 0, maxArity: 0 }
+  const signature = columnSignature(columnClaim(options, ast) ?? {}, hostType)
+  return signature === undefined ? declaration : { ...declaration, signature }
+}
+
+/**
+ * The type claim a column's options object makes, or undefined when the syntax
+ * cannot say — a `collection` that is not a literal, where a guessed cardinality
+ * would be worse than none. Options that are not an object literal at all claim
+ * nothing, which is the same as declaring no options.
+ */
+function columnClaim<N>(
+  options: N | undefined,
+  ast: ExpressionAst<N>
+): (ColumnTypeClaim & { collection: boolean }) | undefined {
   const properties = options === undefined ? undefined : ast.properties(options)
   if (properties === undefined) {
-    return declaration
+    return { collection: false }
   }
   const named = (name: string): N | undefined => properties.find(property => property.name === name)?.value
   const collection = named('collection')
   const isCollection = collection === undefined ? false : ast.boolean(collection)
   if (isCollection === undefined) {
-    return declaration
+    return undefined
   }
   const declaredType = named('type')
-  const signature = columnSignature({
+  return {
     ...(declaredType !== undefined && { type: ast.string(declaredType)?.expression }),
     ...(named('enum') !== undefined && { enum: true }),
     ...(named('as') !== undefined && { as: true }),
     ...(named('choices') !== undefined && { choices: true }),
     collection: isCollection,
-  })
-  return signature === undefined ? declaration : { ...declaration, signature }
+  }
 }

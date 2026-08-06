@@ -30,6 +30,7 @@ import {
 } from './context.ts'
 import { navigateIdentifier } from './navigation.ts'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
+import { requireHostInput } from './type-matching.ts'
 
 function evaluateArgument(node: AstNode, context: EvaluationContext, _input: TypedValue[]): TypedValue[] {
   // Arguments evaluate against $this (the current context item), not the function's
@@ -48,6 +49,9 @@ function evaluateArgument(node: AstNode, context: EvaluationContext, _input: Typ
  * function arity-checks, then eagerly evaluates every argument and unwraps
  * both input and arguments to plain JS values — the host boundary — and
  * converts the plain result back.
+ *
+ * Either form may declare the types its focus must be able to hold, which is
+ * checked before anything else runs (see `requireHostInput`).
  */
 function evaluateHostFunction(
   name: string,
@@ -56,6 +60,7 @@ function evaluateHostFunction(
   context: EvaluationContext,
   input: TypedValue[]
 ): TypedValue[] {
+  requireHostInput(name, host.inputTypes, context, input)
   if ('ast' in host) {
     if (args.length > 0) {
       throw new FhirPathTypeError(`Function '${name}' expects ${describeArity(0, 0)}, got ${args.length} arguments`)

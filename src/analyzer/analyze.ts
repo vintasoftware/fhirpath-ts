@@ -6,6 +6,7 @@ import { describeArity, functions } from '../functions/registry.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
+import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
 import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
@@ -605,10 +606,13 @@ class Analyzer {
     }
   }
 
-  /** The signature's input constraints: cardinality and value kind. */
+  /** The signature's input constraints: cardinality, value kind, and declared types. */
   private checkCallInput(node: AstNode & { kind: 'call' }, signature: FunctionSignature, input: StaticState): void {
     if (!signature.input) {
       return
+    }
+    if (signature.input.types !== undefined) {
+      this.requireInputTypes(node, signature.input.types, input)
     }
     if (signature.input.singleton && input.types !== undefined && input.single === false) {
       this.report(
@@ -625,6 +629,38 @@ class Analyzer {
         `${node.name}() expects a ${signature.input.kind} input`
       )
     }
+  }
+
+  /**
+   * A function declared against one type (a DTO's `@column`), called on a focus
+   * that can never be one — the static half of `requireHostInput`, with the same
+   * silence rules: an unknown region, a statically empty focus, no model, and
+   * names this model does not know all say nothing, and one fitting candidate is
+   * enough, so a `|` union, a choice element, `iif` or `coalesce` passes.
+   */
+  private requireInputTypes(node: AstNode & { kind: 'call' }, declared: string[], input: StaticState): void {
+    const model = this.model
+    if (model === undefined || input.types === undefined || input.types.length === 0) {
+      return
+    }
+    const wanted = declared
+      .map(type => canonicalFocusType(model, type))
+      .filter((type): type is string => type !== undefined)
+    if (wanted.length === 0) {
+      return
+    }
+    const focus = input.types.map(type => canonicalFocusType(model, type))
+    if (focus.some(type => type === undefined)) {
+      return
+    }
+    if ((focus as string[]).some(type => wanted.some(want => typesOverlap(model, type, want)))) {
+      return
+    }
+    this.report(
+      'input-type',
+      `${node.name}() expects ${wanted.join(' | ')} as input, found ${input.types.join(' | ')}`,
+      node.span
+    )
   }
 
   /**
@@ -738,8 +774,11 @@ class Analyzer {
   }
 
   /**
-   * A host function's declared signature as the analyzer's internal shape:
-   * result type names canonicalize once, and an omitted result stays unknown.
+   * A host function's declared signature as the analyzer's internal shape: both
+   * halves' type names canonicalize once, and an omitted result stays unknown.
+   * The input is rebuilt rather than passed through, so a declaration written in
+   * local names ('CodeableConcept') compares against the canonical ones the walk
+   * produces.
    */
   private toSignature(declared: CustomFunctionSignature | undefined): FunctionSignature | undefined {
     if (declared === undefined) {
@@ -747,8 +786,17 @@ class Analyzer {
     }
     const types = declared.result?.types?.map(type => this.canonicalize(type))
     const single = declared.result?.single
+    const input =
+      declared.input === undefined
+        ? undefined
+        : {
+            ...declared.input,
+            ...(declared.input.types !== undefined && {
+              types: declared.input.types.map(type => this.canonicalize(type)),
+            }),
+          }
     return {
-      ...(declared.input !== undefined && { input: declared.input }),
+      ...(input !== undefined && { input }),
       ...(declared.args !== undefined && { args: declared.args }),
       result: () => ({ types, single }),
     }

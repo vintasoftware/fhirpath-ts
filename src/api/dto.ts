@@ -323,7 +323,7 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
       if (name in functions) {
         throw new FhirPathTypeError(`DTO ${dto.name} redefines the function '${name}'`)
       }
-      functions[name] = columnFunction(spec, compile)
+      functions[name] = columnFunction(spec, compile, definition.fhirType)
     }
     for (const [name, value] of Object.entries(normalizeEnvKeys(definition.env))) {
       if (name in env) {
@@ -335,9 +335,18 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
   return { ...defaults, functions, env }
 }
 
-/** A column's path as an expression-defined function, with the signature its options claim. */
-function columnFunction(spec: Extract<ProjectionColumn, { path: string }>, compile: Compiler): CustomFunction {
-  const signature = columnSignature(spec)
+/**
+ * A column's path as an expression-defined function, with the signature its
+ * options claim and the DTO's own `fhirType` as the input it expects — a column
+ * is written against one type, and calling it on anything else navigates to
+ * nothing.
+ */
+function columnFunction(
+  spec: Extract<ProjectionColumn, { path: string }>,
+  compile: Compiler,
+  hostType: string
+): CustomFunction {
+  const signature = columnSignature(spec, hostType)
   return {
     expression: compile(spec.path),
     ...(signature !== undefined && { signature }),

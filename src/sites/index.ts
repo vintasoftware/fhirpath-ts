@@ -295,7 +295,7 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
         ) {
           const field = policy.declaresField === true ? decoratedFieldName(node) : undefined
           if (field !== undefined) {
-            functions[field] = columnFunctionDeclaration<TS.Node>(node.arguments[1], tsAst)
+            functions[field] = columnFunctionDeclaration<TS.Node>(node.arguments[1], tsAst, classRoot)
           }
           const context = siteContext<TS.Node>(policy, index => node.arguments[index], classRoot, tsAst)
           for (const entry of expressionEntries<TS.Node>(argument, policy.shape, tsAst)) {

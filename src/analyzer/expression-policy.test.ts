@@ -320,6 +320,63 @@ describe('the walkers agree on a site’s context', () => {
       expected: ["unknown-element: Element 'valuee' is not defined on FHIR.Observation — did you mean 'value'?"],
     },
     {
+      name: 'a column called on a focus that can never hold its own fhirType',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Concept extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('subject.reference.displayText()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: displayText() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'a column whose cardinality is dynamic still declares what it is written against',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Concept extends defineDto('CodeableConcept') {",
+        "  @column('coding.display', { collection: dynamic }) displays!: string[]",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('subject.reference.displays()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: displays() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'a column whose own root comes from a base class declared below it',
+      // Sub's fhirType is only known once Base is read, so the walkers must
+      // decide the file's column vocabulary after the whole file, not during it.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        'class Sub extends Base {',
+        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        '}',
+        "class Base extends defineDto('CodeableConcept') {",
+        "  @column('id') conceptId!: unknown",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('subject.reference.displayText()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: displayText() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'a column on a root-generic factory declares no input, so calls stay unchecked',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Concept extends keyedRow('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('subject.reference.displayText()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
       name: 'no statically-known root keeps syntax findings only',
       code: [
         "import { column } from 'fhirpath-ts'",

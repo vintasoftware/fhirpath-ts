@@ -221,13 +221,17 @@ describe('DTO declarations', () => {
       '  name!: string',
       '}',
     ].join('\n')
-    const string = { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } }
+    // Each column declares the type it was written against, so a call on the
+    // wrong focus is checkable, plus what it yields.
+    const stringOn = (host: string) => ({
+      minArity: 0,
+      maxArity: 0,
+      signature: { input: { types: [host] }, result: { types: ['string'], single: true } },
+    })
     const sites = findExpressionSites(withCalls, 'sample.ts')
+    const vocabulary = { displayText: stringOn('CodeableConcept'), name: stringOn('Observation') }
     // Every site of the file carries the file's whole column vocabulary.
-    expect(sites.map(site => site.functions)).toEqual([
-      { displayText: string, name: string },
-      { displayText: string, name: string },
-    ])
+    expect(sites.map(site => site.functions)).toEqual([vocabulary, vocabulary])
   })
 
   it('reads the cardinality of a collection column, and declines to guess a dynamic one', () => {
@@ -242,11 +246,13 @@ describe('DTO declarations', () => {
       '  contacts!: string[]',
       '}',
     ].join('\n')
+    const input = { types: ['Patient'] }
     expect(findExpressionSites(source, 'sample.ts')[0]?.functions).toEqual({
-      given: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: false } } },
-      family: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } },
-      // Cardinality not in the syntax, so no signature at all rather than a guess.
-      contacts: { minArity: 0, maxArity: 0 },
+      given: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['string'], single: false } } },
+      family: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['string'], single: true } } },
+      // Cardinality not in the syntax, so no result at all rather than a guessed
+      // one; the input the class fixes is known either way.
+      contacts: { minArity: 0, maxArity: 0, signature: { input } },
     })
   })
 
@@ -354,12 +360,14 @@ describe('DTO context and declared roots', () => {
     ].join('\n')
     const [site] = findExpressionSites(source, 'sample.ts')
     // A criteria declares no function: it stays projection-only. A collection or
-    // a choices shaper leaves the result an unknown region rather than a guessed one.
+    // a choices shaper leaves the result an unknown region rather than a guessed
+    // one, while the class's own type is known for every column.
+    const input = { types: ['CodeableConcept'] }
     expect(site?.functions).toEqual({
-      displayText: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } },
-      codingCount: { minArity: 0, maxArity: 0, signature: { result: { types: ['integer'], single: true } } },
-      codings: { minArity: 0, maxArity: 0 },
-      decoded: { minArity: 0, maxArity: 0 },
+      displayText: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['string'], single: true } } },
+      codingCount: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['integer'], single: true } } },
+      codings: { minArity: 0, maxArity: 0, signature: { input } },
+      decoded: { minArity: 0, maxArity: 0, signature: { input } },
     })
   })
 
@@ -374,7 +382,11 @@ describe('DTO context and declared roots', () => {
       '}',
     ].join('\n')
     expect(findExpressionSites(source, 'sample.ts')[0]?.functions).toEqual({
-      displayText: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } },
+      displayText: {
+        minArity: 0,
+        maxArity: 0,
+        signature: { input: { types: ['CodeableConcept'] }, result: { types: ['string'], single: true } },
+      },
     })
   })
 

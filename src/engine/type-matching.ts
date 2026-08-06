@@ -1,3 +1,5 @@
+import { FhirPathTypeError } from '../errors.ts'
+import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
 import { OBJECT_TYPE, type TypedValue, typeLocalName } from '../values/typed-value.ts'
 import type { EvaluationContext } from './context.ts'
 
@@ -78,6 +80,41 @@ export function itemMatchesType(
   // internal Object marker never answers a type question — `ofType(Object)` is not
   // a way to select untyped values.
   return item.type !== OBJECT_TYPE && typeLocalName(item.type) === name
+}
+
+/**
+ * A host function declared against one type, reached on a focus that can never
+ * be one (`status.displayText()`, where displayText was written for a
+ * CodeableConcept). The call resolves and its body would navigate to nothing, so
+ * this is the one place the mistake is visible — and the engine is loud about
+ * everything structural, which a function's declared input is.
+ *
+ * Only proven incompatibility throws. An empty focus is the spec's own
+ * propagation, and no model, a type the model has never heard of (the `Object`
+ * placeholder, a pre-resolved `%var`, a datatype-rooted DTO's own root), or a
+ * mixed collection where *any* item fits all leave the call alone.
+ */
+export function requireHostInput(
+  name: string,
+  types: readonly string[] | undefined,
+  context: EvaluationContext,
+  input: TypedValue[]
+): void {
+  const model = context.model
+  if (types === undefined || input.length === 0 || model === undefined) {
+    return
+  }
+  const focus = input.map(item => canonicalFocusType(model, item.type))
+  if (focus.some(type => type === undefined)) {
+    return
+  }
+  const known = focus as string[]
+  if (known.some(type => types.some(want => typesOverlap(model, type, want)))) {
+    return
+  }
+  throw new FhirPathTypeError(
+    `Function '${name}' expects ${types.join(' | ')} as input, but the focus is ${[...new Set(known)].join(' | ')}`
+  )
 }
 
 /** True when a single-part type name resolves in the model or the System namespace. */

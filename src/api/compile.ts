@@ -3,6 +3,7 @@ import {
   createContext,
   type EvaluationContext,
   forkVariables,
+  type HostExpressionFunction,
   type HostFunction,
   type HostNativeFunction,
   normalizeEnvKeys,
@@ -16,6 +17,7 @@ import { parse } from '../parser/parser.ts'
 import { printExpression } from '../parser/printer.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathInput, FhirpathResult, FhirpathResultIn, FhirTypeName } from '../typed/infer.ts'
+import { canonicalFocusType } from '../values/type-compat.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
 
@@ -210,7 +212,7 @@ function planVars(vars: Record<string, AnyExpression | readonly TypedValue[]>): 
 export function contextFactory(
   options: EvaluateOptions | undefined
 ): (root: TypedValue[], extraEnv?: Record<string, unknown>) => EvaluationContext {
-  const functions = options?.functions === undefined ? undefined : toHostFunctions(options.functions)
+  const functions = options?.functions === undefined ? undefined : toHostFunctions(options.functions, options.model)
   const env = normalizeEnvKeys(options?.env)
   const vars = options?.vars === undefined ? undefined : planVars(options.vars)
   return (root, extraEnv) => {
@@ -230,21 +232,65 @@ export function contextFactory(
   }
 }
 
-/** Resolve CustomFunctions to their runtime form: expression bodies parse to ASTs, signatures stay API-side. */
-function toHostFunctions(functions: Record<string, CustomFunction>): Record<string, HostFunction> {
+/**
+ * Resolve CustomFunctions to their runtime form: expression bodies parse to
+ * ASTs, declared input types resolve against the model, and the rest of the
+ * signature stays API-side (the analyzer's half). The model is fixed for a
+ * context factory's lifetime, so resolving here is what keeps a per-call
+ * question out of every evaluation.
+ */
+function toHostFunctions(
+  functions: Record<string, CustomFunction>,
+  model: ModelProvider | undefined
+): Record<string, HostFunction> {
   const host: Record<string, HostFunction> = {}
   for (const [name, custom] of Object.entries(functions)) {
     if ('expression' in custom) {
       if ('fn' in custom) {
         throw new FhirPathTypeError(`Custom function '${name}' declares both 'fn' and 'expression'; use one`)
       }
-      const { expression } = custom
-      host[name] = { ast: typeof expression === 'string' ? parse(expression) : expression.ast }
+      host[name] = hostExpressionFunction(custom, model)
     } else {
-      host[name] = custom
+      const inputTypes = hostInputTypes(custom.signature, model)
+      // Copied rather than passed through: `custom` is the caller's own object,
+      // and the runtime form carries fields the API form does not.
+      host[name] = inputTypes === undefined ? custom : { ...custom, inputTypes }
     }
   }
   return host
+}
+
+/** The runtime form of an expression-defined CustomFunction: its body, plus what the engine enforces around it. */
+function hostExpressionFunction(
+  custom: Extract<CustomFunction, { expression: AnyExpression }>,
+  model: ModelProvider | undefined
+): HostExpressionFunction {
+  const { expression } = custom
+  const inputTypes = hostInputTypes(custom.signature, model)
+  return {
+    ast: typeof expression === 'string' ? parse(expression) : expression.ast,
+    ...(inputTypes !== undefined && { inputTypes }),
+  }
+}
+
+/**
+ * A signature's declared input types as canonical model names, or undefined when
+ * there is nothing the runtime could check: no declaration, no model, or names
+ * this model has never heard of (a declaration written against another model is
+ * not a reason to fail a call).
+ */
+function hostInputTypes(
+  signature: CustomFunctionSignature | undefined,
+  model: ModelProvider | undefined
+): readonly string[] | undefined {
+  const declared = signature?.input?.types
+  if (declared === undefined || model === undefined) {
+    return undefined
+  }
+  const canonical = declared
+    .map(type => canonicalFocusType(model, type))
+    .filter((type): type is string => type !== undefined)
+  return canonical.length === 0 ? undefined : canonical
 }
 
 /** Default for `EngineOptions.cacheSize`, matching Firely's FhirPathCompilerCache default. */

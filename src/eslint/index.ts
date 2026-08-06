@@ -225,8 +225,18 @@ const noInvalidExpressions: Rule.RuleModule = {
     }[] = []
     /** Every class in the file, so a DTO root can be followed through a base class. */
     const classes: ClassHeritage[] = []
-    // One per `@column` field in the file: a registered DTO column is callable
-    // from any expression, so the calls between a file's own columns resolve.
+    /**
+     * One per `@column` field in the file: a registered DTO column is callable
+     * from any expression, so the calls between a file's own columns resolve.
+     * Filled in `Program:exit`, because a declaration carries the `fhirType` of
+     * the class it sits in and a base class may be declared further down the
+     * file — the same reason the call sites themselves are decided there.
+     */
+    const columnDeclarations: {
+      field: string
+      options: ESTree.Node | undefined
+      enclosing: ClassHeritage | undefined
+    }[] = []
     const columnFunctions: Record<string, DeclaredColumnFunction> = {}
     const checkAt = (node: ESTree.Node, expression: string, site: SiteContext = {}): void => {
       // ESLint severity comes from the rule's configuration, not per report, so
@@ -317,7 +327,11 @@ const noInvalidExpressions: Rule.RuleModule = {
         if (policy.declaresField === true) {
           const field = decoratedFieldName(ancestors)
           if (field !== undefined) {
-            columnFunctions[field] = columnFunctionDeclaration<ESTree.Node>(node.arguments[1], estreeAst)
+            columnDeclarations.push({
+              field,
+              options: node.arguments[1],
+              enclosing: enclosingClass(ancestors),
+            })
           }
         }
         calls.push({
@@ -340,12 +354,21 @@ const noInvalidExpressions: Rule.RuleModule = {
             rebound.add(localName)
           }
         }
+        const dtoRoots = dtoRootsOf(classes)
+        // The column vocabulary first: `checkAt` reads it, and every site of the
+        // file shares it — including the tags.
+        for (const { field, options: columnOptions, enclosing } of columnDeclarations) {
+          columnFunctions[field] = columnFunctionDeclaration<ESTree.Node>(
+            columnOptions,
+            estreeAst,
+            rootOf(enclosing, dtoRoots)
+          )
+        }
         for (const tag of tags) {
           if (isCheckedTag(tag.receiverRoot, bindings)) {
             checkAt(tag.literal, tag.expression)
           }
         }
-        const dtoRoots = dtoRootsOf(classes)
         for (const call of calls) {
           if (!isCheckedCall(call.policy, call.name, call.receiverRoot, bindings)) {
             continue
