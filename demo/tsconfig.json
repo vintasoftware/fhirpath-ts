@@ -15,7 +15,12 @@
       "fhirpath-ts": ["../src/index.ts"],
       "fhirpath-ts/r4": ["../src/r4/index.ts"],
       "fhirpath-ts/analyzer": ["../src/analyzer/index.ts"],
-      "fhirpath-ts/sites": ["../src/sites/index.ts"]
+      "fhirpath-ts/sites": ["../src/sites/index.ts"],
+      // src/sites imports TypeScript *types* (the compiler itself is the
+      // caller's to provide). Resolved from the walking-up rule that import
+      // would land in the repo root's node_modules, which the demo's CI job
+      // never installs — map it to the demo's own copy instead.
+      "typescript": ["./node_modules/typescript/lib/typescript.d.ts"]
     }
   },
   "include": ["src"],
