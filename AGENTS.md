@@ -159,10 +159,17 @@ env data, a pre-resolved `%var`, and a datatype root all carry; a declared name
 this model rejects; and a mixed focus where *any* item could fit. It is also
 permissive about what "can be" means: either direction of the model hierarchy
 counts, `System.Quantity` and `FHIR.Quantity` are one type, and sibling
-primitives (`code`, `uri`) do not distinguish. `values/type-compat.ts` holds that
-rule for both halves — note that its kind clause must not gate the model check,
-or a `Quantity` column on `Dosage.doseAndRate.dose` (kind `Complex`, since
-`SimpleQuantity` is not `Quantity`) would be rejected.
+primitives (`code`, `uri`) do not distinguish.
+
+That whole rule is **one function** — `unsatisfiedInput` in
+`values/type-compat.ts`, which returns the proof rather than a verdict. The two
+halves differ only in how they report it (`requireHostInput` throws,
+`checkCallInput` reports `input-type`), so the silence list above cannot drift
+between them. Keep it that way: the analyzer/engine import boundary justifies two
+callers, never two copies of the rule. Note also that `typesOverlap`'s kind clause
+must not gate the model check, or a `Quantity` column on
+`Dosage.doseAndRate.dose` (kind `Complex`, since `SimpleQuantity` is not
+`Quantity`) would be rejected.
 
 No **builtin** may declare `input.types`: spec functions are polymorphic, and one
 that named types would start reporting valid official-suite expressions.
@@ -175,8 +182,8 @@ last (only one of them can actually register). That is the same species as the
 already-guessed result signature, and nothing in one file's source distinguishes
 the two. Accepted.
 
-`@criteria` registers with `singletonBoolean` on its `CustomFunction`. That flag
-is where its criteria coercion lives — `criteriaBoolean` (values/collection.ts)
+`@criteria` registers with `criteria: true` on its `CustomFunction`. That flag
+is where its coercion lives — `criteriaBoolean` (values/collection.ts)
 applied to the body's result, on the function rather than in `planColumn`. It is
 what makes one declaration mean one thing: `isFinal()` yields exactly one boolean
 in both positions, so `isFinal().not()` on a resource with no `status` is `true`

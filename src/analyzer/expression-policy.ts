@@ -470,29 +470,27 @@ export function columnFunctionDeclaration<N>(
     // the expression yields, because the coercion lives on the function.
     return { ...declaration, signature: criteriaSignature(hostType) }
   }
-  const signature = columnSignature(columnClaim(options, ast) ?? {}, hostType)
+  const signature = columnSignature(columnClaim(options, ast), hostType)
   return signature === undefined ? declaration : { ...declaration, signature }
 }
 
 /**
- * The type claim a column's options object makes, or undefined when the syntax
- * cannot say — a `collection` that is not a literal, where a guessed cardinality
- * would be worse than none. Options that are not an object literal at all claim
- * nothing, which is the same as declaring no options.
+ * The type claim a column's options object makes. An empty claim is the answer
+ * whenever the syntax cannot say — no options at all, options that are not an
+ * object literal, or a `collection` that is not a literal, where a guessed
+ * cardinality would be worse than none. All three yield no result claim, which
+ * leaves the input claim as the only thing the declaration carries.
  */
-function columnClaim<N>(
-  options: N | undefined,
-  ast: ExpressionAst<N>
-): (ColumnTypeClaim & { collection: boolean }) | undefined {
+function columnClaim<N>(options: N | undefined, ast: ExpressionAst<N>): ColumnTypeClaim & { collection?: boolean } {
   const properties = options === undefined ? undefined : ast.properties(options)
   if (properties === undefined) {
-    return { collection: false }
+    return {}
   }
   const named = (name: string): N | undefined => properties.find(property => property.name === name)?.value
   const collection = named('collection')
   const isCollection = collection === undefined ? false : ast.boolean(collection)
   if (isCollection === undefined) {
-    return undefined
+    return {}
   }
   const declaredType = named('type')
   return {

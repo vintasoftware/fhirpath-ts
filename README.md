@@ -352,7 +352,7 @@ const functions = {
     expression: "status = 'final'",
     // Read the result as a criteria (§4.5 singleton evaluation, with empty
     // reading as false), so the call is one boolean and `isFinal().not()` composes.
-    singletonBoolean: true,
+    criteria: true,
   },
 } satisfies Record<string, CustomFunction>
 ```

@@ -353,14 +353,14 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
  * the DTO's own `fhirType` as the input it expects — a column is written against
  * one type, and calling it on anything else navigates to nothing.
  *
- * A criteria registers with `singletonBoolean`, so its criteria coercion rides
+ * A criteria registers with `criteria: true`, so its coercion rides
  * on the function itself — the same rule `planColumn` applies when the criteria
  * is projected, which is what lets one declaration mean one thing in both
  * positions.
  */
 function columnFunction(spec: ColumnSpec, compile: Compiler, hostType: string): CustomFunction {
   if ('test' in spec) {
-    return { expression: compile(spec.test), singletonBoolean: true, signature: criteriaSignature(hostType) }
+    return { expression: compile(spec.test), criteria: true, signature: criteriaSignature(hostType) }
   }
   const signature = columnSignature(spec, hostType)
   return {

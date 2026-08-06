@@ -215,10 +215,10 @@ describe('custom functions in the analyzer', () => {
   })
 })
 
-describe('singletonBoolean: the criteria rule on the function', () => {
+describe('criteria: the criteria rule on the function', () => {
   const observation = { resourceType: 'Observation', status: 'final', code: { text: 'Weight' } }
   const criterion = (expression: string): Record<string, CustomFunction> => ({
-    holds: { expression, singletonBoolean: true },
+    holds: { expression, criteria: true },
   })
   const run = (expression: string, functions: Record<string, CustomFunction>): unknown[] =>
     evaluate(expression, observation, { functions, model: r4Model })
@@ -384,11 +384,11 @@ const invalidSignature: CustomFunction = {
 }
 void invalidSignature
 
-// singletonBoolean coerces an expression body's result; a native function
-// returns plain JS values and would silently ignore it.
-// @ts-expect-error -- singletonBoolean belongs to the expression form only
+// `criteria` coerces an expression body's result; a native function returns
+// plain JS values and would silently ignore it.
+// @ts-expect-error -- criteria belongs to the expression form only
 const nativeCriteria: CustomFunction = {
   fn: () => true,
-  singletonBoolean: true,
+  criteria: true,
 }
 void nativeCriteria

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { r4Model } from '../r4/index.ts'
-import { canonicalFocusType, typeSatisfies, typesOverlap, valueKindOfTypeName } from './type-compat.ts'
+import { canonicalFocusType, typesOverlap, unsatisfiedInput, valueKindOfTypeName } from './type-compat.ts'
 
 describe('canonicalFocusType', () => {
   it.each([
@@ -21,18 +21,6 @@ describe('canonicalFocusType', () => {
 
   it.each(['Object', 'Nonesuch', 'Acme.Widget'])('leaves %s unknown, so callers stay silent', raw => {
     expect(canonicalFocusType(r4Model, raw)).toBeUndefined()
-  })
-})
-
-describe('typeSatisfies', () => {
-  it('walks the model hierarchy in one direction only', () => {
-    expect(typeSatisfies(r4Model, 'FHIR.SimpleQuantity', 'FHIR.Quantity')).toBe(true)
-    expect(typeSatisfies(r4Model, 'FHIR.Quantity', 'FHIR.SimpleQuantity')).toBe(false)
-  })
-
-  it('reaches System types through the FHIR-primitive twins', () => {
-    expect(typeSatisfies(r4Model, 'FHIR.code', 'System.String')).toBe(true)
-    expect(typeSatisfies(r4Model, 'System.String', 'FHIR.code')).toBe(false)
   })
 })
 
@@ -67,10 +55,58 @@ describe('typesOverlap', () => {
     expect(typesOverlap(r4Model, a, b)).toBe(false)
   })
 
+  it('reaches System types through the FHIR-primitive twins, in one direction each', () => {
+    // The underlying subtyping is directional; typesOverlap asks both ways, so
+    // a String-declared function accepts a code focus and the reverse.
+    expect(typesOverlap(r4Model, 'FHIR.code', 'System.String')).toBe(true)
+    expect(typesOverlap(r4Model, 'System.String', 'FHIR.code')).toBe(true)
+  })
+
   it('keeps every complex type distinct, unlike the value kinds', () => {
     // Both are Complex, so a kind-only rule would call them compatible.
     expect(valueKindOfTypeName('FHIR.CodeableConcept')).toBe('Complex')
     expect(valueKindOfTypeName('FHIR.Patient')).toBe('Complex')
     expect(typesOverlap(r4Model, 'FHIR.CodeableConcept', 'FHIR.Patient')).toBe(false)
+  })
+})
+
+describe('unsatisfiedInput', () => {
+  const wants = (declared: string[], focus: string[]) => unsatisfiedInput(r4Model, declared, focus)
+
+  it('proves the mistake, naming both sides canonically', () => {
+    expect(wants(['CodeableConcept'], ['FHIR.code'])).toEqual({
+      wanted: ['FHIR.CodeableConcept'],
+      found: ['FHIR.code'],
+    })
+    // Local and canonical spellings of the declaration agree.
+    expect(wants(['FHIR.CodeableConcept'], ['FHIR.code'])?.wanted).toEqual(['FHIR.CodeableConcept'])
+  })
+
+  it('says nothing whenever nothing is proven', () => {
+    // Compatible focus, either direction of the hierarchy.
+    expect(wants(['CodeableConcept'], ['FHIR.CodeableConcept'])).toBeUndefined()
+    expect(wants(['Quantity'], ['FHIR.SimpleQuantity'])).toBeUndefined()
+    // One fitting candidate is enough, wherever it sits in the collection.
+    expect(wants(['CodeableConcept'], ['FHIR.code', 'FHIR.CodeableConcept'])).toBeUndefined()
+    expect(wants(['CodeableConcept'], ['FHIR.CodeableConcept', 'FHIR.code'])).toBeUndefined()
+    // A focus type no model describes, and an empty focus.
+    expect(wants(['CodeableConcept'], ['Object'])).toBeUndefined()
+    expect(wants(['CodeableConcept'], [])).toBeUndefined()
+    // A declaration this model cannot resolve, no declaration, no model.
+    expect(wants(['Widget'], ['FHIR.code'])).toBeUndefined()
+    expect(wants([], ['FHIR.code'])).toBeUndefined()
+    expect(unsatisfiedInput(r4Model, undefined, ['FHIR.code'])).toBeUndefined()
+    expect(unsatisfiedInput(undefined, ['CodeableConcept'], ['FHIR.code'])).toBeUndefined()
+  })
+
+  it('dedupes the focus it reports, and stops at the first item that fits', () => {
+    expect(wants(['CodeableConcept'], ['FHIR.code', 'FHIR.code', 'FHIR.uri'])?.found).toEqual(['FHIR.code', 'FHIR.uri'])
+    // The fitting item ends the scan, so a type that would not resolve behind it
+    // is never consulted — proof the loop short-circuits rather than mapping.
+    const lazy = (function* () {
+      yield 'FHIR.CodeableConcept'
+      throw new Error('scanned past the item that fits')
+    })()
+    expect(unsatisfiedInput(r4Model, ['CodeableConcept'], lazy)).toBeUndefined()
   })
 })

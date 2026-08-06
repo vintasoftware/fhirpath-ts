@@ -1,5 +1,5 @@
 import { FhirPathTypeError } from '../errors.ts'
-import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
+import { unsatisfiedInput } from '../values/type-compat.ts'
 import { OBJECT_TYPE, type TypedValue, typeLocalName } from '../values/typed-value.ts'
 import type { EvaluationContext } from './context.ts'
 
@@ -89,10 +89,8 @@ export function itemMatchesType(
  * this is the one place the mistake is visible — and the engine is loud about
  * everything structural, which a function's declared input is.
  *
- * Only proven incompatibility throws. An empty focus is the spec's own
- * propagation, and no model, a type the model has never heard of (the `Object`
- * placeholder, a pre-resolved `%var`, a datatype-rooted DTO's own root), or a
- * mixed collection where *any* item fits all leave the call alone.
+ * `unsatisfiedInput` decides; this only phrases the failure the way the engine's
+ * other function errors are phrased.
  */
 export function requireHostInput(
   name: string,
@@ -100,21 +98,24 @@ export function requireHostInput(
   context: EvaluationContext,
   input: TypedValue[]
 ): void {
-  const model = context.model
-  if (types === undefined || input.length === 0 || model === undefined) {
+  // `unsatisfiedInput` answers this case too; returning first is what keeps the
+  // undeclared majority of host calls from allocating a focus iterator at all.
+  if (types === undefined) {
     return
   }
-  const focus = input.map(item => canonicalFocusType(model, item.type))
-  if (focus.some(type => type === undefined)) {
-    return
+  const unsatisfied = unsatisfiedInput(context.model, types, focusTypes(input))
+  if (unsatisfied !== undefined) {
+    throw new FhirPathTypeError(
+      `Function '${name}' expects ${unsatisfied.wanted.join(' | ')} as input, but the focus is ${unsatisfied.found.join(' | ')}`
+    )
   }
-  const known = focus as string[]
-  if (known.some(type => types.some(want => typesOverlap(model, type, want)))) {
-    return
+}
+
+/** The focus's type names, lazily — a satisfied call stops at the first item that fits. */
+function* focusTypes(input: TypedValue[]): Iterable<string> {
+  for (const item of input) {
+    yield item.type
   }
-  throw new FhirPathTypeError(
-    `Function '${name}' expects ${types.join(' | ')} as input, but the focus is ${[...new Set(known)].join(' | ')}`
-  )
 }
 
 /** True when a single-part type name resolves in the model or the System namespace. */

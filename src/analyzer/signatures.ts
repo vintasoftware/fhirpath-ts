@@ -1,10 +1,5 @@
 import type { ValueKind } from '../values/type-compat.ts'
 
-// The value-kind families sit under both the analyzer and the engine (see
-// values/type-compat.ts) and are re-exported here, where every consumer already
-// looks for them.
-export { type ValueKind, valueKindOfTypeName } from '../values/type-compat.ts'
-
 interface StaticStateLike {
   types: string[] | undefined
   /** True: at most one item. False: may hold several. Undefined: cardinality unknown. */

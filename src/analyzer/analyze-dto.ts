@@ -1,6 +1,7 @@
 import { columnResultType } from '../api/column-signature.ts'
 import { type ColumnSpec, type DtoClass, dtoDefinition } from '../api/dto.ts'
 import type { ModelProvider } from '../model/provider.ts'
+import { valueKindOfTypeName } from '../values/type-compat.ts'
 import {
   analyzeExpressionDetailed,
   type AnalyzeOptions,
@@ -8,7 +9,6 @@ import {
   type DeclaredFunction,
   type DeclaredVariable,
 } from './analyze.ts'
-import { valueKindOfTypeName } from './signatures.ts'
 
 /** One `analyzeDto` finding: an analyzer diagnostic plus the class member it came from. */
 export interface DtoDiagnostic extends AnalyzerDiagnostic {

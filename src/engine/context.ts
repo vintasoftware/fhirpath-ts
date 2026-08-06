@@ -14,10 +14,10 @@ export interface HostNativeFunction {
   minArity?: number
   maxArity?: number
   /**
-   * Canonical model type names the call's focus must be able to hold, resolved
-   * once by the API layer (see `hostInputTypes`, api/compile.ts). Absent means
-   * the function accepts any focus, which is every function that does not
-   * declare `signature.input.types`.
+   * Model type names the call's focus must be able to hold, as the caller wrote
+   * them — local or canonical, since `unsatisfiedInput` (values/type-compat.ts)
+   * canonicalizes what it compares. Absent means the function accepts any focus,
+   * which is every function that does not declare `signature.input.types`.
    */
   inputTypes?: readonly string[]
   /**
@@ -42,11 +42,10 @@ export interface HostExpressionFunction {
   /**
    * Coerce the body's result by the criteria rule (`criteriaBoolean`: §4.5
    * singleton evaluation, with empty reading as false), so the function always
-   * yields exactly one Boolean.
-   * What makes a `@criteria` mean the same thing projected as a column and
-   * called from an expression.
+   * yields exactly one Boolean. What makes a `@criteria` mean the same thing
+   * projected as a column and called from an expression.
    */
-  singletonBoolean?: boolean
+  criteria?: boolean
 }
 
 export type HostFunction = HostNativeFunction | HostExpressionFunction

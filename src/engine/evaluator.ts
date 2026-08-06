@@ -77,7 +77,7 @@ function evaluateHostFunction(
       const result = withFrame(context, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))
       // Inside the try, so a body yielding several items still clears the
       // recursion guard on its way out.
-      return host.singletonBoolean === true ? wrapBoolean(criteriaBoolean(result)) : result
+      return host.criteria === true ? wrapBoolean(criteriaBoolean(result)) : result
     } finally {
       context.activeExpressionFunctions.delete(name)
     }

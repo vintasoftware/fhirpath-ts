@@ -57,7 +57,7 @@ export function canonicalFocusType(model: ModelProvider, raw: string): string | 
 }
 
 /** True when every `type` value is a `base` value, including FHIR-primitive → System subtyping. */
-export function typeSatisfies(model: ModelProvider, type: string, base: string): boolean {
+function typeSatisfies(model: ModelProvider, type: string, base: string): boolean {
   if (type === base || model.isSubtypeOf(type, base)) {
     return true
   }
@@ -82,4 +82,44 @@ export function typesOverlap(model: ModelProvider, a: string, b: string): boolea
     return true
   }
   return typeSatisfies(model, a, b) || typeSatisfies(model, b, a)
+}
+
+/**
+ * Proof that a function declared against `declared` cannot be running on this
+ * focus, or undefined when nothing is proven. The whole rule for both halves of
+ * the input-type check: the engine holds a call's real values
+ * (`requireHostInput`) and the analyzer holds inferred candidates
+ * (`checkCallInput`), and they must not disagree about what counts as a mistake,
+ * so only how to *report* it is left to them.
+ *
+ * Everything unprovable reads as satisfied: no model, no declaration, a declared
+ * name this model rejects, a focus type it has never heard of (the `Object`
+ * placeholder, a datatype root, plain host data), a focus with no values at all,
+ * and — since one item is enough — any focus where some candidate fits. That
+ * last case exits at the first fit, so the common path stops early instead of
+ * canonicalizing a whole collection.
+ */
+export function unsatisfiedInput(
+  model: ModelProvider | undefined,
+  declared: readonly string[] | undefined,
+  focus: Iterable<string>
+): { wanted: string[]; found: string[] } | undefined {
+  if (model === undefined || declared === undefined) {
+    return undefined
+  }
+  const wanted = declared
+    .map(type => canonicalFocusType(model, type))
+    .filter((type): type is string => type !== undefined)
+  if (wanted.length === 0) {
+    return undefined
+  }
+  const found = new Set<string>()
+  for (const type of focus) {
+    const canonical = canonicalFocusType(model, type)
+    if (canonical === undefined || wanted.some(want => typesOverlap(model, canonical, want))) {
+      return undefined
+    }
+    found.add(canonical)
+  }
+  return found.size === 0 ? undefined : { wanted, found: [...found] }
 }
