@@ -9,8 +9,14 @@ them — DTO definitions, shared base classes, `vars` joins, display choices, an
 DTOs and checks them against their engine. Each module has a test beside it that:
 
 - asserts every exported function end to end, on synthetic FHIR data;
-- runs `analyzeDto` over every DTO and `analyzeExpression` over every
-  standalone expression, so a typo inside an expression string fails CI.
+- runs `analyzeExpression` over the expressions no checker can discover — the
+  ones held in a `const`, which every source walker sees as a variable;
+- runs the real `fhirpath-check` over this directory, so DTO discovery itself is
+  under test: it imports `patient-view.dto.ts`, finds the engine it constructs,
+  and analyzes all 13 exported DTOs against it.
+
+Nothing lists the DTOs. Discovery covers them, which is the point of the
+`*.dto.ts` convention.
 
 The directory is part of `pnpm typecheck` and `pnpm test`, which CI runs on
 every push. When an engine change breaks how a real app uses it, it breaks

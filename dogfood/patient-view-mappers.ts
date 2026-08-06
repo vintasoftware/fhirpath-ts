@@ -32,7 +32,8 @@ import type {
 // lives here so the high-level API keeps working the way an app uses it — the
 // row shapes are in patient-view.dto.ts beside this file, and these are the
 // functions an app calls. The test beside this file asserts every exported mapper
-// end to end and runs both analyzers over every expression (see ANALYZED_USAGE).
+// end to end, analyzes the expressions no checker can discover (see
+// ANALYZED_EXPRESSIONS), and runs `fhirpath-check` over this directory's DTOs.
 
 // --- helpers ---
 
@@ -198,19 +199,18 @@ export function mapLabResults(
 // --- static-analysis surface ---
 
 /**
- * Everything the static checks need: the engine (which carries the model, the
- * functions its registered DTOs contribute, and its env), every DTO — the
- * registered ones straight off the engine — and the standalone expressions with
- * the type each runs against. The test beside this file runs analyzeDto and
- * analyzeExpression over it, so a typo in any expression fails CI.
+ * The expressions here that no checker can find on its own: they live in `const`s
+ * (shared between a mapper and the exported predicate beside it), so every source
+ * walker sees a variable rather than a literal, and they belong to no DTO. The
+ * test beside this file analyzes each against the type it runs on.
+ *
+ * Nothing else needs listing. The DTOs are discovered — `fhirpath-check` imports
+ * `patient-view.dto.ts` and checks every one against the engine it exports — and
+ * every literal expression is checked by the ESLint rule.
  */
-export const ANALYZED_USAGE = {
-  engine: fp,
-  dtos: [...fp.dtos, WeightRow, HeightRow, MedicationCardRow, MedicationDetailRow, ProblemRow, LabRow, LabResultRow],
-  expressions: [
-    { expression: WEIGHT_CRITERIA, inputType: 'Observation' },
-    { expression: HEIGHT_CRITERIA, inputType: 'Observation' },
-    { expression: VISIBLE_MEDICATION, inputType: 'MedicationRequest' },
-    { expression: PATIENT_DISPLAY_NAME, inputType: 'Patient' },
-  ],
-} as const
+export const ANALYZED_EXPRESSIONS = [
+  { expression: WEIGHT_CRITERIA, inputType: 'Observation' },
+  { expression: HEIGHT_CRITERIA, inputType: 'Observation' },
+  { expression: VISIBLE_MEDICATION, inputType: 'MedicationRequest' },
+  { expression: PATIENT_DISPLAY_NAME, inputType: 'Patient' },
+] as const
