@@ -4,7 +4,7 @@ import { analyzeDto, analyzeEngineDtos, analyzeExpression } from '../analyzer/in
 import type { Condition, Observation, ServiceRequest } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
-import { column, criteria, defineDto } from './dto.ts'
+import { column, criteria, defineDto, dtoDefinition } from './dto.ts'
 import { FhirPathEngine } from './engine.ts'
 
 const weighed: Observation = {
@@ -106,6 +106,45 @@ describe('DTO projection', () => {
   it('a DTO needs no engine registration to be projectable', () => {
     const engine = new FhirPathEngine({ model: r4Model })
     expect(engine.project(weighed, WeightRow).kg).toBe(80)
+  })
+
+  it('collects every column when a field initializer reaches another DTO', () => {
+    // A plain field can run arbitrary code, including code that asks for another
+    // DTO's definition — registering one on an engine is enough. The inner
+    // collection must not end the outer one, or the columns below it vanish.
+    class Inner extends defineDto('Condition') {
+      @column('recordedDate')
+      at!: string | undefined
+    }
+    class Outer extends defineDto('Observation') {
+      @column('status')
+      status!: string | undefined
+
+      helper = new FhirPathEngine({ model: r4Model, resourceDtos: [Inner] })
+
+      @column('issued')
+      issued!: string | undefined
+    }
+    expect(Object.keys(dtoDefinition(Outer).columns)).toEqual(['status', 'issued'])
+    expect(Object.keys(dtoDefinition(Inner).columns)).toEqual(['at'])
+    expect(r4.project([weighed], Outer)[0]).toMatchObject({ status: 'final' })
+  })
+
+  it('collects a definition once, however the class is instantiated around it', () => {
+    class Reused extends defineDto('Observation') {
+      @column('status', { type: 'string', default: '' })
+      status!: string
+    }
+    // Instances built outside the collection window record nothing: one before it
+    // opens, and one after — which is what every projected row is.
+    new Reused()
+    const first = dtoDefinition(Reused)
+    new Reused()
+    const engine = new FhirPathEngine({ model: r4Model })
+    engine.project([{ resourceType: 'Observation', status: 'final' }], Reused)
+    const second = dtoDefinition(Reused)
+    expect(second).toBe(first)
+    expect(Object.keys(second.columns)).toEqual(['status'])
   })
 
   it('vars express the join, overridable per call', () => {
@@ -420,6 +459,38 @@ describe('analyzeDto', () => {
     expect(analyzeEngineDtos(engine).map(f => [f.dto, f.member, f.expression, f.code])).toEqual([
       ['Broken', 'status', 'statuss', 'unknown-element'],
     ])
+  })
+
+  it('keeps the engine context when the caller adds functions or variables of its own', () => {
+    // A host declaring one function of its own must not displace the engine's
+    // table: `functions` merges per name, like `variables` does, or a perfectly
+    // valid column call would come back as unresolved.
+    class ConceptFns extends defineDto('CodeableConcept') {
+      @column('(text | coding.display.first()).first()', { type: 'string' })
+      displayText!: string | undefined
+    }
+    class Named extends defineDto('Condition', { env: { fallback: 'Condition' } }) {
+      @column('(code.displayText() | %fallback | %hostVar).first()', { type: 'string', default: '' })
+      name!: string
+
+      @column('hostFn()', { type: 'string', default: '' })
+      fromHost!: string
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [ConceptFns] })
+    // The host's own function and variable resolve, and so do the engine's.
+    expect(
+      analyzeDto(Named, {
+        engine,
+        functions: { hostFn: { minArity: 0, maxArity: 0 } },
+        variables: { hostVar: {} },
+      })
+    ).toEqual([])
+    // Without them declared, both are reported — so the case above is not vacuous.
+    expect(
+      analyzeDto(Named, { engine })
+        .map(f => f.code)
+        .sort()
+    ).toEqual(['unknown-function', 'unknown-variable'])
   })
 
   it('resolves engine functions passed through options', () => {

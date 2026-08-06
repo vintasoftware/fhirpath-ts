@@ -188,6 +188,14 @@ dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressi
     {
       code: "import { fhirpath } from 'fhirpath-ts'; const W = fhirpath('code.coding.exists(system = %loinc)', 'Observation')",
     },
+    // A root followed through a base class the same file declares — the way the
+    // docs recommend sharing columns — checks a valid path rather than skipping it.
+    {
+      code: `${DTO_IMPORT}class Base extends defineDto('Observation') { @column('issued') at!: unknown } class Sub extends Base { @column('value.ofType(Quantity).value') kg!: unknown }`,
+    },
+    // A tag reached through a foreign namespace is not ours — gated on the
+    // receiver, exactly as a call is.
+    { code: "import * as hb from 'handlebars'; const q = hb.fhirpath`Patient.nope`" },
     // A `column` that is not the package's own.
     { code: "import { column } from 'some-table-library'; column('id')" },
     { code: "const column = (name: string) => name; column('not.a.fhirpath.expression')" },
@@ -195,6 +203,23 @@ dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressi
   invalid: [
     {
       code: `${DTO_IMPORT}class Row extends defineDto('Condition') { @column('clinicalStatus.codingg.first()') code!: unknown }`,
+      errors: [{ message: /unknown-element/ }],
+    },
+    // A typo in a subclass of a same-file DTO base is reported against the root
+    // that base fixes; without the chain it would go unchecked.
+    {
+      code: `${DTO_IMPORT}class Base extends defineDto('Observation') { @column('issued') at!: unknown } class Sub extends Base { @column('valuee.ofType(Quantity).value') kg!: unknown }`,
+      errors: [{ message: /unknown-element.*valuee/ }],
+    },
+    // A namespace import reaches defineDto through a member access; the root it
+    // fixes still applies.
+    {
+      code: `import * as api from 'fhirpath-ts'; import { column } from 'fhirpath-ts'; class Row extends api.defineDto('Condition') { @column('clinicalStatus.codingg.first()') code!: unknown }`,
+      errors: [{ message: /unknown-element/ }],
+    },
+    // The same rule for a tag reached through a namespace import.
+    {
+      code: "import * as api from 'fhirpath-ts'; const q = api.fhirpath`Patient.nope`",
       errors: [{ message: /unknown-element/ }],
     },
     {

@@ -4,7 +4,7 @@ import { FhirPathRuntimeError, FhirPathSyntaxError } from '../errors.ts'
 import type { Bundle, Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
-import { BoundExpression, FhirPathEngine } from './engine.ts'
+import { BoundExpression, FhirPathEngine, recordEngines } from './engine.ts'
 import type { Projection } from './project.ts'
 
 const patient: Patient = {
@@ -699,5 +699,35 @@ describe('FhirPathEngine.checkConstraints', () => {
     })
     expect(result.valid).toBe(false)
     expect(result.issues[0]?.error).toBe('Error: sink exploded')
+  })
+})
+
+describe('recordEngines', () => {
+  it('collects the engines built while a session is open, and nothing outside it', () => {
+    const before = new FhirPathEngine({})
+    const engines = recordEngines()
+    const during = new FhirPathEngine({})
+    const recorded = engines()
+    const after = new FhirPathEngine({})
+    expect(recorded).toEqual([during])
+    // Closing stops the collecting: `after` is not retained by anyone.
+    expect(engines()).toEqual([during])
+    expect(recorded).not.toContain(before)
+    expect(recorded).not.toContain(after)
+  })
+
+  it('lets a second session take over, and gives each only its own', () => {
+    const first = recordEngines()
+    const a = new FhirPathEngine({})
+    const second = recordEngines()
+    const b = new FhirPathEngine({})
+    expect(second()).toEqual([b])
+    // The first session saw only what was built before the takeover, and closing
+    // it now cannot reopen recording.
+    expect(first()).toEqual([a])
+    const c = new FhirPathEngine({})
+    expect(first()).toEqual([a])
+    expect(second()).toEqual([b])
+    expect(second()).not.toContain(c)
   })
 })

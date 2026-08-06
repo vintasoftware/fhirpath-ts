@@ -46,14 +46,26 @@ const PROJECT_ROW_VARIABLES = {
  * by id so answers can never cross.
  */
 let sitesRequestId = 0
-const pendingSites = new Map<number, (sites: ExpressionSite[]) => void>()
+const pendingSites = new Map<number, (sites: ExpressionSite[] | undefined) => void>()
+/** The worker the pending requests were sent to, so a replaced one is noticed. */
+let listeningTo: Worker | undefined
 
-async function requestSites(text: string): Promise<ExpressionSite[]> {
+/** Undefined means no answer is coming, which is not the same as "no sites here". */
+async function requestSites(text: string): Promise<ExpressionSite[] | undefined> {
   const worker = await tsWorkerHandle()
-  const id = ++sitesRequestId
-  if (pendingSites.size === 0) {
+  if (worker !== listeningTo) {
+    // Monaco owns this worker's lifetime and disposes it on a config change, so
+    // the handle can be a different worker than last time. Answers to requests
+    // sent to the old one will never arrive, so settle them rather than leave
+    // lint awaiting them forever — which would stop markers for good.
+    for (const [id, resolve] of pendingSites) {
+      pendingSites.delete(id)
+      resolve(undefined)
+    }
     worker.addEventListener('message', receiveSites)
+    listeningTo = worker
   }
+  const id = ++sitesRequestId
   return new Promise(resolve => {
     pendingSites.set(id, resolve)
     worker.postMessage({ fhirpathSites: id, text })
@@ -73,6 +85,9 @@ function receiveSites(event: MessageEvent): void {
 async function lint(model: monaco.editor.ITextModel): Promise<void> {
   const version = model.getVersionId()
   const sites = await requestSites(model.getValue())
+  if (sites === undefined) {
+    return // No answer coming; leave the markers as they are rather than clearing them.
+  }
   if (model.isDisposed() || model.getVersionId() !== version) {
     return // The buffer moved on; the keystroke that changed it re-linted.
   }

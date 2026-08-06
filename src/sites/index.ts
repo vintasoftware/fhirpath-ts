@@ -18,16 +18,21 @@ import type * as TS from 'typescript'
 
 import {
   CALL_SITES,
-  COLUMN_NAME,
+  type ClassHeritage,
   columnFunctionDeclaration,
   constructsEngine,
   type DeclaredColumnFunction,
   DTO_BASE_NAME,
+  dtoRootsOf,
   type ExpressionAst,
   expressionEntries,
   isCheckedCall,
+  isCheckedTag,
   isForeignModule,
   type LocalModuleOptions,
+  rootOf,
+  type SiteContext,
+  siteContext,
   type SourceBindings,
   TAG_NAME,
 } from '../analyzer/expression-policy.ts'
@@ -79,6 +84,8 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
   /** How the shared shape extractor reads TypeScript AST nodes. */
   const tsAst: ExpressionAst<TS.Node> = {
     string: node => (ts.isStringLiteralLike(node) ? { node, expression: node.text } : undefined),
+    boolean: node =>
+      node.kind === ts.SyntaxKind.TrueKeyword ? true : node.kind === ts.SyntaxKind.FalseKeyword ? false : undefined,
     properties: node =>
       ts.isObjectLiteralExpression(node)
         ? node.properties
@@ -109,36 +116,45 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
     return member.name.text
   }
 
-  /** The fhirType of a class's `extends defineDto('Condition', …)` clause; undefined for anything else. */
-  function extendedDtoRoot(node: TS.ClassLikeDeclaration): string | undefined {
+  /** A class's heritage, as `dtoRootsOf` reads it: its own DTO root, or the name of the class it extends. */
+  function heritageOf(node: TS.ClassLikeDeclaration): ClassHeritage {
+    const heritage: ClassHeritage = { name: node.name?.text, ownRoot: undefined, baseName: undefined }
     for (const clause of node.heritageClauses ?? []) {
       if (clause.token !== ts.SyntaxKind.ExtendsKeyword) {
         continue
       }
       for (const type of clause.types) {
-        const call = type.expression
-        if (ts.isCallExpression(call) && nameOf(call.expression) === DTO_BASE_NAME) {
-          return stringArgument(call.arguments[0])
+        const base = type.expression
+        if (ts.isCallExpression(base)) {
+          if (nameOf(base.expression) === DTO_BASE_NAME) {
+            const root = base.arguments[0]
+            heritage.ownRoot = root === undefined ? undefined : tsAst.string(root)?.expression
+          }
+        } else if (ts.isIdentifier(base)) {
+          heritage.baseName = base.text
         }
       }
     }
-    return undefined
-  }
-
-  /** A call argument's text when it is a string literal. */
-  function stringArgument(argument: TS.Expression | undefined): string | undefined {
-    return argument !== undefined && ts.isStringLiteralLike(argument) ? argument.text : undefined
+    return heritage
   }
 
   /**
-   * Collect the file's name bindings before extraction: foreign-import names and
-   * package-import names from the top-level import statements, then engine locals
-   * (`const engine = new FhirPathEngine(...)`) and re-bound names (parameters,
-   * other declarations — see `SourceBindings.rebound`) from the whole tree — a
-   * separate pass so use-before-declaration (a module-scope engine used by an
-   * earlier function) still counts.
+   * Everything about the file that extraction needs to know up front, in one pass
+   * over the tree: the name bindings — foreign- and package-import names from the
+   * top-level import statements, then engine locals (`const engine = new
+   * FhirPathEngine(...)`) and re-bound names (parameters, other declarations — see
+   * `SourceBindings.rebound`) — and every class's heritage, which is what resolves
+   * a DTO root through a shared base class. Collecting before extracting is what
+   * lets a module-scope engine, or a base class, be used above its declaration.
    */
-  function collectBindings(source: TS.SourceFile, options: LocalModuleOptions): SourceBindings {
+  function collectFile(
+    source: TS.SourceFile,
+    options: LocalModuleOptions
+  ): {
+    bindings: SourceBindings
+    dtoRoots: ReadonlyMap<string, string>
+    heritage: ReadonlyMap<TS.Node, ClassHeritage>
+  } {
     const foreign = new Set<string>()
     const trusted = new Set<string>()
     const rebound = new Set<string>()
@@ -165,7 +181,11 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
       }
     }
     const bindings = { foreign, trusted, rebound }
+    const heritage = new Map<TS.Node, ClassHeritage>()
     const collectLocals = (node: TS.Node): void => {
+      if (ts.isClassLike(node)) {
+        heritage.set(node, heritageOf(node))
+      }
       if (ts.isVariableDeclaration(node)) {
         if (
           ts.isIdentifier(node.name) &&
@@ -193,7 +213,7 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
       ts.forEachChild(node, collectLocals)
     }
     collectLocals(source)
-    return bindings
+    return { bindings, dtoRoots: dtoRootsOf([...heritage.values()]), heritage }
   }
 
   /** Add every identifier a binding name declares (`x`, `{ r4 }`, `[a, ...rest]`). */
@@ -237,17 +257,13 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
     options: LocalModuleOptions = {}
   ): ExpressionSite[] {
     const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
-    const bindings = collectBindings(source, options)
+    const { bindings, dtoRoots, heritage } = collectFile(source, options)
     const sites: ExpressionSite[] = []
     const functions: Record<string, DeclaredColumnFunction> = {}
     // A site points at the first character inside the quote/backtick (node start
     // + 1), so fhirpath-check can add a diagnostic's span offsets directly. The
     // ESLint rule reports on the literal node itself, one column earlier.
-    const record = (
-      text: string,
-      literalNode: TS.Node,
-      context?: { dto: boolean; inputType: string | undefined }
-    ): void => {
+    const record = (text: string, literalNode: TS.Node, context: SiteContext = {}): void => {
       const literalStart = literalNode.getStart(source) + 1
       const { line, character } = source.getLineAndCharacterOfPosition(literalStart)
       sites.push({
@@ -255,12 +271,15 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
         start: literalStart,
         line: line + 1,
         column: character + 1,
-        ...(context?.dto === true && { dto: true as const }),
-        ...(context?.inputType !== undefined && { inputType: context.inputType }),
+        ...context,
       })
     }
     const visit = (node: TS.Node, classRoot: string | undefined): void => {
-      if (ts.isTaggedTemplateExpression(node) && nameOf(node.tag) === TAG_NAME && !bindings.foreign.has(TAG_NAME)) {
+      if (
+        ts.isTaggedTemplateExpression(node) &&
+        nameOf(node.tag) === TAG_NAME &&
+        isCheckedTag(receiverRoot(node.tag), bindings)
+      ) {
         if (ts.isNoSubstitutionTemplateLiteral(node.template)) {
           record(node.template.text, node.template)
         }
@@ -274,22 +293,17 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
           argument !== undefined &&
           isCheckedCall(policy, callee, receiverRoot(node.expression), bindings)
         ) {
-          const inputType =
-            policy.rootArg !== undefined
-              ? stringArgument(node.arguments[policy.rootArg])
-              : policy.rootFromClass === true
-                ? classRoot
-                : undefined
-          const field = policy.dto === true && callee === COLUMN_NAME ? decoratedFieldName(node) : undefined
+          const field = policy.declaresField === true ? decoratedFieldName(node) : undefined
           if (field !== undefined) {
             functions[field] = columnFunctionDeclaration<TS.Node>(node.arguments[1], tsAst)
           }
+          const context = siteContext<TS.Node>(policy, index => node.arguments[index], classRoot, tsAst)
           for (const entry of expressionEntries<TS.Node>(argument, policy.shape, tsAst)) {
-            record(entry.expression, entry.node, { dto: policy.dto === true, inputType })
+            record(entry.expression, entry.node, context)
           }
         }
       }
-      const nested = ts.isClassLike(node) ? extendedDtoRoot(node) : classRoot
+      const nested = ts.isClassLike(node) ? rootOf(heritage.get(node), dtoRoots) : classRoot
       ts.forEachChild(node, child => visit(child, nested))
     }
     visit(source, undefined)

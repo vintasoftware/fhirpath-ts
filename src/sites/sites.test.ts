@@ -230,9 +230,94 @@ describe('DTO declarations', () => {
     ])
   })
 
+  it('reads the cardinality of a collection column, and declines to guess a dynamic one', () => {
+    const source = [
+      "import { column, defineDto } from 'fhirpath-ts'",
+      "class Row extends defineDto('Patient') {",
+      "  @column('name.given', { type: 'string', collection: true })",
+      '  given!: string[]',
+      "  @column('name.family', { type: 'string', collection: false })",
+      '  family!: string | undefined',
+      "  @column('telecom.value', { type: 'string', collection: dynamic })",
+      '  contacts!: string[]',
+      '}',
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts')[0]?.functions).toEqual({
+      given: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: false } } },
+      family: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } },
+      // Cardinality not in the syntax, so no signature at all rather than a guess.
+      contacts: { minArity: 0, maxArity: 0 },
+    })
+  })
+
+  it('reads a tag by the name it is reached through, so a foreign namespace is not ours', () => {
+    // A tag is gated on its receiver exactly as a call is: `hb.fhirpath` under a
+    // handlebars namespace import is somebody else's tag, and reporting its
+    // contents as invalid FHIRPath would be the worst kind of miss.
+    const foreign = ["import * as hb from 'handlebars'", 'const q = hb.fhirpath`Patient.name.given`'].join('\n')
+    expect(findExpressionSites(foreign, 'sample.ts')).toEqual([])
+    const ours = ["import * as api from 'fhirpath-ts'", 'const q = api.fhirpath`Patient.name.given`'].join('\n')
+    expect(findExpressionSites(ours, 'sample.ts').map(site => site.expression)).toEqual(['Patient.name.given'])
+    // No imports at all: a distinctive name stays checkable.
+    expect(findExpressionSites('const q = fhirpath`Patient.name.given`', 'sample.ts')).toHaveLength(1)
+  })
+
   it('skips a column that is not the package export', () => {
     const local = ['const column = (name: string) => name', "column('not.a.fhirpath.expression')"].join('\n')
     expect(findExpressionSites(local, 'sample.ts')).toEqual([])
+  })
+
+  it('follows a DTO root through a base class the same file declares', () => {
+    const source = [
+      "import { column, defineDto } from 'fhirpath-ts'",
+      "class ObservationRow extends defineDto('Observation') {",
+      "  @column('issued') at!: string | undefined",
+      '}',
+      'class WeightRow extends ObservationRow {',
+      "  @column('value.ofType(Quantity).value') kg!: unknown",
+      '}',
+      'class Deeper extends WeightRow {',
+      "  @column('status') state!: string | undefined",
+      '}',
+      // A factory call is not a name this file declares, so it stays rootless.
+      "class LabRow extends badgedRow('DiagnosticReport') {",
+      "  @column('code.text') name!: string | undefined",
+      '}',
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => [site.expression, site.inputType])).toEqual([
+      ['issued', 'Observation'],
+      ['value.ofType(Quantity).value', 'Observation'],
+      ['status', 'Observation'],
+      ['code.text', undefined],
+    ])
+  })
+
+  it('does not guess a root for a class name the file declares twice', () => {
+    // Two scopes, two different classes, one name: inheriting the wrong root would
+    // report valid code, so the chain drops the name. A class's own clause is
+    // unaffected.
+    const source = [
+      "import { column, defineDto } from 'fhirpath-ts'",
+      "function a() { class Row extends defineDto('Observation') { @column('issued') at!: unknown } return Row }",
+      "function b() { class Row extends defineDto('Condition') { @column('recordedDate') at!: unknown } return Row }",
+      'class Sub extends Row {',
+      "  @column('whatever') x!: unknown",
+      '}',
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => [site.expression, site.inputType])).toEqual([
+      ['issued', 'Observation'],
+      ['recordedDate', 'Condition'],
+      ['whatever', undefined],
+    ])
+  })
+
+  it('does not loop on a cyclic extends chain', () => {
+    const source = [
+      "import { column } from 'fhirpath-ts'",
+      "class A extends B { @column('issued') at!: unknown }",
+      'class B extends A {}',
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => site.inputType)).toEqual([undefined])
   })
 })
 

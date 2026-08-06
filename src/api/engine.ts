@@ -37,33 +37,42 @@ export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | re
 export type TypedEvaluateOptions<T extends keyof R4TypeOf> = EvaluateOptions & { type: T }
 
 /**
- * Engines constructed while recording is on. Off by default, so an application
- * retains nothing: only a checker turns it on, and only around the imports it
- * makes (see the `fhirpath-check` CLI, which discovers the engines a project
- * builds without needing them exported).
+ * Where engine constructions are collected while a recording session is open, and
+ * `undefined` — the default — when none is: an application that never records
+ * retains nothing, and neither does one whose session has ended.
  */
-const recorded: FhirPathEngine[] = []
-let recording = false
+let session: FhirPathEngine[] | undefined
 
 /**
- * Start recording engine constructions, for tooling that needs to find the
- * engines a project builds: call it, then import the modules that construct
- * them, then read `recordedEngines()`. An engine is usually module-private, so
- * scanning a module's exports would miss it.
+ * Open a recording session, for tooling that needs the engines a project builds
+ * rather than the ones it exports (an engine is usually module-private, so
+ * scanning exports would miss it). Returns the way to close it: import the
+ * modules that construct the engines, then call the returned function for them.
+ *
+ * ```ts
+ * const engines = recordEngines()
+ * await import(dtoModule)
+ * for (const engine of engines()) { … }
+ * ```
+ *
+ * Closing is what keeps this from leaking: every engine built while the session
+ * is open is held until then, and each one holds its `defaults.env`. One session
+ * at a time — a second call takes over, and closing yields only what its own
+ * session saw.
  */
-export function recordEngines(): void {
-  recording = true
-}
-
-/** The engines constructed since `recordEngines()`, in construction order. */
-export function recordedEngines(): readonly FhirPathEngine[] {
-  return recorded
+export function recordEngines(): () => readonly FhirPathEngine[] {
+  const open: FhirPathEngine[] = []
+  session = open
+  return () => {
+    if (session === open) {
+      session = undefined
+    }
+    return open
+  }
 }
 
 function recordEngine(engine: FhirPathEngine): void {
-  if (recording) {
-    recorded.push(engine)
-  }
+  session?.push(engine)
 }
 
 /**

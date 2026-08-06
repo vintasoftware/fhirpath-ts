@@ -15,9 +15,9 @@ import { register } from 'node:module'
 import { relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { analyzeDto, type DtoDiagnostic } from '../analyzer/analyze-dto.ts'
+import { type AnalyzedContext, analyzeDto, type DtoDiagnostic } from '../analyzer/analyze-dto.ts'
 import { type DtoClass, isDtoClass } from '../api/dto.ts'
-import { type FhirPathEngine, recordedEngines, recordEngines } from '../api/engine.ts'
+import { type FhirPathEngine, recordEngines } from '../api/engine.ts'
 
 /** Where DTO classes live unless `--dtos` says otherwise. */
 export const DEFAULT_DTO_GLOB = '**/*.dto.ts'
@@ -49,7 +49,7 @@ export interface DtoCheckResult {
  * exported to be found, which is what makes the convention worth standardizing.
  */
 export async function checkDtoModules(patterns: readonly string[], cwd: string): Promise<DtoCheckResult> {
-  recordEngines()
+  const recorded = recordEngines()
   register(new URL('ts-loader.mjs', import.meta.url))
   const files: string[] = []
   const dtos: { file: string; dto: string; cls: DtoClass }[] = []
@@ -63,7 +63,7 @@ export async function checkDtoModules(patterns: readonly string[], cwd: string):
       }
     }
   }
-  const engines = recordedEngines()
+  const engines = recorded()
   const findings = dtos.flatMap(({ file, dto, cls }) =>
     analyzeFor(cls, engines).map(finding => ({ ...finding, dto, file }))
   )
@@ -72,10 +72,11 @@ export async function checkDtoModules(patterns: readonly string[], cwd: string):
 
 /**
  * A DTO against the engine that registered it, or — when no engine claims it, as
- * for a row shape that is only ever projected — against whichever engine leaves
- * the fewest findings. A project may build several engines, and a DTO checked
- * against the wrong one would report calls that are perfectly resolvable in the
- * engine it actually runs on, so the quietest answer is the honest one.
+ * for a row shape that is only ever projected — against everything the project's
+ * engines make available. A DTO checked against one engine of several would
+ * report calls that resolve perfectly well in the engine it actually runs on, and
+ * "some engine in this project declares this" is the most that can be said
+ * without being told which. Merging says exactly that, once, in engine order.
  */
 function analyzeFor(dto: DtoClass, engines: readonly FhirPathEngine[]): DtoDiagnostic[] {
   const owner = engines.find(engine => engine.dtos.includes(dto))
@@ -85,7 +86,20 @@ function analyzeFor(dto: DtoClass, engines: readonly FhirPathEngine[]): DtoDiagn
   if (engines.length === 0) {
     return analyzeDto(dto)
   }
-  return engines
-    .map(engine => analyzeDto(dto, { engine }))
-    .reduce((fewest, findings) => (findings.length < fewest.length ? findings : fewest))
+  return analyzeDto(dto, { engine: merged(engines) })
+}
+
+/**
+ * Every engine's context as one: the union of their registered functions and env
+ * names. The first engine's `model` stands for all of them — a project binds one
+ * FHIR version, and an unregistered DTO names no engine that could pick another.
+ */
+function merged(engines: readonly FhirPathEngine[]): AnalyzedContext {
+  return {
+    defaults: {
+      ...engines[0]?.defaults,
+      functions: Object.assign({}, ...engines.map(engine => engine.defaults.functions)),
+      env: Object.assign({}, ...engines.map(engine => engine.defaults.env)),
+    },
+  }
 }

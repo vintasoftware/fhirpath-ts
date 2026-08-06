@@ -19,6 +19,14 @@ import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated
  * Navigate) for values that are knowably out of reach rather than misparsed.
  */
 
+/**
+ * A type name the bound model knows — a resource or a datatype. What a DTO's
+ * `fhirType` must be, and what `fhirpath`/`compile` accept as the type an
+ * expression runs against. Lives here, with the rest of the inference vocabulary,
+ * so every layer above spells it one way.
+ */
+export type FhirTypeName = keyof R4TypeOf & string
+
 /** Element lookup by name, walking base types. */
 type ElementInfo<T extends string, E extends string> = T extends keyof R4Elements
   ? E extends keyof R4Elements[T]
@@ -234,7 +242,7 @@ export const FIXED_RETURNS = {
   exp: 'decimal',
   ln: 'decimal',
   log: 'decimal',
-} as const satisfies Record<string, keyof R4TypeOf & string>
+} as const satisfies Record<string, FhirTypeName>
 
 type FixedReturns = typeof FIXED_RETURNS
 
@@ -265,7 +273,7 @@ type IdentityFn = (typeof IDENTITY_RETURNS)[number]
 type Call<S extends string, Fn extends string, Arg extends string> = Fn extends IdentityFn
   ? S
   : Fn extends 'ofType' | 'as'
-    ? Arg extends keyof R4TypeOf & string
+    ? Arg extends FhirTypeName
       ? Arg
       : 'opaque'
     : Fn extends keyof FixedReturns

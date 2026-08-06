@@ -2,7 +2,7 @@
   "name": "fhirpath-ts",
   "version": "0.1.0",
   "private": true,
-  "description": "TypeScript-native FHIRPath engine with compile-time type inference and a spec \u00a711 static analyzer.",
+  "description": "TypeScript-native FHIRPath engine with compile-time type inference and a spec §11 static analyzer.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

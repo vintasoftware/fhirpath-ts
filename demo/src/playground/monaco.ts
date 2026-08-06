@@ -39,7 +39,9 @@ interface MonacoEnvironmentShape {
  * The raw TypeScript worker, kept for the FHIRPath side channel: Monaco wraps
  * what getWorker returns in its own proxy, so the extra protocol the custom
  * worker speaks (see ts.custom.worker.ts) needs this direct handle. Created
- * lazily by Monaco; `tsWorkerHandle()` forces creation first.
+ * lazily by Monaco; `tsWorkerHandle()` forces creation first. Monaco disposes
+ * and recreates it on a `typescriptDefaults` change, so this can come back a
+ * different worker — callers must notice (see requestSites in index.ts).
  */
 let rawTsWorker: Worker | undefined
 ;(self as unknown as { MonacoEnvironment: MonacoEnvironmentShape }).MonacoEnvironment = {

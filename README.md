@@ -862,10 +862,13 @@ Three layers, from cheapest to most thorough:
    so they are not judged; a call into a DTO that lives in *another* module is
    invisible here, so an unresolved function is reported only when it plausibly
    misspells a column the same file declares (`code.displayTxt()` next to a
-   `displayText` column); and a class extending a base class or a root-generic
-   factory — no statically-known `fhirType` — is checked for syntax only, since a
-   relative path with a leading `code`/`text` segment would otherwise be misread
-   as a type-name root. For cross-module DTO vocabularies, list the column names
+   `displayText` column); and a class with no statically-known `fhirType` is
+   checked for syntax only, since a relative path with a leading `code`/`text`
+   segment would otherwise be misread as a type-name root. Extending a base class
+   the same file declares keeps the root — the base lends its `fhirType` along
+   with its columns, however deep the chain — so it is a root-generic factory
+   (`extends keyedRow('Condition')`) or a base from another module that ends the
+   checking. For cross-module DTO vocabularies, list the column names
    in the rule's `functions` option; `analyzeDto` in a test is the complete check
    either way, since it sees the engine's real function set.
 
@@ -938,7 +941,8 @@ Three layers, from cheapest to most thorough:
 
 Both read the same call-site policy (`src/analyzer/expression-policy.ts`) and
 analyze each site through the same `analyzeSite`, so they agree on what counts as
-an expression and on what a site's context is. The rule walks ESLint's AST;
+an expression and on what a site's context is — a suite runs one corpus through
+both and compares the diagnostics, not just the positions. The rule walks ESLint's AST;
 everything else — the CLI, the demo playground's editor markers, a bundler
 plugin — extracts sites with `fhirpath-ts/sites`, which walks the real
 TypeScript AST. Its `createSiteFinder(ts)` takes the compiler as an argument

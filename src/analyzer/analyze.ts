@@ -19,11 +19,6 @@ import {
   withSingle,
 } from './signatures.ts'
 
-// Re-exported from the analyzer entry point so a caller holding source text
-// rather than a single expression — a browser playground, a bundler plugin — can
-// find the expressions to analyze without the TypeScript compiler the CLI walker
-// needs. The call table both walkers obey lives in expression-policy.ts.
-
 export interface AnalyzerDiagnostic {
   severity: 'error' | 'warning'
   /**
@@ -163,12 +158,17 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
 }
 
 /**
- * One expression site a source walker found (`findExpressionSites`,
- * `findLexicalExpressionSites`, the ESLint rule), analyzed with the context the
- * site carries. An ordinary site is analyzed as written; a DTO member (a
- * `@column`/`@criteria` field, a DTO's `vars`) runs against its class's
- * `fhirType` and drops the findings a source walker is not in a position to
- * make:
+ * One expression site a source walker found (`fhirpath-ts/sites`, the ESLint
+ * rule), analyzed with the context the site carries, and stripped of the findings
+ * a source walker is not in a position to make.
+ *
+ * An ordinary site is analyzed as written, except that a *declared* root
+ * (`fhirpath(expr, 'Observation')`) also drops `unknown-variable`: saying where an
+ * expression runs says nothing about the data the engine or the evaluating call
+ * binds to it, and that call is usually in another file.
+ *
+ * A DTO member (a `@column`/`@criteria` field, a DTO's `vars`) runs against its
+ * class's `fhirType`, and drops more:
  *
  * - `unknown-variable`: a DTO's `vars`/`env` may come from a base class or from
  *   the projecting call, so the declared set is not visible here.
@@ -1057,11 +1057,11 @@ function didYouMean(target: string, candidates: Iterable<string>): string {
  * The candidate `target` most plausibly misspells, or undefined when none is
  * close enough: a small edit budget scaled to the name's length, so a genuine
  * typo (`gven` → `given`, `lengthx` → `length`) matches while an unrelated name
- * (`nope`) does not. Exported so a caller weighing an unresolved name — a DTO
- * column call that may instead live in another module (see `analyzeSite`) —
- * applies the same budget the suggestions use.
+ * (`nope`) does not. Both the `did you mean` suggestions and `analyzeSite`
+ * weighing an unresolved column name go through here, so one budget decides what
+ * counts as a plausible misspelling.
  */
-export function nearestName(target: string, candidates: Iterable<string>): string | undefined {
+function nearestName(target: string, candidates: Iterable<string>): string | undefined {
   // Budget grows with the name: 1 edit for short names (<=4), up to 3 for long ones.
   // Keeps suggestions high-precision — a real typo, not any name that happens to be near.
   const budget = Math.min(3, Math.ceil(target.length / 4))
