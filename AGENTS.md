@@ -184,10 +184,27 @@ per-call env and `%rowIndex`. What it removes is a DTO publishing its private
 data to every expression the engine evaluates, which nothing asked for. An
 engine-wide variable is `new FhirPathEngine({ env })`, where the host says so.
 
+The two routes to that env must agree on precedence, and both give the DTO the
+name: the overlay lays the DTO's values over the caller's, and `dtoCallOptions`
+lays them over the projecting call's. Do not make either one call-wins. A DTO
+reached by both routes in one `project()` — a column path and a column called
+through a `var` — would otherwise answer the same declaration two ways in one
+operation. A projecting call varies data through the names the DTO declares as
+`callerEnv`, which is what that field is for.
+
+Call-wins is not available as the other unification, so do not reach for it as
+the "simpler" fix. An evaluation context holds one merged env map with no record
+of where a name came from (`EvaluationContext.env`), so an overlay cannot tell a
+per-call name from an engine-wide one. Making it defer to the caller would let
+any engine-level name shadow a DTO's private table, which is the collision this
+scoping removes.
+
 `vars` cannot travel the same way and should not be made to. A var is an
 expression evaluated against a row; a call has a focus, not a row. That
 asymmetry is real — env travels with a called column, vars do not — and is
-documented rather than papered over.
+documented rather than papered over. `vars` stay under the projecting call,
+which is not the same split: a var is reached by one route only, so there are no
+two answers to reconcile.
 
 Dispatch is by the focus and nothing else, which leaves the cases
 `unsatisfiedInput` is deliberately silent about — an empty focus, a focus type

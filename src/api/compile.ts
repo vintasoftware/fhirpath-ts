@@ -1,6 +1,7 @@
 import type { CustomFunctionSignature } from '../analyzer/signatures.ts'
 import {
   createContext,
+  envCollections,
   type EvaluationContext,
   forkVariables,
   type HostExpressionFunction,
@@ -324,12 +325,23 @@ function hostExpressionFunction(
 }
 
 /**
- * A definition's own env as the collections the context binds. Built once per
- * factory, not per call: the values are the definition's, so every call to it
- * lays down the same overlay.
+ * Overlays already built, by the env record they were built from. A context
+ * factory is made per evaluation and resolves every host function, so without
+ * this a DTO's tables would be re-wrapped on every `evaluate()` — including
+ * evaluations that never call one of its columns. The record is the DTO's
+ * cached definition, one object shared by all of its columns, so the entry is
+ * reached again on the next evaluation and released with the class.
  */
+const overlays = new WeakMap<object, ReadonlyMap<string, TypedValue[]>>()
+
+/** A definition's own env as the collections the context binds, wrapped once per record. */
 function envOverlay(env: Record<string, unknown>): ReadonlyMap<string, TypedValue[]> {
-  return new Map(Object.entries(normalizeEnvKeys(env)).map(([name, value]) => [name, toCollection(value)]))
+  let overlay = overlays.get(env)
+  if (overlay === undefined) {
+    overlay = envCollections(env)
+    overlays.set(env, overlay)
+  }
+  return overlay
 }
 
 /** Default for `EngineOptions.cacheSize`, matching Firely's FhirPathCompilerCache default. */

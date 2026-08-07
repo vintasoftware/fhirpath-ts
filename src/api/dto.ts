@@ -1,6 +1,6 @@
 import '../functions/install.ts'
 
-import { mergeEnvKeys } from '../engine/context.ts'
+import { mergeEnvKeys, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
@@ -106,6 +106,8 @@ type PathDecorator<Column extends { path: string }> = <This extends DtoInstance,
  * ```
  *
  * A DTO that declares env once needs no annotation at all: `static env = { … }`.
+ * Write `static env = { … } satisfies DtoEnv` to have the shape checked where it
+ * is declared instead of when the DTO is first used.
  */
 export type DtoEnv = Record<string, unknown>
 
@@ -277,10 +279,17 @@ export function criteria(expr: string): unknown {
   return fieldDecorator({ test: expr })
 }
 
+/** A class and the classes it extends, most derived first. */
+function* classChain(cls: object): Generator<{ readonly name: string }> {
+  for (let current: unknown = cls; typeof current === 'function'; current = Object.getPrototypeOf(current)) {
+    yield current as { readonly name: string }
+  }
+}
+
 /** The `defineDto()` base a class descends from, with the fhirType/vars it fixed. */
 function baseOf(cls: object): ({ fhirType: string } & DtoOptions) | undefined {
-  for (let current: unknown = cls; typeof current === 'function'; current = Object.getPrototypeOf(current)) {
-    const base = bases.get(current as object)
+  for (const current of classChain(cls)) {
+    const base = bases.get(current)
     if (base !== undefined) {
       return base
     }
@@ -294,34 +303,43 @@ function baseOf(cls: object): ({ fhirType: string } & DtoOptions) | undefined {
  * base owns. Own properties only at each level, since a plain `cls.env` read
  * would find an inherited field and count it twice. A `static get env()` is
  * read the same way, and read once: the definition is collected once per class.
+ *
+ * Nothing declared and nothing left after merging are the same answer, so a DTO
+ * that declares an empty record carries no overlay rather than an empty one.
  */
 function declaredEnv(cls: DtoClass): Record<string, unknown> | undefined {
-  const chain: Record<string, unknown>[] = []
-  for (let current: unknown = cls; typeof current === 'function'; current = Object.getPrototypeOf(current)) {
-    const declared = Object.getOwnPropertyDescriptor(current, 'env')
-    if (declared === undefined) {
-      continue
+  const declared: Record<string, unknown>[] = []
+  for (const current of classChain(cls)) {
+    const own = staticEnv(current)
+    if (own !== undefined) {
+      declared.unshift(own)
     }
-    const own: unknown = declared.get === undefined ? declared.value : declared.get.call(current)
-    if (own === undefined) {
-      continue
-    }
-    if (typeof own !== 'object' || own === null || Array.isArray(own)) {
-      throw new FhirPathTypeError(
-        `DTO ${cls.name} declares a static 'env' that is not a record of variables; ` +
-          'write it as { name: value }, the same shape as EvaluateOptions.env'
-      )
-    }
-    chain.unshift(own as Record<string, unknown>)
   }
-  if (chain.length === 0) {
+  const merged = Object.assign({}, ...declared.map(normalizeEnvKeys)) as Record<string, unknown>
+  return Object.keys(merged).length === 0 ? undefined : merged
+}
+
+/**
+ * One class's own `static env`, as a field or a getter, checked for the shape
+ * the engine can bind. Names the class that declared it, which is the one to
+ * edit even when the projected DTO is several subclasses below.
+ */
+function staticEnv(cls: { readonly name: string }): Record<string, unknown> | undefined {
+  const declared = Object.getOwnPropertyDescriptor(cls, 'env')
+  if (declared === undefined) {
     return undefined
   }
-  let merged: Record<string, unknown> = {}
-  for (const declared of chain) {
-    merged = mergeEnvKeys(merged, declared)
+  const own: unknown = declared.get === undefined ? declared.value : declared.get.call(cls)
+  if (own === undefined) {
+    return undefined
   }
-  return merged
+  if (typeof own !== 'object' || own === null || Array.isArray(own)) {
+    throw new FhirPathTypeError(
+      `DTO ${cls.name} declares a static 'env' that is not a record of variables; ` +
+        'write it as { name: value }, the same shape as EvaluateOptions.env'
+    )
+  }
+  return own as Record<string, unknown>
 }
 
 /**
@@ -423,7 +441,7 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
       }
       functions[name] = declaredWith(
         functions[name],
-        columnFunction(spec, compile, definition.fhirType, definition.env),
+        columnFunction(spec, compile, definition),
         defaults.model,
         () => `DTO ${dto.name} redefines the function '${name}'`
       )
@@ -523,21 +541,21 @@ function canonicalTypes(model: ModelProvider, types: readonly string[] | undefin
  * criteria is projected, which is what lets one declaration mean one thing in
  * both places.
  */
-function columnFunction(
-  spec: ColumnSpec,
-  compile: Compiler,
-  hostType: string,
-  env: Record<string, unknown> | undefined
-): SingleCustomFunction {
-  const owned = env === undefined ? {} : { env }
+function columnFunction(spec: ColumnSpec, compile: Compiler, dto: DtoDefinition): SingleCustomFunction {
+  const { fhirType, env } = dto
   if ('test' in spec) {
-    return { expression: compile(spec.test), criteria: true, signature: criteriaSignature(hostType), ...owned }
+    return {
+      expression: compile(spec.test),
+      criteria: true,
+      signature: criteriaSignature(fhirType),
+      ...(env !== undefined && { env }),
+    }
   }
-  const signature = columnSignature(spec, hostType)
+  const signature = columnSignature(spec, fhirType)
   return {
     expression: compile(spec.path),
     ...(signature !== undefined && { signature }),
-    ...owned,
+    ...(env !== undefined && { env }),
   }
 }
 
@@ -563,10 +581,17 @@ export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
 }
 
 /**
- * A projected DTO's own env and vars, merged under the per-call options (per
- * name, call wins) — so precedence runs engine defaults, then DTO, then call.
- * This is where the DTO's env reaches its `vars`, which the registered columns
- * cannot carry, and where a projecting call can still override one entry of it.
+ * A projected DTO's own env laid over the per-call options, and its `vars` laid
+ * under them. The env goes over so its columns read the same data here as they
+ * do when a column is called from another expression — that overlay is the
+ * DTO's too (see `withEnvOverlay`).
+ * A name the DTO declares means the DTO's value by whichever route a column
+ * reaches it; every other name the call supplies comes through untouched, which
+ * is what `callerEnv` declares and where per-request data belongs.
+ *
+ * `vars` stay under the call: a var is reached by one route only, so there are
+ * no two answers to reconcile, and overriding one for a call is how a caller
+ * substitutes a binding.
  */
 export function dtoCallOptions(dto: DtoClass, options: EvaluateOptions | undefined): EvaluateOptions | undefined {
   const { env, vars } = dtoDefinition(dto)
@@ -575,7 +600,7 @@ export function dtoCallOptions(dto: DtoClass, options: EvaluateOptions | undefin
   }
   const merged: EvaluateOptions = { ...options }
   if (env !== undefined) {
-    merged.env = mergeEnvKeys(env, options?.env)
+    merged.env = mergeEnvKeys(options?.env, env)
   }
   if (vars !== undefined) {
     merged.vars = mergeEnvKeys(vars, options?.vars)

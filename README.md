@@ -492,8 +492,51 @@ where saying so is the point.
 Inside a column body the DTO's names are laid over the caller's environment for
 the length of the call: every other name — the built-ins, `%context`, whatever
 the call supplied, `%rowIndex` during a projection — stays the caller's, and the
-overlay is gone again afterwards. A subclass adds to what its bases declare, per
-name; annotate the base's field `DtoEnv` to override one entry of it.
+overlay is gone again afterwards.
+
+A name the DTO declares means the DTO's value, by whichever route a column
+reaches it — a projected column, a column called from another expression, or the
+DTO's own `vars`. Precedence for a DTO's expressions runs **engine env, then
+per-call env, then the DTO's own**, so passing that name to `project()` does not
+override it:
+
+```ts
+const fp = new FhirPathEngine({ model: r4Model, env: { system: 'engine' }, resourceDtos: [LabRow] })
+
+fp.project(report, LabRow)                                     // %system is LabRow's, not 'engine'
+fp.project(report, LabRow, { env: { system: 'urn:other' } })   // still LabRow's
+fp.project(orders, LabResultRow, { env: { reports } })         // %reports arrives: LabResultRow never declares it
+fp.evaluate('%system', report)                                 // 'engine' — outside a column, nothing is overlaid
+```
+
+The reason is that a column can be reached two ways in one projection — as a
+path, and as a function another column or `var` calls. If the call won on one
+route and the DTO on the other, a single declaration would answer twice in one
+`project()`. Data that varies per call is a *different* name, which the DTO
+declares as `callerEnv`.
+
+To read a DTO's columns against a different table — a stubbed lookup in a test —
+extend it and override the entry, as `PoundsRow` does below. Note what that does
+*not* cover: a call like `loincCode()` resolves to whichever DTO is registered,
+and runs with that DTO's env. Subclassing swaps the table for the subclass's own
+projected columns; register the subclass in place of the original to swap it for
+calls too.
+
+A subclass adds to what its bases declare, per name. To override one entry of a
+base's table, annotate the *base's* field `DtoEnv` — an inferred literal type
+would make TypeScript demand the whole record back from the subclass:
+
+```ts
+class BadgedRow extends defineDto('DiagnosticReport') {
+  static env: DtoEnv = { unit: 'kg', label: 'Reading' }
+}
+class PoundsRow extends BadgedRow {
+  static override env = { unit: '[lb_av]' } // `label` still reads 'Reading'
+}
+```
+
+A DTO that declares env once needs no annotation. Add `satisfies DtoEnv` to have
+the shape checked at compile time rather than when the DTO is first used.
 
 `vars` travel with the DTO as the second argument to `defineDto`. They are not
 registered — a var is an expression evaluated against a row, and a call has a

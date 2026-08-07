@@ -171,6 +171,19 @@ export function normalizeEnvKeys<T>(env: Record<string, T> | undefined): Record<
   return normalized
 }
 
+/**
+ * An env record as the collections a context binds: names normalized, values
+ * wrapped. The one conversion from the host's env shape into the engine's, used
+ * both to seed a context and to build a function's own overlay.
+ */
+export function envCollections(env: Record<string, unknown> | undefined): Map<string, TypedValue[]> {
+  const collections = new Map<string, TypedValue[]>()
+  for (const [name, value] of Object.entries(normalizeEnvKeys(env))) {
+    collections.set(name, toCollection(value))
+  }
+  return collections
+}
+
 /** Merge two env-shaped records per name: both key spellings normalize first, and `override` wins. */
 export function mergeEnvKeys<T>(
   base: Record<string, T> | undefined,
@@ -196,8 +209,8 @@ export function createContext(options: {
   // FHIR-defined variables; contained-resource re-rooting is a later refinement.
   env.set('resource', options.root)
   env.set('rootResource', options.root)
-  for (const [name, value] of Object.entries(normalizeEnvKeys(options.env))) {
-    env.set(name, toCollection(value))
+  for (const [name, value] of envCollections(options.env)) {
+    env.set(name, value)
   }
   const hostFunctions = new Map<string, HostFunction>()
   for (const [name, fn] of Object.entries(options.functions ?? {})) {
