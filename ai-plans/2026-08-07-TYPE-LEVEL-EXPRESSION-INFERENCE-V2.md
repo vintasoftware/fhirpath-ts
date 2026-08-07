@@ -209,23 +209,60 @@ step counter. It recognizes the runtime lexer's complete vocabulary, including
 comments, delimited identifiers, escaped strings, temporal/quantity literals,
 multi-character operators, and word operators.
 
-The hard cap is **64 semantic tokens** after comments and whitespace. It covers
-all 1,982 tokenizable expressions in the vendored official R4/R5 JSON and 3,645
-of 3,647 tokenizable expressions in the fhirpath.js corpora. Token 65 returns the
-opaque sentinel immediately. The two longer corpus expressions are checked as
-intentional budget-bail cases, not silently omitted.
+The hard cap is **64 semantic tokens** after comments and whitespace. A baseline
+audit of the vendored official R4/R5 suites and runnable fhirpath.js suites finds
+2,356 distinct expressions. The runtime parser accepts 2,348; 2,347 of those
+(99.6% of the combined runnable inventory) fit within 64 tokens. The remaining
+accepted expression has 208 tokens. Token 65 returns the opaque sentinel
+immediately. That long expression is an intentional budget-bail case, and the
+eight runtime-parser rejections are classified as invalid or unsupported corpus
+syntax rather than silently omitted.
 
 Every loop is directly tail-recursive. Conditionals that inspect union-bearing
 state use tuple guards (`[T] extends [U]`) unless distribution is explicitly the
 operation. Malformed tokens, unmatched delimiters, unfinished expressions, and
 depth exhaustion all return opaque rather than a compiler error.
 
-### Fused precedence parser
+### Parser shape and prior art
+
+The production parser is a cursor-driven shift-reduce state machine. It follows
+the strongest transferable part of
+[ArkType's parser](https://github.com/arktypeio/arktype/blob/03b1f015d9b7c5af5dac2caed1aeedefaf705ab3/ark/type/parser/string.ts):
+the runtime and type-level implementations use the same state vocabulary, token
+metadata, and finalizers; a single tail-recursive loop alternates between operand
+and operator work; group state is explicit; and only measured common forms get a
+fast path. Token/operator tables are generated from the runtime implementation so
+the two parsers cannot acquire separate spellings or precedence.
+
+ArkType's fixed `intersection`/`union`/`pipe` branch slots do not scale to
+FHIRPath's 13 precedence levels. FHIRPath therefore uses a general operator stack
+and the runtime precedence table. It also returns an opaque sentinel instead of
+carrying ArkType-style diagnostics and completions through the type system.
+
+[ts-sql's parser](https://github.com/codemix/ts-sql/blob/de9dc91a30a0ce9340bed719ba6c0d564504ea56/src/Parser.ts)
+is useful only as a small reference for the `[parsed, rest]` convention used by
+isolated scanner helpers. Its whitespace/delimiter tokenizer, recursive-descent
+union alternatives, and template match for parenthesized expressions do not
+handle FHIRPath's nested groups, quoted delimiters, or compiler budget safely and
+are not the production architecture.
+
+Commit 1 includes a disposable measured spike over the common-path fixture and a
+corpus-derived grammar stress fixture. It compares direct parse-and-infer state
+with a compact AST followed by an inference pass. The default is the fused form
+below; the AST form may replace it only if it stays within 15% of fused
+instantiations on both fixtures, has no expression over the 100,000-instantiation
+per-case ceiling, and demonstrably removes duplicated parser/semantic branches.
+The chosen measurements and decision are recorded in this document's Amendments
+before the full parser lands.
+
+### Fused precedence and inference
 
 Use one shift-reduce loop with explicit operand, operator, call, and scope stacks.
 Its precedence table is generated from the runtime parser's operator metadata.
 Reduction produces the inference state directly; no type-level AST is retained.
-This avoids paying once to construct an AST type and again to walk it.
+This is the planned default because it avoids paying once to construct an AST
+type and again to walk it; the bounded Commit 1 comparison above can overturn
+that choice with evidence.
 
 The state carries:
 
@@ -279,17 +316,22 @@ claims**. A capability is not supported until its tests land in the same commit.
 Add a checked-in registry whose entries contain:
 
 - a stable capability id and family
-- a literal expression and optional input/context declaration
+- either a stable vendored-corpus case id or an inline expression for a proven
+  corpus gap
+- optional input/context declarations that the source corpus cannot carry
 - the exact expected public TypeScript result
 - whether a stable runtime value is asserted
 - the analyzer state expected after canonicalization
 - the expected opaque/degradation companion case
 
-Human-readable `expectTypeOf` tests consume this registry. A hygiene test compares
-it with literal kinds, operator metadata, built-in function rules, scope forms,
-and dynamic-context declaration forms. CI fails if a precise rule lacks at least
-one capability entry, if an id is duplicated, or if an entry no longer exercises
-the named rule.
+A generator resolves corpus ids to the expression, resource fixture, expected
+runtime result, and analyzer oracle directly from the vendored JSON. Expressions
+are not copied into a second hand-maintained fixture. Human-readable
+`expectTypeOf` tests consume the resolved registry. A hygiene test compares it
+with literal kinds, operator metadata, built-in function rules, scope forms, and
+dynamic-context declaration forms. CI fails if a precise rule lacks at least one
+capability entry, if an id is duplicated, if an id stops resolving, or if an
+entry no longer exercises the named rule.
 
 Every capability entry must prove:
 
@@ -332,6 +374,46 @@ Adding a built-in, operator, literal rule, or declaration form later requires a
 registry entry in the same change. This makes “all supported capabilities are
 tested” an executable invariant rather than a review convention.
 
+### Reference-derived full-language fixture
+
+The reference suites are the primary expression inventory, not a second layer of
+tests beside a hand-written “full-language” list. The baseline audit finds:
+
+- 2,356 distinct expressions across valid official R4/R5 cases and runnable
+  fhirpath.js cases
+- 2,348 expressions accepted by the current runtime parser
+- 2,347 accepted expressions at or below the 64-token type-level budget (99.6%
+  of the combined inventory)
+- every runtime operator and every literal AST kind represented
+- 113 of 114 signed built-ins represented in runnable cases; `convertsToLong`
+  appears in vendored skipped cases, so it can still supply the expression for a
+  dedicated type assertion without claiming runtime agreement
+
+This means the grammar, literal, operator, and built-in-call fixture can be
+derived entirely from the references at baseline. The 99.6% figure is budget
+coverage of the runnable expression inventory, not a claim that the references
+can express host API contracts. Commit 1 checks in the audit script and its
+summary so these numbers are reproducible and drift is visible.
+
+Hand-written expressions are allowed only where the reference formats cannot
+state the contract being tested:
+
+- any future grammar/rule entry absent even from skipped reference cases
+- exact public API shapes for `evaluate`, `first`, compiled/bound expressions,
+  projections, and DTO field checking
+- typed env, vars, native/expression functions, overloads, local overlays, and
+  other host declarations absent from the reference suites
+- analyzer-opaque/degradation companions, the 64/65-token boundary, and focused
+  downstream-composition cases not present in the corpus
+- adversarial compiler-budget cases
+
+The generated capability index tags each corpus expression with every construct
+it exercises. A capability entry references the smallest case whose analyzer
+result is precise enough for its exact positive assertion; one case may cover
+several constructs, but each construct still has its own capability id and
+expected public type. The checked-in summary reports both corpus-backed and
+hand-written capability counts, preventing a quiet return to duplicated fixtures.
+
 ### Corpus soundness and precision ratchet
 
 A script generates temporary TypeScript assertion shards from both official
@@ -343,14 +425,17 @@ suites and both fhirpath.js JSON corpora. For each usable expression it:
    narrower disagreement
 4. invokes `tsc` on bounded shards so one file cannot dominate the compiler
 
-Invalid expressions assert opaque. Expressions over 64 tokens assert budget
-bail. R5-model-only, DSL-object, and unavailable-context cases are classified in
-the report rather than being mistaken for inference failures.
+Invalid expressions assert opaque. The accepted 208-token expression asserts
+budget bail. Runtime-parser rejections, R5-model-only cases, DSL objects, and
+unavailable-context cases are classified in the report rather than being
+mistaken for inference failures.
 
 Check in a generated precision summary grouped by literals, paths, operator
 family, function family, lambdas, variables, dynamic declarations, resolve, and
-bail reason. CI fails when a previously precise case becomes opaque or changes to
-a conflicting type. No arbitrary precision percentage can override soundness.
+bail reason. It also records corpus totals, parse rejection reasons, token-budget
+coverage, and the signed-function/operator coverage matrix quoted above. CI fails
+when a previously precise case becomes opaque or changes to a conflicting type.
+No arbitrary precision percentage can override soundness.
 
 ## Performance gates
 
@@ -359,8 +444,11 @@ parallel timing system:
 
 - Preserve a common-path fixture and keep it within **10%** of the current
   `25,872`-instantiation baseline.
-- Add a representative full-language fixture; keep the whole fixture below
-  **5,000,000** instantiations.
+- Generate the representative full-language fixture from the capability index:
+  at least one case per syntax/rule family, every adjacent precedence boundary,
+  the longest accepted case under the cap, and the highest-cost nested
+  lambda/scope cases. Keep the whole fixture below **5,000,000** instantiations;
+  do not maintain another copied expression list.
 - Compile the most expensive registered capability expressions independently;
   none may exceed **100,000** instantiations.
 - Record memory/check-time diagnostics in the implementation PR, but gate on
@@ -371,6 +459,32 @@ parallel timing system:
 - Any budget increase must be in the same commit as the capability that needs it
   and explained in the PR description, per `AGENTS.md`.
 
+### Runtime cross-engine benchmark
+
+Run the existing [`benchmarks/`](https://github.com/vintasoftware/fhirpath-ts/tree/main/benchmarks)
+harness before Commit 1 and again after Commit 6. It evaluates the same 821
+official R4 expression/resource pairs in fhirpath-ts with the R4 model,
+fhirpath-ts without a model, and the Rust `octofhir-fhirpath` engine with its
+empty model provider. Keep the Rust dependency pinned to `0.4.50` for the two
+runs unless a separate documented compatibility fix is required.
+
+For each baseline and final measurement:
+
+- record the fhirpath-ts commit, Rust harness/crate version, Node, TypeScript,
+  rustc/cargo, CPU, OS, and common accepted-case count
+- run the full harness five times on the same idle machine and compare the median
+  of the aggregate, median, and p95 parse/evaluation results
+- publish the before/after table in the implementation PR and attach or link the
+  raw generated JSON; keep machine-specific `benchmarks/results/` git-ignored
+- investigate any fhirpath-ts regression over **15%** in the five-run median on
+  the unchanged common accepted set; explain an accepted-set change separately
+
+The Rust number is comparative context, not an acceptance target: different
+model providers make the model-aware result intentionally asymmetric. The
+before/after fhirpath-ts result catches runtime regressions from shared rule or
+signature refactors. It does not measure type-level cost and cannot replace the
+deterministic TypeScript instantiation gates above.
+
 ## One-PR implementation sequence
 
 The implementation is one branch and one PR. Each phase is a reviewable commit;
@@ -378,16 +492,21 @@ all earlier tests and applicable repository gates are green at every commit.
 
 ### Commit 1 — Harness and shared rule algebra
 
-- Add the capability registry/hygiene checks, corpus assertion generator,
-  precision report, and split performance fixtures.
+- Add the corpus-derived capability index/registry, audit and hygiene checks,
+  assertion generator, precision report, and split performance fixtures.
+- Measure the fused-state/compact-AST parser spike, record the architecture
+  decision in Amendments, and delete the losing spike.
+- Run and record the five-run runtime/Rust benchmark baseline on the current-main
+  commit and pinned toolchains.
 - Introduce the declarative function/operator result rules and make the analyzer
   interpret them without changing diagnostics or current inferred results.
 - Record baselines for the existing subset.
 
 ### Commit 2 — Tokenizer/parser parity
 
-- Add the 64-token tokenizer and fused parser for paths, indexers, existing calls,
-  `select()` subexpressions, unions, groups, and `%var` roots.
+- Add the 64-token tokenizer and the selected shift-reduce parser for paths,
+  indexers, existing calls, `select()` subexpressions, unions, groups, and `%var`
+  roots.
 - Pass all existing inference and capability tests unchanged.
 - Delete `ParseSegments`, `StepAcrossParen`, the glued-segment scanner, and other
   superseded parsing machinery. There is one type-level parser after this commit.
@@ -418,6 +537,8 @@ all earlier tests and applicable repository gates are green at every commit.
 ### Commit 6 — Ratchet, documentation, and generated declarations
 
 - Run and check in the final corpus precision report and budgets.
+- Rerun the five-run cross-engine benchmark on the same machine and publish the
+  before/after fhirpath-ts and contextual Rust comparison in the PR description.
 - Update README examples to remove annotations inference now makes redundant,
   while retaining the manual escape hatches for opaque cases.
 - Regenerate demo declarations and document typed dynamic contexts.
@@ -432,6 +553,10 @@ The implementation is complete only when:
   have exact capability-registry tests
 - capability hygiene reports no untested literal, operator, precise function,
   scope form, or configuration route
+- the generated full-language fixture still resolves from the vendored suites,
+  covers every runtime operator and signed built-in (with an explicit local gap
+  assertion for a skipped source case where needed), and reports its
+  corpus-backed/manual split
 - the generated corpus soundness sweep has no narrower-than-analyzer result
 - the precision report has no unexplained regression from its prior commit
 - the 64-token bail and all intentional opaque rules are tested
@@ -439,6 +564,8 @@ The implementation is complete only when:
 - `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm check:fhirpath`,
   `pnpm check:type-perf`, and `pnpm coverage` pass
 - the demo's declarations are regenerated and its typecheck/build pass
+- the before/after TypeScript and five-run cross-engine benchmark tables are in
+  the PR, with every regression over the stated thresholds resolved or explained
 - no runtime dependency is added
 
 ## Risks
@@ -448,7 +575,10 @@ The implementation is complete only when:
 | TypeScript instantiation blowup | 64-token hard bail, tail recursion, compact tuple state, common/worst-case budgets |
 | Plausible but wrong types | Analyzer-or-unknown corpus oracle; capability degradation and downstream tests |
 | Function/analyzer drift | Declarative result rules, generated type table, name-level hygiene tests |
+| Reference fixtures duplicate instead of replace hand-written cases | Registry stores corpus ids; generated index and corpus/manual count are checked |
+| Parser prior art does not fit FHIRPath | Measured fused/AST spike, general precedence stack, explicit documented decision before implementation |
 | Scoping differs from runtime | Capability cases for nested frames, forked operands/arguments, variable lifetime, and local overlays |
+| Shared-rule refactor slows runtime | Same-machine five-run before/after benchmark plus contextual pinned Rust comparison |
 | Typed host declarations overpromise actual values | Declarations constrain supplied TypeScript values where possible; unsigned/dynamic data stays opaque |
 | One implementation PR becomes hard to review | Six ordered green commits, generated capability summary, and explicit budget/precision diffs per commit |
 
