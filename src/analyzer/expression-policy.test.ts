@@ -398,6 +398,25 @@ describe('the walkers agree on a site’s context', () => {
       expected: [],
     },
     {
+      name: 'declarations that disagree on the result still declare the input they share',
+      // The two halves are judged separately. Both `label`s are written against
+      // a CodeableConcept whichever one registers, so a call on a string focus
+      // is still wrong — dropping the whole signature would miss it.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Text extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class Count extends defineDto('CodeableConcept') {",
+        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('subject.reference.label()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: label() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
       name: 'agreeing declarations of one field name keep their claims',
       // Same name, same root, same result — nothing is in doubt, so the wrong
       // focus is still reported.

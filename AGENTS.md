@@ -184,9 +184,9 @@ official test suite. `signatures.test.ts` checks that none does.
 The lint and editor half reads each class's root from the source, so a file can
 declare one field name twice against different roots. Only one of them can
 register a function of that name on any one engine, and the source does not say
-which. `columnVocabulary` therefore keeps a claim only when every declaration of
-that name agrees on it, and drops it otherwise — the same answer `dtoRootsOf`
-gives for an ambiguous class name.
+which. `agreedColumnDeclaration` therefore keeps a claim only when every
+declaration of that name agrees on it, and drops it otherwise — the same answer
+`dtoRootsOf` gives for an ambiguous class name.
 
 Keeping the last declaration seen is the tempting shortcut and it reports valid
 code: with a `label` column on a Coding and another on a CodeableConcept,
@@ -196,6 +196,12 @@ own before input types existed, so a `label()` typed `string` in one class and
 `integer` in another made `code.label().length()` an `operand-type` error.
 `expression-policy.test.ts` holds both cases, and both fail if the merge goes
 back to last-wins.
+
+Input and result are judged separately, so two `label`s on a CodeableConcept
+that disagree on the result still declare the CodeableConcept they share, and
+`subject.reference.label()` is still an `input-type` error. That case is in the
+same suite: without it, dropping the whole signature on any disagreement passes
+every test.
 
 What is still guessed, and accepted: a file sees only its own columns, so a call
 into a column declared in another module stays unresolved. `analyzeSite` reports

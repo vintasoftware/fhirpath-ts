@@ -475,59 +475,49 @@ export function columnFunctionDeclaration<N>(
   return signature === undefined ? declaration : { ...declaration, signature }
 }
 
-/** One `@column`/`@criteria` field of a file, as a walker reads it. */
-export interface ColumnDeclaration {
-  field: string
-  declaration: DeclaredColumnFunction
-}
-
 /**
- * The function vocabulary a file's `@column`/`@criteria` fields declare, keyed
- * by field name — what a walker hands to `analyzeSite` so calls between a
- * file's own columns resolve.
- *
+ * What a file's column vocabulary keeps for a field name it has already seen.
  * Two classes in one file may declare the same field name against different
  * `fhirType`s, and only one of them can register a function of that name on any
  * one engine. The source does not say which, so a claim survives only when
- * every declaration of that name agrees on it. Keeping the last one seen would
- * report valid code: with a `label` column on a Coding and another on a
- * CodeableConcept, one of the two calls becomes an `input-type` error even
- * though whichever DTO actually registers makes it correct. `dtoRootsOf` drops
- * an ambiguous class name for the same reason.
+ * every declaration of that name agrees on it — the same answer `dtoRootsOf`
+ * gives for an ambiguous class name. AGENTS.md, "The lint and editor half",
+ * works through what keeping the last one seen would report.
+ *
+ * The two halves are judged separately, so declarations that disagree on the
+ * result still declare the input type they share.
  */
-export function columnVocabulary(declarations: readonly ColumnDeclaration[]): Record<string, DeclaredColumnFunction> {
-  const vocabulary: Record<string, DeclaredColumnFunction> = {}
-  for (const { field, declaration } of declarations) {
-    const seen = vocabulary[field]
-    vocabulary[field] = seen === undefined ? declaration : agreedClaims(seen, declaration)
+export function agreedColumnDeclaration(
+  seen: DeclaredColumnFunction | undefined,
+  next: DeclaredColumnFunction
+): DeclaredColumnFunction {
+  if (seen === undefined) {
+    return next
   }
-  return vocabulary
+  const signature = agreedSignature(seen.signature, next.signature)
+  return { minArity: 0, maxArity: 0, ...(signature !== undefined && { signature }) }
 }
 
-/** The claims two declarations of one field name agree on. A disagreement drops that half. */
-function agreedClaims(a: DeclaredColumnFunction, b: DeclaredColumnFunction): DeclaredColumnFunction {
-  const input = sameTypes(a.signature?.input?.types, b.signature?.input?.types) ? a.signature?.input : undefined
-  const result = sameResult(a.signature?.result, b.signature?.result) ? a.signature?.result : undefined
+/** The halves of two signatures that agree, or undefined when neither does. */
+function agreedSignature(
+  a: ColumnFunctionSignature | undefined,
+  b: ColumnFunctionSignature | undefined
+): ColumnFunctionSignature | undefined {
+  const input = sameTypes(a?.input?.types, b?.input?.types) ? a?.input : undefined
+  const result = sameResults(a?.result, b?.result) ? a?.result : undefined
   if (input === undefined && result === undefined) {
-    return { minArity: 0, maxArity: 0 }
+    return undefined
   }
-  return {
-    minArity: 0,
-    maxArity: 0,
-    signature: { ...(input !== undefined && { input }), ...(result !== undefined && { result }) },
-  }
+  return { ...(input !== undefined && { input }), ...(result !== undefined && { result }) }
+}
+
+function sameResults(a: ColumnFunctionSignature['result'], b: ColumnFunctionSignature['result']): boolean {
+  return a !== undefined && b !== undefined && a.single === b.single && sameTypes(a.types, b.types)
 }
 
 /** True when both sides declare the same type names in the same order. Undefined never agrees. */
 function sameTypes(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
   return a !== undefined && b !== undefined && a.length === b.length && a.every((type, index) => type === b[index])
-}
-
-function sameResult(
-  a: { types: string[]; single: boolean } | undefined,
-  b: { types: string[]; single: boolean } | undefined
-): boolean {
-  return a !== undefined && b !== undefined && a.single === b.single && sameTypes(a.types, b.types)
 }
 
 /**
