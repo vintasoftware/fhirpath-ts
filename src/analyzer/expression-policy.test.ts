@@ -364,9 +364,10 @@ describe('the walkers agree on a site’s context', () => {
       expected: ['input-type: displayText() expects FHIR.CodeableConcept as input, found FHIR.string'],
     },
     {
-      name: 'one field name declared against two roots claims neither',
-      // Only one `label` can register on an engine, and the source does not say
-      // which. Keeping the last one seen would report this valid call.
+      name: 'one field name declared against two roots resolves by the focus',
+      // Both `label`s can register on one engine, scoped by the type each was
+      // written for, and `code` is a CodeableConcept. Keeping the last one seen
+      // would report this valid call.
       code: [
         "import { column, defineDto } from 'fhirpath-ts'",
         "class ConceptRow extends defineDto('CodeableConcept') {",
@@ -382,6 +383,8 @@ describe('the walkers agree on a site’s context', () => {
       expected: [],
     },
     {
+      // Two `label`s the focus cannot tell apart: the call keeps only what they
+      // agree on, which about the result is nothing.
       name: 'one field name declared with two result types claims neither',
       code: [
         "import { column, defineDto } from 'fhirpath-ts'",
@@ -398,10 +401,50 @@ describe('the walkers agree on a site’s context', () => {
       expected: [],
     },
     {
+      name: 'a field name declared against two roots is checked against the one the focus fits',
+      // The precision an overload set buys: the two `label`s disagree about
+      // everything, and each call still gets the result of the column its own
+      // focus reaches.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class ConceptRow extends defineDto('CodeableConcept') {",
+        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        '}',
+        "class CodingRow extends defineDto('Coding') {",
+        "  @column('display', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('code.coding.label().length()') chars!: unknown",
+        "  @column('code.label().length()') counted!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['operand-type: length() expects a String input, found FHIR.integer'],
+    },
+    {
+      name: 'a field name shared with a rootless declaration keeps no claim at all',
+      // The rootless `label` answers every call, so the pair claims nothing
+      // wherever both are in play — the Integer result of the one whose root is
+      // known cannot be pinned on this call.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Loose extends keyedRow('CodeableConcept') {",
+        "  @column('coding.first().display', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class Concept extends defineDto('CodeableConcept') {",
+        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('code.label().length()') n!: unknown",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
       name: 'declarations that disagree on the result still declare the input they share',
-      // The two halves are judged separately. Both `label`s are written against
-      // a CodeableConcept whichever one registers, so a call on a string focus
-      // is still wrong — dropping the whole signature would miss it.
+      // A focus none of them accepts is reported against all of them at once.
+      // Both `label`s are written against a CodeableConcept, so a call on a
+      // string focus is wrong whichever one it meant — dropping the signature
+      // of a name declared twice would miss it.
       code: [
         "import { column, defineDto } from 'fhirpath-ts'",
         "class Text extends defineDto('CodeableConcept') {",

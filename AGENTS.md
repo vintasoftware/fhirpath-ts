@@ -143,13 +143,34 @@ be wrong, `analyzeDto` must never be lenient.
 ## Registering a DTO is a namespace, checked at the edges
 
 `EngineOptions.resourceDtos` turns each `@column` and `@criteria` into an
-expression-defined function in one flat namespace. The namespace really is flat.
-Nothing dispatches on `fhirType`, and a name resolves the same way from
-anywhere. What each function carries is the type it was written for, in
-`CustomFunctionSignature.input.types`, taken from the DTO's `fhirType`. Both the
-engine and the analyzer reject a call whose focus can never hold that type. So
-`code.displayText()` on a Condition runs, while `status.displayText()` throws
-`FhirPathTypeError` instead of navigating to nothing.
+expression-defined function. What each function carries is the type it was
+written for, in `CustomFunctionSignature.input.types`, taken from the DTO's
+`fhirType`. Both the engine and the analyzer reject a call whose focus can never
+hold that type. So `code.displayText()` on a Condition runs, while
+`status.displayText()` throws `FhirPathTypeError` instead of navigating to
+nothing.
+
+That declared type is also what scopes the name. A column name belongs to the
+type its DTO was written for, not to the engine, so a CodeableConcept DTO and a
+Coding DTO may both declare `displayText` and a call resolves to the one its
+focus fits — `resolveByInput` (values/type-compat.ts) tries the declarations in
+registration order and takes the first the focus satisfies, at both ends.
+A focus none of them accepts is one error naming all of them.
+
+What `withDtos` refuses is a name whose declarations a call could *not* tell
+apart, since that is what shadowing actually is: a `Quantity` column beside a
+`SimpleQuantity` one, anything beside a host function that accepts every focus,
+or any pair at all on an engine with no model to compare types with. The
+refusal is at construction and names the field, so it is never a mystery at
+evaluation. Env variables have no focus to be told apart by, so a second DTO
+claiming one is still an error outright.
+
+Dispatch is by the focus and nothing else, which leaves the cases
+`unsatisfiedInput` is deliberately silent about — an empty focus, a focus type
+no model describes — fitting every declaration. The first registered wins those,
+and it barely matters: they are the cases where every body navigates to nothing
+anyway. Do not add a second tie-breaker to sharpen this. The registration check
+is what keeps the guess from reaching a focus that could have gone either way.
 
 **What the check deliberately does not do.** It reports only what it can prove,
 because reporting valid code is worse than missing a mistake. It says nothing
@@ -168,7 +189,7 @@ sibling primitives such as `code` and `uri` are not told apart.
 
 That whole rule is **one function**: `unsatisfiedInput` in
 `values/type-compat.ts`, which returns the proof rather than a verdict. The two
-halves differ only in how they report it, since `requireHostInput` throws and
+halves differ only in how they report it, since `resolveHostCall` throws and
 `checkCallInput` reports `input-type`. That is what stops the list above from
 drifting between them. Keep it that way. The analyzer and the engine cannot
 import each other, which justifies two callers, but never two copies of the
@@ -182,26 +203,25 @@ built-in that named types would start reporting valid expressions from the
 official test suite. `signatures.test.ts` checks that none does.
 
 The lint and editor half reads each class's root from the source, so a file can
-declare one field name twice against different roots. Only one of them can
-register a function of that name on any one engine, and the source does not say
-which. `agreedColumnDeclaration` therefore keeps a claim only when every
-declaration of that name agrees on it, and drops it otherwise — the same answer
-`dtoRootsOf` gives for an ambiguous class name.
+declare one field name twice against different roots. Both of them can register,
+so `declaredColumnOverloads` keeps both, and the analyzer resolves the set the
+same way the engine does.
 
 Keeping the last declaration seen is the tempting shortcut and it reports valid
 code: with a `label` column on a Coding and another on a CodeableConcept,
-`code.label()` becomes an `input-type` error even though whichever DTO actually
-registers makes the call correct. The result claim had the same defect on its
-own before input types existed, so a `label()` typed `string` in one class and
-`integer` in another made `code.label().length()` an `operand-type` error.
-`expression-policy.test.ts` holds both cases, and both fail if the merge goes
-back to last-wins.
+`code.label()` becomes an `input-type` error even though the CodeableConcept
+declaration answers that call. `expression-policy.test.ts` holds the case, and
+it fails if the merge goes back to last-wins.
 
-Input and result are judged separately, so two `label`s on a CodeableConcept
-that disagree on the result still declare the CodeableConcept they share, and
-`subject.reference.label()` is still an `input-type` error. That case is in the
-same suite: without it, dropping the whole signature on any disagreement passes
-every test.
+Where the focus cannot pick — two `label`s on the same root, or one whose class
+has no statically-known root and so answers every call — the call is checked
+against all of them at once (`mergedDeclaration`, analyzer/analyze.ts). That
+merge only ever widens: the result is their union, so a `label` typed `string`
+in one class and `integer` in another leaves `code.label().length()` unchecked
+rather than reporting it; arguments go unchecked; and the input is every type
+any of them named, so two `label`s on a CodeableConcept still make
+`subject.reference.label()` an `input-type` error. All three cases are in the
+same suite.
 
 What is still guessed, and accepted: a file sees only its own columns, so a call
 into a column declared in another module stays unresolved. `analyzeSite` reports

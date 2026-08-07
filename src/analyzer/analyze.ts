@@ -13,6 +13,7 @@ import {
   type CustomFunctionSignature,
   FUNCTION_SIGNATURES,
   type FunctionSignature,
+  type InputSpec,
   singleAnd,
   unionStates,
   withSingle,
@@ -52,9 +53,10 @@ export interface DeclaredVariable {
  * signature type-checks them. A CustomFunction (EvaluateOptions.functions)
  * satisfies this shape, so the same record can be passed to both — an
  * expression-defined one (an `expression` present) declares arity 0, matching
- * how the runtime calls it.
+ * how the runtime calls it. A name several functions share is declared as
+ * `OverloadedDeclaredFunction` instead.
  */
-export type DeclaredFunction =
+export type SingleDeclaredFunction =
   | { minArity?: number; maxArity?: number; expression?: never; signature?: CustomFunctionSignature }
   | {
       /** The body of an expression-defined CustomFunction; its presence pins the arity to 0. */
@@ -63,6 +65,24 @@ export type DeclaredFunction =
       maxArity?: never
       signature?: CustomFunctionSignature
     }
+
+/**
+ * A name several functions share, told apart by the focus each declares in
+ * `signature.input.types` — what `EngineOptions.resourceDtos` builds when two
+ * DTOs declare one column name for two types. A call resolves to the
+ * declaration its focus fits; where the focus cannot say (an unknown region),
+ * the call is checked against all of them at once and keeps only what they
+ * agree on.
+ */
+export interface OverloadedDeclaredFunction {
+  overloads: readonly SingleDeclaredFunction[]
+  expression?: never
+  minArity?: never
+  maxArity?: never
+  signature?: never
+}
+
+export type DeclaredFunction = SingleDeclaredFunction | OverloadedDeclaredFunction
 
 export interface AnalyzeOptions {
   model?: ModelProvider
@@ -254,7 +274,8 @@ class Analyzer {
   private readonly model: ModelProvider | undefined
   private readonly inputType: string | undefined
   private readonly frames: StaticState[] = []
-  private readonly customFunctions: ReadonlyMap<string, DeclaredFunction>
+  /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
+  private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
   private readonly declaredVariables: ReadonlyMap<string, DeclaredVariable>
 
   constructor(options: AnalyzeOptions | undefined) {
@@ -264,9 +285,7 @@ class Analyzer {
     this.customFunctions = new Map(
       Object.entries(options?.functions ?? {}).map(([name, declared]) => [
         name,
-        declared.expression === undefined
-          ? declared
-          : { minArity: 0, maxArity: 0, ...(declared.signature !== undefined && { signature: declared.signature }) },
+        ('overloads' in declared ? declared.overloads : [declared]).map(resolvedDeclaration),
       ])
     )
     this.declaredVariables = new Map(
@@ -552,7 +571,7 @@ class Analyzer {
    */
   private walkCall(node: AstNode & { kind: 'call' }, input: StaticState, scope: VariableScope): StaticState {
     const registered = functions.get(node.name)
-    const custom = registered === undefined ? this.customFunctions.get(node.name) : undefined
+    const custom = registered === undefined ? this.declarationFor(node.name, input) : undefined
     const resolved = registered ?? custom
     if (resolved === undefined) {
       this.report(
@@ -583,6 +602,35 @@ class Analyzer {
       return { types: this.narrowTypes(input, typeTarget, node.span), single: input.single }
     }
     return signature.result(input, argStates)
+  }
+
+  /**
+   * The one declaration a call to a host-supplied name is checked against.
+   * Names with a single declaration — every one but an overloaded DTO column —
+   * are that declaration.
+   *
+   * An overloaded name is resolved by the focus, the same way the engine
+   * resolves it (`resolveHostCall`), and the answer is a declaration built for
+   * this call site:
+   *
+   * - Exactly one declaration fits the focus: that one, whole, so the call is
+   *   checked as precisely as an unshared name.
+   * - Several still fit, which is what an unknown or empty focus does: what
+   *   they agree on. The result is the union of theirs, the arguments go
+   *   unchecked, and the input is left alone since one of them accepts it.
+   * - None fits: every type any of them wanted, so `checkCallInput` reports the
+   *   whole set in one `input-type` finding.
+   */
+  private declarationFor(name: string, input: StaticState): ResolvedDeclaration | undefined {
+    const candidates = this.customFunctions.get(name)
+    if (candidates === undefined || candidates.length <= 1) {
+      return candidates?.[0]
+    }
+    const focus = input.types ?? []
+    const fitting = candidates.filter(
+      candidate => unsatisfiedInput(this.model, candidate.signature?.input?.types, focus) === undefined
+    )
+    return fitting.length === 1 ? fitting[0] : mergedDeclaration(fitting.length === 0 ? candidates : fitting)
   }
 
   /** Without a signature the arguments still walk (for their own diagnostics), each in a scope fork. */
@@ -1030,6 +1078,72 @@ const NARROW_HINT = ' — narrow it to one item with first(), last(), or single(
 /** Statically known to possibly hold more than one item (types known, not a singleton). */
 function isCollection(state: StaticState): boolean {
   return state.types !== undefined && state.single === false
+}
+
+/**
+ * A host-supplied declaration as the analyzer uses it: arity and signature,
+ * with an expression body's implicit zero arity already spelled out.
+ */
+interface ResolvedDeclaration {
+  minArity?: number
+  maxArity?: number
+  signature?: CustomFunctionSignature
+}
+
+function resolvedDeclaration(declared: SingleDeclaredFunction): ResolvedDeclaration {
+  if (declared.expression === undefined) {
+    return declared
+  }
+  // An expression-defined function takes no arguments, which is how the runtime
+  // calls it (`evaluateHostFunction`).
+  return { minArity: 0, maxArity: 0, ...(declared.signature !== undefined && { signature: declared.signature }) }
+}
+
+/**
+ * What several declarations of one name say together, for a call none of them
+ * answers alone. Everything here widens: the arities span all of them, the
+ * input is every type any of them accepts, and the result is the union of
+ * theirs — unknown as soon as one declaration leaves it unknown. Arguments are
+ * dropped, since checking them against the wrong declaration would report valid
+ * code.
+ */
+function mergedDeclaration(candidates: readonly ResolvedDeclaration[]): ResolvedDeclaration {
+  const maxArity = Math.max(...candidates.map(candidate => candidate.maxArity ?? Number.POSITIVE_INFINITY))
+  const input = mergedInput(candidates)
+  const result = mergedResult(candidates)
+  return {
+    minArity: Math.min(...candidates.map(candidate => candidate.minArity ?? 0)),
+    ...(Number.isFinite(maxArity) && { maxArity }),
+    ...((input !== undefined || result !== undefined) && {
+      signature: { ...(input !== undefined && { input }), ...(result !== undefined && { result }) },
+    }),
+  }
+}
+
+/** Every type any declaration accepts, or undefined when one of them accepts anything. */
+function mergedInput(candidates: readonly ResolvedDeclaration[]): InputSpec | undefined {
+  const declared = candidates.map(candidate => candidate.signature?.input?.types)
+  if (declared.some(types => types === undefined)) {
+    return undefined
+  }
+  return { types: [...new Set(declared.flatMap(types => types ?? []))] }
+}
+
+/** The union of the declarations' results, unknown as soon as one of them is. */
+function mergedResult(candidates: readonly ResolvedDeclaration[]): { types?: string[]; single?: boolean } | undefined {
+  const union = unionStates(
+    candidates.map(candidate => ({
+      types: candidate.signature?.result?.types,
+      single: candidate.signature?.result?.single,
+    }))
+  )
+  if (union.types === undefined && union.single === undefined) {
+    return undefined
+  }
+  return {
+    ...(union.types !== undefined && { types: union.types }),
+    ...(union.single !== undefined && { single: union.single }),
+  }
 }
 
 /** The behavior kind shared by every candidate type, or undefined when mixed/unknown. */

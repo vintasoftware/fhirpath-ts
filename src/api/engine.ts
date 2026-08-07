@@ -9,7 +9,9 @@ import {
   CompiledExpression,
   type Compiler,
   createCachedCompiler,
+  type CustomFunction,
   type EvaluateOptions,
+  type SingleCustomFunction,
 } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
 import { assertInputMatchesDto, dtoCallOptions, type DtoClass, dtoDefinition, withDtos } from './dto.ts'
@@ -92,13 +94,17 @@ export interface EngineOptions extends EvaluateOptions {
   /**
    * DTO classes registered engine-wide (see `defineDto()`): every column
    * becomes an expression-defined function callable from any expression this
-   * engine evaluates. Each column name must be unique across the engine's
-   * functions and must not be a built-in name, and each DTO's `env` merges into
-   * the engine env. A `@criteria` registers too and carries the criteria rule
-   * with it, so the call returns the same boolean the projected column holds.
+   * engine evaluates, and each DTO's `env` merges into the engine env. A
+   * `@criteria` registers too and carries the criteria rule with it, so the
+   * call returns the same boolean the projected column holds.
+   *
    * Every column declares the DTO's `fhirType` as the input it expects, so
    * calling one on a focus that can never hold that type throws instead of
-   * navigating to nothing.
+   * navigating to nothing. That is also what scopes the name: two DTOs may both
+   * declare a `displayText` column, and a call resolves to the one its focus
+   * fits. A name whose declarations a call could not tell apart — a built-in
+   * name, one a host function already answers on any focus, or two types that
+   * can describe the same value — is refused here rather than shadowed.
    * Only one DTO may register per fhirType — it is *the*
    * engine-wide vocabulary for that resource. DTO `vars` are not registered —
    * they may reference per-call env, so they apply only when projecting the
@@ -320,15 +326,23 @@ export class FhirPathEngine {
     }
     if (options.functions) {
       out.functions = Object.fromEntries(
-        Object.entries(options.functions).map(([name, fn]) => [
-          name,
-          'expression' in fn && typeof fn.expression === 'string'
-            ? { ...fn, expression: this.compileCached(fn.expression) }
-            : fn,
-        ])
+        Object.entries(options.functions).map(([name, fn]) => [name, this.precompiledFunction(fn)])
       )
     }
     return out
+  }
+
+  /** One entry of `functions`, with any string body parsed — reaching into an overload set for each member. */
+  private precompiledFunction(fn: CustomFunction): CustomFunction {
+    return 'overloads' in fn
+      ? { overloads: fn.overloads.map(overload => this.precompiledBody(overload)) }
+      : this.precompiledBody(fn)
+  }
+
+  private precompiledBody(fn: SingleCustomFunction): SingleCustomFunction {
+    return 'expression' in fn && typeof fn.expression === 'string'
+      ? { ...fn, expression: this.compileCached(fn.expression) }
+      : fn
   }
 }
 

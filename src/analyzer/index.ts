@@ -10,6 +10,8 @@ export {
   analyzeSite,
   type DeclaredFunction,
   type DeclaredVariable,
+  type OverloadedDeclaredFunction,
+  type SingleDeclaredFunction,
 } from './analyze.ts'
 export {
   type AnalyzedContext,

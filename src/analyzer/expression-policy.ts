@@ -446,6 +446,9 @@ export interface DeclaredColumnFunction {
   signature?: ColumnFunctionSignature
 }
 
+/** One field name of a file, with every class that declares it (see `declaredColumnOverloads`). */
+export type FileColumnFunction = DeclaredColumnFunction | { overloads: readonly DeclaredColumnFunction[] }
+
 /**
  * Builds the function a `@column(path, options)` declaration contributes, given
  * the `fhirType` its class settled on. Both halves of the signature come from
@@ -476,48 +479,24 @@ export function columnFunctionDeclaration<N>(
 }
 
 /**
- * What a file's column vocabulary keeps for a field name it has already seen.
- * Two classes in one file may declare the same field name against different
- * `fhirType`s, and only one of them can register a function of that name on any
- * one engine. The source does not say which, so a claim survives only when
- * every declaration of that name agrees on it — the same answer `dtoRootsOf`
- * gives for an ambiguous class name. AGENTS.md, "The lint and editor half",
- * works through what keeping the last one seen would report.
- *
- * The two halves are judged separately, so declarations that disagree on the
- * result still declare the input type they share.
+ * What a file's column vocabulary keeps for a field name it has already seen:
+ * every declaration of it, as overloads. Two classes in one file may declare the
+ * same field name against different `fhirType`s, and both can register on one
+ * engine — a column's name is scoped by the type it was written for, so a call
+ * resolves to the declaration its focus fits (`withDtos`, api/dto.ts). The
+ * analyzer resolves the set the same way the engine does, and falls back to what
+ * the declarations agree on when the focus cannot tell them apart. AGENTS.md,
+ * "The lint and editor half", works through what keeping the last one seen would
+ * report instead.
  */
-export function agreedColumnDeclaration(
-  seen: DeclaredColumnFunction | undefined,
+export function declaredColumnOverloads(
+  seen: FileColumnFunction | undefined,
   next: DeclaredColumnFunction
-): DeclaredColumnFunction {
+): FileColumnFunction {
   if (seen === undefined) {
     return next
   }
-  const signature = agreedSignature(seen.signature, next.signature)
-  return { minArity: 0, maxArity: 0, ...(signature !== undefined && { signature }) }
-}
-
-/** The halves of two signatures that agree, or undefined when neither does. */
-function agreedSignature(
-  a: ColumnFunctionSignature | undefined,
-  b: ColumnFunctionSignature | undefined
-): ColumnFunctionSignature | undefined {
-  const input = sameTypes(a?.input?.types, b?.input?.types) ? a?.input : undefined
-  const result = sameResults(a?.result, b?.result) ? a?.result : undefined
-  if (input === undefined && result === undefined) {
-    return undefined
-  }
-  return { ...(input !== undefined && { input }), ...(result !== undefined && { result }) }
-}
-
-function sameResults(a: ColumnFunctionSignature['result'], b: ColumnFunctionSignature['result']): boolean {
-  return a !== undefined && b !== undefined && a.single === b.single && sameTypes(a.types, b.types)
-}
-
-/** True when both sides declare the same type names in the same order. Undefined never agrees. */
-function sameTypes(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
-  return a !== undefined && b !== undefined && a.length === b.length && a.every((type, index) => type === b[index])
+  return { overloads: [...('overloads' in seen ? seen.overloads : [seen]), next] }
 }
 
 /**

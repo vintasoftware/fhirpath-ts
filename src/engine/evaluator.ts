@@ -30,7 +30,7 @@ import {
 } from './context.ts'
 import { navigateIdentifier } from './navigation.ts'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
-import { requireHostInput } from './type-matching.ts'
+import { resolveHostCall } from './type-matching.ts'
 
 function evaluateArgument(node: AstNode, context: EvaluationContext, _input: TypedValue[]): TypedValue[] {
   // Arguments evaluate against $this (the current context item), not the function's
@@ -51,16 +51,17 @@ function evaluateArgument(node: AstNode, context: EvaluationContext, _input: Typ
  * converts the plain result back.
  *
  * Either form may declare the types its focus must be able to hold. That is
- * checked before anything else runs (see `requireHostInput`).
+ * checked before anything else runs, and it is also what picks between the
+ * functions a name shared by several DTOs stands for (see `resolveHostCall`).
  */
 function evaluateHostFunction(
   name: string,
-  host: HostFunction,
+  entry: HostFunction,
   args: AstNode[],
   context: EvaluationContext,
   input: TypedValue[]
 ): TypedValue[] {
-  requireHostInput(name, host.inputTypes, context, input)
+  const host = resolveHostCall(name, entry, context, input)
   if ('ast' in host) {
     if (args.length > 0) {
       throw new FhirPathTypeError(`Function '${name}' expects ${describeArity(0, 0)}, got ${args.length} arguments`)

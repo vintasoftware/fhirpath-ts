@@ -6,6 +6,7 @@ import {
   type HostExpressionFunction,
   type HostFunction,
   type HostNativeFunction,
+  type HostSingleFunction,
   normalizeEnvKeys,
   type RegexEngine,
 } from '../engine/context.ts'
@@ -42,7 +43,7 @@ import { LruCache } from './cache.ts'
  * Pass the same record to AnalyzeOptions.functions: without a `signature`,
  * expressions using the function analyze as unknown regions.
  */
-export type CustomFunction =
+export type SingleCustomFunction =
   | (HostNativeFunction & { signature?: CustomFunctionSignature; expression?: never; criteria?: never })
   | {
       expression: AnyExpression
@@ -61,6 +62,28 @@ export type CustomFunction =
       minArity?: never
       maxArity?: never
     }
+
+/**
+ * One name standing for several functions, told apart by the focus each was
+ * written for: a call runs the first whose `signature.input.types` the focus
+ * satisfies, and a focus none of them accepts is an error naming all of them.
+ *
+ * This is how two DTOs registered on one engine can both declare a
+ * `displayText` column — one for CodeableConcept, one for Coding. `withDtos`
+ * builds these; it also refuses to build one whose members a call could not
+ * tell apart, so every member declares its input type.
+ */
+export interface OverloadedCustomFunction {
+  overloads: readonly SingleCustomFunction[]
+  fn?: never
+  expression?: never
+  signature?: never
+  criteria?: never
+  minArity?: never
+  maxArity?: never
+}
+
+export type CustomFunction = SingleCustomFunction | OverloadedCustomFunction
 
 export interface EvaluateOptions {
   /** Environment variables (`%name`), keyed with or without the leading `%`. */
@@ -249,24 +272,30 @@ export function contextFactory(
 function toHostFunctions(functions: Record<string, CustomFunction>): Record<string, HostFunction> {
   const host: Record<string, HostFunction> = {}
   for (const [name, custom] of Object.entries(functions)) {
-    if ('expression' in custom) {
-      if ('fn' in custom) {
-        throw new FhirPathTypeError(`Custom function '${name}' declares both 'fn' and 'expression'; use one`)
-      }
-      host[name] = hostExpressionFunction(custom)
-    } else {
-      const inputTypes = custom.signature?.input?.types
-      // Copy rather than pass through. `custom` is the caller's own object,
-      // and the runtime form carries fields the API form does not.
-      host[name] = inputTypes === undefined ? custom : { ...custom, inputTypes }
-    }
+    host[name] =
+      'overloads' in custom
+        ? { overloads: custom.overloads.map(overload => toHostFunction(name, overload)) }
+        : toHostFunction(name, custom)
   }
   return host
 }
 
+function toHostFunction(name: string, custom: SingleCustomFunction): HostSingleFunction {
+  if ('expression' in custom) {
+    if ('fn' in custom) {
+      throw new FhirPathTypeError(`Custom function '${name}' declares both 'fn' and 'expression'; use one`)
+    }
+    return hostExpressionFunction(custom)
+  }
+  const inputTypes = custom.signature?.input?.types
+  // Copy rather than pass through. `custom` is the caller's own object, and the
+  // runtime form carries fields the API form does not.
+  return inputTypes === undefined ? custom : { ...custom, inputTypes }
+}
+
 /** The runtime form of an expression-defined CustomFunction: its body, plus what the engine checks around it. */
 function hostExpressionFunction(
-  custom: Extract<CustomFunction, { expression: AnyExpression }>
+  custom: Extract<SingleCustomFunction, { expression: AnyExpression }>
 ): HostExpressionFunction {
   const { expression, signature } = custom
   const inputTypes = signature?.input?.types

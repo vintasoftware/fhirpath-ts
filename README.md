@@ -416,10 +416,10 @@ decorator-capable build, `project(input, { … })` with a plain columns record
 still works.
 
 Registering DTOs engine-wide turns every column into an expression-defined
-function (named by the field, unique across the engine and not a built-in name,
-analyzer signature derived from the column's `type`), and merges each DTO's
-`env` into the engine env. Only one DTO registers per fhirType — it is *the*
-engine-wide vocabulary for that resource:
+function (named by the field, not a built-in name, analyzer signature derived
+from the column's `type`), and merges each DTO's `env` into the engine env. Only
+one DTO registers per fhirType — it is *the* engine-wide vocabulary for that
+resource:
 
 ```ts
 class CodeableConceptDto extends defineDto('CodeableConcept') {
@@ -432,20 +432,36 @@ fp.first('Condition.code.displayText()', condition, { type: 'string' })
 fp.first('Condition.subject.reference.displayText()', condition) // throws: a reference is not a CodeableConcept
 ```
 
-The namespace is flat, so a name resolves the same way from anywhere. Each
-column declares its DTO's `fhirType` as the input it expects, so calling one on
-a focus that can never hold that type is an error at both ends rather than an
-expression that quietly returns empty. A `@criteria` registers the same way and
-carries the criteria rule with it, so `isFinal()` returns one boolean whether it
-is projected as a column or called from an expression:
+Each column declares its DTO's `fhirType` as the input it expects, so calling
+one on a focus that can never hold that type is an error at both ends rather
+than an expression that quietly returns empty. A `@criteria` registers the same
+way and carries the criteria rule with it, so `isFinal()` returns one boolean
+whether it is projected as a column or called from an expression:
 
 ```ts
 fp.evaluate('isFinal().not()', observationWithNoStatus) // [true], the same answer the column holds
 ```
 
-Column and criteria fields share one namespace. A field name that collides with
-another registered column, or with a built-in function, fails when the engine is
-constructed rather than shadowing anything.
+A column's name is scoped by the type it was written for, so two DTOs may share
+one — a `displayText` for CodeableConcept and another for Coding — and each call
+runs the one its focus fits:
+
+```ts
+class CodingDto extends defineDto('Coding') {
+  @column('(display | code).first()')
+  displayText!: string | undefined
+}
+
+const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto, CodingDto] })
+fp.first('Condition.code.displayText()', condition) // the CodeableConcept column
+fp.first('Condition.code.coding.first().displayText()', condition) // the Coding one
+```
+
+What fails at construction, rather than shadowing anything, is a name whose
+declarations a call could not tell apart: a built-in function's name, a name a
+host function already answers on any focus, two types that can describe the same
+value (`Quantity` and `SimpleQuantity`), or any shared name on an engine with no
+model to compare types with. The error names the DTO and the field.
 
 `vars` and `env` travel with the DTO, as the second argument to `defineDto`.
 `vars` are not registered — they may reference per-call env, so they apply when

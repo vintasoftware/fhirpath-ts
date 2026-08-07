@@ -1,7 +1,7 @@
 /**
  * Whether a value of one type can also be a value of another. Both halves of the
  * input-type check ask this. The engine asks it about a call's real focus (see
- * `requireHostInput` in engine/type-matching.ts), and the analyzer asks it about
+ * `resolveHostCall` in engine/type-matching.ts), and the analyzer asks it about
  * the types it inferred (see `checkCallInput` in analyzer/analyze.ts). Those two
  * modules must not import each other, so the rule lives here, below both.
  *
@@ -84,14 +84,23 @@ export function typesOverlap(model: ModelProvider, a: string, b: string): boolea
 }
 
 /**
+ * The proof that a call is on the wrong focus: `wanted` lists the declared
+ * types and `found` lists the focus types, both as canonical names with
+ * duplicates removed. Callers report those two lists and add nothing of their
+ * own.
+ */
+export interface UnsatisfiedInput {
+  wanted: string[]
+  found: string[]
+}
+
+/**
  * Decides whether a function written for the `declared` types can be running on
- * this focus. Returns undefined when the call may be valid. Returns an object
- * when the call is definitely wrong, where `wanted` lists the declared types and
- * `found` lists the focus types, both as canonical names with duplicates
- * removed. Callers report those two lists and add nothing of their own.
+ * this focus. Returns undefined when the call may be valid, and the proof above
+ * when the call is definitely wrong.
  *
  * This is the whole rule for both halves of the input-type check. The engine
- * passes a call's real values (`requireHostInput`) and the analyzer passes the
+ * passes a call's real values (`resolveHostCall`) and the analyzer passes the
  * types it inferred (`checkCallInput`). They must agree on what counts as a
  * mistake, so each one only decides how to report it.
  *
@@ -106,7 +115,7 @@ export function unsatisfiedInput(
   model: ModelProvider | undefined,
   declared: readonly string[] | undefined,
   focus: Iterable<string>
-): { wanted: string[]; found: string[] } | undefined {
+): UnsatisfiedInput | undefined {
   if (model === undefined || declared === undefined) {
     return undefined
   }
@@ -125,4 +134,46 @@ export function unsatisfiedInput(
     found.add(canonical)
   }
   return found.size === 0 ? undefined : { wanted, found: [...found] }
+}
+
+/** Either the declaration a call resolves to, or the proof that none of them fits. */
+export type InputResolution<T> = { resolved: T } | { unsatisfied: UnsatisfiedInput }
+
+/**
+ * Which of the declarations sharing one name a call resolves to: the first
+ * whose declared input the focus can satisfy. A DTO column registers under the
+ * field's name with the DTO's `fhirType` as its input, so `displayText()` on a
+ * CodeableConcept focus and `displayText()` on a Coding focus reach different
+ * bodies (see `withDtos`, api/dto.ts).
+ *
+ * The call is wrong only when *no* declaration fits, and the proof then names
+ * every type any of them wanted, so one name still produces one message. With a
+ * single declaration this is `unsatisfiedInput` and nothing more.
+ *
+ * `unsatisfiedInput` stays permissive here, which is what makes the order
+ * matter: an empty focus, a focus type no model describes, and a missing model
+ * each fit every declaration, so the first one registered wins them.
+ * `withDtos` is what keeps that from mattering — it refuses to register two
+ * columns of one name unless their types tell every known focus apart.
+ */
+export function resolveByInput<T>(
+  model: ModelProvider | undefined,
+  candidates: readonly T[],
+  declaredTypesOf: (candidate: T) => readonly string[] | undefined,
+  focus: readonly string[]
+): InputResolution<T> {
+  const misses: UnsatisfiedInput[] = []
+  for (const candidate of candidates) {
+    const miss = unsatisfiedInput(model, declaredTypesOf(candidate), focus)
+    if (miss === undefined) {
+      return { resolved: candidate }
+    }
+    misses.push(miss)
+  }
+  return {
+    unsatisfied: {
+      wanted: [...new Set(misses.flatMap(miss => miss.wanted))],
+      found: [...new Set(misses.flatMap(miss => miss.found))],
+    },
+  }
 }

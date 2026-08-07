@@ -50,7 +50,22 @@ export interface HostExpressionFunction {
   criteria?: boolean
 }
 
-export type HostFunction = HostNativeFunction | HostExpressionFunction
+/** One host-supplied function, in either form. */
+export type HostSingleFunction = HostNativeFunction | HostExpressionFunction
+
+/**
+ * Several functions registered under one name, told apart by the focus each was
+ * written for. A call runs the first whose `inputTypes` the focus satisfies (see
+ * `resolveHostCall`), so two DTOs may both declare a `displayText` column as
+ * long as a CodeableConcept can never be a Coding. Every member must declare
+ * `inputTypes` for that to mean anything, which is what `withDtos` (api/dto.ts)
+ * checks before it builds one.
+ */
+export interface HostOverloadedFunction {
+  overloads: readonly HostSingleFunction[]
+}
+
+export type HostFunction = HostSingleFunction | HostOverloadedFunction
 
 /**
  * A pluggable regular-expression engine for matches()/matchesFull()/

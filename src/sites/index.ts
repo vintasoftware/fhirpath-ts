@@ -17,16 +17,16 @@
 import type * as TS from 'typescript'
 
 import {
-  agreedColumnDeclaration,
   CALL_SITES,
   type ClassHeritage,
   columnFunctionDeclaration,
   constructsEngine,
-  type DeclaredColumnFunction,
+  declaredColumnOverloads,
   DTO_BASE_NAME,
   dtoRootsOf,
   type ExpressionAst,
   expressionEntries,
+  type FileColumnFunction,
   isCheckedCall,
   isCheckedTag,
   isForeignModule,
@@ -56,7 +56,7 @@ export interface ExpressionSite {
    * DTO column is callable from any expression. Shared by every site of the
    * file, and absent when it declares none.
    */
-  functions?: Readonly<Record<string, DeclaredColumnFunction>>
+  functions?: Readonly<Record<string, FileColumnFunction>>
 }
 
 /**
@@ -260,7 +260,7 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
     const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
     const { bindings, dtoRoots, heritage } = collectFile(source, options)
     const sites: ExpressionSite[] = []
-    const functions: Record<string, DeclaredColumnFunction> = {}
+    const functions: Record<string, FileColumnFunction> = {}
     // A site points at the first character inside the quote/backtick (node start
     // + 1), so fhirpath-check can add a diagnostic's span offsets directly. The
     // ESLint rule reports on the literal node itself, one column earlier.
@@ -297,7 +297,7 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
           const declares = policy.declaresField
           const field = declares === undefined ? undefined : decoratedFieldName(node)
           if (declares !== undefined && field !== undefined) {
-            functions[field] = agreedColumnDeclaration(
+            functions[field] = declaredColumnOverloads(
               functions[field],
               columnFunctionDeclaration<TS.Node>(declares, node.arguments[1], tsAst, classRoot)
             )

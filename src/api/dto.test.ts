@@ -374,14 +374,71 @@ describe('DTOs registered engine-wide', () => {
     )
   })
 
-  it('redefining a function or env variable across DTOs fails loudly', () => {
-    class Also extends defineDto('Coding') {
+  it('two DTOs may declare one column name, and the focus picks between them', () => {
+    class CodingFns extends defineDto('Coding') {
       @column('code', { type: 'string' })
       displayText!: string | undefined
     }
-    expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns, Also] })).toThrow(
-      "DTO Also redefines the function 'displayText'"
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns, CodingFns] })
+    // Same call text, two bodies: the CodeableConcept column reads the coding's
+    // display, the Coding one reads the code.
+    expect(engine.evaluate('Condition.code.displayText()', condition)).toEqual(['Hypertension'])
+    expect(engine.evaluate('Condition.code.coding.displayText()', condition)).toEqual(['I10'])
+    // A focus neither was written for still names both in one message.
+    expect(() => engine.evaluate('Condition.subject.reference.displayText()', condition)).toThrow(
+      "Function 'displayText' expects FHIR.CodeableConcept | FHIR.Coding as input, but the focus is FHIR.string"
     )
+    // The static half resolves the same way, and reports the same call.
+    const functions = engine.defaults.functions ?? {}
+    const codes = (expression: string): [string, string][] =>
+      analyzeExpression(expression, { model: r4Model, inputType: 'Condition', functions }).map(d => [d.code, d.message])
+    // Resolved to the Coding column, so its declared String result is what the
+    // rest of the chain is checked against.
+    expect(codes('code.coding.displayText().length()')).toEqual([])
+    expect(codes('code.coding.displayText() + 1')).toEqual([
+      ['operand-type', "Operator '+' is not defined for these operand types"],
+    ])
+    expect(codes('subject.reference.displayText()')).toEqual([
+      ['input-type', 'displayText() expects FHIR.CodeableConcept | FHIR.Coding as input, found FHIR.string'],
+    ])
+  })
+
+  it('rejects a shared column name whose declarations a call cannot tell apart', () => {
+    class Concept extends defineDto('CodeableConcept') {
+      @column('text', { type: 'string' })
+      label!: string | undefined
+    }
+    // A SimpleQuantity is a Quantity, so a focus could satisfy both columns and
+    // the engine would have to guess.
+    class Quantities extends defineDto('Quantity') {
+      @column('unit', { type: 'string' })
+      label!: string | undefined
+    }
+    class Simple extends defineDto('SimpleQuantity') {
+      @column('code', { type: 'string' })
+      label!: string | undefined
+    }
+    expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [Quantities, Simple] })).toThrow(
+      "DTO Simple redefines the function 'label': a focus can be both FHIR.Quantity and FHIR.SimpleQuantity"
+    )
+    // A host function accepts any focus, so nothing may share its name.
+    expect(
+      () =>
+        new FhirPathEngine({
+          model: r4Model,
+          resourceDtos: [Concept],
+          functions: { label: { fn: () => 'x' } },
+        })
+    ).toThrow(
+      "DTO Concept redefines the function 'label': a declaration that names no input type answers every call, so nothing else may share its name"
+    )
+    // Without a model no two types can be told apart, so the pair is refused.
+    expect(() => new FhirPathEngine({ resourceDtos: [Concept, Quantities] })).toThrow(
+      "DTO Quantities redefines the function 'label': without a model bound, the engine cannot tell two declarations apart by their focus"
+    )
+  })
+
+  it('redefining an env variable across DTOs fails loudly', () => {
     class EnvA extends defineDto('Patient', { env: { tones: [] as never[] } }) {
       @column('gender', { type: 'string' })
       a!: string | undefined

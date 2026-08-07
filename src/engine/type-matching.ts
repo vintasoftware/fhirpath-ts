@@ -1,7 +1,7 @@
 import { FhirPathTypeError } from '../errors.ts'
-import { unsatisfiedInput } from '../values/type-compat.ts'
+import { resolveByInput, type UnsatisfiedInput, unsatisfiedInput } from '../values/type-compat.ts'
 import { OBJECT_TYPE, type TypedValue, typeLocalName } from '../values/typed-value.ts'
-import type { EvaluationContext } from './context.ts'
+import type { EvaluationContext, HostFunction, HostSingleFunction } from './context.ts'
 
 const SYSTEM_LOCAL_NAMES = new Set([
   'Any',
@@ -83,32 +83,56 @@ export function itemMatchesType(
 }
 
 /**
- * Throws when a host function is called on a focus its declared type rules out.
- * `status.displayText()` is the case to picture, where `displayText` was written
- * for a CodeableConcept. The call resolves and the body then finds nothing, so
- * this is the only place the mistake shows. The engine reports every structural
- * problem this way, and a function's declared input is one.
+ * The function a call runs, and the point where a call on the wrong focus
+ * throws. `status.displayText()` is the case to picture, where `displayText` was
+ * written for a CodeableConcept. The call resolves and the body then finds
+ * nothing, so this is the only place the mistake shows. The engine reports every
+ * structural problem this way, and a function's declared input is one.
  *
- * `unsatisfiedInput` makes the decision. This function only writes the message,
- * in the same form as the engine's other function errors.
+ * A name several DTOs declare resolves here too: the overloads are tried in
+ * registration order and the first whose declared input the focus satisfies is
+ * the one that runs. When none does, the message names every type the whole set
+ * accepts, so one name still gives one error.
+ *
+ * `unsatisfiedInput` and `resolveByInput` make both decisions. This function
+ * only writes the message, in the same form as the engine's other function
+ * errors.
  */
-export function requireHostInput(
+export function resolveHostCall(
   name: string,
-  types: readonly string[] | undefined,
+  host: HostFunction,
   context: EvaluationContext,
   input: TypedValue[]
-): void {
-  // `unsatisfiedInput` handles this case too. Returning first is what stops the
-  // many host functions that declare no types from creating a focus iterator.
-  if (types === undefined) {
-    return
+): HostSingleFunction {
+  if (!('overloads' in host)) {
+    // `unsatisfiedInput` handles an undeclared input too. Returning first is
+    // what stops the many host functions that declare no types from walking the
+    // focus at all.
+    if (host.inputTypes === undefined) {
+      return host
+    }
+    const unsatisfied = unsatisfiedInput(context.model, host.inputTypes, focusTypes(input))
+    if (unsatisfied === undefined) {
+      return host
+    }
+    throw wrongFocus(name, unsatisfied)
   }
-  const unsatisfied = unsatisfiedInput(context.model, types, focusTypes(input))
-  if (unsatisfied !== undefined) {
-    throw new FhirPathTypeError(
-      `Function '${name}' expects ${unsatisfied.wanted.join(' | ')} as input, but the focus is ${unsatisfied.found.join(' | ')}`
-    )
+  const resolution = resolveByInput(
+    context.model,
+    host.overloads,
+    overload => overload.inputTypes,
+    input.map(item => item.type)
+  )
+  if ('resolved' in resolution) {
+    return resolution.resolved
   }
+  throw wrongFocus(name, resolution.unsatisfied)
+}
+
+function wrongFocus(name: string, { wanted, found }: UnsatisfiedInput): FhirPathTypeError {
+  return new FhirPathTypeError(
+    `Function '${name}' expects ${wanted.join(' | ')} as input, but the focus is ${found.join(' | ')}`
+  )
 }
 
 /** The focus's type names, read one at a time. A valid call stops at the first item that fits. */

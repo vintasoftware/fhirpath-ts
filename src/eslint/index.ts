@@ -3,17 +3,17 @@ import type * as ESTree from 'estree'
 
 import { analyzeSite, type DeclaredFunction, type DeclaredVariable } from '../analyzer/analyze.ts'
 import {
-  agreedColumnDeclaration,
   CALL_SITES,
   type CallSitePolicy,
   type ClassHeritage,
   columnFunctionDeclaration,
   constructsEngine,
-  type DeclaredColumnFunction,
+  declaredColumnOverloads,
   DTO_BASE_NAME,
   dtoRootsOf,
   type ExpressionAst,
   expressionEntries,
+  type FileColumnFunction,
   isCheckedCall,
   isCheckedTag,
   isForeignModule,
@@ -240,7 +240,7 @@ const noInvalidExpressions: Rule.RuleModule = {
       options: ESTree.Node | undefined
       enclosing: ClassHeritage | undefined
     }[] = []
-    const columnFunctions: Record<string, DeclaredColumnFunction> = {}
+    const columnFunctions: Record<string, FileColumnFunction> = {}
     const checkAt = (node: ESTree.Node, expression: string, site: SiteContext = {}): void => {
       // ESLint severity comes from the rule's configuration, not per report, so
       // only error-severity diagnostics are reported; analyzer warnings (style
@@ -365,7 +365,7 @@ const noInvalidExpressions: Rule.RuleModule = {
         // Build the column names first. `checkAt` reads them, and every site in
         // the file shares them, including the tags.
         for (const { kind, field, options: columnOptions, enclosing } of columnDeclarations) {
-          columnFunctions[field] = agreedColumnDeclaration(
+          columnFunctions[field] = declaredColumnOverloads(
             columnFunctions[field],
             columnFunctionDeclaration<ESTree.Node>(kind, columnOptions, estreeAst, rootOf(enclosing, dtoRoots))
           )
