@@ -417,7 +417,7 @@ still works.
 
 Registering DTOs engine-wide turns every column into an expression-defined
 function (named by the field, not a built-in name, analyzer signature derived
-from the column's `type`), and merges each DTO's `env` into the engine env:
+from the column's `type`):
 
 ```ts
 class CodeableConceptDto extends defineDto('CodeableConcept') {
@@ -464,15 +464,42 @@ the same value (`Quantity` and `SimpleQuantity`), two DTOs on the same fhirType
 claiming one field name, or any shared name on an engine with no model to
 compare types with. The error names the DTO and the field.
 
-Two DTOs may declare the same **env** name when they mean the same value by it —
-importing one lookup table into both is the usual reason. An env name has no
-focus to be told apart by, so declaring one name with two different values fails
-at construction.
+#### A DTO's own env
 
-`vars` and `env` travel with the DTO, as the second argument to `defineDto`.
-`vars` are not registered — they may reference per-call env, so they apply when
-the DTO itself is projected, merged under any per-call `vars`. That keeps join
-tables and their bindings inside the DTO:
+The lookup tables and constants a DTO's expressions read are a `static env` on
+the class. They reach that DTO's columns and stop there — when it is projected,
+and inside the body of each of its columns called as a function:
+
+```ts
+class LabRow extends defineDto('DiagnosticReport') {
+  static env = { system: 'http://loinc.org' }
+
+  @column('code.coding.where(system = %system).first().code', { type: 'string', default: '' })
+  loincCode!: string
+}
+
+const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [LabRow] })
+fp.evaluate('loincCode()', report) // reads %system
+fp.evaluate('%system', report) // throws: undefined environment variable
+```
+
+Registering a DTO adds function names and nothing else, so two DTOs may declare
+one env name with two different values and neither shadows the other — a lab
+row on LOINC beside a problem row on SNOMED. To publish a variable to every
+expression an engine evaluates, bind it on the engine (`new FhirPathEngine({ env })`),
+where saying so is the point.
+
+Inside a column body the DTO's names are laid over the caller's environment for
+the length of the call: every other name — the built-ins, `%context`, whatever
+the call supplied, `%rowIndex` during a projection — stays the caller's, and the
+overlay is gone again afterwards. A subclass adds to what its bases declare, per
+name; annotate the base's field `DtoEnv` to override one entry of it.
+
+`vars` travel with the DTO as the second argument to `defineDto`. They are not
+registered — a var is an expression evaluated against a row, and a call has a
+focus rather than a row — so they apply when the DTO itself is projected, merged
+under any per-call `vars`. That keeps join tables and their bindings inside the
+DTO:
 
 ```ts
 class OrderRow extends defineDto('ServiceRequest', {

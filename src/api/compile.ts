@@ -44,10 +44,25 @@ import { LruCache } from './cache.ts'
  * expressions using the function analyze as unknown regions.
  */
 export type SingleCustomFunction =
-  | (HostNativeFunction & { signature?: CustomFunctionSignature; expression?: never; criteria?: never })
+  | (HostNativeFunction & {
+      signature?: CustomFunctionSignature
+      expression?: never
+      criteria?: never
+      /** Only an expression body reads `%name`; a native `fn` gets plain values. */
+      env?: never
+    })
   | {
       expression: AnyExpression
       signature?: CustomFunctionSignature
+      /**
+       * Environment variables the body needs that the call site does not
+       * supply — a lookup table, a system URL. They are laid over the caller's
+       * env while the body runs and are gone again after it, so a definition
+       * can carry its own data without adding a name to every expression the
+       * engine evaluates. Keyed with or without the leading `%`, like
+       * `EvaluateOptions.env`. A registered DTO's `static env` arrives here.
+       */
+      env?: Record<string, unknown>
       /**
        * Read the body's result as a criteria, so the function always returns
        * exactly one Boolean. The rule is `criteriaBoolean`: §4.5 singleton
@@ -79,6 +94,7 @@ export interface OverloadedCustomFunction {
   expression?: never
   signature?: never
   criteria?: never
+  env?: never
   minArity?: never
   maxArity?: never
 }
@@ -302,8 +318,18 @@ function hostExpressionFunction(
   return {
     ast: typeof expression === 'string' ? parse(expression) : expression.ast,
     ...(inputTypes !== undefined && { inputTypes }),
+    ...(custom.env !== undefined && { env: envOverlay(custom.env) }),
     ...(custom.criteria === true && { criteria: true }),
   }
+}
+
+/**
+ * A definition's own env as the collections the context binds. Built once per
+ * factory, not per call: the values are the definition's, so every call to it
+ * lays down the same overlay.
+ */
+function envOverlay(env: Record<string, unknown>): ReadonlyMap<string, TypedValue[]> {
+  return new Map(Object.entries(normalizeEnvKeys(env)).map(([name, value]) => [name, toCollection(value)]))
 }
 
 /** Default for `EngineOptions.cacheSize`, matching Firely's FhirPathCompilerCache default. */

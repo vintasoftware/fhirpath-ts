@@ -113,7 +113,7 @@ Discovery is convention, not configuration, and each rule earns its keep:
 
 Do not add a `fhirpath.config.ts`. It was considered and rejected: everything it
 would hold is discoverable (engines by recording, DTOs by convention plus export,
-env names from the engine and `callerEnv`).
+env names from the engine, the DTO's own `static env`, and `callerEnv`).
 
 ## `analyzeSite` decides what a source walker may claim
 
@@ -171,15 +171,23 @@ shape of an app (a weight row, a blood-pressure row, a lab row). Do not bring it
 back: the per-name check already catches the only case it caught, with a message
 that names the field rather than the class.
 
-An env variable has no focus to be told apart by, so two DTOs may declare one
-name only when they mean the same value by it (`Object.is`) — two DTOs importing
-one lookup table, which is the case that made a hard error absurd. A genuine
-disagreement is still refused, because an engine binds one value per name.
-Scoping env per DTO the way columns are scoped would mean a column body reading
-its own DTO's env rather than the caller's, which contradicts what an
-expression-defined function is (the body evaluates as if spliced at the call
-site) and would break the documented engine-wide `%env` registration. If that
-ever becomes worth it, it is a design change, not a tweak here.
+Registering a DTO adds function names and nothing else. A DTO's `static env`
+travels on its columns as an overlay (`HostExpressionFunction.env`), laid over
+the caller's environment for the length of one body and gone again after it, so
+an env name has no engine-wide namespace to collide in and no pairwise check to
+pass. Two DTOs may mean different things by `%system`.
+
+Do not restore the engine-wide merge. A column body reading its own DTO's env is
+not a departure from "the body evaluates as if spliced at the call site" — every
+other name still resolves to the caller's, including `%context`, the built-ins,
+per-call env and `%rowIndex`. What it removes is a DTO publishing its private
+data to every expression the engine evaluates, which nothing asked for. An
+engine-wide variable is `new FhirPathEngine({ env })`, where the host says so.
+
+`vars` cannot travel the same way and should not be made to. A var is an
+expression evaluated against a row; a call has a focus, not a row. That
+asymmetry is real — env travels with a called column, vars do not — and is
+documented rather than papered over.
 
 Dispatch is by the focus and nothing else, which leaves the cases
 `unsatisfiedInput` is deliberately silent about — an empty focus, a focus type

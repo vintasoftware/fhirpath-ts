@@ -117,6 +117,25 @@ describe('expression-defined custom functions', () => {
     expect(evaluate('Condition.code.rootId()', condition, { functions: { rootId } })).toEqual(['c1'])
   })
 
+  it('a definition may carry env of its own, over the caller env and only inside the body', () => {
+    const labelled: CustomFunction = {
+      // Data the definition owns, the way a DTO's `static env` reaches its
+      // columns: readable here, and nowhere the definition was not called.
+      expression: "%prefix.combine(%outer).combine(coding.first().code).join('/')",
+      env: { prefix: 'own', '%outer': 'shadowed' },
+    }
+    const options = { functions: { labelled }, env: { outer: 'callers' } }
+    expect(evaluate('Condition.code.labelled()', condition, options)).toEqual(['own/shadowed/I10'])
+    // Before and after the call the caller's own value is what %outer means,
+    // and the name the definition added is not defined at all.
+    expect(evaluate('%outer.combine(Condition.code.labelled()).combine(%outer)', condition, options)).toEqual([
+      'callers',
+      'own/shadowed/I10',
+      'callers',
+    ])
+    expect(() => evaluate('%prefix', condition, options)).toThrow('Undefined environment variable %prefix')
+  })
+
   it('defineVariable() inside the body stays local to the body', () => {
     const tagged: CustomFunction = { expression: "defineVariable('inner', 'x').select(%inner)" }
     expect(evaluate('tagged()', condition, { functions: { tagged } })).toEqual(['x'])

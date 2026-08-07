@@ -38,9 +38,11 @@ export interface AnalyzedEngine extends AnalyzedContext {
 export interface AnalyzeDtoOptions extends AnalyzeOptions {
   /**
    * The engine the DTO is projected by: its `model`, its registered functions
-   * (so calls into other DTOs' columns resolve) and the names in its `env` all
-   * come from here. The caller's own options layer on top of that context per
-   * name, never instead of it (see `contextOf`). Per-call env the DTO reads
+   * (so calls into other DTOs' columns resolve) and the names in its own `env`
+   * all come from here. A registered DTO's `static env` is not among them —
+   * it reaches that DTO's columns and no other expression, so it is declared
+   * from the definition instead. The caller's own options layer on top of that
+   * context per name, never instead of it (see `contextOf`). Per-call env the DTO reads
    * (`%reports` handed to `project()`) is not the engine's, so declare those in
    * `variables`.
    */
@@ -105,7 +107,7 @@ export function analyzeEngineDtos(
  * TypeScript has to go on, is still checked here.
  *
  * The DTO's `fhirType` becomes the analyzer's input type (overridable via
- * `options.inputType`). Its `env` names, the `callerEnv` names the projecting
+ * `options.inputType`). Its own `static env` names, the `callerEnv` names the projecting
  * call supplies, and `%rowIndex`/`%rowTotal` come pre-declared; its `vars`
  * analyze in declaration order, each seeing the
  * earlier ones, and every column sees them all. Anything the DTO does not

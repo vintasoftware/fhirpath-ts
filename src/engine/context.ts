@@ -41,6 +41,14 @@ export interface HostExpressionFunction {
   /** See HostNativeFunction.inputTypes. Same meaning, checked the same way. */
   inputTypes?: readonly string[]
   /**
+   * Environment variables the body reads that the caller does not supply, laid
+   * over the caller's env for the length of the call and gone again after it
+   * (see `withEnvOverlay`). This is how a DTO's `env` reaches its own column
+   * bodies without being published to every expression the engine evaluates.
+   * Already in collection form, since the same overlay serves every call.
+   */
+  env?: ReadonlyMap<string, TypedValue[]>
+  /**
    * Apply the criteria rule to the body's result, so the function always returns
    * exactly one Boolean. That rule is `criteriaBoolean`: §4.5 singleton
    * evaluation, with an empty result read as false. It is what makes a
@@ -211,6 +219,24 @@ export function createContext(options: {
     regex: options.regex,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
+}
+
+/**
+ * A context whose env is the caller's with `overlay` laid on top: a name the
+ * overlay declares resolves to its value, every other name — the built-ins,
+ * `%context`, whatever the call supplied — stays the caller's. Used for the
+ * length of one expression-defined function body, so the names its definition
+ * owns are readable inside it and nowhere else.
+ *
+ * `variables` (defineVariable() and `vars` bindings) still win over env, as
+ * `resolveEnvironmentVariable` reads them first. A body that wants its own name
+ * regardless should not have a var of that name in scope.
+ */
+export function withEnvOverlay(
+  context: EvaluationContext,
+  overlay: ReadonlyMap<string, TypedValue[]>
+): EvaluationContext {
+  return { ...context, env: new Map([...context.env, ...overlay]) }
 }
 
 /** A context whose defineVariable() scope is detached from the parent chain. */
