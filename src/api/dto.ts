@@ -315,8 +315,13 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
  * `indistinguishable`. Silent shadowing is the thing to avoid, and it is only
  * shadowing when both could answer the same call.
  *
- * Env variables have no focus to be told apart by, so a second DTO claiming one
- * is still an error.
+ * Names are the whole of it: how many DTOs a fhirType has is not the engine's
+ * business. Several Observation DTOs — a weight row, a blood-pressure row, a lab
+ * row — register side by side, and only a name two of them claim is a conflict.
+ *
+ * An env variable has no focus to be told apart by, so two DTOs may declare one
+ * name only when they mean the same value by it, which is what sharing a lookup
+ * table across DTOs does.
  */
 export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], compile: Compiler): EvaluateOptions {
   if (dtos.length === 0) {
@@ -324,18 +329,8 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
   }
   const functions: Record<string, CustomFunction> = { ...defaults.functions }
   const env: Record<string, unknown> = normalizeEnvKeys(defaults.env)
-  const classPerType = new Map<string, string>()
   for (const dto of dtos) {
     const definition = dtoDefinition(dto)
-    // One registered DTO per fhirType: it is the engine-wide vocabulary for
-    // that resource, so a second one is a conflict, not an addition.
-    const registered = classPerType.get(definition.fhirType)
-    if (registered !== undefined) {
-      throw new FhirPathTypeError(
-        `DTO ${dto.name} registers fhirType '${definition.fhirType}', already registered by ${registered}`
-      )
-    }
-    classPerType.set(definition.fhirType, dto.name)
     for (const [name, spec] of Object.entries(definition.columns)) {
       // Without this, createContext fails later and names the function rather
       // than the field that caused it.
@@ -352,8 +347,14 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
       )
     }
     for (const [name, value] of Object.entries(normalizeEnvKeys(definition.env))) {
-      if (name in env) {
-        throw new FhirPathTypeError(`DTO ${dto.name} redefines the environment variable %${name}`)
+      // Declaring one name twice is only a redefinition when the two mean
+      // different things. Two DTOs importing the same lookup table declare the
+      // same value, and that is one variable declared twice, not a conflict.
+      if (name in env && !Object.is(env[name], value)) {
+        throw new FhirPathTypeError(
+          `DTO ${dto.name} redefines the environment variable %${name} with a different value; ` +
+            'an env name has no focus to tell two declarations apart, so an engine binds one value for it'
+        )
       }
       env[name] = value
     }
@@ -417,7 +418,12 @@ function indistinguishable(
     claimed.filter(other => typesOverlap(model, one, other)).map(other => [one, other])
   )
   const pair = overlap[0]
-  return pair === undefined ? undefined : `a focus can be both ${pair[0]} and ${pair[1]}`
+  if (pair === undefined) {
+    return undefined
+  }
+  // Two DTOs on one fhirType is the ordinary way to reach this: nothing is
+  // ambiguous about the types, only about which column the name means.
+  return pair[0] === pair[1] ? `both are written for ${pair[0]}` : `a focus can be both ${pair[0]} and ${pair[1]}`
 }
 
 /** Declared input types as the model names them, or undefined when the name declares none the model knows. */

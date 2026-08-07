@@ -159,11 +159,27 @@ A focus none of them accepts is one error naming all of them.
 
 What `withDtos` refuses is a name whose declarations a call could *not* tell
 apart, since that is what shadowing actually is: a `Quantity` column beside a
-`SimpleQuantity` one, anything beside a host function that accepts every focus,
-or any pair at all on an engine with no model to compare types with. The
-refusal is at construction and names the field, so it is never a mystery at
-evaluation. Env variables have no focus to be told apart by, so a second DTO
-claiming one is still an error outright.
+`SimpleQuantity` one, two DTOs on one fhirType claiming the same field name,
+anything beside a host function that accepts every focus, or any pair at all on
+an engine with no model to compare types with. The refusal is at construction
+and names the field, so it is never a mystery at evaluation.
+
+Names are the whole of the rule. There used to be a one-DTO-per-fhirType check
+on top of it, from before columns declared their input type; it refused a second
+Observation DTO even when every field name was distinct, which is the ordinary
+shape of an app (a weight row, a blood-pressure row, a lab row). Do not bring it
+back: the per-name check already catches the only case it caught, with a message
+that names the field rather than the class.
+
+An env variable has no focus to be told apart by, so two DTOs may declare one
+name only when they mean the same value by it (`Object.is`) — two DTOs importing
+one lookup table, which is the case that made a hard error absurd. A genuine
+disagreement is still refused, because an engine binds one value per name.
+Scoping env per DTO the way columns are scoped would mean a column body reading
+its own DTO's env rather than the caller's, which contradicts what an
+expression-defined function is (the body evaluates as if spliced at the call
+site) and would break the documented engine-wide `%env` registration. If that
+ever becomes worth it, it is a design change, not a tweak here.
 
 Dispatch is by the focus and nothing else, which leaves the cases
 `unsatisfiedInput` is deliberately silent about — an empty focus, a focus type

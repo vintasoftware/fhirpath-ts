@@ -1,7 +1,14 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeDto, analyzeEngineDtos, analyzeExpression } from '../analyzer/index.ts'
-import type { Condition, Observation, ServiceRequest } from '../r4/generated/type-maps.ts'
+import type {
+  Bundle,
+  Condition,
+  Observation,
+  Organization,
+  Patient,
+  ServiceRequest,
+} from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
 import { column, criteria, defineDto, dtoDefinition } from './dto.ts'
@@ -169,6 +176,37 @@ describe('DTO projection', () => {
     // A per-call var wins over the DTO var of the same name.
     const overridden = r4.project(orders, OrderRow, { env: { reports }, vars: { report: '{}' } })
     expect(overridden.map(row => row.reportStatus)).toEqual(['waiting', 'waiting'])
+  })
+
+  it('filters a searchset down to the DTO type, the way the README recipe does', () => {
+    // A searchset carrying _include results holds more than one resource type,
+    // so the fhirType check fires on the whole Bundle. Both filters in the
+    // README's tip are here, so the recipe cannot rot.
+    class PatientRow extends defineDto('Patient') {
+      @column('id', { default: '' })
+      id!: string
+    }
+    const matched: Patient = { resourceType: 'Patient', id: 'match1' }
+    const includedOrg: Organization = { resourceType: 'Organization', id: 'o1' }
+    const includedPatient: Patient = { resourceType: 'Patient', id: 'included' }
+    const searchset: Bundle = {
+      resourceType: 'Bundle',
+      type: 'searchset',
+      entry: [
+        { resource: matched, search: { mode: 'match' } },
+        { resource: includedOrg, search: { mode: 'include' } },
+        { resource: includedPatient, search: { mode: 'include' } },
+      ],
+    }
+    expect(() => r4.project(searchset, PatientRow)).toThrow(
+      "project(): row 1 is a Organization, but PatientRow declares fhirType 'Patient'"
+    )
+    expect(r4.project(r4.filter(searchset, '$this is Patient'), PatientRow)).toEqual([
+      { id: 'match1' },
+      { id: 'included' },
+    ])
+    const matches = r4.evaluate("Bundle.entry.where(search.mode = 'match').resource", searchset)
+    expect(r4.project(matches, PatientRow)).toEqual([{ id: 'match1' }])
   })
 
   it('projecting checks each row against the fhirType, failing loudly on a mismatch', () => {
@@ -438,7 +476,21 @@ describe('DTOs registered engine-wide', () => {
     )
   })
 
-  it('redefining an env variable across DTOs fails loudly', () => {
+  it('DTOs sharing an env name agree on its value, or fail loudly', () => {
+    // The ordinary case: one lookup table imported by two DTOs. Declaring it
+    // twice declares one variable, not a conflict.
+    const TONES = [{ code: 'final', tone: 'success' }]
+    class SharedA extends defineDto('Patient', { env: { tones: TONES } }) {
+      @column('gender', { type: 'string' })
+      a!: string | undefined
+    }
+    class SharedB extends defineDto('Practitioner', { env: { tones: TONES } }) {
+      @column('gender', { type: 'string' })
+      b!: string | undefined
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [SharedA, SharedB] })
+    expect(engine.evaluate('%tones.count()', { resourceType: 'Patient' })).toEqual([1])
+
     class EnvA extends defineDto('Patient', { env: { tones: [] as never[] } }) {
       @column('gender', { type: 'string' })
       a!: string | undefined
@@ -448,18 +500,32 @@ describe('DTOs registered engine-wide', () => {
       b!: string | undefined
     }
     expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [EnvA, EnvB] })).toThrow(
-      'DTO EnvB redefines the environment variable %tones'
+      'DTO EnvB redefines the environment variable %tones with a different value'
     )
   })
 
-  it('only one DTO registers per fhirType', () => {
-    class AlsoCodeableConcept extends defineDto('CodeableConcept') {
-      @column('text', { type: 'string' })
-      conceptText!: string | undefined
+  it('several DTOs may register per fhirType; only a shared column name is a conflict', () => {
+    // Distinct row shapes for one resource are ordinary — a weight row and a
+    // blood-pressure row are both Observations.
+    class Weights extends defineDto('Observation') {
+      @column("value.ofType(Quantity).toQuantity('kg').value", { type: 'decimal' })
+      kg!: number | undefined
     }
-    expect(
-      () => new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns, AlsoCodeableConcept] })
-    ).toThrow("DTO AlsoCodeableConcept registers fhirType 'CodeableConcept', already registered by CodeableConceptFns")
+    class Panels extends defineDto('Observation') {
+      @column('component.count()', { type: 'integer' })
+      partCount!: number | undefined
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Weights, Panels] })
+    expect(engine.evaluate('kg()', weighed)).toEqual([80])
+    expect(engine.evaluate('partCount()', weighed)).toEqual([0])
+
+    class AlsoWeights extends defineDto('Observation') {
+      @column('valueQuantity.value', { type: 'decimal' })
+      kg!: number | undefined
+    }
+    expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [Weights, AlsoWeights] })).toThrow(
+      "DTO AlsoWeights redefines the function 'kg': both are written for FHIR.Observation"
+    )
   })
 })
 

@@ -417,9 +417,7 @@ still works.
 
 Registering DTOs engine-wide turns every column into an expression-defined
 function (named by the field, not a built-in name, analyzer signature derived
-from the column's `type`), and merges each DTO's `env` into the engine env. Only
-one DTO registers per fhirType — it is *the* engine-wide vocabulary for that
-resource:
+from the column's `type`), and merges each DTO's `env` into the engine env:
 
 ```ts
 class CodeableConceptDto extends defineDto('CodeableConcept') {
@@ -457,11 +455,19 @@ fp.first('Condition.code.displayText()', condition) // the CodeableConcept colum
 fp.first('Condition.code.coding.first().displayText()', condition) // the Coding one
 ```
 
-What fails at construction, rather than shadowing anything, is a name whose
-declarations a call could not tell apart: a built-in function's name, a name a
-host function already answers on any focus, two types that can describe the same
-value (`Quantity` and `SimpleQuantity`), or any shared name on an engine with no
-model to compare types with. The error names the DTO and the field.
+Names are the whole of the rule, so several DTOs may read one resource — a
+weight row and a blood-pressure row are both Observations — and register side by
+side. What fails at construction, rather than shadowing anything, is a name
+whose declarations a call could not tell apart: a built-in function's name, a
+name a host function already answers on any focus, two types that can describe
+the same value (`Quantity` and `SimpleQuantity`), two DTOs on the same fhirType
+claiming one field name, or any shared name on an engine with no model to
+compare types with. The error names the DTO and the field.
+
+Two DTOs may declare the same **env** name when they mean the same value by it —
+importing one lookup table into both is the usual reason. An env name has no
+focus to be told apart by, so declaring one name with two different values fails
+at construction.
 
 `vars` and `env` travel with the DTO, as the second argument to `defineDto`.
 `vars` are not registered — they may reference per-call env, so they apply when
@@ -513,6 +519,27 @@ group!: 'asNeeded' | 'continuous'
 throws on a mismatch — without the check, wrong input would come back as
 well-typed rows full of defaults. Filter the input first to project a subset; a
 subject with no `resourceType` (a datatype value) has nothing to check.
+
+> **Projecting a search Bundle:** a `searchset` carrying `_include` or
+> `_revinclude` results holds more than one resource type, so projecting it
+> whole throws on the first included resource
+> (`project(): row 1 is a Organization, but PatientRow declares fhirType
+> 'Patient'`). Filter to the type the DTO reads first — the check is deliberate,
+> since a Bundle whose extra types you did not expect is usually the bug:
+>
+> ```ts
+> fp.project(fp.filter(searchset, '$this is Patient'), PatientRow)
+> ```
+>
+> `filter` iterates the Bundle's entry resources, so the result is a plain array
+> of Patients and `project` gives one row each. To keep only the search matches
+> rather than every Patient in the Bundle, filter the entries instead:
+> `fp.evaluate("Bundle.entry.where(search.mode = 'match').resource", searchset)`.
+
+If a scalar column yields several values, the error names the column — and, when
+there is more than one row, the row it happened in (`yielded 3 values in row
+1`), so a long export points at the record to look at. The whole projection
+fails; there is no per-row error mode.
 
 TypeScript checks the declaration shapes and the field types, but never looks
 inside the expression strings. `analyzeDto` from `fhirpath-ts/analyzer` closes

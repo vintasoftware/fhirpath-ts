@@ -254,7 +254,14 @@ describe('FhirPathEngine.project', () => {
   })
 
   it('throws when a scalar column yields several values (SQL-on-FHIR column rule)', () => {
-    expect(() => r4.project(patient, { given: 'Patient.name.given' })).toThrow(/column 'given' yielded 3 values/)
+    // One resource has no position worth reporting; a batch names the row that
+    // broke the rule, so a long export points at the record to look at.
+    expect(() => r4.project(patient, { given: 'Patient.name.given' })).toThrow(
+      "project(): column 'given' yielded 3 values; append first() or set collection: true"
+    )
+    expect(() => r4.project([otherPatient, patient], { given: 'Patient.name.given' })).toThrow(
+      "project(): column 'given' yielded 3 values in row 1; append first() or set collection: true"
+    )
   })
 
   it('produces one row per resource for arrays and Bundles', () => {

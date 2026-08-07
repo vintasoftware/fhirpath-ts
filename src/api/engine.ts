@@ -104,9 +104,12 @@ export interface EngineOptions extends EvaluateOptions {
    * declare a `displayText` column, and a call resolves to the one its focus
    * fits. A name whose declarations a call could not tell apart — a built-in
    * name, one a host function already answers on any focus, or two types that
-   * can describe the same value — is refused here rather than shadowed.
-   * Only one DTO may register per fhirType — it is *the*
-   * engine-wide vocabulary for that resource. DTO `vars` are not registered —
+   * can describe the same value — is refused here rather than shadowed. Names
+   * are the whole of the rule: several DTOs may read one fhirType (a weight row
+   * and a blood-pressure row are both Observations), and only a name two of
+   * them claim is a conflict. Two DTOs may share an env name when they mean the
+   * same value by it, which is what importing one lookup table into both does.
+   * DTO `vars` are not registered —
    * they may reference per-call env, so they apply only when projecting the
    * DTO. A DTO you only ever project (never call into from other expressions)
    * does not need to be listed here.
