@@ -1,7 +1,7 @@
 import { mergeEnvKeys } from '../engine/context.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
-import { booleanSingleton } from '../values/collection.ts'
+import { criteriaBoolean } from '../values/collection.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { type BundleLike, isBundle, normalizeInput, toSubjects } from './bundle.ts'
 import {
@@ -9,7 +9,9 @@ import {
   CompiledExpression,
   type Compiler,
   createCachedCompiler,
+  type CustomFunction,
   type EvaluateOptions,
+  type SingleCustomFunction,
 } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
 import { assertInputMatchesDto, dtoCallOptions, type DtoClass, dtoDefinition, withDtos } from './dto.ts'
@@ -92,10 +94,22 @@ export interface EngineOptions extends EvaluateOptions {
   /**
    * DTO classes registered engine-wide (see `defineDto()`): every column
    * becomes an expression-defined function callable from any expression this
-   * engine evaluates (its name must be unique across the engine's functions;
-   * `test` columns stay projection-only), and each DTO's `env` merges into the
-   * engine env. Only one DTO may register per fhirType — it is *the*
-   * engine-wide vocabulary for that resource. DTO `vars` are not registered —
+   * engine evaluates, and each DTO's `env` merges into the engine env. A
+   * `@criteria` registers too and carries the criteria rule with it, so the
+   * call returns the same boolean the projected column holds.
+   *
+   * Every column declares the DTO's `fhirType` as the input it expects, so
+   * calling one on a focus that can never hold that type throws instead of
+   * navigating to nothing. That is also what scopes the name: two DTOs may both
+   * declare a `displayText` column, and a call resolves to the one its focus
+   * fits. A name whose declarations a call could not tell apart — a built-in
+   * name, one a host function already answers on any focus, or two types that
+   * can describe the same value — is refused here rather than shadowed. Names
+   * are the whole of the rule: several DTOs may read one fhirType (a weight row
+   * and a blood-pressure row are both Observations), and only a name two of
+   * them claim is a conflict. Two DTOs may share an env name when they mean the
+   * same value by it, which is what importing one lookup table into both does.
+   * DTO `vars` are not registered —
    * they may reference per-call env, so they apply only when projecting the
    * DTO. A DTO you only ever project (never call into from other expressions)
    * does not need to be listed here.
@@ -184,12 +198,13 @@ export class FhirPathEngine {
 
   /**
    * Boolean criteria evaluation, the semantics FHIR invariants, Subscription
-   * criteria, and `enableWhen` share (spec §4.5 singleton evaluation): empty →
-   * false, a single boolean → itself, a single non-boolean item → true, and more
-   * than one item is an error.
+   * criteria, and `enableWhen` share. A single boolean returns itself, a single
+   * non-boolean item returns true, and more than one item is an error, which is
+   * spec §4.5 singleton evaluation. Empty returns false, which is the criteria
+   * convention layered on top of it; see `criteriaBoolean`.
    */
   test(input: unknown, expression: AnyExpression, options?: EvaluateOptions): boolean {
-    return booleanSingleton(this.evaluateTyped(expression, input, options)) ?? false
+    return criteriaBoolean(this.evaluateTyped(expression, input, options))
   }
 
   /**
@@ -204,7 +219,7 @@ export class FhirPathEngine {
     const merged = this.merged(options)
     return toSubjects(input)
       .map(subject => subject.value)
-      .filter(value => booleanSingleton(compiled.evaluateTyped(value, merged)) ?? false)
+      .filter(value => criteriaBoolean(compiled.evaluateTyped(value, merged)))
   }
 
   /**
@@ -314,15 +329,23 @@ export class FhirPathEngine {
     }
     if (options.functions) {
       out.functions = Object.fromEntries(
-        Object.entries(options.functions).map(([name, fn]) => [
-          name,
-          'expression' in fn && typeof fn.expression === 'string'
-            ? { ...fn, expression: this.compileCached(fn.expression) }
-            : fn,
-        ])
+        Object.entries(options.functions).map(([name, fn]) => [name, this.precompiledFunction(fn)])
       )
     }
     return out
+  }
+
+  /** One entry of `functions`, with any string body parsed — reaching into an overload set for each member. */
+  private precompiledFunction(fn: CustomFunction): CustomFunction {
+    return 'overloads' in fn
+      ? { overloads: fn.overloads.map(overload => this.precompiledBody(overload)) }
+      : this.precompiledBody(fn)
+  }
+
+  private precompiledBody(fn: SingleCustomFunction): SingleCustomFunction {
+    return 'expression' in fn && typeof fn.expression === 'string'
+      ? { ...fn, expression: this.compileCached(fn.expression) }
+      : fn
   }
 }
 

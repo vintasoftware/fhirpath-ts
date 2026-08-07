@@ -135,7 +135,9 @@ helper for each:
 
 ```ts
 // Criteria — the boolean semantics FHIR invariants, Subscription criteria, and
-// Questionnaire enableWhen share (spec §4.5): empty → false, one boolean → itself.
+// Questionnaire enableWhen share. One boolean returns itself (spec §4.5
+// singleton evaluation). Empty returns false, which is how those callers read
+// an empty result.
 r4.test(patient, "name.family = 'Chalmers'")   // boolean
 r4.filter(patients, 'birthDate < @1990-01-01') // Patient[] — arrays and Bundles alike
 
@@ -336,6 +338,32 @@ resolves them at arity 0 from the same record. An engine pre-parses bodies
 through its parse cache; pass a `CompiledExpression` body to get the same
 effect with the free `evaluate()`.
 
+Two signature fields say what a function is for, rather than only what it
+returns:
+
+```ts
+const functions = {
+  displayText: {
+    expression: '(text | coding.display.first() | coding.first().code).first()',
+    // Written for a CodeableConcept. Calling it on anything that can never be
+    // one throws at runtime and reports `input-type` in the analyzer.
+    signature: { input: { types: ['CodeableConcept'] }, result: { types: ['string'], single: true } },
+  },
+  isFinal: {
+    expression: "status = 'final'",
+    // Read the result as a criteria: §4.5 singleton evaluation, with empty read
+    // as false. The call is then one boolean, so `isFinal().not()` chains.
+    criteria: true,
+  },
+} satisfies Record<string, CustomFunction>
+```
+
+`input.types` reports only what it can prove. It stays silent on an empty focus,
+on a call with no model, on a value the model does not describe such as plain
+`env` data or a pre-resolved var, and on a focus where any one type fits. It
+also reads the hierarchy in both directions, so a `Quantity` function accepts a
+`SimpleQuantity`.
+
 ### DTOs
 
 A DTO is a class: `defineDto(fhirType)` fixes the resource or datatype its
@@ -373,10 +401,11 @@ statusCode!: number
 ```
 
 `@column` takes the same options as a `project()` column — `type`, `as`,
-`choices`/`pick`, `enum`, `default`, `collection` — and `@criteria` declares a
-boolean criteria column (spec §4.5 semantics: empty → false). Rows are real
-instances, so anything derived from the columns belongs on the class as a getter
-or method rather than in a column shaper.
+`choices`/`pick`, `enum`, `default`, `collection`. `@criteria` declares a
+boolean criteria column, using the `test()` semantics above, and it reads the
+same way when called as a function. Rows are real instances, so anything
+derived from the columns belongs on the class as a getter or method rather than
+in a column shaper.
 
 **Decorators need a build step.** They are TC39 standard decorators, so the
 consuming build must lower them: `tsc` (with `target` ES2024 or lower — at
@@ -387,10 +416,8 @@ decorator-capable build, `project(input, { … })` with a plain columns record
 still works.
 
 Registering DTOs engine-wide turns every column into an expression-defined
-function (named by the field, unique across the engine, analyzer signature
-derived from the column's `type`), and merges each DTO's `env` into the engine
-env. Only one DTO registers per fhirType — it is *the* engine-wide vocabulary
-for that resource:
+function (named by the field, not a built-in name, analyzer signature derived
+from the column's `type`), and merges each DTO's `env` into the engine env:
 
 ```ts
 class CodeableConceptDto extends defineDto('CodeableConcept') {
@@ -400,7 +427,47 @@ class CodeableConceptDto extends defineDto('CodeableConcept') {
 
 const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
 fp.first('Condition.code.displayText()', condition, { type: 'string' })
+fp.first('Condition.subject.reference.displayText()', condition) // throws: a reference is not a CodeableConcept
 ```
+
+Each column declares its DTO's `fhirType` as the input it expects, so calling
+one on a focus that can never hold that type is an error at both ends rather
+than an expression that quietly returns empty. A `@criteria` registers the same
+way and carries the criteria rule with it, so `isFinal()` returns one boolean
+whether it is projected as a column or called from an expression:
+
+```ts
+fp.evaluate('isFinal().not()', observationWithNoStatus) // [true], the same answer the column holds
+```
+
+A column's name is scoped by the type it was written for, so two DTOs may share
+one — a `displayText` for CodeableConcept and another for Coding — and each call
+runs the one its focus fits:
+
+```ts
+class CodingDto extends defineDto('Coding') {
+  @column('(display | code).first()')
+  displayText!: string | undefined
+}
+
+const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto, CodingDto] })
+fp.first('Condition.code.displayText()', condition) // the CodeableConcept column
+fp.first('Condition.code.coding.first().displayText()', condition) // the Coding one
+```
+
+Names are the whole of the rule, so several DTOs may read one resource — a
+weight row and a blood-pressure row are both Observations — and register side by
+side. What fails at construction, rather than shadowing anything, is a name
+whose declarations a call could not tell apart: a built-in function's name, a
+name a host function already answers on any focus, two types that can describe
+the same value (`Quantity` and `SimpleQuantity`), two DTOs on the same fhirType
+claiming one field name, or any shared name on an engine with no model to
+compare types with. The error names the DTO and the field.
+
+Two DTOs may declare the same **env** name when they mean the same value by it —
+importing one lookup table into both is the usual reason. An env name has no
+focus to be told apart by, so declaring one name with two different values fails
+at construction.
 
 `vars` and `env` travel with the DTO, as the second argument to `defineDto`.
 `vars` are not registered — they may reference per-call env, so they apply when
@@ -452,6 +519,27 @@ group!: 'asNeeded' | 'continuous'
 throws on a mismatch — without the check, wrong input would come back as
 well-typed rows full of defaults. Filter the input first to project a subset; a
 subject with no `resourceType` (a datatype value) has nothing to check.
+
+> **Projecting a search Bundle:** a `searchset` carrying `_include` or
+> `_revinclude` results holds more than one resource type, so projecting it
+> whole throws on the first included resource
+> (`project(): row 1 is a Organization, but PatientRow declares fhirType
+> 'Patient'`). Filter to the type the DTO reads first — the check is deliberate,
+> since a Bundle whose extra types you did not expect is usually the bug:
+>
+> ```ts
+> fp.project(fp.filter(searchset, '$this is Patient'), PatientRow)
+> ```
+>
+> `filter` iterates the Bundle's entry resources, so the result is a plain array
+> of Patients and `project` gives one row each. To keep only the search matches
+> rather than every Patient in the Bundle, filter the entries instead:
+> `fp.evaluate("Bundle.entry.where(search.mode = 'match').resource", searchset)`.
+
+If a scalar column yields several values, the error names the column — and, when
+there is more than one row, the row it happened in (`yielded 3 values in row
+1`), so a long export points at the record to look at. The whole projection
+fails; there is no per-row error mode.
 
 TypeScript checks the declaration shapes and the field types, but never looks
 inside the expression strings. `analyzeDto` from `fhirpath-ts/analyzer` closes

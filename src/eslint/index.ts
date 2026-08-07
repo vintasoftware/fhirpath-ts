@@ -8,11 +8,12 @@ import {
   type ClassHeritage,
   columnFunctionDeclaration,
   constructsEngine,
-  type DeclaredColumnFunction,
+  declaredColumnOverloads,
   DTO_BASE_NAME,
   dtoRootsOf,
   type ExpressionAst,
   expressionEntries,
+  type FileColumnFunction,
   isCheckedCall,
   isCheckedTag,
   isForeignModule,
@@ -225,9 +226,21 @@ const noInvalidExpressions: Rule.RuleModule = {
     }[] = []
     /** Every class in the file, so a DTO root can be followed through a base class. */
     const classes: ClassHeritage[] = []
-    // One per `@column` field in the file: a registered DTO column is callable
-    // from any expression, so the calls between a file's own columns resolve.
-    const columnFunctions: Record<string, DeclaredColumnFunction> = {}
+    /**
+     * One entry per `@column` field in the file. Any expression can call a
+     * registered DTO column, so this is what lets calls between a file's own
+     * columns resolve. It is filled in `Program:exit` because a declaration
+     * carries the `fhirType` of the class it sits in, and a base class may be
+     * declared further down the file. The call sites themselves are decided
+     * there for the same reason.
+     */
+    const columnDeclarations: {
+      kind: 'column' | 'criteria'
+      field: string
+      options: ESTree.Node | undefined
+      enclosing: ClassHeritage | undefined
+    }[] = []
+    const columnFunctions: Record<string, FileColumnFunction> = {}
     const checkAt = (node: ESTree.Node, expression: string, site: SiteContext = {}): void => {
       // ESLint severity comes from the rule's configuration, not per report, so
       // only error-severity diagnostics are reported; analyzer warnings (style
@@ -313,11 +326,19 @@ const noInvalidExpressions: Rule.RuleModule = {
         // Only the DTO decorators need to look up: the class they sit in, and the
         // field they decorate.
         const ancestors =
-          policy.rootFromClass === true || policy.declaresField === true ? context.sourceCode.getAncestors(node) : []
-        if (policy.declaresField === true) {
+          policy.rootFromClass === true || policy.declaresField !== undefined
+            ? context.sourceCode.getAncestors(node)
+            : []
+        const declares = policy.declaresField
+        if (declares !== undefined) {
           const field = decoratedFieldName(ancestors)
           if (field !== undefined) {
-            columnFunctions[field] = columnFunctionDeclaration<ESTree.Node>(node.arguments[1], estreeAst)
+            columnDeclarations.push({
+              kind: declares,
+              field,
+              options: node.arguments[1],
+              enclosing: enclosingClass(ancestors),
+            })
           }
         }
         calls.push({
@@ -340,12 +361,20 @@ const noInvalidExpressions: Rule.RuleModule = {
             rebound.add(localName)
           }
         }
+        const dtoRoots = dtoRootsOf(classes)
+        // Build the column names first. `checkAt` reads them, and every site in
+        // the file shares them, including the tags.
+        for (const { kind, field, options: columnOptions, enclosing } of columnDeclarations) {
+          columnFunctions[field] = declaredColumnOverloads(
+            columnFunctions[field],
+            columnFunctionDeclaration<ESTree.Node>(kind, columnOptions, estreeAst, rootOf(enclosing, dtoRoots))
+          )
+        }
         for (const tag of tags) {
           if (isCheckedTag(tag.receiverRoot, bindings)) {
             checkAt(tag.literal, tag.expression)
           }
         }
-        const dtoRoots = dtoRootsOf(classes)
         for (const call of calls) {
           if (!isCheckedCall(call.policy, call.name, call.receiverRoot, bindings)) {
             continue

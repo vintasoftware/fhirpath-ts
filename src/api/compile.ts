@@ -3,8 +3,10 @@ import {
   createContext,
   type EvaluationContext,
   forkVariables,
+  type HostExpressionFunction,
   type HostFunction,
   type HostNativeFunction,
+  type HostSingleFunction,
   normalizeEnvKeys,
   type RegexEngine,
 } from '../engine/context.ts'
@@ -41,15 +43,47 @@ import { LruCache } from './cache.ts'
  * Pass the same record to AnalyzeOptions.functions: without a `signature`,
  * expressions using the function analyze as unknown regions.
  */
-export type CustomFunction =
-  | (HostNativeFunction & { signature?: CustomFunctionSignature; expression?: never })
+export type SingleCustomFunction =
+  | (HostNativeFunction & { signature?: CustomFunctionSignature; expression?: never; criteria?: never })
   | {
       expression: AnyExpression
       signature?: CustomFunctionSignature
+      /**
+       * Read the body's result as a criteria, so the function always returns
+       * exactly one Boolean. The rule is `criteriaBoolean`: §4.5 singleton
+       * evaluation, with an empty result read as false. A `@criteria` field
+       * registers this way, which is what makes one declaration mean the same
+       * thing whether it is projected as a column or called from an
+       * expression. Without it, `isFinal().not()` on a resource with no status
+       * returns empty rather than true.
+       */
+      criteria?: boolean
       fn?: never
       minArity?: never
       maxArity?: never
     }
+
+/**
+ * One name standing for several functions, told apart by the focus each was
+ * written for: a call runs the first whose `signature.input.types` the focus
+ * satisfies, and a focus none of them accepts is an error naming all of them.
+ *
+ * This is how two DTOs registered on one engine can both declare a
+ * `displayText` column — one for CodeableConcept, one for Coding. `withDtos`
+ * builds these; it also refuses to build one whose members a call could not
+ * tell apart, so every member declares its input type.
+ */
+export interface OverloadedCustomFunction {
+  overloads: readonly SingleCustomFunction[]
+  fn?: never
+  expression?: never
+  signature?: never
+  criteria?: never
+  minArity?: never
+  maxArity?: never
+}
+
+export type CustomFunction = SingleCustomFunction | OverloadedCustomFunction
 
 export interface EvaluateOptions {
   /** Environment variables (`%name`), keyed with or without the leading `%`. */
@@ -230,21 +264,46 @@ export function contextFactory(
   }
 }
 
-/** Resolve CustomFunctions to their runtime form: expression bodies parse to ASTs, signatures stay API-side. */
+/**
+ * Converts CustomFunctions to their runtime form. Expression bodies parse to
+ * ASTs, and the declared input types come across for the engine to check. The
+ * rest of the signature stays in the API layer, which is the analyzer's half.
+ */
 function toHostFunctions(functions: Record<string, CustomFunction>): Record<string, HostFunction> {
   const host: Record<string, HostFunction> = {}
   for (const [name, custom] of Object.entries(functions)) {
-    if ('expression' in custom) {
-      if ('fn' in custom) {
-        throw new FhirPathTypeError(`Custom function '${name}' declares both 'fn' and 'expression'; use one`)
-      }
-      const { expression } = custom
-      host[name] = { ast: typeof expression === 'string' ? parse(expression) : expression.ast }
-    } else {
-      host[name] = custom
-    }
+    host[name] =
+      'overloads' in custom
+        ? { overloads: custom.overloads.map(overload => toHostFunction(name, overload)) }
+        : toHostFunction(name, custom)
   }
   return host
+}
+
+function toHostFunction(name: string, custom: SingleCustomFunction): HostSingleFunction {
+  if ('expression' in custom) {
+    if ('fn' in custom) {
+      throw new FhirPathTypeError(`Custom function '${name}' declares both 'fn' and 'expression'; use one`)
+    }
+    return hostExpressionFunction(custom)
+  }
+  const inputTypes = custom.signature?.input?.types
+  // Copy rather than pass through. `custom` is the caller's own object, and the
+  // runtime form carries fields the API form does not.
+  return inputTypes === undefined ? custom : { ...custom, inputTypes }
+}
+
+/** The runtime form of an expression-defined CustomFunction: its body, plus what the engine checks around it. */
+function hostExpressionFunction(
+  custom: Extract<SingleCustomFunction, { expression: AnyExpression }>
+): HostExpressionFunction {
+  const { expression, signature } = custom
+  const inputTypes = signature?.input?.types
+  return {
+    ast: typeof expression === 'string' ? parse(expression) : expression.ast,
+    ...(inputTypes !== undefined && { inputTypes }),
+    ...(custom.criteria === true && { criteria: true }),
+  }
 }
 
 /** Default for `EngineOptions.cacheSize`, matching Firely's FhirPathCompilerCache default. */

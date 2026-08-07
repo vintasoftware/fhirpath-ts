@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FhirPathRuntimeError } from '../errors.ts'
-import { booleanSingleton, singleton, wrapBoolean } from './collection.ts'
+import { booleanSingleton, criteriaBoolean, singleton, wrapBoolean } from './collection.ts'
 import { Decimal } from './decimal.ts'
 import {
   SYSTEM_BOOLEAN,
@@ -99,5 +99,21 @@ describe('singleton evaluation (§4.5)', () => {
   it('wrapBoolean converts undefined to empty', () => {
     expect(wrapBoolean(undefined)).toEqual([])
     expect(wrapBoolean(true)).toEqual([{ type: SYSTEM_BOOLEAN, value: true }])
+  })
+
+  it('booleanSingleton keeps empty distinct from false', () => {
+    // The three-valued and/or/xor/implies tables read this undefined directly
+    // (engine/operators/logic.ts). Folding it into false here would silently
+    // break `{} and false`, which is false, against `{} and true`, which is
+    // empty — so the criteria rule is a separate function.
+    expect(booleanSingleton([])).toBeUndefined()
+    expect(criteriaBoolean([])).toBe(false)
+  })
+
+  it('criteriaBoolean is total: every collection answers true or false', () => {
+    expect(criteriaBoolean([toTypedValue(true)])).toBe(true)
+    expect(criteriaBoolean([toTypedValue(false)])).toBe(false)
+    expect(criteriaBoolean([toTypedValue('hello')])).toBe(true)
+    expect(() => criteriaBoolean([toTypedValue(1), toTypedValue(2)])).toThrow('at most one item')
   })
 })

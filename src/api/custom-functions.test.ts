@@ -215,6 +215,144 @@ describe('custom functions in the analyzer', () => {
   })
 })
 
+describe('criteria: the criteria rule on the function', () => {
+  const observation = { resourceType: 'Observation', status: 'final', code: { text: 'Weight' } }
+  const criterion = (expression: string): Record<string, CustomFunction> => ({
+    holds: { expression, criteria: true },
+  })
+  const run = (expression: string, functions: Record<string, CustomFunction>): unknown[] =>
+    evaluate(expression, observation, { functions, model: r4Model })
+
+  it('answers exactly one boolean, whatever the body yields', () => {
+    expect(run('holds()', criterion("status = 'final'"))).toEqual([true])
+    expect(run('holds()', criterion("status = 'amended'"))).toEqual([false])
+    // Empty is false, which is the point: the call chains as a boolean.
+    expect(run('holds()', criterion('nothing.here'))).toEqual([false])
+    expect(run('holds().not()', criterion('nothing.here'))).toEqual([true])
+    // A single non-boolean item is true, per the implicit-exists rule.
+    expect(run('holds()', criterion('code.text'))).toEqual([true])
+  })
+
+  it('is falsified by dropping the flag: the same body comes back empty', () => {
+    expect(evaluate('holds()', observation, { functions: { holds: { expression: 'nothing.here' } } })).toEqual([])
+  })
+
+  it('keeps the >1-item error, and still allows a later call', () => {
+    const many = criterion('code.text | status')
+    expect(() => run('holds()', many)).toThrow('Expected a collection with at most one item, but found 2')
+    // The name is removed from activeExpressionFunctions even though the
+    // criteria rule threw, so a later call still works.
+    expect(run('holds()', criterion("status = 'final'"))).toEqual([true])
+  })
+})
+
+describe('a declared input type', () => {
+  /** Written against a CodeableConcept, in both host-function forms. */
+  const asExpression: CustomFunction = {
+    expression: '(text | coding.display.first() | coding.first().code).first()',
+    signature: { input: { types: ['CodeableConcept'] }, result: { types: ['string'], single: true } },
+  }
+  const asNative: CustomFunction = {
+    minArity: 0,
+    maxArity: 0,
+    signature: { input: { types: ['CodeableConcept'] } },
+    fn: input => input.map(value => (value as { text?: string }).text),
+  }
+  const patientWith = (concept: unknown) => ({ resourceType: 'Patient', maritalStatus: concept, gender: 'female' })
+  const married = patientWith({ text: 'Married' })
+
+  describe.each([
+    ['expression-defined', asExpression],
+    ['native', asNative],
+  ])('%s', (_form, displayText) => {
+    const functions = { displayText }
+    const run = (expression: string, input: unknown = married): unknown[] =>
+      evaluate(expression, input, { functions, model: r4Model })
+
+    it('runs on a focus of the declared type', () => {
+      expect(run('maritalStatus.displayText()')).toEqual(['Married'])
+    })
+
+    it('throws on a focus that can never be one', () => {
+      expect(() => run('gender.displayText()')).toThrow(
+        "Function 'displayText' expects FHIR.CodeableConcept as input, but the focus is FHIR.code"
+      )
+    })
+
+    it('stays silent on an empty focus, without a model, and on types no model describes', () => {
+      // Empty is the spec's own propagation, not a mistake.
+      expect(run('maritalStatus.text.nothing.displayText()')).toEqual([])
+      // No model: nothing to resolve either side of the question against.
+      expect(evaluate('gender.displayText()', married, { functions })).toEqual([])
+      // A plain JS value carries the Object placeholder, which no model knows.
+      expect(
+        evaluate('%loose.displayText()', married, { functions, model: r4Model, env: { loose: { a: 1 } } })
+      ).toEqual([])
+    })
+
+    it('accepts a union focus where one candidate fits', () => {
+      // `gender` can never be a CodeableConcept, but maritalStatus can, and the
+      // check only fires when no item could possibly fit.
+      expect(run('(maritalStatus | gender).displayText()')).toEqual(['Married'])
+    })
+  })
+
+  it('is falsified by dropping the declaration: the call comes back empty instead', () => {
+    const undeclared: CustomFunction = { expression: asExpression.expression as string }
+    expect(
+      evaluate('gender.displayText()', married, { functions: { displayText: undeclared }, model: r4Model })
+    ).toEqual([])
+  })
+
+  describe('in the analyzer', () => {
+    const functions = { displayText: asExpression }
+    const codes = (expression: string, inputType = 'Patient'): string[] =>
+      analyzeExpression(expression, { model: r4Model, inputType, functions }).map(d => d.code)
+
+    it('reports a focus that can never hold the declared type', () => {
+      expect(codes('gender.displayText()')).toEqual(['input-type'])
+      expect(
+        analyzeExpression('gender.displayText()', { model: r4Model, inputType: 'Patient', functions })[0]?.message
+      ).toBe('displayText() expects FHIR.CodeableConcept as input, found FHIR.code')
+    })
+
+    it('stays quiet where it cannot prove anything', () => {
+      expect(codes('maritalStatus.displayText()')).toEqual([])
+      // A union passes when any candidate fits, and so do iif's branches.
+      expect(codes('(maritalStatus | gender).displayText()')).toEqual([])
+      expect(codes('iif(true, maritalStatus, gender).displayText()')).toEqual([])
+      // An unknown region claims nothing.
+      expect(codes('children().displayText()')).toEqual([])
+      // Without a model there is nothing to resolve either name against.
+      expect(analyzeExpression('gender.displayText()', { functions }).map(d => d.code)).toEqual([])
+    })
+
+    it('walks a surplus argument against $this, now that the column has a signature', () => {
+      // Declaring an input type gives every column a signature, so an extra
+      // argument now takes the checked path. Value arguments analyze against
+      // $this, which here is the Patient rather than the call's input.
+      const messages = analyzeExpression('maritalStatus.displayText(nope)', {
+        model: r4Model,
+        inputType: 'Patient',
+        functions,
+      }).map(d => d.message)
+      expect(messages).toEqual([
+        "Function 'displayText' expects 0 arguments, got 1",
+        "Element 'nope' is not defined on FHIR.Patient",
+      ])
+    })
+
+    it('ignores declared names this model has never heard of', () => {
+      const foreign = { displayText: { ...asExpression, signature: { input: { types: ['Widget'] } } } }
+      expect(
+        analyzeExpression('gender.displayText()', { model: r4Model, inputType: 'Patient', functions: foreign }).map(
+          d => d.code
+        )
+      ).toEqual([])
+    })
+  })
+})
+
 describe('declared variables in the analyzer', () => {
   it('declared names are not unknown-variable errors, typed or not', () => {
     const options = {
@@ -246,3 +384,12 @@ const invalidSignature: CustomFunction = {
   signature: { args: ['expression'] },
 }
 void invalidSignature
+
+// `criteria` coerces an expression body's result. A native function returns
+// plain JS values and would ignore it without saying so.
+// @ts-expect-error -- criteria belongs to the expression form only
+const nativeCriteria: CustomFunction = {
+  fn: () => true,
+  criteria: true,
+}
+void nativeCriteria

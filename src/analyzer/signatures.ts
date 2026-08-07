@@ -1,29 +1,4 @@
-import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
-
-/** Behavior families used by the static checks. */
-export type ValueKind = 'Boolean' | 'String' | 'Numeric' | 'Temporal' | 'Quantity' | 'Complex'
-
-export function valueKindOfTypeName(canonical: string): ValueKind {
-  const system = canonical.startsWith('System.') ? canonical : FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(canonical)]
-  switch (system) {
-    case 'System.Boolean':
-      return 'Boolean'
-    case 'System.String':
-      return 'String'
-    case 'System.Integer':
-    case 'System.Long':
-    case 'System.Decimal':
-      return 'Numeric'
-    case 'System.Date':
-    case 'System.DateTime':
-    case 'System.Time':
-      return 'Temporal'
-    case 'System.Quantity':
-      return 'Quantity'
-    default:
-      return canonical === 'FHIR.Quantity' || typeLocalName(canonical) === 'Quantity' ? 'Quantity' : 'Complex'
-  }
-}
+import type { ValueKind } from '../values/type-compat.ts'
 
 interface StaticStateLike {
   types: string[] | undefined
@@ -62,19 +37,36 @@ export type ArgSpec = 'expression' | 'condition' | 'sort-key' | 'type-name' | 'a
 export type ValueArgSpec = 'any' | ValueKind
 
 /**
+ * What a function accepts as its input (the focus it is called on): a value
+ * kind, a cardinality, and/or the model types the focus must be able to hold.
+ *
+ * `types` is for a function written for one type, such as a DTO's `@column`,
+ * which knows the class it was declared on. No built-in sets it, and none
+ * should. Spec functions accept many types, so a built-in that named types here
+ * would start reporting valid expressions from the official test suite.
+ * `signatures.test.ts` checks that no built-in sets it.
+ */
+export interface InputSpec {
+  kind?: ValueKind
+  singleton?: boolean
+  /** Canonical or local model type names ('CodeableConcept', 'System.String'). */
+  types?: string[]
+}
+
+/**
  * The declared analyzer signature of a host-supplied function (HAPI's
  * checkFunction): what input it accepts, how its arguments are treated, and
  * what it returns. Result `types` use model or System names ('Patient',
  * 'System.String'); omitting them keeps the result an unknown region.
  */
 export interface CustomFunctionSignature {
-  input?: { kind?: ValueKind; singleton?: boolean }
+  input?: InputSpec
   args?: ValueArgSpec[]
   result?: { types?: string[]; single?: boolean }
 }
 
 export interface FunctionSignature {
-  input?: { kind?: ValueKind; singleton?: boolean }
+  input?: InputSpec
   args?: ArgSpec[]
   /**
    * Result state from the input state and the analyzed argument states

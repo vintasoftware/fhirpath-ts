@@ -8,7 +8,12 @@
  * must stay free of `typescript` and `eslint` imports so either walker can load
  * it alone; `column-signature.ts` is dependency-free for the same reason.
  */
-import { columnSignature } from '../api/column-signature.ts'
+import {
+  type ColumnFunctionSignature,
+  columnSignature,
+  type ColumnTypeClaim,
+  criteriaSignature,
+} from '../api/column-signature.ts'
 
 /**
  * How a call site carries its FHIRPath expression(s):
@@ -69,14 +74,17 @@ export interface CallSitePolicy {
    */
   dto?: true
   /**
-   * The call declares a function named by the field it decorates. A registered
-   * `@column` becomes a zero-arity function every expression on that engine can
-   * call (see `withDtos`), so a walker collects one per decorated field and hands
-   * them to `analyzeSite` — which is how a call between a file's own columns
-   * resolves. A flag on the table rather than a name comparison in each walker,
-   * so the two cannot disagree about which call it is.
+   * The call declares a function named after the field it decorates, and says
+   * which kind of column it is. A registered `@column` or `@criteria` becomes a
+   * zero-argument function that every expression on that engine can call (see
+   * `withDtos`). A walker collects one per decorated field and passes them to
+   * `analyzeSite`, which is how a call between a file's own columns resolves.
+   * The kind decides the signature: a criteria returns a single Boolean whatever
+   * its expression returns, so there are no options to read. This lives in the
+   * table rather than as a name comparison in each walker, so the two walkers
+   * cannot disagree about which call it is.
    */
-  declaresField?: true
+  declaresField?: 'column' | 'criteria'
 }
 
 /** Call names that take FHIRPath expressions, and where/how/on-what they take them. */
@@ -100,9 +108,12 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   // the `vars` a DTO binds per row.
   [
     'column',
-    { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true, declaresField: true },
+    { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true, declaresField: 'column' },
   ],
-  ['criteria', { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true }],
+  [
+    'criteria',
+    { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true, declaresField: 'criteria' },
+  ],
   ['defineDto', { argIndex: 1, shape: 'dto-vars', receiver: 'import', rootArg: 0, dto: true }],
 ])
 
@@ -432,36 +443,86 @@ function namedStringEntries<N>(object: N, name: string, ast: ExpressionAst<N>): 
 export interface DeclaredColumnFunction {
   minArity: 0
   maxArity: 0
-  signature?: { result: { types: string[]; single: boolean } }
+  signature?: ColumnFunctionSignature
+}
+
+/** One field name of a file, with every class that declares it (see `declaredColumnOverloads`). */
+export type FileColumnFunction = DeclaredColumnFunction | { overloads: readonly DeclaredColumnFunction[] }
+
+/**
+ * Builds the function a `@column(path, options)` declaration contributes, given
+ * the `fhirType` its class settled on. Both halves of the signature come from
+ * `columnSignature`, the same decision the runtime registers, so the two cannot
+ * drift apart. All this adds is reading the options out of the source.
+ *
+ * The two halves fail independently. A class whose root the file cannot
+ * resolve, such as one extending an imported base or a factory call, declares
+ * no input, so calls to its columns go unchecked. See `dtoRootsOf` for why
+ * guessing a root is worse. An option whose value is not a literal is not in
+ * the source at all, so a `collection` set from a variable drops the result
+ * claim and keeps the input one.
+ */
+export function columnFunctionDeclaration<N>(
+  kind: 'column' | 'criteria',
+  options: N | undefined,
+  ast: ExpressionAst<N>,
+  hostType: string | undefined
+): DeclaredColumnFunction {
+  const declaration: DeclaredColumnFunction = { minArity: 0, maxArity: 0 }
+  if (kind === 'criteria') {
+    // A criteria takes no options object. Its result is a single Boolean
+    // whatever the expression returns, because the rule lives on the function.
+    return { ...declaration, signature: criteriaSignature(hostType) }
+  }
+  const signature = columnSignature(columnClaim(options, ast), hostType)
+  return signature === undefined ? declaration : { ...declaration, signature }
 }
 
 /**
- * The function a `@column(path, options)` declaration contributes. The result
- * type is `columnSignature`'s decision, the same one the runtime registers, so
- * the two cannot drift; all this adds is reading the options out of the syntax.
- * An option whose value is not a literal is not in the syntax at all, and a
- * guessed signature would be worse than none — so a dynamic `collection` leaves
- * the result an unknown region rather than a wrong one.
+ * What a file's column vocabulary keeps for a field name it has already seen:
+ * every declaration of it, as overloads. Two classes in one file may declare the
+ * same field name against different `fhirType`s, and both can register on one
+ * engine — a column's name is scoped by the type it was written for, so a call
+ * resolves to the declaration its focus fits (`withDtos`, api/dto.ts). The
+ * analyzer resolves the set the same way the engine does, and falls back to what
+ * the declarations agree on when the focus cannot tell them apart. AGENTS.md,
+ * "The lint and editor half", works through what keeping the last one seen would
+ * report instead.
  */
-export function columnFunctionDeclaration<N>(options: N | undefined, ast: ExpressionAst<N>): DeclaredColumnFunction {
-  const declaration: DeclaredColumnFunction = { minArity: 0, maxArity: 0 }
+export function declaredColumnOverloads(
+  seen: FileColumnFunction | undefined,
+  next: DeclaredColumnFunction
+): FileColumnFunction {
+  if (seen === undefined) {
+    return next
+  }
+  return { overloads: [...('overloads' in seen ? seen.overloads : [seen]), next] }
+}
+
+/**
+ * Reads the type claim a column's options object makes. The answer is an empty
+ * claim whenever the source cannot say: no options at all, options that are not
+ * an object literal, or a `collection` set from a variable, where a guessed
+ * cardinality would be worse than none. All three produce no result claim,
+ * which leaves the input type as the only thing the declaration carries.
+ */
+function columnClaim<N>(options: N | undefined, ast: ExpressionAst<N>): ColumnTypeClaim & { collection?: boolean } {
   const properties = options === undefined ? undefined : ast.properties(options)
   if (properties === undefined) {
-    return declaration
+    return {}
   }
   const named = (name: string): N | undefined => properties.find(property => property.name === name)?.value
   const collection = named('collection')
   const isCollection = collection === undefined ? false : ast.boolean(collection)
   if (isCollection === undefined) {
-    return declaration
+    return {}
   }
   const declaredType = named('type')
-  const signature = columnSignature({
+  return {
     ...(declaredType !== undefined && { type: ast.string(declaredType)?.expression }),
     ...(named('enum') !== undefined && { enum: true }),
     ...(named('as') !== undefined && { as: true }),
     ...(named('choices') !== undefined && { choices: true }),
     collection: isCollection,
-  })
-  return signature === undefined ? declaration : { ...declaration, signature }
+  }
 }

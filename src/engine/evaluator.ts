@@ -3,7 +3,7 @@ import '../functions/install.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { describeArity, lookupFunction } from '../functions/registry.ts'
 import type { AstNode } from '../parser/ast.ts'
-import { singleton } from '../values/collection.ts'
+import { criteriaBoolean, singleton, wrapBoolean } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
 import { wrapNumeric } from '../values/numeric.ts'
@@ -30,6 +30,7 @@ import {
 } from './context.ts'
 import { navigateIdentifier } from './navigation.ts'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
+import { resolveHostCall } from './type-matching.ts'
 
 function evaluateArgument(node: AstNode, context: EvaluationContext, _input: TypedValue[]): TypedValue[] {
   // Arguments evaluate against $this (the current context item), not the function's
@@ -48,14 +49,19 @@ function evaluateArgument(node: AstNode, context: EvaluationContext, _input: Typ
  * function arity-checks, then eagerly evaluates every argument and unwraps
  * both input and arguments to plain JS values — the host boundary — and
  * converts the plain result back.
+ *
+ * Either form may declare the types its focus must be able to hold. That is
+ * checked before anything else runs, and it is also what picks between the
+ * functions a name shared by several DTOs stands for (see `resolveHostCall`).
  */
 function evaluateHostFunction(
   name: string,
-  host: HostFunction,
+  entry: HostFunction,
   args: AstNode[],
   context: EvaluationContext,
   input: TypedValue[]
 ): TypedValue[] {
+  const host = resolveHostCall(name, entry, context, input)
   if ('ast' in host) {
     if (args.length > 0) {
       throw new FhirPathTypeError(`Function '${name}' expects ${describeArity(0, 0)}, got ${args.length} arguments`)
@@ -69,7 +75,10 @@ function evaluateHostFunction(
     try {
       // withFrame rebinds $this to the input and forks variables, so the
       // body's defineVariable() bindings stay local to the body.
-      return withFrame(context, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))
+      const result = withFrame(context, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))
+      // Inside the try, so a body that returns several items still removes its
+      // name from activeExpressionFunctions on the way out.
+      return host.criteria === true ? wrapBoolean(criteriaBoolean(result)) : result
     } finally {
       context.activeExpressionFunctions.delete(name)
     }

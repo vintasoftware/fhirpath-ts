@@ -320,6 +320,177 @@ describe('the walkers agree on a site’s context', () => {
       expected: ["unknown-element: Element 'valuee' is not defined on FHIR.Observation — did you mean 'value'?"],
     },
     {
+      name: 'a column called on a focus that can never hold its own fhirType',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Concept extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('subject.reference.displayText()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: displayText() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'a column whose cardinality is dynamic still declares what it is written against',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Concept extends defineDto('CodeableConcept') {",
+        "  @column('coding.display', { collection: dynamic }) displays!: string[]",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('subject.reference.displays()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: displays() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'a column whose own root comes from a base class declared below it',
+      // Sub's fhirType is only known once Base is read, so the walkers must
+      // decide the file's column vocabulary after the whole file, not during it.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        'class Sub extends Base {',
+        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        '}',
+        "class Base extends defineDto('CodeableConcept') {",
+        "  @column('id') conceptId!: unknown",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('subject.reference.displayText()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: displayText() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'one field name declared against two roots resolves by the focus',
+      // Both `label`s can register on one engine, scoped by the type each was
+      // written for, and `code` is a CodeableConcept. Keeping the last one seen
+      // would report this valid call.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class ConceptRow extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class CodingRow extends defineDto('Coding') {",
+        "  @column('display', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('code.label()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      // Two `label`s the focus cannot tell apart: the call keeps only what they
+      // agree on, which about the result is nothing.
+      name: 'one field name declared with two result types claims neither',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Text extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class Count extends defineDto('CodeableConcept') {",
+        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('code.label().length()') n!: unknown",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a field name declared against two roots is checked against the one the focus fits',
+      // The precision an overload set buys: the two `label`s disagree about
+      // everything, and each call still gets the result of the column its own
+      // focus reaches.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class ConceptRow extends defineDto('CodeableConcept') {",
+        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        '}',
+        "class CodingRow extends defineDto('Coding') {",
+        "  @column('display', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('code.coding.label().length()') chars!: unknown",
+        "  @column('code.label().length()') counted!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['operand-type: length() expects a String input, found FHIR.integer'],
+    },
+    {
+      name: 'a field name shared with a rootless declaration keeps no claim at all',
+      // The rootless `label` answers every call, so the pair claims nothing
+      // wherever both are in play — the Integer result of the one whose root is
+      // known cannot be pinned on this call.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Loose extends keyedRow('CodeableConcept') {",
+        "  @column('coding.first().display', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class Concept extends defineDto('CodeableConcept') {",
+        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('code.label().length()') n!: unknown",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'declarations that disagree on the result still declare the input they share',
+      // A focus none of them accepts is reported against all of them at once.
+      // Both `label`s are written against a CodeableConcept, so a call on a
+      // string focus is wrong whichever one it meant — dropping the signature
+      // of a name declared twice would miss it.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Text extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class Count extends defineDto('CodeableConcept') {",
+        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('subject.reference.label()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: label() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'agreeing declarations of one field name keep their claims',
+      // Same name, same root, same result — nothing is in doubt, so the wrong
+      // focus is still reported.
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class A extends defineDto('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class B extends defineDto('CodeableConcept') {",
+        "  @column('coding.first().display', { type: 'string' }) label!: string | undefined",
+        '}',
+        "class ProblemRow extends defineDto('Condition') {",
+        "  @column('subject.reference.label()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: label() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'a column on a root-generic factory declares no input, so calls stay unchecked',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Concept extends keyedRow('CodeableConcept') {",
+        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('subject.reference.displayText()') name!: unknown",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
       name: 'no statically-known root keeps syntax findings only',
       code: [
         "import { column } from 'fhirpath-ts'",

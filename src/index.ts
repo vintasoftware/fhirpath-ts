@@ -1,6 +1,12 @@
-export type { CustomFunctionSignature, ValueArgSpec, ValueKind } from './analyzer/signatures.ts'
+export type { CustomFunctionSignature, ValueArgSpec } from './analyzer/signatures.ts'
 export type { BundleLike } from './api/bundle.ts'
-export type { AnyExpression, CustomFunction, EvaluateOptions } from './api/compile.ts'
+export type {
+  AnyExpression,
+  CustomFunction,
+  EvaluateOptions,
+  OverloadedCustomFunction,
+  SingleCustomFunction,
+} from './api/compile.ts'
 export { compile, CompiledExpression, DEFAULT_PARSE_CACHE_SIZE } from './api/compile.ts'
 export type { ConstraintCheckResult, ConstraintIssue, FhirConstraint, OperationOutcome } from './api/constraints.ts'
 export type { ColumnTypeMismatch, DtoBase, DtoClass, DtoInstance, DtoOptions, DtoRow } from './api/dto.ts'
@@ -20,4 +26,5 @@ export { printExpression } from './parser/printer.ts'
 export type { FhirpathInput, FhirpathResult, FhirpathResultIn, FhirTypeName } from './typed/infer.ts'
 export { Temporal } from './values/datetime.ts'
 export { Decimal } from './values/decimal.ts'
+export type { ValueKind } from './values/type-compat.ts'
 export type { QuantityValue, TypedValue } from './values/typed-value.ts'

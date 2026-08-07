@@ -1,5 +1,5 @@
 import { FhirPathError } from '../errors.ts'
-import { booleanSingleton } from '../values/collection.ts'
+import { criteriaBoolean } from '../values/collection.ts'
 import { isBundle, toSubjects } from './bundle.ts'
 import type { Compiler, EvaluateOptions } from './compile.ts'
 
@@ -68,7 +68,7 @@ export function evaluateConstraints(
         ...(subject.index === undefined ? {} : { index: subject.index }),
       }
       try {
-        if (booleanSingleton(compile(constraint.expression).evaluateTyped(subject.value, options)) !== true) {
+        if (!criteriaBoolean(compile(constraint.expression).evaluateTyped(subject.value, options))) {
           issues.push(issue)
         }
       } catch (error) {

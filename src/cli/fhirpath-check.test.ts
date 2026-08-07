@@ -116,6 +116,38 @@ describe('fhirpath-check CLI', () => {
     expect(result.output).toContain('analyzed 2 DTO(s) from 1 module(s) against 1 engine(s)')
   })
 
+  it('reports a registered column called on a focus its own fhirType rules out', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-input-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'patient.dto.ts'),
+      [
+        "import { column, defineDto, FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        '',
+        "export class ConceptDto extends defineDto('CodeableConcept') {",
+        "  @column('(text | coding.display.first()).first()', { type: 'string' })",
+        '  displayText!: string | undefined',
+        '}',
+        '',
+        'const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [ConceptDto] })',
+        '',
+        "export class ProblemRow extends defineDto('Condition') {",
+        '  // A CodeableConcept column, reached on a string.',
+        "  @column('subject.reference.displayText()', { type: 'string', default: '' })",
+        '  name!: string',
+        '}',
+        '',
+        'export const rows = (input: unknown[]): unknown => fp.project(input, ProblemRow)',
+      ].join('\n')
+    )
+    const result = run([], directory)
+    expect(result.status).toBe(1)
+    expect(result.output).toMatch(/patient\.dto\.ts:\d+:\d+ ProblemRow\.name \[input-type\]/)
+    expect(result.output).toContain('displayText() expects FHIR.CodeableConcept as input, found FHIR.string')
+  })
+
   it('says so when nothing matches, and skips the DTO half on --no-import', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-empty-'))
     writeFileSync(join(directory, 'plain.ts'), 'const q = fhirpath`Patient.name.given`\n')

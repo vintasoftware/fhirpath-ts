@@ -1,10 +1,15 @@
+import '../functions/install.ts'
+
 import { mergeEnvKeys, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
+import { functions as builtinFunctions } from '../functions/registry.ts'
+import type { ModelProvider } from '../model/provider.ts'
 import type { FhirTypeName } from '../typed/infer.ts'
+import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
-import { columnSignature } from './column-signature.ts'
-import type { AnyExpression, Compiler, CustomFunction, EvaluateOptions } from './compile.ts'
+import { columnSignature, criteriaSignature } from './column-signature.ts'
+import type { AnyExpression, Compiler, CustomFunction, EvaluateOptions, SingleCustomFunction } from './compile.ts'
 import type { ColumnOptions, ColumnResult, ProjectionColumn } from './project.ts'
 
 /** The object forms of ProjectionColumn — what a `@column`/`@criteria` decorator records. */
@@ -212,10 +217,16 @@ export function column(path: string, options?: ColumnOptions): unknown {
 }
 
 /**
- * Declares a criteria column: the expression evaluates with the same spec §4.5
- * semantics as `FhirPathEngine.test()` (empty → false, a single boolean →
- * itself), so the field is always a `boolean`. Projection-only — a criteria
- * never registers as a function.
+ * Declares a criteria column: the expression evaluates with the same criteria
+ * semantics as `FhirPathEngine.test()` (a single boolean → itself per spec §4.5,
+ * empty → false per the convention on top of it), so the field is always a
+ * `boolean`.
+ *
+ * Other expressions can also call a registered DTO's criteria, as `isFinal()`,
+ * and the criteria rule travels with it. The call returns one Boolean, so
+ * `isFinal().not()` on a resource with no `status` is `true`, the same answer
+ * the projected column gives. The body still runs against the call's focus, so
+ * call it on the type the DTO was written for.
  */
 export function criteria<const Expr extends string>(expr: Expr): ColumnDecorator<boolean>
 export function criteria(expr: string): unknown {
@@ -295,8 +306,22 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
  * Fold registered DTO classes into the engine defaults: each column becomes an
  * expression-defined function (its analyzer signature derived from the column's
  * `type` when no `as`/`choices` reshapes the value), and each DTO's `env` merges
- * in. Redefining an existing function or env variable is an error — silent
- * shadowing between DTOs would be impossible to debug from an expression.
+ * in.
+ *
+ * A column name is scoped by the type its DTO was written for, not by the
+ * engine: two DTOs may both declare a `displayText`, one for CodeableConcept and
+ * one for Coding, and a call resolves to the one its focus fits. What the engine
+ * refuses is a name whose declarations a call could *not* tell apart — see
+ * `indistinguishable`. Silent shadowing is the thing to avoid, and it is only
+ * shadowing when both could answer the same call.
+ *
+ * Names are the whole of it: how many DTOs a fhirType has is not the engine's
+ * business. Several Observation DTOs — a weight row, a blood-pressure row, a lab
+ * row — register side by side, and only a name two of them claim is a conflict.
+ *
+ * An env variable has no focus to be told apart by, so two DTOs may declare one
+ * name only when they mean the same value by it, which is what sharing a lookup
+ * table across DTOs does.
  */
 export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], compile: Compiler): EvaluateOptions {
   if (dtos.length === 0) {
@@ -304,30 +329,32 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
   }
   const functions: Record<string, CustomFunction> = { ...defaults.functions }
   const env: Record<string, unknown> = normalizeEnvKeys(defaults.env)
-  const classPerType = new Map<string, string>()
   for (const dto of dtos) {
     const definition = dtoDefinition(dto)
-    // One registered DTO per fhirType: it is the engine-wide vocabulary for
-    // that resource, so a second one is a conflict, not an addition.
-    const registered = classPerType.get(definition.fhirType)
-    if (registered !== undefined) {
-      throw new FhirPathTypeError(
-        `DTO ${dto.name} registers fhirType '${definition.fhirType}', already registered by ${registered}`
+    for (const [name, spec] of Object.entries(definition.columns)) {
+      // Without this, createContext fails later and names the function rather
+      // than the field that caused it.
+      if (builtinFunctions.has(name)) {
+        throw new FhirPathTypeError(
+          `DTO ${dto.name} declares a column named '${name}', which is a built-in function; rename the field`
+        )
+      }
+      functions[name] = declaredWith(
+        functions[name],
+        columnFunction(spec, compile, definition.fhirType),
+        defaults.model,
+        () => `DTO ${dto.name} redefines the function '${name}'`
       )
     }
-    classPerType.set(definition.fhirType, dto.name)
-    for (const [name, spec] of Object.entries(definition.columns)) {
-      if (typeof spec === 'string' || 'test' in spec) {
-        continue
-      }
-      if (name in functions) {
-        throw new FhirPathTypeError(`DTO ${dto.name} redefines the function '${name}'`)
-      }
-      functions[name] = columnFunction(spec, compile)
-    }
     for (const [name, value] of Object.entries(normalizeEnvKeys(definition.env))) {
-      if (name in env) {
-        throw new FhirPathTypeError(`DTO ${dto.name} redefines the environment variable %${name}`)
+      // Declaring one name twice is only a redefinition when the two mean
+      // different things. Two DTOs importing the same lookup table declare the
+      // same value, and that is one variable declared twice, not a conflict.
+      if (name in env && !Object.is(env[name], value)) {
+        throw new FhirPathTypeError(
+          `DTO ${dto.name} redefines the environment variable %${name} with a different value; ` +
+            'an env name has no focus to tell two declarations apart, so an engine binds one value for it'
+        )
       }
       env[name] = value
     }
@@ -335,9 +362,96 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
   return { ...defaults, functions, env }
 }
 
-/** A column's path as an expression-defined function, with the signature its options claim. */
-function columnFunction(spec: Extract<ProjectionColumn, { path: string }>, compile: Compiler): CustomFunction {
-  const signature = columnSignature(spec)
+/**
+ * What a name stands for once one more column claims it: the column alone, or
+ * the overload set that name already was, extended. Every declaration the name
+ * already has must be one a call can tell the new column apart from, or the
+ * engine refuses to build — `indistinguishable` says why, and `blamed` names the
+ * DTO and field so the message points at the declaration to change.
+ */
+function declaredWith(
+  existing: CustomFunction | undefined,
+  column: SingleCustomFunction,
+  model: ModelProvider | undefined,
+  blamed: () => string
+): CustomFunction {
+  if (existing === undefined) {
+    return column
+  }
+  const declared = 'overloads' in existing ? existing.overloads : [existing]
+  for (const other of declared) {
+    const reason = indistinguishable(model, other, column)
+    if (reason !== undefined) {
+      throw new FhirPathTypeError(`${blamed()}: ${reason}`)
+    }
+  }
+  return { overloads: [...declared, column] }
+}
+
+/**
+ * Why a call could not tell two same-named declarations apart, or undefined
+ * when it always can. Dispatch is by the focus alone (`resolveHostCall`), so
+ * both sides must say what focus they were written for, and no value may be
+ * both. A `Quantity` column and a `SimpleQuantity` one fail that: one value
+ * satisfies both. So does any column beside a host function that declares no
+ * input at all, since that function answers every call.
+ *
+ * `typesOverlap` is the same permissive rule the input-type check uses, asked
+ * the other way round: there it decides whether a call may be valid, here
+ * whether two declarations may collide. Both err toward saying yes, which is
+ * the safe direction in each case.
+ */
+function indistinguishable(
+  model: ModelProvider | undefined,
+  a: SingleCustomFunction,
+  b: SingleCustomFunction
+): string | undefined {
+  if (model === undefined) {
+    return 'without a model bound, the engine cannot tell two declarations apart by their focus'
+  }
+  const wanted = canonicalTypes(model, a.signature?.input?.types)
+  const claimed = canonicalTypes(model, b.signature?.input?.types)
+  if (wanted === undefined || claimed === undefined) {
+    return 'a declaration that names no input type answers every call, so nothing else may share its name'
+  }
+  const overlap = wanted.flatMap(one =>
+    claimed.filter(other => typesOverlap(model, one, other)).map(other => [one, other])
+  )
+  const pair = overlap[0]
+  if (pair === undefined) {
+    return undefined
+  }
+  // Two DTOs on one fhirType is the ordinary way to reach this: nothing is
+  // ambiguous about the types, only about which column the name means.
+  return pair[0] === pair[1] ? `both are written for ${pair[0]}` : `a focus can be both ${pair[0]} and ${pair[1]}`
+}
+
+/** Declared input types as the model names them, or undefined when the name declares none the model knows. */
+function canonicalTypes(model: ModelProvider, types: readonly string[] | undefined): string[] | undefined {
+  if (types === undefined) {
+    return undefined
+  }
+  const canonical = types
+    .map(type => canonicalFocusType(model, type))
+    .filter((type): type is string => type !== undefined)
+  return canonical.length === 0 ? undefined : canonical
+}
+
+/**
+ * Turns a column into an expression-defined function, with the signature it
+ * claims and the DTO's own `fhirType` as the input it expects. A column is
+ * written for one type, and calling it on anything else navigates to nothing.
+ *
+ * A criteria registers with `criteria: true`, so the criteria rule travels on
+ * the function itself. That is the same rule `planColumn` applies when the
+ * criteria is projected, which is what lets one declaration mean one thing in
+ * both places.
+ */
+function columnFunction(spec: ColumnSpec, compile: Compiler, hostType: string): SingleCustomFunction {
+  if ('test' in spec) {
+    return { expression: compile(spec.test), criteria: true, signature: criteriaSignature(hostType) }
+  }
+  const signature = columnSignature(spec, hostType)
   return {
     expression: compile(spec.path),
     ...(signature !== undefined && { signature }),

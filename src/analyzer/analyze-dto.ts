@@ -1,6 +1,7 @@
 import { columnResultType } from '../api/column-signature.ts'
 import { type ColumnSpec, type DtoClass, dtoDefinition } from '../api/dto.ts'
 import type { ModelProvider } from '../model/provider.ts'
+import { valueKindOfTypeName } from '../values/type-compat.ts'
 import {
   analyzeExpressionDetailed,
   type AnalyzeOptions,
@@ -8,7 +9,6 @@ import {
   type DeclaredFunction,
   type DeclaredVariable,
 } from './analyze.ts'
-import { valueKindOfTypeName } from './signatures.ts'
 
 /** One `analyzeDto` finding: an analyzer diagnostic plus the class member it came from. */
 export interface DtoDiagnostic extends AnalyzerDiagnostic {
@@ -172,8 +172,12 @@ function expressionOf(column: ColumnSpec): string {
 /**
  * The type a column claims its expression yields — `columnSignature`'s rule, the
  * one the engine registers and the walkers declare, so a cross-check can never
- * contradict a claim that was never made. A criteria claims nothing about its
- * expression: the column is a boolean whatever the expression yields.
+ * contradict a claim that was never made.
+ *
+ * A criteria claims nothing here, even though its function declares a Boolean
+ * result. The Boolean comes from the criteria rule applied to the result, not
+ * from the expression itself. `@criteria('name.given')` validly returns
+ * HumanName.given, which then reads as true.
  */
 function claimedType(column: ColumnSpec): string | undefined {
   return 'test' in column ? undefined : columnResultType(column)

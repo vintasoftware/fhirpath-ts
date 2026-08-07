@@ -3,7 +3,7 @@ import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { FhirpathResultIn } from '../typed/infer.ts'
-import { booleanSingleton } from '../values/collection.ts'
+import { criteriaBoolean } from '../values/collection.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
 import { type Compiler, contextFactory, type EvaluateOptions } from './compile.ts'
@@ -45,8 +45,10 @@ import { type Compiler, contextFactory, type EvaluateOptions } from './compile.t
  *   it also removes `undefined` from the column's type. FHIRPath has no `null`,
  *   so this is also the way a column yields one.
  * - `{ test }` evaluates the expression as a boolean criteria, with the same
- *   spec §4.5 semantics as `FhirPathEngine.test()`: empty → false, a single
- *   boolean → itself. The column is always a `boolean`.
+ *   semantics as `FhirPathEngine.test()`: a single boolean returns itself (spec
+ *   §4.5), and empty returns false (the criteria convention). That rule lives in
+ *   one place, `criteriaBoolean` in values/collection.ts. The column is always a
+ *   `boolean`.
  *
  * `as`, `choices`, and `enum` are alternatives — a column declares at most one —
  * and each decides the column's JS type, so a `type` given alongside any of
@@ -238,31 +240,48 @@ function assertShaperOptions(name: string, spec: Extract<ProjectionColumn, { pat
 /**
  * A column resolved against one compiler, ready to run once per row-context.
  * Each read forks the context's variables, so one column's defineVariable()
- * never leaks into the next.
+ * never leaks into the next. `at` locates the row for an error message.
  */
-type ColumnReader = (root: TypedValue[], context: EvaluationContext) => unknown
+type ColumnReader = (root: TypedValue[], context: EvaluationContext, at: RowPosition) => unknown
+
+/** Where a row sits in the batch, for the errors that need to point at one of many. */
+interface RowPosition {
+  index: number
+  total: number
+}
+
+/**
+ * Which row an error came from, when there is more than one to choose between.
+ * A single-resource projection has no position worth reporting, so it says
+ * nothing rather than "row 0".
+ */
+function inRow({ index, total }: RowPosition): string {
+  return total > 1 ? ` in row ${index}` : ''
+}
 
 /** Take the column union apart once, at plan time; rows only run the result. */
 function planColumn(name: string, column: ProjectionColumn, compile: Compiler): ColumnReader {
   if (typeof column !== 'string' && 'test' in column) {
     const criteria = compile(column.test)
-    return (root, context) => booleanSingleton(evaluateNode(criteria.ast, forkVariables(context), root)) ?? false
+    return (root, context) => criteriaBoolean(evaluateNode(criteria.ast, forkVariables(context), root))
   }
   const spec: Extract<ProjectionColumn, { path: string }> = typeof column === 'string' ? { path: column } : column
   assertShaperOptions(name, spec)
   const expression = compile(spec.path)
   const applyAs = coercion(spec)
   const empty = 'default' in spec ? spec.default : undefined
-  return (root, context) => {
+  return (root, context, at) => {
     const values = evaluateNode(expression.ast, forkVariables(context), root).map(unwrap)
     if (spec.collection === true) {
       return applyAs(values)
     }
     // The scalar-column rule counts the expression's values, before any `as`
-    // coercion or `choices` miss drops them.
+    // coercion or `choices` miss drops them. One row of a batch can be the only
+    // one that breaks it, so the message says which — `%rowIndex` numbering,
+    // the same the columns see.
     if (values.length > 1) {
       throw new FhirPathRuntimeError(
-        `project(): column '${name}' yielded ${values.length} values; append first() or set collection: true`
+        `project(): column '${name}' yielded ${values.length} values${inRow(at)}; append first() or set collection: true`
       )
     }
     const coerced = applyAs(values)
@@ -291,10 +310,11 @@ export function projectRows(
   const subjects = toSubjects(input)
   return subjects.map((subject, index) => {
     const root = toCollection(subject.value)
+    const at: RowPosition = { index, total: subjects.length }
     const context = makeContext(root, { rowIndex: index, rowTotal: subjects.length })
     const row: Record<string, unknown> = {}
     for (const [name, read] of readers) {
-      row[name] = read(root, context)
+      row[name] = read(root, context, at)
     }
     return row
   })

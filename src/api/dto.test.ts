@@ -1,7 +1,14 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeDto, analyzeEngineDtos, analyzeExpression } from '../analyzer/index.ts'
-import type { Condition, Observation, ServiceRequest } from '../r4/generated/type-maps.ts'
+import type {
+  Bundle,
+  Condition,
+  Observation,
+  Organization,
+  Patient,
+  ServiceRequest,
+} from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
 import { column, criteria, defineDto, dtoDefinition } from './dto.ts'
@@ -171,6 +178,37 @@ describe('DTO projection', () => {
     expect(overridden.map(row => row.reportStatus)).toEqual(['waiting', 'waiting'])
   })
 
+  it('filters a searchset down to the DTO type, the way the README recipe does', () => {
+    // A searchset carrying _include results holds more than one resource type,
+    // so the fhirType check fires on the whole Bundle. Both filters in the
+    // README's tip are here, so the recipe cannot rot.
+    class PatientRow extends defineDto('Patient') {
+      @column('id', { default: '' })
+      id!: string
+    }
+    const matched: Patient = { resourceType: 'Patient', id: 'match1' }
+    const includedOrg: Organization = { resourceType: 'Organization', id: 'o1' }
+    const includedPatient: Patient = { resourceType: 'Patient', id: 'included' }
+    const searchset: Bundle = {
+      resourceType: 'Bundle',
+      type: 'searchset',
+      entry: [
+        { resource: matched, search: { mode: 'match' } },
+        { resource: includedOrg, search: { mode: 'include' } },
+        { resource: includedPatient, search: { mode: 'include' } },
+      ],
+    }
+    expect(() => r4.project(searchset, PatientRow)).toThrow(
+      "project(): row 1 is a Organization, but PatientRow declares fhirType 'Patient'"
+    )
+    expect(r4.project(r4.filter(searchset, '$this is Patient'), PatientRow)).toEqual([
+      { id: 'match1' },
+      { id: 'included' },
+    ])
+    const matches = r4.evaluate("Bundle.entry.where(search.mode = 'match').resource", searchset)
+    expect(r4.project(matches, PatientRow)).toEqual([{ id: 'match1' }])
+  })
+
   it('projecting checks each row against the fhirType, failing loudly on a mismatch', () => {
     const patient = { resourceType: 'Patient', id: 'p1' }
     expect(() => r4.project([weighed, patient], WeightRow)).toThrow(
@@ -260,6 +298,38 @@ describe('DTOs registered engine-wide', () => {
     expect(engine.evaluate('Condition.code.displayText()', condition)).toEqual(['Hypertension'])
   })
 
+  it('a column knows the type it was written against, and says so on the wrong focus', () => {
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns] })
+    // displayText is written against CodeableConcept, which
+    // Condition.subject.reference — a string — can never be.
+    expect(() => engine.evaluate('Condition.subject.reference.displayText()', condition)).toThrow(
+      "Function 'displayText' expects FHIR.CodeableConcept as input, but the focus is FHIR.string"
+    )
+    // The static half says the same thing about the same call.
+    expect(
+      analyzeExpression('subject.reference.displayText()', {
+        model: r4Model,
+        inputType: 'Condition',
+        functions: engine.defaults.functions ?? {},
+      }).map(d => [d.code, d.message])
+    ).toEqual([['input-type', 'displayText() expects FHIR.CodeableConcept as input, found FHIR.string']])
+  })
+
+  it('leaves the call alone where the focus type proves nothing', () => {
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns] })
+    // An empty focus is the spec's own propagation, not a mistake.
+    expect(engine.evaluate('Condition.code.text.nothing.displayText()', condition)).toEqual([])
+    // The rest run: a value bound as plain env data and a datatype root both
+    // carry the Object placeholder, which no model describes.
+    expect(engine.evaluate('%loose.displayText()', condition, { env: { loose: { text: 'Hypertension' } } })).toEqual([
+      'Hypertension',
+    ])
+    expect(engine.evaluate('displayText()', condition.code)).toEqual(['Hypertension'])
+    // Without a model there is nothing to resolve the declared name against.
+    const modelless = new FhirPathEngine({ resourceDtos: [CodeableConceptFns] })
+    expect(modelless.evaluate('Condition.subject.reference.displayText()', condition)).toEqual([])
+  })
+
   it('derives the analyzer signature from the column type', () => {
     class Typed extends defineDto('CodeableConcept') {
       @column('(text | coding.display.first()).first()', { type: 'string' })
@@ -284,24 +354,143 @@ describe('DTOs registered engine-wide', () => {
     expect(engine.evaluate('%badgeTones.count()', weighed)).toEqual([1])
   })
 
-  it('a criteria column stays projection-only', () => {
+  it('a criteria means the same thing as a column and as a call', () => {
     class Flags extends defineDto('Observation') {
       @criteria("status = 'final'")
       isFinal!: boolean
     }
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Flags] })
     expect(engine.project(weighed, Flags).isFinal).toBe(true)
-    expect(() => engine.evaluate('isFinal()', weighed)).toThrow("Unrecognized function 'isFinal'")
+    expect(engine.evaluate('isFinal()', weighed)).toEqual([true])
+    // The criteria rule travels with the function, so both readings agree on a
+    // resource where the criteria finds nothing. The call also chains as a
+    // boolean instead of returning empty.
+    const statusless = { resourceType: 'Observation', code: { text: 'Weight' } }
+    expect(engine.project(statusless, Flags).isFinal).toBe(false)
+    expect(engine.evaluate('isFinal()', statusless)).toEqual([false])
+    expect(engine.evaluate('isFinal().not()', statusless)).toEqual([true])
+    // And it reads as a criteria wherever criteria are read.
+    expect(engine.filter([weighed, statusless], 'isFinal()')).toEqual([weighed])
+    expect(engine.test(statusless, 'isFinal()')).toBe(false)
   })
 
-  it('redefining a function or env variable across DTOs fails loudly', () => {
-    class Also extends defineDto('Coding') {
+  it('a criteria carries its column signature and its host type', () => {
+    class Flags extends defineDto('Observation') {
+      @criteria("status = 'final'")
+      isFinal!: boolean
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Flags] })
+    const functions = engine.defaults.functions ?? {}
+    // The declared Boolean result feeds later checks. The declared input
+    // catches a call on a focus that can never be an Observation.
+    const codes = (expression: string, inputType: string): string[] =>
+      analyzeExpression(expression, { model: r4Model, inputType, functions }).map(d => d.code)
+    expect(codes('isFinal().not()', 'Observation')).toEqual([])
+    expect(codes("isFinal() + 'x'", 'Observation')).toEqual(['operand-type'])
+    expect(codes('code.isFinal()', 'Observation')).toEqual(['input-type'])
+  })
+
+  it('a criteria yielding several items fails identically from both paths', () => {
+    class Many extends defineDto('Patient') {
+      @criteria('name.given')
+      hasGiven!: boolean
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Many] })
+    const patient = { resourceType: 'Patient', name: [{ given: ['Peter', 'James'] }] }
+    const message = 'Expected a collection with at most one item, but found 2'
+    expect(() => engine.project(patient, Many)).toThrow(message)
+    expect(() => engine.evaluate('hasGiven()', patient)).toThrow(message)
+  })
+
+  it('rejects a column whose name is a built-in function, naming the field', () => {
+    class Shadow extends defineDto('Observation') {
+      @column('code.text', { type: 'string' })
+      exists!: string | undefined
+    }
+    expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [Shadow] })).toThrow(
+      "DTO Shadow declares a column named 'exists', which is a built-in function; rename the field"
+    )
+  })
+
+  it('two DTOs may declare one column name, and the focus picks between them', () => {
+    class CodingFns extends defineDto('Coding') {
       @column('code', { type: 'string' })
       displayText!: string | undefined
     }
-    expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns, Also] })).toThrow(
-      "DTO Also redefines the function 'displayText'"
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns, CodingFns] })
+    // Same call text, two bodies: the CodeableConcept column reads the coding's
+    // display, the Coding one reads the code.
+    expect(engine.evaluate('Condition.code.displayText()', condition)).toEqual(['Hypertension'])
+    expect(engine.evaluate('Condition.code.coding.displayText()', condition)).toEqual(['I10'])
+    // A focus neither was written for still names both in one message.
+    expect(() => engine.evaluate('Condition.subject.reference.displayText()', condition)).toThrow(
+      "Function 'displayText' expects FHIR.CodeableConcept | FHIR.Coding as input, but the focus is FHIR.string"
     )
+    // The static half resolves the same way, and reports the same call.
+    const functions = engine.defaults.functions ?? {}
+    const codes = (expression: string): [string, string][] =>
+      analyzeExpression(expression, { model: r4Model, inputType: 'Condition', functions }).map(d => [d.code, d.message])
+    // Resolved to the Coding column, so its declared String result is what the
+    // rest of the chain is checked against.
+    expect(codes('code.coding.displayText().length()')).toEqual([])
+    expect(codes('code.coding.displayText() + 1')).toEqual([
+      ['operand-type', "Operator '+' is not defined for these operand types"],
+    ])
+    expect(codes('subject.reference.displayText()')).toEqual([
+      ['input-type', 'displayText() expects FHIR.CodeableConcept | FHIR.Coding as input, found FHIR.string'],
+    ])
+  })
+
+  it('rejects a shared column name whose declarations a call cannot tell apart', () => {
+    class Concept extends defineDto('CodeableConcept') {
+      @column('text', { type: 'string' })
+      label!: string | undefined
+    }
+    // A SimpleQuantity is a Quantity, so a focus could satisfy both columns and
+    // the engine would have to guess.
+    class Quantities extends defineDto('Quantity') {
+      @column('unit', { type: 'string' })
+      label!: string | undefined
+    }
+    class Simple extends defineDto('SimpleQuantity') {
+      @column('code', { type: 'string' })
+      label!: string | undefined
+    }
+    expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [Quantities, Simple] })).toThrow(
+      "DTO Simple redefines the function 'label': a focus can be both FHIR.Quantity and FHIR.SimpleQuantity"
+    )
+    // A host function accepts any focus, so nothing may share its name.
+    expect(
+      () =>
+        new FhirPathEngine({
+          model: r4Model,
+          resourceDtos: [Concept],
+          functions: { label: { fn: () => 'x' } },
+        })
+    ).toThrow(
+      "DTO Concept redefines the function 'label': a declaration that names no input type answers every call, so nothing else may share its name"
+    )
+    // Without a model no two types can be told apart, so the pair is refused.
+    expect(() => new FhirPathEngine({ resourceDtos: [Concept, Quantities] })).toThrow(
+      "DTO Quantities redefines the function 'label': without a model bound, the engine cannot tell two declarations apart by their focus"
+    )
+  })
+
+  it('DTOs sharing an env name agree on its value, or fail loudly', () => {
+    // The ordinary case: one lookup table imported by two DTOs. Declaring it
+    // twice declares one variable, not a conflict.
+    const TONES = [{ code: 'final', tone: 'success' }]
+    class SharedA extends defineDto('Patient', { env: { tones: TONES } }) {
+      @column('gender', { type: 'string' })
+      a!: string | undefined
+    }
+    class SharedB extends defineDto('Practitioner', { env: { tones: TONES } }) {
+      @column('gender', { type: 'string' })
+      b!: string | undefined
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [SharedA, SharedB] })
+    expect(engine.evaluate('%tones.count()', { resourceType: 'Patient' })).toEqual([1])
+
     class EnvA extends defineDto('Patient', { env: { tones: [] as never[] } }) {
       @column('gender', { type: 'string' })
       a!: string | undefined
@@ -311,18 +500,32 @@ describe('DTOs registered engine-wide', () => {
       b!: string | undefined
     }
     expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [EnvA, EnvB] })).toThrow(
-      'DTO EnvB redefines the environment variable %tones'
+      'DTO EnvB redefines the environment variable %tones with a different value'
     )
   })
 
-  it('only one DTO registers per fhirType', () => {
-    class AlsoCodeableConcept extends defineDto('CodeableConcept') {
-      @column('text', { type: 'string' })
-      conceptText!: string | undefined
+  it('several DTOs may register per fhirType; only a shared column name is a conflict', () => {
+    // Distinct row shapes for one resource are ordinary — a weight row and a
+    // blood-pressure row are both Observations.
+    class Weights extends defineDto('Observation') {
+      @column("value.ofType(Quantity).toQuantity('kg').value", { type: 'decimal' })
+      kg!: number | undefined
     }
-    expect(
-      () => new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptFns, AlsoCodeableConcept] })
-    ).toThrow("DTO AlsoCodeableConcept registers fhirType 'CodeableConcept', already registered by CodeableConceptFns")
+    class Panels extends defineDto('Observation') {
+      @column('component.count()', { type: 'integer' })
+      partCount!: number | undefined
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Weights, Panels] })
+    expect(engine.evaluate('kg()', weighed)).toEqual([80])
+    expect(engine.evaluate('partCount()', weighed)).toEqual([0])
+
+    class AlsoWeights extends defineDto('Observation') {
+      @column('valueQuantity.value', { type: 'decimal' })
+      kg!: number | undefined
+    }
+    expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [Weights, AlsoWeights] })).toThrow(
+      "DTO AlsoWeights redefines the function 'kg': both are written for FHIR.Observation"
+    )
   })
 })
 

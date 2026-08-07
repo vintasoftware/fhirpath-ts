@@ -140,38 +140,133 @@ is worse than missing a check:
 and the engine's real function set. Keep the two roles distinct: lint must never
 be wrong, `analyzeDto` must never be lenient.
 
-## Registering a DTO is a namespace, not type dispatch
+## Registering a DTO is a namespace, checked at the edges
 
-`EngineOptions.resourceDtos` turns each `@column` into an ordinary
-expression-defined function in one flat namespace. It is **not** bound to the
-DTO's `fhirType`, and there is no receiver check: `code.displayText()` reads well
-only because a CodeableConcept happens to be in focus there. Call the same
-function anywhere else and its path navigates from whatever *is* in focus —
-`status.displayText()` and a bare `displayText()` both come back empty, and
-neither the engine nor the analyzer objects.
+`EngineOptions.resourceDtos` turns each `@column` and `@criteria` into an
+expression-defined function. What each function carries is the type it was
+written for, in `CustomFunctionSignature.input.types`, taken from the DTO's
+`fhirType`. Both the engine and the analyzer reject a call whose focus can never
+hold that type. So `code.displayText()` on a Condition runs, while
+`status.displayText()` throws `FhirPathTypeError` instead of navigating to
+nothing.
 
-That silence is consistent rather than an oversight. The runtime is loud about
-unknown **functions** — `FhirPathTypeError: Unrecognized function 'x'`, thrown
-even with no model bound — and silent about unknown **elements**, which navigate
-to empty per the spec. A registered column on the wrong focus is the second case
-wearing the first's clothes: the call resolves, its body finds nothing. So
-`fhirType` buys two things only — the inference and analysis root for that DTO's
-own columns, and the one-DTO-per-type rule that keeps the vocabulary coherent.
+That declared type is also what scopes the name. A column name belongs to the
+type its DTO was written for, not to the engine, so a CodeableConcept DTO and a
+Coding DTO may both declare `displayText` and a call resolves to the one its
+focus fits — `resolveByInput` (values/type-compat.ts) tries the declarations in
+registration order and takes the first the focus satisfies, at both ends.
+A focus none of them accepts is one error naming all of them.
 
-Worth closing when someone has a reason to: a column function does know the
-`fhirType` it was written against, so the analyzer could reject a call on an
-incompatible focus. `CustomFunction.signature` records only `result` today, which
-is why it cannot.
+What `withDtos` refuses is a name whose declarations a call could *not* tell
+apart, since that is what shadowing actually is: a `Quantity` column beside a
+`SimpleQuantity` one, two DTOs on one fhirType claiming the same field name,
+anything beside a host function that accepts every focus, or any pair at all on
+an engine with no model to compare types with. The refusal is at construction
+and names the field, so it is never a mystery at evaluation.
 
-`@criteria` is deliberately absent from that namespace, and the reason is where
-its semantics live: the spec §4.5 coercion (empty → false, a single boolean →
-itself) is applied by `planColumn` in JavaScript, not inside FHIRPath. Register it
-as-is and one declaration would mean two things — `false` as a projected column,
-empty inside an expression, so `isFinal().not()` on a resource with no `status`
-would yield empty rather than true. Making criteria callable therefore means
-giving that coercion a home first (a flag on `CustomFunction` that applies
-singleton-boolean semantics to a function's result), not just registering it.
-Until then, a boolean `@column` is the chainable form, with empty propagating.
+Names are the whole of the rule. There used to be a one-DTO-per-fhirType check
+on top of it, from before columns declared their input type; it refused a second
+Observation DTO even when every field name was distinct, which is the ordinary
+shape of an app (a weight row, a blood-pressure row, a lab row). Do not bring it
+back: the per-name check already catches the only case it caught, with a message
+that names the field rather than the class.
+
+An env variable has no focus to be told apart by, so two DTOs may declare one
+name only when they mean the same value by it (`Object.is`) — two DTOs importing
+one lookup table, which is the case that made a hard error absurd. A genuine
+disagreement is still refused, because an engine binds one value per name.
+Scoping env per DTO the way columns are scoped would mean a column body reading
+its own DTO's env rather than the caller's, which contradicts what an
+expression-defined function is (the body evaluates as if spliced at the call
+site) and would break the documented engine-wide `%env` registration. If that
+ever becomes worth it, it is a design change, not a tweak here.
+
+Dispatch is by the focus and nothing else, which leaves the cases
+`unsatisfiedInput` is deliberately silent about — an empty focus, a focus type
+no model describes — fitting every declaration. The first registered wins those,
+and it barely matters: they are the cases where every body navigates to nothing
+anyway. Do not add a second tie-breaker to sharpen this. The registration check
+is what keeps the guess from reaching a focus that could have gone either way.
+
+**What the check deliberately does not do.** It reports only what it can prove,
+because reporting valid code is worse than missing a mistake. It says nothing
+about any of these:
+
+- an empty focus, which is the spec's own empty propagation
+- no model bound
+- a focus type the model has never heard of, which is the `Object` placeholder
+  carried by plain env data, a pre-resolved `%var`, and a datatype root
+- a declared name the model rejects
+- a mixed focus where any one item could fit
+
+It is also permissive about what "can be" means. Either direction of the model
+hierarchy counts, `System.Quantity` and `FHIR.Quantity` are one type, and
+sibling primitives such as `code` and `uri` are not told apart.
+
+That whole rule is **one function**: `unsatisfiedInput` in
+`values/type-compat.ts`, which returns the proof rather than a verdict. The two
+halves differ only in how they report it, since `resolveHostCall` throws and
+`checkCallInput` reports `input-type`. That is what stops the list above from
+drifting between them. Keep it that way. The analyzer and the engine cannot
+import each other, which justifies two callers, but never two copies of the
+rule. One more thing to watch: `typesOverlap` must run its model test even when
+the value kinds differ. `FHIR.SimpleQuantity` has kind `Complex` while
+`FHIR.Quantity` has kind `Quantity`, so testing kinds first would reject a
+`Quantity` column called on `Dosage.doseAndRate.dose`.
+
+No **built-in** may set `input.types`. Spec functions accept many types, so a
+built-in that named types would start reporting valid expressions from the
+official test suite. `signatures.test.ts` checks that none does.
+
+The lint and editor half reads each class's root from the source, so a file can
+declare one field name twice against different roots. Both of them can register,
+so `declaredColumnOverloads` keeps both, and the analyzer resolves the set the
+same way the engine does.
+
+Keeping the last declaration seen is the tempting shortcut and it reports valid
+code: with a `label` column on a Coding and another on a CodeableConcept,
+`code.label()` becomes an `input-type` error even though the CodeableConcept
+declaration answers that call. `expression-policy.test.ts` holds the case, and
+it fails if the merge goes back to last-wins.
+
+Where the focus cannot pick — two `label`s on the same root, or one whose class
+has no statically-known root and so answers every call — the call is checked
+against all of them at once (`mergedDeclaration`, analyzer/analyze.ts). That
+merge only ever widens: the result is their union, so a `label` typed `string`
+in one class and `integer` in another leaves `code.label().length()` unchecked
+rather than reporting it; arguments go unchecked; and the input is every type
+any of them named, so two `label`s on a CodeableConcept still make
+`subject.reference.label()` an `input-type` error. All three cases are in the
+same suite.
+
+What is still guessed, and accepted: a file sees only its own columns, so a call
+into a column declared in another module stays unresolved. `analyzeSite` reports
+that as `unknown-function` only when the name nearly misspells one of this
+file's own columns.
+
+`@criteria` registers with `criteria: true` on its `CustomFunction`. That flag
+is where its rule lives: `criteriaBoolean` (values/collection.ts) applied to the
+body's result, on the function rather than in `planColumn`. It is what makes one
+declaration mean one thing. `isFinal()` returns exactly one boolean in both
+places, so `isFinal().not()` on a resource with no `status` is `true` whether it
+is projected or called.
+
+Two rules stack there, and the citation is worth keeping honest. §4.5, Singleton
+Evaluation of Collections, gives the single-item cases and the error for more
+than one item, but its empty case is empty. The `?? false` comes from the
+calling environment: FHIR invariants require the expression to evaluate to true,
+so an empty result has not satisfied the constraint. **Do not move `?? false`
+down into `booleanSingleton`.** `engine/operators/logic.ts` passes its
+`undefined` into the three-valued and/or/xor/implies tables, and turning it into
+false there breaks `{}` against `false`. `where()`, `exists()`, `all()`, and
+`iif()` keep their own `=== true` tests for the same reason. They produce the
+same answers, but they state spec text about one item rather than this rule.
+
+One caveat comes with a criteria call: its body runs against the call's focus,
+not the DTO's root. Without the input-type check, `code.isFinal()` would answer
+a confident `false`. Because the criteria rule always returns true or false, a
+wrong focus produces a plausible answer rather than an empty one, so the two
+features depend on each other.
 
 `analyzeEngineDtos(engine)` sweeps only what the engine registered, so a row
 shape you merely project is invisible to it. Do not read it as exhaustive — the

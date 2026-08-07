@@ -14,6 +14,14 @@ export interface HostNativeFunction {
   minArity?: number
   maxArity?: number
   /**
+   * Model type names the call's focus must be able to hold, spelled as the
+   * caller wrote them. Either a local name or a canonical one works, because
+   * `unsatisfiedInput` (values/type-compat.ts) canonicalizes the names it
+   * compares. Leave this out to accept any focus, which is what every function
+   * that does not declare `signature.input.types` does.
+   */
+  inputTypes?: readonly string[]
+  /**
    * The implementation. `input` is the unwrapped input collection; each
    * argument is eagerly evaluated against `$this` — the enclosing context
    * item, like built-in value arguments — and arrives as an unwrapped
@@ -30,9 +38,34 @@ export interface HostNativeFunction {
  */
 export interface HostExpressionFunction {
   ast: AstNode
+  /** See HostNativeFunction.inputTypes. Same meaning, checked the same way. */
+  inputTypes?: readonly string[]
+  /**
+   * Apply the criteria rule to the body's result, so the function always returns
+   * exactly one Boolean. That rule is `criteriaBoolean`: §4.5 singleton
+   * evaluation, with an empty result read as false. It is what makes a
+   * `@criteria` mean the same thing whether it is projected as a column or
+   * called from an expression.
+   */
+  criteria?: boolean
 }
 
-export type HostFunction = HostNativeFunction | HostExpressionFunction
+/** One host-supplied function, in either form. */
+export type HostSingleFunction = HostNativeFunction | HostExpressionFunction
+
+/**
+ * Several functions registered under one name, told apart by the focus each was
+ * written for. A call runs the first whose `inputTypes` the focus satisfies (see
+ * `resolveHostCall`), so two DTOs may both declare a `displayText` column as
+ * long as a CodeableConcept can never be a Coding. Every member must declare
+ * `inputTypes` for that to mean anything, which is what `withDtos` (api/dto.ts)
+ * checks before it builds one.
+ */
+export interface HostOverloadedFunction {
+  overloads: readonly HostSingleFunction[]
+}
+
+export type HostFunction = HostSingleFunction | HostOverloadedFunction
 
 /**
  * A pluggable regular-expression engine for matches()/matchesFull()/
