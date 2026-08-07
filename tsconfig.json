@@ -4,6 +4,12 @@
     "target": "esnext",
     "module": "esnext",
     "moduleResolution": "bundler",
+    // `dogfood` imports the library the way a consumer does, by package name,
+    // which resolves through this package.json's own `exports`. Those name
+    // `dist` for consumers; this condition is how the repo's own tooling reaches
+    // `src` instead, so a typecheck says nothing about whether `dist` is built
+    // or stale. `vitest.config.ts` and `check:fhirpath` pass the same condition.
+    "customConditions": ["fhirpath-ts-source"],
     "lib": ["ESNext", "DOM"],
     "types": ["vitest/globals", "node"],
 

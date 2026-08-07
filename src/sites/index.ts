@@ -12,9 +12,17 @@
  * `createSiteFinder(ts)` takes the TypeScript namespace as an argument, so the
  * CLI passes the `typescript` package (an optional peer dependency) while the
  * demo passes the copy Monaco already ships in its worker — nobody bundles a
- * second compiler. Any TypeScript >= 5 works; only stable AST API is touched.
+ * second compiler. Only stable AST API is touched, so any TypeScript in the
+ * peer range works. That range stops below 7: the native port's `typescript`
+ * entry point exports `version` and little else, so `ts.ScriptTarget` and
+ * `ts.transpileModule` are simply absent there.
  */
-import type * as TS from 'typescript'
+// A default import, not `* as TS`. Under Node's ESM resolution a namespace
+// import of `typescript` (a CommonJS `export =` module) carries a synthetic
+// `default` property that a caller's own `import ts from 'typescript'` does not,
+// so `typeof TS` would reject the very value callers pass. The default form
+// names the same namespace — `TS.Node` still resolves — and accepts both.
+import type TS from 'typescript'
 
 import {
   CALL_SITES,

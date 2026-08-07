@@ -43,10 +43,16 @@ describe('static analysis', () => {
   it('fhirpath-check discovers and analyzes the DTOs of this directory', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const cli = fileURLToPath(new URL('../src/cli/fhirpath-check.ts', import.meta.url))
-    const result = spawnSync(process.execPath, [cli, '--dtos', 'dogfood/**/*.dto.ts'], {
-      cwd: root,
-      encoding: 'utf8',
-    })
+    // `--conditions` resolves this directory's `fhirpath-ts` imports to `src`,
+    // where the CLI itself runs from. Through the package's published `exports`
+    // they would reach `dist`, and the engine these DTOs register in that second
+    // copy of the library is invisible to the checker in this one — which reads
+    // as a DTO module that exports no DTO at all.
+    const result = spawnSync(
+      process.execPath,
+      ['--conditions=fhirpath-ts-source', cli, '--dtos', 'dogfood/**/*.dto.ts'],
+      { cwd: root, encoding: 'utf8' }
+    )
     const output = `${result.stdout}${result.stderr}`
     expect(output, output).toMatch(/analyzed 13 DTO\(s\) from 1 module\(s\) against 1 engine\(s\)/)
     expect(result.status, output).toBe(0)

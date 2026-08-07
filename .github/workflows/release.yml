@@ -1,0 +1,121 @@
+# Publishes to npm when a `v*` tag is pushed.
+#
+# Nothing here trusts the tag on its own: the full gate suite runs first, the tag
+# has to match the version in package.json, and the tarball is inspected before
+# it is sent. The publish step uses npm's OIDC trusted publishing, so there is no
+# long-lived npm token in this repository's secrets — see RELEASING.md for the
+# one-time setup on npmjs.com.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # The same gates PRs run, re-run against the exact tagged commit. A tag can be
+  # pushed to a commit CI never saw, so this is not redundant.
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+    name: verify (node ${{ matrix.node-version }})
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (ESLint + FHIRPath analyzer + Prettier)
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Check DTOs (fhirpath-check)
+        run: pnpm check:fhirpath
+
+      - name: Type-inference perf budget
+        run: pnpm check:type-perf
+
+      - name: Test (with coverage thresholds)
+        run: pnpm coverage
+
+      - name: Build
+        run: pnpm build
+
+      - name: Check published package shape
+        run: pnpm check:package
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: read
+      # Mints the OIDC token that both trusted publishing and the provenance
+      # attestation are signed with.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      # Trusted publishing needs a recent npm; the one bundled with Node 22 is
+      # older than the OIDC support.
+      - name: Use an npm that can publish with OIDC
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # A tag that disagrees with package.json would publish a version nobody
+      # asked for, under a git ref that does not describe it.
+      - name: Check the tag matches the package version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME implies version $tag_version, but package.json says $pkg_version"
+            exit 1
+          fi
+          echo "Publishing version $pkg_version"
+
+      - name: Build
+        run: pnpm build
+
+      # Fail before publishing rather than after, and leave the file list in the
+      # run's log so what went out is auditable after the fact.
+      - name: Check published package shape
+        run: pnpm check:package
+
+      - name: List what the tarball would contain
+        run: npm pack --dry-run --ignore-scripts
+
+      # `publishConfig.provenance` is set in package.json, so this attaches a
+      # signed provenance attestation linking the tarball to this workflow run
+      # and commit. `--ignore-scripts` keeps the already-verified build from being
+      # rebuilt by a lifecycle hook at publish time.
+      - name: Publish to npm
+        run: npm publish --ignore-scripts

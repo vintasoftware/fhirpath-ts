@@ -42,6 +42,12 @@ function lowerDecorators(): Plugin {
 
 export default defineConfig({
   plugins: [lowerDecorators()],
+  // `dogfood` imports the library by package name, which resolves through this
+  // package.json's own `exports` — and those name `dist`. Without this condition
+  // the tests would load a *second* copy of the library from the built output,
+  // one whose engine registry the code under test cannot see. See the same
+  // condition in tsconfig.json and in the `check:fhirpath` script.
+  resolve: { conditions: ['fhirpath-ts-source'] },
   test: {
     name: 'fhirpath',
     globals: true,

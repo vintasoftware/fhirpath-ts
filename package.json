@@ -1,27 +1,90 @@
 {
   "name": "fhirpath-ts",
   "version": "0.1.0",
-  "private": true,
   "description": "TypeScript-native FHIRPath engine with compile-time type inference and a spec §11 static analyzer.",
+  "keywords": [
+    "fhirpath",
+    "fhir",
+    "hl7",
+    "healthcare",
+    "interoperability",
+    "r4",
+    "static-analysis",
+    "type-inference",
+    "eslint-plugin",
+    "sql-on-fhir",
+    "typescript"
+  ],
   "license": "Apache-2.0",
+  "author": "Vinta Software (https://github.com/vintasoftware)",
+  "homepage": "https://github.com/vintasoftware/fhirpath-ts#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vintasoftware/fhirpath-ts.git"
   },
+  "bugs": {
+    "url": "https://github.com/vintasoftware/fhirpath-ts/issues"
+  },
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "engines": {
+    "node": ">=22"
+  },
+  "sideEffects": [
+    "./dist/functions/*.js",
+    "./src/functions/*.ts",
+    "./dist/cli/*.js",
+    "./src/cli/*.ts"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./package.json": "./package.json",
-    "./r4": "./src/r4/index.ts",
-    "./analyzer": "./src/analyzer/index.ts",
-    "./eslint": "./src/eslint/index.ts",
-    "./sites": "./src/sites/index.ts"
+    ".": {
+      "fhirpath-ts-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./r4": {
+      "fhirpath-ts-source": "./src/r4/index.ts",
+      "types": "./dist/r4/index.d.ts",
+      "default": "./dist/r4/index.js"
+    },
+    "./analyzer": {
+      "fhirpath-ts-source": "./src/analyzer/index.ts",
+      "types": "./dist/analyzer/index.d.ts",
+      "default": "./dist/analyzer/index.js"
+    },
+    "./eslint": {
+      "fhirpath-ts-source": "./src/eslint/index.ts",
+      "types": "./dist/eslint/index.d.ts",
+      "default": "./dist/eslint/index.js"
+    },
+    "./sites": {
+      "fhirpath-ts-source": "./src/sites/index.ts",
+      "types": "./dist/sites/index.d.ts",
+      "default": "./dist/sites/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "fhirpath-check": "./dist/cli/fhirpath-check.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/testing",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "check:type-perf": "node scripts/check-type-perf.ts",
+    "check:package": "publint --strict && attw --pack . --profile esm-only",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
@@ -29,18 +92,24 @@
     "lint:fix": "eslint --fix . && prettier --write .",
     "format": "prettier --write .",
     "generate:r4": "node scripts/generate-r4-model.ts",
-    "check:fhirpath": "node src/cli/fhirpath-check.ts",
+    "check:fhirpath": "node --conditions=fhirpath-ts-source src/cli/fhirpath-check.ts",
+    "prepack": "pnpm run build",
     "prepare": "husky"
   },
   "peerDependencies": {
-    "typescript": ">=5.0.0"
+    "eslint": ">=9.0.0",
+    "typescript": ">=5.0.0 <7.0.0"
   },
   "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    },
     "typescript": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@eslint/js": "^9.39.2",
     "@medplum/definitions": "5.1.24",
     "@medplum/fhirtypes": "5.1.24",
@@ -58,6 +127,7 @@
     "jiti": "^2.6.1",
     "lint-staged": "^16.2.4",
     "prettier": "^3.6.2",
+    "publint": "^0.3.23",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.0",
     "vite": "^8.0.3",
@@ -71,12 +141,6 @@
     "*.{json,jsonc}": [
       "prettier --write"
     ]
-  },
-  "bin": {
-    "fhirpath-check": "./src/cli/fhirpath-check.ts"
-  },
-  "engines": {
-    "node": ">=22"
   },
   "packageManager": "pnpm@10.33.0"
 }

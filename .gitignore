@@ -9,5 +9,8 @@ coverage/
 # copy of src/r4/generated in the tree, free to go stale against it.
 demo/src/monaco/*.d.ts
 *.tsbuildinfo
+# Tarballs from `npm pack` / `pnpm pack`, which publint, attw and a local
+# install-the-tarball check all leave behind.
+*.tgz
 .DS_Store
 *.log
