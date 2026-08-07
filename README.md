@@ -430,8 +430,8 @@ fp.first('Condition.code.displayText()', condition, { type: 'string' })
 fp.first('Condition.subject.reference.displayText()', condition) // throws: a reference is not a CodeableConcept
 ```
 
-Registering publishes **every** column of the DTO, and each answers wherever its
-type turns up — however the expression got there:
+Registering publishes **every** column of the DTO. Each column answers on the
+type it was written for, however the expression got there:
 
 ```ts
 fp.evaluate('Bundle.entry.resource.ofType(Condition).code.displayText()', bundle) // works
@@ -439,11 +439,11 @@ fp.evaluate('Bundle.entry.resource.ofType(Condition).code.displayText()', bundle
 
 Each column declares its DTO's `fhirType` as the input it expects, so calling
 one on a focus that can never hold that type is an error at both ends rather
-than an expression that quietly returns empty. That check is what keeps a
-published name in bounds, so registering requires a `model` — without one the
-engine cannot compare a call's focus against the column's type, and every
-registered column would answer every call. A DTO you only project needs neither
-registration nor a model. A `@criteria` registers the same
+than an expression that quietly returns empty. That check is what limits a
+published name, and it needs a `model`, so registering without one is refused.
+Without a model the engine cannot compare a call's focus against the column's
+type, and every registered column would answer every call. A DTO you only
+project needs neither registration nor a model. A `@criteria` registers the same
 way and carries the criteria rule with it, so `isFinal()` returns one boolean
 whether it is projected as a column or called from an expression:
 

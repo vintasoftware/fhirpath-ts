@@ -163,15 +163,14 @@ apart, since that is what shadowing actually is: a `Quantity` column beside a
 anything beside a host function that accepts every focus. The refusal is at
 construction and names the field, so it is never a mystery at evaluation.
 
-Registering at all requires a model, refused in `withDtos` before any name is
-compared. Every guarantee registration makes is the model's: which focus a
-column answers on, and whether two columns sharing a name can be told apart.
-Without one, `unsatisfiedInput` is silent and each registered column answers
-every call — a quiet degradation of the check the whole design leans on. This is
-also why `indistinguishable` takes a `ModelProvider` and not an optional one; do
-not reintroduce an undefined-model branch there, it is unreachable by
-construction. Projection is untouched: a DTO nobody calls into needs neither
-registration nor a model.
+Registering requires a model, refused in `withDtos` before any name is compared.
+A model is what decides which focus a column answers on, and whether two columns
+sharing a name can be told apart. Without one, `unsatisfiedInput` is silent and
+every registered column answers every call, so the check the rest of the design
+relies on stops reporting anything. This is also why `indistinguishable` takes a
+`ModelProvider` rather than an optional one; do not add an undefined-model branch
+back there, since nothing can reach it. Projection is untouched: a DTO nobody
+calls into needs neither registration nor a model.
 
 Names are the whole of the rule. There used to be a one-DTO-per-fhirType check
 on top of it, from before columns declared their input type; it refused a second

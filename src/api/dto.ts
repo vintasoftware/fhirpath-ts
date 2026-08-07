@@ -430,9 +430,9 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
   }
   const { model } = defaults
   if (model === undefined) {
-    // Every guarantee registration makes is the model's: which focus a column
-    // answers on, and whether two columns sharing a name can be told apart.
-    // Without one, each registered column would answer every call.
+    // A model is what decides which focus a column answers on, and whether two
+    // columns sharing a name can be told apart. Without one, every registered
+    // column would answer every call.
     throw new FhirPathTypeError(
       `Registering DTOs (${dtos.map(dto => dto.name).join(', ')}) needs a model; ` +
         'a column is written for one type, and without a model the engine cannot check a call against it. ' +

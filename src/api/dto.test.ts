@@ -343,8 +343,8 @@ describe('DTOs registered engine-wide', () => {
       'Hypertension',
     ])
     expect(engine.evaluate('displayText()', condition.code)).toEqual(['Hypertension'])
-    // The fourth case a model cannot speak for — no model at all — is not
-    // reachable: registering refuses it at construction (see the test above).
+    // The remaining case, no model at all, cannot happen here. Registering a
+    // DTO without a model is refused at construction (see the test above).
   })
 
   it('derives the analyzer signature from the column type', () => {
@@ -497,8 +497,8 @@ describe('DTOs registered engine-wide', () => {
     ).toThrow(
       "DTO Concept redefines the function 'label': a declaration that names no input type answers every call, so nothing else may share its name"
     )
-    // A model is what the engine tells declarations apart by, so registering
-    // without one is refused before any name is compared.
+    // The engine tells two declarations apart by their focus type, which needs
+    // a model. Registering without one is refused before any name is compared.
     expect(() => new FhirPathEngine({ resourceDtos: [Concept, Quantities] })).toThrow(
       'Registering DTOs (Concept, Quantities) needs a model'
     )
@@ -536,14 +536,14 @@ describe('DTOs registered engine-wide', () => {
       'Registering DTOs (Concept) needs a model; a column is written for one type, and without a model the ' +
         'engine cannot check a call against it. Pass model to the engine, or project the DTO without registering it.'
     )
-    // What the refusal buys: with a model, a call on a focus that can never
-    // hold the column's type is an error rather than an answer.
+    // This is what the refusal protects. With a model, a call on a focus that
+    // can never hold the column's type is an error instead of an answer.
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Concept] })
     expect(() => engine.evaluate('displayText()', { resourceType: 'Patient' })).toThrow(
       "Function 'displayText' expects FHIR.CodeableConcept as input, but the focus is FHIR.Patient"
     )
-    // Projecting is unaffected: a DTO nobody calls into needs no registration,
-    // and needs no model either.
+    // Projecting still works without either. A DTO nobody calls into needs no
+    // registration and no model.
     expect(new FhirPathEngine({}).project({ text: 'Weight' }, Concept).displayText).toBe('Weight')
   })
 
