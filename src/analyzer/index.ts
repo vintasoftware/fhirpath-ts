@@ -1,5 +1,5 @@
 // The `fhirpath-ts/analyzer` entry point. Listed name by name rather than
-// re-exported wholesale: this is a published surface, so what it carries should
+// Re-export the public analyzer API from one entry point. Its contents should
 // be a decision, not a side effect of adding an export to analyze.ts.
 export {
   type AnalysisDetails,

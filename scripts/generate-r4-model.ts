@@ -93,13 +93,8 @@ function loadRequiredCodeIndex(): RequiredCodeIndex {
 }
 
 /**
- * Above this size a literal union stops paying for itself: meta-lists like
- * ResourceType (148 codes), FHIRAllTypes (213) or the SPDX license catalog
- * (346) balloon the generated file and IDE tooltips without meaningfully
- * narrowing anything a caller would type by hand. The cap sits in an empty
- * range: across all 355 required `code` bindings the largest domain enum
- * resolves to 31 codes and the smallest meta-list to 148, so no real status /
- * `use` / `gender` enum is anywhere near it.
+ * Maximum generated literal-union size. Domain code sets end at 31 entries;
+ * broad metadata lists begin at 148 and remain plain strings.
  */
 const MAX_UNION_SIZE = 40
 
@@ -324,7 +319,7 @@ export const ${constName}: Readonly<Record<string, GeneratedType>> = ${body}
   console.log(`wrote ${path} (${Object.keys(data).length} types)`)
 }
 
-/** FHIR primitive names to the TS types the public API surfaces after unwrap(). */
+/** Maps FHIR primitive names to the TypeScript values returned after `unwrap()`. */
 const PRIMITIVE_TS: Readonly<Record<string, string>> = {
   boolean: 'boolean',
   integer: 'number',

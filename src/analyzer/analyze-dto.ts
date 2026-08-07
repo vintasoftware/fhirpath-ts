@@ -18,13 +18,7 @@ export interface DtoDiagnostic extends AnalyzerDiagnostic {
   expression: string
 }
 
-/**
- * The engine shape `analyzeDto` reads a DTO's context from — structural, so the
- * analyzer never imports the engine (and `fhirpath-ts/analyzer` stays independent
- * of the runtime). Only the per-call defaults, because that is all context is: a
- * checker can hand over a composite of several engines without inventing a
- * registration list for it (see the `fhirpath-check` CLI).
- */
+/** Engine context read by the analyzer without importing the engine implementation. */
 export interface AnalyzedContext {
   readonly defaults: { model?: ModelProvider; functions?: Record<string, DeclaredFunction>; env?: object }
 }
@@ -36,16 +30,7 @@ export interface AnalyzedEngine extends AnalyzedContext {
 
 /** `analyzeDto` options, with the engine the DTO belongs to as a shortcut for its context. */
 export interface AnalyzeDtoOptions extends AnalyzeOptions {
-  /**
-   * The engine the DTO is projected by: its `model`, its registered functions
-   * (so calls into other DTOs' columns resolve) and the names in its own `env`
-   * all come from here. A registered DTO's `static env` is not among them —
-   * it reaches that DTO's columns and no other expression, so it is declared
-   * from the definition instead. The caller's own options layer on top of that
-   * context per name, never instead of it (see `contextOf`). Per-call env the DTO reads
-   * (`%reports` handed to `project()`) is not the engine's, so declare those in
-   * `variables`.
-   */
+  /** Engine model, functions, and environment names used while checking the DTO. */
   engine?: AnalyzedContext
 }
 
@@ -96,25 +81,10 @@ export function analyzeEngineDtos(
 }
 
 /**
- * Statically checks every expression a DTO declares — `@column` paths,
- * `@criteria` expressions, and its `vars` — the check TypeScript cannot do,
- * since it never looks inside the expression strings. Meant for CI: assert
- * `analyzeDto(Dto, options)` is empty next to the class.
- *
- * A column that declares its `type` (or `enum`) is cross-checked against what
- * the analyzer infers the expression yields, which covers the whole language —
- * so an out-of-subset expression, where the field's declared type is all
- * TypeScript has to go on, is still checked here.
- *
- * The DTO's `fhirType` becomes the analyzer's input type (overridable via
- * `options.inputType`). Its own `static env` names, the `callerEnv` names the projecting
- * call supplies, and `%rowIndex`/`%rowTotal` come pre-declared; its `vars`
- * analyze in declaration order, each seeing the
- * earlier ones, and every column sees them all. Anything the DTO does not
- * itself declare travels through `options`: the engine's functions
- * (`functions: engine.defaults.functions`), engine env and per-call env names
- * (`variables`). A pre-bound `TypedValue[]` var has no expression to analyze
- * and is only declared.
+ * Checks a DTO's columns, criteria, and variables. The DTO type is the input
+ * context. DTO environment names, caller environment names, and row variables
+ * are declared automatically. Variables are checked in order. Declared column
+ * types and enums are compared with the analyzer result.
  */
 export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagnostic[] {
   const definition = dtoDefinition(dto)
@@ -140,8 +110,7 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
     }
     const mismatch = column === undefined ? undefined : declaredTypeMismatch(column, result.types, context)
     if (mismatch !== undefined) {
-      // The whole expression is the finding's span: the declaration it
-      // contradicts lives outside the expression text.
+      // The conflicting field declaration is outside the expression, so mark the whole expression.
       diagnostics.push({
         member,
         expression,
@@ -186,13 +155,8 @@ function claimedType(column: ColumnSpec): string | undefined {
 }
 
 /**
- * A declared column `type` that cannot describe what the expression yields.
- * Compared by value kind (Boolean/String/Numeric/Temporal/Quantity/Complex),
- * the same families the analyzer's own operand checks use, so an equivalent
- * spelling — `code` for a String, `System.Decimal` for a `decimal` — is never a
- * finding. Complex types compare by name through the model's hierarchy instead,
- * since every complex type shares one kind. An unknown region (`types:
- * undefined`) claims nothing and is left alone.
+ * Compares a declared column type with analyzer results. Primitive types compare
+ * by value kind; complex types use the model hierarchy. Unknown results pass.
  */
 function declaredTypeMismatch(
   column: ColumnSpec,

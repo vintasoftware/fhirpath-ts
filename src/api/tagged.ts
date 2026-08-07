@@ -4,22 +4,11 @@ import type { FhirpathInput, FhirpathResult, FhirpathResultIn, FhirTypeName } fr
 import { CompiledExpression } from './compile.ts'
 
 /**
- * Expression entry point, usable three ways:
- * - `fhirpath('Patient.name.given')` — the call form infers the result type
- *   (string[] here) for the supported subset; see src/typed/infer.ts. `TInput`/
- *   `TResult` can be overridden the same way as `compile()`, e.g. to target
- *   `@medplum/fhirtypes` types instead of the built-in inference.
- * - `fhirpath('value.ofType(Quantity).value', 'Observation')` — the same, with
- *   the type the expression runs against. A relative path then infers like a DTO
- *   column (`decimal[]` here) instead of degrading, the input type is that
- *   resource rather than one guessed from the path, and the static checkers
- *   analyze the expression against it — which is the only way they can, for an
- *   expression held in a `const` and evaluated somewhere else. Like a project
- *   column's `type`, it is a declaration: nothing checks it at runtime.
- * - `` fhirpath`Patient.name.given` `` — the tag form; TypeScript does not carry
- *   literal types through tagged templates (TS#33304), so results are unknown[].
- * Interpolation is rejected on purpose — expressions must be static so they can be
- * statically checked (and to keep user data out of expression text).
+ * Compiles a FHIRPath expression. The call form infers supported literal
+ * expressions. Its optional input type gives relative paths a type context for
+ * inference and source checks. The tagged form returns `unknown[]` because
+ * TypeScript does not preserve the literal type. Tags reject interpolation; use
+ * environment variables for data.
  */
 export function fhirpath<
   const Expr extends string,
@@ -34,8 +23,7 @@ export function fhirpath<
 export function fhirpath(strings: TemplateStringsArray, ...substitutions: never[]): CompiledExpression
 export function fhirpath(input: string | TemplateStringsArray, ...rest: unknown[]): CompiledExpression {
   if (typeof input === 'string') {
-    // `rest[0]` is the declared input type: a compile-time and check-time
-    // declaration, with nothing for the evaluator to do.
+    // The optional input type is used by TypeScript and source checks only.
     return new CompiledExpression(input)
   }
   if (rest.length > 0) {

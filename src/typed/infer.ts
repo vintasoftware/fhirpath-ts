@@ -1,22 +1,10 @@
 import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
 
 /**
- * Type-level FHIRPath inference for a tractable subset of the language:
- * dotted paths, indexers, choice elements by stem name, and the calls the
- * subset knows — the type-preserving identity functions (IDENTITY_RETURNS:
- * `where()`/`first()`/`distinct()`/`skip()`/…), `select()` over sub-paths,
- * `ofType()`/`as()`, and the fixed-return family (FIXED_RETURNS: existence
- * and comparison booleans, `count()`/`length()` and the other integer/decimal
- * results, the `toX()`/`convertsToX()` conversions, and the string functions).
- * `|`-unions of such terms and parenthesized groups (`(a | b).first()`) infer
- * the union of their term types, and a `%var` root enters the broad state.
- * Everything else degrades to `unknown[]` — never a type error, never a wrong type.
- * The runtime engine and the static analyzer cover the full language; this
- * layer only makes the common cases precise in plain tsc.
- *
- * The inference state is the current type name (possibly a union of names),
- * 'opaque' — the designed escape valve — or the broad `string` state (see
- * Navigate) for values that are knowably out of reach rather than misparsed.
+ * Type-level inference for common literal expressions: paths, indexes, choice
+ * stems, selected collection functions, `select`, `ofType`, `as`, fixed-result
+ * functions, unions, groups, and variable roots. Other expressions return
+ * `unknown[]`. The runtime and analyzer support the full language.
  */
 
 /**
@@ -77,20 +65,9 @@ type GluedName<E extends string> = E extends
   : false
 
 /**
- * Navigate one element from a (possibly union) type name. A sane-looking but
- * unknown element gives `infer N` no candidate, so it falls back to its
- * constraint and the state widens to plain `string` — the broad state, a
- * second out-of-subset state besides 'opaque'. ResultOf maps it to
- * `unknown[]`; a fixed-return call after it keeps its concrete type, which
- * matches the runtime (an unknown element evaluates to empty, so exists() is
- * [false], count() [0], conversions []).
- *
- * Broad stays broad: an element miss on a KNOWN type is a typo signal, but a
- * miss on the broad state is unknowable — and unknowable is exactly what
- * broad means. `%report.effective` stays broad (its trailing `.toString()`
- * can still infer `string`), while the state never regains a concrete
- * element type. A glued segment (see GluedName) is not a navigation at all
- * and short-circuits to 'opaque' before either rule.
+ * Navigates one element. A missing normal name widens the state because the
+ * runtime returns empty and a later fixed-result function still has a known
+ * type. A segment containing expression syntax becomes `opaque` instead.
  */
 type Navigate<S extends string, E extends string> = string extends S
   ? MissedElement<E, S>
@@ -110,14 +87,8 @@ type Navigate<S extends string, E extends string> = string extends S
 type MissedElement<E extends string, Broad extends string> = GluedName<E> extends true ? 'opaque' : Broad
 
 /**
- * Whether a matched function argument really closes at the segment's final
- * `)`. String literals are stripped first so parens inside them don't count;
- * in what remains, a `)` with no `(` still open is the signature of an
- * operator glued onto the call — `join(', ') = ('x')` matches
- * `join(${string})` with the "argument" `', ') = ('x'`, but the runtime sees
- * a comparison. Arguments containing backslashes or backticks are declined
- * outright: escape sequences and delimited identifiers can confound the
- * quote pairing that stripping relies on.
+ * Checks that a matched call ends at its final `)`. Quotes are removed before
+ * balancing parentheses. Backslashes and backticks fall outside this subset.
  */
 type CleanArg<A extends string> = A extends `${string}\\${string}` | `${string}\`${string}`
   ? false
@@ -142,13 +113,7 @@ type PushOpens<A extends string, Acc extends unknown[]> = A extends `${string}($
   ? PushOpens<R, [...Acc, 0]>
   : Acc
 
-/**
- * Depth-counting paren balance over a quote-stripped fragment: each `)` pops
- * an open `(` from the stack, and the fragment is balanced when every `)`
- * found one and no `(` stays open. Unlike Balanced, the nesting depth is
- * unbounded — the completeness checks need real depth because a group adds a
- * level around whatever its terms already nest.
- */
+/** Checks full parenthesis balance after quoted spans have been removed. */
 type BalancedDeep<A extends string, Open extends unknown[] = []> = A extends `${infer Head})${infer Rest}`
   ? PushOpens<Head, Open> extends [unknown, ...infer Remaining]
     ? BalancedDeep<Rest, Remaining>
@@ -175,13 +140,8 @@ type CompleteFragment<A extends string> = A extends `${string}\\${string}` | `${
 type Trim<S extends string> = S extends ` ${infer R}` ? Trim<R> : S extends `${infer L} ` ? Trim<L> : S
 
 /**
- * Functions whose result type is fixed regardless of input (FHIRPath §5.1,
- * §5.3, §5.5–§5.7). Every entry must be genuinely input-independent: these
- * types also apply after an unknown element (see Navigate), where the input
- * is empty at runtime. A value (not a type-only interface) so the unit test
- * can cross-check every entry against the analyzer's FUNCTION_SIGNATURES.
- * Entries whose result depends on the input (`power`, `abs`, `lowBoundary`,
- * `union`, `iif`, …) must stay out — degrading beats guessing.
+ * Functions with input-independent result types. A test compares this table
+ * with analyzer signatures. Functions whose result depends on input stay out.
  */
 export const FIXED_RETURNS = {
   exists: 'boolean',
@@ -285,7 +245,7 @@ type Step<S extends string, Seg extends string> = [S] extends ['opaque']
   ? 'opaque'
   : Seg extends `${infer Fn}(${infer Arg})`
     ? Fn extends 'select'
-      ? // select's argument is a sub-expression: parsing it is the guard.
+      ? // A select argument is a sub-expression, so parse it before inference.
         ParseExpr<Arg, S>
       : CleanArg<Arg> extends true
         ? Call<S, Fn, Arg>
@@ -340,9 +300,8 @@ type WholeParenSegment<Expr extends string, S extends string> = Expr extends `${
 
 /**
  * One expression in a context state `S`: a `|`-union of terms, or a single
- * term. Tiered so plain dotted paths — the common case — pay two gate checks
- * and nothing else: the `|` gate skips the union scanner, and the second gate
- * skips Trim and the group/%var term forms.
+ * term. Plain dotted paths take two cheap checks: one skips the union scanner,
+ * and the next skips trimming and group or `%var` handling.
  */
 type ParseExpr<Expr extends string, S extends string> = Expr extends `${string}|${string}` | `(${string}` | `%${string}`
   ? ParseUnion<Expr, S>
@@ -359,7 +318,7 @@ type ParseExpr<Expr extends string, S extends string> = Expr extends `${string}|
  * parens are cut mid-way (the `|` sat inside a literal or a group) is not a
  * split point: the fragment absorbs the `|` and the scan continues. With no
  * top-level `|` at all, the whole expression is one term — its own parse is
- * the validation, so no completeness gate applies here.
+ * the validation, so this branch needs no separate completeness check.
  */
 type SplitUnion<Expr extends string, Acc extends string = ''> = Expr extends `${infer L}|${infer R}`
   ? CompleteFragment<`${Acc}${L}`> extends true

@@ -5,7 +5,7 @@ import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
-import { FhirPathEngine } from '../index.ts'
+import { column, criteria, defineDto, FhirPathEngine } from '../index.ts'
 import type {
   Bundle,
   Condition,
@@ -79,6 +79,8 @@ describe('README usage recipes', () => {
         { type: 'string' }
       )
     ).toBe('Mary Miller')
+    expect(r4.evaluate('Patient.name.given', patient)).toEqual(['Molly', 'Mary', 'Ann'])
+    expect(r4.first('Patient.name.family', patient)).toBe('Miller')
 
     // The fallback chain named once, as an expression-defined function.
     const fp = new FhirPathEngine({
@@ -153,6 +155,40 @@ describe('README usage recipes', () => {
       { id: 'm1', name: 'Lisinopril', sig: 'Take with food', isActive: true, prescribedOn: '2026-05-01' },
       { id: '1', name: 'Medication', sig: '', isActive: false, prescribedOn: null },
     ])
+
+    class MedicationRow extends defineDto('MedicationRequest') {
+      @column('id', { default: '' })
+      id!: string
+
+      @column(
+        '(medication.ofType(CodeableConcept).select(text | coding.display.first()) | medication.ofType(Reference).display).first()',
+        { default: 'Medication' }
+      )
+      name!: string
+
+      @criteria("status = 'active'")
+      active!: boolean
+    }
+
+    expect(r4.project(requests, MedicationRow).map(row => row.name)).toEqual(['Lisinopril', 'Medication'])
+  })
+
+  it('checks constraints', () => {
+    const patient: Patient = {
+      resourceType: 'Patient',
+      contact: [{}],
+    }
+    const result = r4.checkConstraints(patient, [
+      {
+        key: 'pat-1',
+        severity: 'error',
+        human: 'Contact needs a name or telecom',
+        expression: 'contact.all(name.exists() or telecom.exists())',
+      },
+    ])
+    expect(result.valid).toBe(false)
+    expect(result.issues).toHaveLength(1)
+    expect(result.toOperationOutcome().issue).toHaveLength(1)
   })
 
   it('status labels from a code map', () => {
@@ -304,6 +340,42 @@ describe('README usage recipes', () => {
       { trace: name => traced.push(name) }
     )
     expect(traced).toEqual(['names'])
+  })
+
+  it('covers expressions used by the longer reference docs', () => {
+    const patient: Patient = {
+      resourceType: 'Patient',
+      active: true,
+      name: [{ use: 'official', family: 'Okoro' }],
+    }
+    expect(r4.first("name.where(use = 'official').first().family", patient)).toBe('Okoro')
+    expect(r4.test(patient, 'active = true')).toBe(true)
+    expect(r4.evaluate("name.trace('names').given", patient, { trace: () => undefined })).toEqual([])
+
+    const request: MedicationRequest = {
+      resourceType: 'MedicationRequest',
+      status: 'active',
+      intent: 'order',
+      subject: { reference: 'Patient/p1' },
+    }
+    expect(r4.test(request, "(status in ('entered-in-error' | 'draft')).not()")).toBe(true)
+
+    const report: DiagnosticReport = {
+      resourceType: 'DiagnosticReport',
+      status: 'final',
+      code: { coding: [{ system: LOINC, code: '58410-2' }] },
+    }
+    expect(
+      r4.first('code.coding.where(system = %system).first().code', report, {
+        env: { system: LOINC },
+      })
+    ).toBe('58410-2')
+
+    expect(
+      r4.test(systolicReadings[0]!, '%limit < value.count()', {
+        env: { limit: 0 },
+      })
+    ).toBe(true)
   })
 })
 

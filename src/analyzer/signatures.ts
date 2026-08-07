@@ -16,16 +16,7 @@ export function singleAnd(a: boolean | undefined, b: boolean | undefined): boole
   return a === true && b === true ? true : undefined
 }
 
-/**
- * How the analyzer treats one argument position:
- * - `expression`: a lambda evaluated per item ($this bound); its analyzed state
- *   is captured for the `result` callback.
- * - `condition`: an `expression` that must be a single Boolean (iif's criterion).
- * - `sort-key`: an `expression` where a top-level unary `-` marks descending
- *   order on any type, mirroring sort()'s runtime reading of the AST.
- * - `type-name`: a type specifier, checked against the model.
- * - `any` / a ValueKind: a value argument, optionally kind-checked.
- */
+/** Describes whether an argument is a lambda, condition, sort key, type name, or eager value. */
 export type ArgSpec = 'expression' | 'condition' | 'sort-key' | 'type-name' | 'any' | ValueKind
 
 /**
@@ -37,14 +28,8 @@ export type ArgSpec = 'expression' | 'condition' | 'sort-key' | 'type-name' | 'a
 export type ValueArgSpec = 'any' | ValueKind
 
 /**
- * What a function accepts as its input (the focus it is called on): a value
- * kind, a cardinality, and/or the model types the focus must be able to hold.
- *
- * `types` is for a function written for one type, such as a DTO's `@column`,
- * which knows the class it was declared on. No built-in sets it, and none
- * should. Spec functions accept many types, so a built-in that named types here
- * would start reporting valid expressions from the official test suite.
- * `signatures.test.ts` checks that no built-in sets it.
+ * Accepted focus kind, cardinality, and model types. DTO functions may set
+ * `types`; built-ins must not because specification functions accept many types.
  */
 export interface InputSpec {
   kind?: ValueKind

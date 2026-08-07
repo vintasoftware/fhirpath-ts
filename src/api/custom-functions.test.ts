@@ -395,7 +395,7 @@ describe('declared variables in the analyzer', () => {
   })
 })
 
-// Type-level guard: host functions receive eagerly evaluated values, so their
+// Type-level check: host functions receive eagerly evaluated values, so their
 // signatures cannot declare analyzer lambda semantics the runtime won't honor.
 const invalidSignature: CustomFunction = {
   fn: () => undefined,

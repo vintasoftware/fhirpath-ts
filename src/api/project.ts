@@ -9,60 +9,15 @@ import { toSubjects } from './bundle.ts'
 import { type Compiler, contextFactory, type EvaluateOptions } from './compile.ts'
 
 /**
- * One column of a `project()` call. The plain-string form is an expression whose
- * scalar value (first of at most one) becomes the column. The object forms:
- *
- * - `{ path, collection: true }` keeps all values instead of the scalar rule.
- * - `{ path, type }` declares the column's FHIR type (mirroring SQL-on-FHIR
- *   ViewDefinition `column.type`) when the expression is outside the inference
- *   subset. A compile-time assertion only — it is not checked at runtime.
- * - `{ path, as: 'Date' }` coerces values to JS `Date`s: FHIR date/dateTime/
- *   instant strings parse per ISO 8601, so a partial date becomes the UTC start
- *   of its period (`2026-01` → Jan 1 midnight UTC). A value that is not a
- *   parseable date — a time, a non-string — coerces to empty, matching the
- *   `toX()` conversion-function contract.
- * - `{ path, as: fn }` maps each value through `fn`; the column's type is the
- *   function's return type. The escape hatch for display-ready shaping — prefer
- *   `type`/`'Date'`/`default`/`choices` where they fit, so columns stay declarative.
- * - `{ path, choices }` decodes a code through the column's choices, the way a
- *   Django field's `choices` name the values it may hold. A display table — an
- *   array of rows keyed by their `code` field — yields the matching row's
- *   `pick` field (`{ choices: STATUS_CHOICES, pick: 'tone' }`), typed from the
- *   row; omit `pick` to yield the whole row. The first row wins on a duplicate
- *   code, mirroring the `where(code = …).first()` idiom this replaces, and
- *   `pick` is only meaningful with the table form.
- * - `{ path, choices }` also accepts a plain `Record` of code → value, typed
- *   from its values. Either shape looks values up by string key: a hit becomes
- *   the decoded value, a miss becomes empty — so `default` doubles as the
- *   fallback for unexpected codes. Only own keys match (no prototype hits), and
- *   non-primitive values never match.
- * - `{ path, enum: ['asNeeded', 'continuous'] }` types the column as the union
- *   of the listed strings — the cast-free way to a literal-union column — and
- *   checks it at runtime: a value outside the list becomes empty, so `default`
- *   catches it. The analyzer side stays a plain string.
- * - `{ path, default }` fills an *empty* result with a plain JS value, after
- *   any `as`/`choices` coercion — and, unlike an in-expression `| 'fallback'` union,
- *   it also removes `undefined` from the column's type. FHIRPath has no `null`,
- *   so this is also the way a column yields one.
- * - `{ test }` evaluates the expression as a boolean criteria, with the same
- *   semantics as `FhirPathEngine.test()`: a single boolean returns itself (spec
- *   §4.5), and empty returns false (the criteria convention). That rule lives in
- *   one place, `criteriaBoolean` in values/collection.ts. The column is always a
- *   `boolean`.
- *
- * `as`, `choices`, and `enum` are alternatives — a column declares at most one —
- * and each decides the column's JS type, so a `type` given alongside any of
- * them is ignored.
+ * One `project()` column. A string or `{ path }` returns one optional value.
+ * `collection` keeps every value, `default` fills an empty result, and `test`
+ * returns one criteria boolean. `as`, `choices`, and `enum` are alternative
+ * value conversions. `type` declares a result type for TypeScript and is not
+ * checked at runtime. See `docs/api.md#project` for all options.
  */
 export type ProjectionColumn = string | ({ path: string } & ColumnOptions) | { test: string }
 
-/**
- * A path column's options besides the path itself; a DTO's column builder
- * (`defineDto`, api/dto.ts) takes the same set. The shaper members make
- * `as`/`choices`/`enum` mutually exclusive at the type level, and tie `pick` to
- * the table form of `choices`; `planColumn` re-checks both at plan time for
- * callers outside the type system.
- */
+/** Options shared by plain project columns and DTO `@column` fields. */
 export type ColumnOptions = {
   collection?: boolean
   type?: keyof R4TypeOf
@@ -82,7 +37,7 @@ type ColumnPath<Column> = Column extends string
     ? Path
     : never
 
-/** `as` wins (function return type, or Date), then `choices` (row/`pick` field for tables, value types for Records), then `enum` (union of its strings), then a declared `type`; otherwise inference in the `Root` context. */
+/** Infers the values after the selected conversion, or from the path when no conversion is set. */
 type ColumnValues<Column, Root extends string> = Column extends { as: (value: never) => infer R }
   ? R[]
   : Column extends { as: 'Date' }
@@ -99,14 +54,7 @@ type ColumnValues<Column, Root extends string> = Column extends { as: (value: ne
             ? R4TypeOf[T][]
             : FhirpathResultIn<ColumnPath<Column>, Root>
 
-/**
- * A `default` replaces the empty case, so it substitutes for `undefined` in
- * the type. `Root` is the context the path infers against — a DTO's `fhirType`
- * (see `defineDto`), or 'opaque' for a bare `project()` columns record, where
- * every path carries its own root. Constrained by the columns' outer shapes
- * only, so a column builder can apply it to a generic `{ path } & Options`
- * intersection the checker cannot prove is one ProjectionColumn member.
- */
+/** A column's output type. A default replaces `undefined`; a collection returns every value. */
 export type ColumnResult<
   Column extends string | { path: string } | { test: string },
   Root extends string = 'opaque',
@@ -152,11 +100,7 @@ function recordLookup(choices: Readonly<Record<string, unknown>>): (values: unkn
     })
 }
 
-/**
- * The `choices` lookup over a display table: rows keyed by `code` (first row wins,
- * like the `where(code = …).first()` idiom this replaces), yielding the `pick`
- * field or the whole row. A miss — no row, or a row without the field — becomes empty.
- */
+/** Looks up display rows by `code`. The first row wins; a missing row or field returns empty. */
 function tableLookup(rows: readonly { code: string }[], pick: string | undefined): (values: unknown[]) => unknown[] {
   const byCode = new Map<string, { code: string }>()
   for (const row of rows) {
@@ -210,12 +154,7 @@ function coercion(spec: Extract<ProjectionColumn, { path: string }>): (values: u
   return values => values
 }
 
-/**
- * ColumnOptions makes these combinations unrepresentable for TypeScript
- * callers, but untyped callers reach project() too (the demo playground
- * executes editor code transpile-only), so misuse fails loudly at plan time
- * instead of one shaper silently winning.
- */
+/** Checks conversion options for JavaScript callers and transpile-only code. */
 function assertShaperOptions(name: string, spec: Extract<ProjectionColumn, { path: string }>): void {
   const shapers = [spec.as, spec.choices, spec.enum].filter(option => option !== undefined).length
   if (shapers > 1) {
@@ -290,14 +229,9 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
 }
 
 /**
- * The rows of `FhirPathEngine.project()`: one per subject of the input (array
- * item, Bundle entry resource, or the single resource itself); options come
- * pre-merged with the engine defaults. Each row evaluates in one shared
- * context: `%rowIndex` and `%rowTotal` are set to the row's position — the
- * caller's `env` is normalized first, so the row numbering wins over a
- * same-named key in either spelling (`rowIndex` or `%rowIndex`) — and `vars`
- * bind once, with the row as focus and the row numbering in scope, so every
- * column reads the same typed bindings.
+ * Projects one row per input subject. Each row gets one shared context, so
+ * variables bind once and every column reads the same values. Runtime
+ * `%rowIndex` and `%rowTotal` replace matching environment entries.
  */
 export function projectRows(
   input: unknown,

@@ -1,14 +1,6 @@
 /**
- * Monaco, narrowed to what the playground shows. Importing the `monaco-editor`
- * barrel would register every language it ships — ABAP through Solidity, plus the
- * CSS/HTML/JSON language services — so the API and the one language come from
- * their own entry points instead. Both contributions are needed: the first
- * registers the `typescript` language id, the second attaches the language
- * service that answers with types.
- *
- * `editor.api` ships the bare editor with no contributions, so the hover widget —
- * the piece that asks the language service for type info under the cursor and
- * shows marker messages — has to be pulled in explicitly.
+ * Loads the bare Monaco editor, TypeScript language service, and hover support.
+ * Importing Monaco's main entry point would also register every bundled language.
  */
 
 import 'monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution'
@@ -36,12 +28,8 @@ interface MonacoEnvironmentShape {
 }
 
 /**
- * The raw TypeScript worker, kept for the FHIRPath side channel: Monaco wraps
- * what getWorker returns in its own proxy, so the extra protocol the custom
- * worker speaks (see ts.custom.worker.ts) needs this direct handle. Created
- * lazily by Monaco; `tsWorkerHandle()` forces creation first. Monaco disposes
- * and recreates it on a `typescriptDefaults` change, so this can come back a
- * different worker — callers must notice (see requestSites in index.ts).
+ * Direct handle to the TypeScript worker used by the FHIRPath message channel.
+ * Monaco may replace it after a TypeScript configuration change.
  */
 let rawTsWorker: Worker | undefined
 ;(self as unknown as { MonacoEnvironment: MonacoEnvironmentShape }).MonacoEnvironment = {
@@ -69,14 +57,10 @@ export async function tsWorkerHandle(): Promise<Worker> {
 export function configureMonaco(): void {
   const ts = monaco.languages.typescript
   ts.typescriptDefaults.setCompilerOptions({
-    // Not ESNext: the DTO samples use standard decorators, which tsc only lowers
-    // below an esnext target — at esnext it emits them as-is and the sandbox's
-    // `new Function` would throw. (ES2022 would do; Monaco's bundled enum stops
-    // at ES2020.)
+    // ESNext leaves standard decorators unchanged. ES2020 makes the sample output executable.
     target: ts.ScriptTarget.ES2020,
     useDefineForClassFields: true,
-    // CommonJS so the transpiled buffer runs in a `new Function` sandbox (imports
-    // become `require(...)` calls we can intercept); inference is unaffected.
+    // CommonJS turns imports into calls that the playground can provide.
     module: ts.ModuleKind.CommonJS,
     moduleResolution: ts.ModuleResolutionKind.NodeJs,
     strict: true,
@@ -86,8 +70,7 @@ export function configureMonaco(): void {
     skipLibCheck: true,
     lib: ['esnext', 'dom'],
   })
-  // Placed under node_modules so `import ... from 'fhirpath-ts/r4'` resolves the
-  // way it would in a real project.
+  // Use package-like paths so normal `fhirpath-ts` imports resolve in Monaco.
   ts.typescriptDefaults.addExtraLib(indexDts, 'file:///node_modules/fhirpath-ts/index.d.ts')
   ts.typescriptDefaults.addExtraLib(r4Dts, 'file:///node_modules/fhirpath-ts/r4/index.d.ts')
   ts.typescriptDefaults.addExtraLib(analyzerDts, 'file:///node_modules/fhirpath-ts/analyzer/index.d.ts')
@@ -96,14 +79,9 @@ export function configureMonaco(): void {
 }
 
 /**
- * Ctrl + arrow moves by word, and with Shift selects by word — the binding
- * everything else on the page (the browser's own inputs included) uses.
- *
- * Only the literal Ctrl key is bound, which is `WinCtrl` in Monaco's vocabulary:
- * `CtrlCmd` would mean Cmd on macOS, where Cmd + arrow is line start/end and
- * stealing it would be worse than the gap this closes. On Windows and Linux
- * Ctrl + arrow is already word navigation, and `WinCtrl` there is the Super key
- * the window manager takes first, so these rules are a no-op.
+ * Adds Ctrl+Arrow word movement on macOS without replacing Cmd+Arrow. The same
+ * bindings have no effect on Windows and Linux, where the window manager receives
+ * Monaco's `WinCtrl` key.
  */
 function bindWordNavigation(): void {
   const { KeyMod, KeyCode } = monaco
@@ -115,11 +93,7 @@ function bindWordNavigation(): void {
   ])
 }
 
-/**
- * The editor theme, built from the same `:root` custom properties the rest of the
- * page uses, so the palette has one home. Monaco wants bare hex for token colors
- * and `#rrggbb` for its own keys.
- */
+/** Builds the editor theme from the page variables. Monaco token colors omit `#`. */
 function screenTheme(): monaco.editor.IStandaloneThemeData {
   const screen = cssVar('--screen')
   const raised = cssVar('--screen-2')

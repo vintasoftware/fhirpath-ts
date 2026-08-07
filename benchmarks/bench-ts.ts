@@ -1,15 +1,9 @@
 /**
- * fhirpath-ts side of the cross-engine benchmark.
+ * Runs the TypeScript side of the cross-engine benchmark. Each case records
+ * warmed parse and evaluation times plus whether the engine accepted it.
+ * `--no-model` matches engines that run without model data.
  *
- * For each workload case: compile the expression once, then time parse and eval in
- * warmed loops. Records per-expression ns/op plus whether the engine accepted it
- * (compiled and evaluated without throwing), so the comparison can be restricted to
- * the set both engines handle.
- *
- *   node benchmarks/bench-ts.ts [--no-model] [workloadPath] [outPath]
- *
- * --no-model drops the R4 ModelProvider, matching a model-unaware engine (e.g. the
- * Rust harness with EmptyModelProvider) for a symmetric eval comparison.
+ * node benchmarks/bench-ts.ts [--no-model] [workloadPath] [outPath]
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'

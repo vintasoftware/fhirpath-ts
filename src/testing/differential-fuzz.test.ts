@@ -10,15 +10,10 @@ import { r4Model } from '../r4/index.ts'
 import { testDataPath } from './test-data.ts'
 
 /**
- * Differential fuzzing against fhirpath.js (the HL7 reference JS engine):
- * generated expressions run on both engines over the official patient fixture
- * and must agree. The generator deliberately stays inside the semantics both
- * engines implement identically — integer arithmetic (no '/', which is
- * float-vs-exact-decimal territory, and no results outside the 32-bit range,
- * where this engine widens to Long/Decimal and fhirpath.js keeps a JS float;
- * see the integer generator below), string functions, boolean logic, navigation,
- * and collection functions — so any disagreement is a bug, not a documented
- * quirk (those live in test-data/fhirpathjs/quirk-manifest.ts).
+ * Compares generated expressions with fhirpath.js on the official Patient
+ * fixture. The generator uses behavior shared by both engines: 32-bit integer
+ * arithmetic, strings, Boolean logic, navigation, and collection functions.
+ * Known differences are kept in the quirk manifest instead.
  */
 
 const patient = JSON.parse(readFileSync(testDataPath('official/r4/fixtures/patient-example.json'), 'utf8')) as object

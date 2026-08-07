@@ -214,7 +214,7 @@ describe('fixed-return string, boolean, and numeric functions (batch 2)', () => 
     expectTypeOf(trimmed).toEqualTypeOf<string[]>()
     expect(trimmed).toEqual(['Chalmers'])
 
-    // Comma-separated arguments pass the CleanArg guard.
+    // Comma-separated arguments pass the CleanArg check.
     const initial = compile('Patient.name.given.first().substring(0, 1)').evaluate(patient, options)
     expectTypeOf(initial).toEqualTypeOf<string[]>()
     expect(initial).toEqual(['P'])
@@ -444,7 +444,7 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
     // select's argument is re-parsed rather than CleanArg-guarded: glued
     // operators die in Navigate on the way through…
     expectTypeOf<FhirpathResult<"Patient.name.select(family) = ('x')">>().toEqualTypeOf<unknown[]>()
-    // …while guard-free dispatch keeps nesting the argument guard would reject.
+    // Direct dispatch keeps nested calls that the argument check would reject.
     const nested = compile('Patient.name.select(given.where(use.exists()))').evaluate(patient, options)
     expectTypeOf(nested).toEqualTypeOf<string[]>()
     expect(nested).toEqual([])
