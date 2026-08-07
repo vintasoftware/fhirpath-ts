@@ -246,6 +246,48 @@ union alternatives, and template match for parenthesized expressions do not
 handle FHIRPath's nested groups, quoted delimiters, or compiler budget safely and
 are not the production architecture.
 
+### FHIRPath implementation survey
+
+The survey snapshot is 2026-08-07. GitHub stars are used to find widely used
+implementations, not as a correctness score: monorepo stars include much more
+than their FHIRPath parser, and repository search also returns applications that
+only call a parser. The five inspected implementation families balance stars,
+FHIR ecosystem authority, an existing mention in this repository, and parser
+architecture. The Rust implementation wins the final slot over another
+ANTLR-based Python implementation because it is this repository's performance
+comparator and adds a distinct parser design.
+
+| Implementation | Why inspected | Parser shape | What this plan takes |
+| --- | --- | --- | --- |
+| [Medplum](https://github.com/medplum/medplum/blob/6924211c3d913bffcb11ad5e7b8cefaef6705cb6/packages/core/src/fhirpath/parse.ts) (about 2.6k stars) | Most-starred repository with a directly inspectable FHIRPath implementation; current `src/parser/parser.ts` already credits its parser core | Token array plus a table-driven Pratt `ParserBuilder` with registered prefix/infix parselets | A generated parselet classification table and one cursor loop; not its recursive runtime control flow |
+| [Firely .NET SDK](https://github.com/FirelyTeam/firely-net-sdk/blob/792b6cfd855060bfedaf6527542ff53d0f08cb0f/src/Hl7.Fhir.Base/FhirPath/Parser/Grammar.cs) (about 930 stars) | Widely used SDK implementation | Parser combinators, one explicit parser per precedence level, chained left-associative operators | Explicit RHS modes: expression, type specifier, call arguments, and index expression; keyword boundary tests |
+| [HAPI/HL7 core](https://github.com/hapifhir/org.hl7.fhir.core/blob/b3349f4e8013af8e7e6f2c838c2d8b22e0d20496/org.hl7.fhir.r5/src/main/java/org/hl7/fhir/r5/fhirpath/FHIRPathEngine.java) (about 200 stars for the implementation repository) | Java reference engine used by HAPI and the HL7 validator | Parses a flat operator chain, then repeatedly groups it by precedence; validates calls while parsing | A concrete two-pass AST candidate for the Commit 1 spike only; its regrouping pass and parse-time diagnostics do not enter production types |
+| [fhirpath.js](https://github.com/HL7/fhirpath.js/blob/e1e4586a1f6d389be73ca68e85e83464c9024406/src/parser/FHIRPath.g4) (about 184 stars) | Required JS reference and source of a vendored test corpus | ANTLR left-recursive grammar, hidden trivia channel, full-input `EOF`, then a listener-built AST | Its vendored corpus as the executable syntax oracle, plus semantic-token and trailing-token cases; no generated ANTLR parse tree in the type layer |
+| [octofhir fhirpath-rs](https://github.com/octofhir/fhirpath-rs/blob/572e375a472ac8f9eaaa045e9fbf9ae6bd3c924b/crates/octofhir-fhirpath/src/parser/pratt.rs) (about 23 stars) | Performance-focused implementation already used by `benchmarks/` | Chumsky Pratt parser split into prefix/postfix and precedence layers, with separate fast and diagnostic modes | Prefix/infix/postfix reducer categories and fail-fast opaque behavior; not its library-driven layer split or duplicated fast/analysis grammar |
+
+The additional
+[fhirpath-py grammar](https://github.com/beda-software/fhirpath-py/blob/41de3574e6586d8a9ad13b5246325e89ed3f7ec8/fhirpathpy/parser/FHIRPath.g4)
+(about 75 stars) was inspected as a check. It is another ANTLR grammar/listener
+pipeline and adds no useful type-level parser technique. Its grammar has already
+diverged from fhirpath.js in type-operator precedence and newer literal/sort/
+instance-selector forms. That is useful negative evidence: do not copy a second
+grammar into the type system.
+
+ArkType remains the primary architecture reference because it alone solves the
+hard part specific to this work: parsing inside TypeScript's conditional-type
+evaluator. The FHIRPath implementations refine domain details but do not change
+that choice.
+
+The resulting generated parselet record contains token kind, fixity, binding
+power, associativity, RHS mode, and reducer id. Both the runtime metadata parity
+test and the type-level loop consume that record. `is`/`as` consume a qualified
+type specifier rather than a general expression; calls and indexers push their
+own delimiter frames; word operators are accepted only as whole tokens. A corpus
+hygiene test maps every runtime parselet and classifies fhirpath.js-only syntax
+encountered in the vendored corpus as an explicit divergence. External
+implementations remain research inputs and add no dependency or generated source
+to this package.
+
 Commit 1 includes a disposable measured spike over the common-path fixture and a
 corpus-derived grammar stress fixture. It compares direct parse-and-infer state
 with a compact AST followed by an inference pass. The default is the fused form
@@ -258,11 +300,11 @@ before the full parser lands.
 ### Fused precedence and inference
 
 Use one shift-reduce loop with explicit operand, operator, call, and scope stacks.
-Its precedence table is generated from the runtime parser's operator metadata.
-Reduction produces the inference state directly; no type-level AST is retained.
-This is the planned default because it avoids paying once to construct an AST
-type and again to walk it; the bounded Commit 1 comparison above can overturn
-that choice with evidence.
+Its parselet records and precedence table are generated from the runtime parser's
+operator metadata. Reduction produces the inference state directly; no type-level
+AST is retained. This is the planned default because it avoids paying once to
+construct an AST type and again to walk it; the bounded Commit 1 comparison above
+can overturn that choice with evidence.
 
 The state carries:
 
@@ -494,6 +536,8 @@ all earlier tests and applicable repository gates are green at every commit.
 
 - Add the corpus-derived capability index/registry, audit and hygiene checks,
   assertion generator, precision report, and split performance fixtures.
+- Add the generated parselet-record schema, runtime-metadata parity check, and
+  vendored-corpus syntax support/divergence report before implementing new syntax.
 - Measure the fused-state/compact-AST parser spike, record the architecture
   decision in Amendments, and delete the losing spike.
 - Run and record the five-run runtime/Rust benchmark baseline on the current-main
@@ -507,6 +551,8 @@ all earlier tests and applicable repository gates are green at every commit.
 - Add the 64-token tokenizer and the selected shift-reduce parser for paths,
   indexers, existing calls, `select()` subexpressions, unions, groups, and `%var`
   roots.
+- Drive prefix/infix/postfix dispatch, precedence, associativity, and RHS mode
+  from the generated parselet records.
 - Pass all existing inference and capability tests unchanged.
 - Delete `ParseSegments`, `StepAcrossParen`, the glued-segment scanner, and other
   superseded parsing machinery. There is one type-level parser after this commit.
@@ -557,6 +603,9 @@ The implementation is complete only when:
   covers every runtime operator and signed built-in (with an explicit local gap
   assertion for a skipped source case where needed), and reports its
   corpus-backed/manual split
+- every syntax form encountered in the vendored fhirpath.js corpus is mapped to
+  current runtime support or an explicit divergence, and runtime/type-level
+  parselet metadata agrees
 - the generated corpus soundness sweep has no narrower-than-analyzer result
 - the precision report has no unexplained regression from its prior commit
 - the 64-token bail and all intentional opaque rules are tested
@@ -576,6 +625,7 @@ The implementation is complete only when:
 | Plausible but wrong types | Analyzer-or-unknown corpus oracle; capability degradation and downstream tests |
 | Function/analyzer drift | Declarative result rules, generated type table, name-level hygiene tests |
 | Reference fixtures duplicate instead of replace hand-written cases | Registry stores corpus ids; generated index and corpus/manual count are checked |
+| A copied reference grammar drifts from this runtime | Generated parselet records come from runtime metadata; fhirpath.js alternatives have an explicit support/divergence audit |
 | Parser prior art does not fit FHIRPath | Measured fused/AST spike, general precedence stack, explicit documented decision before implementation |
 | Scoping differs from runtime | Capability cases for nested frames, forked operands/arguments, variable lifetime, and local overlays |
 | Shared-rule refactor slows runtime | Same-machine five-run before/after benchmark plus contextual pinned Rust comparison |
