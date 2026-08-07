@@ -9,7 +9,7 @@ export type {
 } from './api/compile.ts'
 export { compile, CompiledExpression, DEFAULT_PARSE_CACHE_SIZE } from './api/compile.ts'
 export type { ConstraintCheckResult, ConstraintIssue, FhirConstraint, OperationOutcome } from './api/constraints.ts'
-export type { ColumnTypeMismatch, DtoBase, DtoClass, DtoInstance, DtoOptions, DtoRow } from './api/dto.ts'
+export type { ColumnTypeMismatch, DtoBase, DtoClass, DtoEnv, DtoInstance, DtoOptions, DtoRow } from './api/dto.ts'
 export { column, criteria, defineDto } from './api/dto.ts'
 export type { EngineInput, EngineOptions, TypedEvaluateOptions } from './api/engine.ts'
 export { BoundExpression, FhirPathEngine, recordEngines } from './api/engine.ts'

@@ -41,6 +41,14 @@ export interface HostExpressionFunction {
   /** See HostNativeFunction.inputTypes. Same meaning, checked the same way. */
   inputTypes?: readonly string[]
   /**
+   * Environment variables the body reads that the caller does not supply, laid
+   * over the caller's env for the length of the call and gone again after it
+   * (see `withEnvOverlay`). This is how a DTO's `env` reaches its own column
+   * bodies without being published to every expression the engine evaluates.
+   * Already in collection form, since the same overlay serves every call.
+   */
+  env?: ReadonlyMap<string, TypedValue[]>
+  /**
    * Apply the criteria rule to the body's result, so the function always returns
    * exactly one Boolean. That rule is `criteriaBoolean`: §4.5 singleton
    * evaluation, with an empty result read as false. It is what makes a
@@ -163,6 +171,19 @@ export function normalizeEnvKeys<T>(env: Record<string, T> | undefined): Record<
   return normalized
 }
 
+/**
+ * An env record as the collections a context binds: names normalized, values
+ * wrapped. The one conversion from the host's env shape into the engine's, used
+ * both to seed a context and to build a function's own overlay.
+ */
+export function envCollections(env: Record<string, unknown> | undefined): Map<string, TypedValue[]> {
+  const collections = new Map<string, TypedValue[]>()
+  for (const [name, value] of Object.entries(normalizeEnvKeys(env))) {
+    collections.set(name, toCollection(value))
+  }
+  return collections
+}
+
 /** Merge two env-shaped records per name: both key spellings normalize first, and `override` wins. */
 export function mergeEnvKeys<T>(
   base: Record<string, T> | undefined,
@@ -188,8 +209,8 @@ export function createContext(options: {
   // FHIR-defined variables; contained-resource re-rooting is a later refinement.
   env.set('resource', options.root)
   env.set('rootResource', options.root)
-  for (const [name, value] of Object.entries(normalizeEnvKeys(options.env))) {
-    env.set(name, toCollection(value))
+  for (const [name, value] of envCollections(options.env)) {
+    env.set(name, value)
   }
   const hostFunctions = new Map<string, HostFunction>()
   for (const [name, fn] of Object.entries(options.functions ?? {})) {
@@ -211,6 +232,24 @@ export function createContext(options: {
     regex: options.regex,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
+}
+
+/**
+ * A context whose env is the caller's with `overlay` laid on top: a name the
+ * overlay declares resolves to its value, every other name — the built-ins,
+ * `%context`, whatever the call supplied — stays the caller's. Used for the
+ * length of one expression-defined function body, so the names its definition
+ * owns are readable inside it and nowhere else.
+ *
+ * `variables` (defineVariable() and `vars` bindings) still win over env, as
+ * `resolveEnvironmentVariable` reads them first. A body that wants its own name
+ * regardless should not have a var of that name in scope.
+ */
+export function withEnvOverlay(
+  context: EvaluationContext,
+  overlay: ReadonlyMap<string, TypedValue[]>
+): EvaluationContext {
+  return { ...context, env: new Map([...context.env, ...overlay]) }
 }
 
 /** A context whose defineVariable() scope is detached from the parent chain. */

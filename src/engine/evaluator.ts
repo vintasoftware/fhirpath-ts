@@ -26,6 +26,7 @@ import {
   forkVariables,
   type HostFunction,
   resolveEnvironmentVariable,
+  withEnvOverlay,
   withFrame,
 } from './context.ts'
 import { navigateIdentifier } from './navigation.ts'
@@ -44,7 +45,9 @@ function evaluateArgument(node: AstNode, context: EvaluationContext, _input: Typ
  * Call a host-supplied function (EvaluateOptions.functions). An
  * expression-defined function evaluates its body as if spliced at the call
  * site: the call's input is the focus (and `$this`), while `%context` and the
- * other environment variables stay the caller's; the body runs typed
+ * other environment variables stay the caller's, except the names the
+ * definition declares for itself (`env`), which are laid over the caller's for
+ * the length of the call; the body runs typed
  * end-to-end, so dates, Decimals, and Quantities keep their types. A native
  * function arity-checks, then eagerly evaluates every argument and unwraps
  * both input and arguments to plain JS values — the host boundary — and
@@ -73,9 +76,13 @@ function evaluateHostFunction(
     }
     context.activeExpressionFunctions.add(name)
     try {
+      // The env the definition owns is visible only here. The overlaid context
+      // keeps the caller's activeExpressionFunctions Set by reference, so the
+      // recursion guard still spans the body.
+      const scoped = host.env === undefined ? context : withEnvOverlay(context, host.env)
       // withFrame rebinds $this to the input and forks variables, so the
       // body's defineVariable() bindings stay local to the body.
-      const result = withFrame(context, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))
+      const result = withFrame(scoped, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))
       // Inside the try, so a body that returns several items still removes its
       // name from activeExpressionFunctions on the way out.
       return host.criteria === true ? wrapBoolean(criteriaBoolean(result)) : result

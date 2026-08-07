@@ -18,8 +18,9 @@ type StatusChoice = { code: string; label: string; tone: StatusTone }
 
 // --- resource DTOs ---
 // Each one binds recurring chains to a resource or datatype. Registered on the
-// engine below, every column becomes a function any expression can call, and
-// each DTO's env tables register engine-wide with it.
+// engine below, every column becomes a function any expression can call, and a
+// DTO's own `static env` tables travel with its columns rather than joining the
+// engine's env.
 
 export class CodeableConceptDTO extends defineDto('CodeableConcept') {
   /** The text | display | code fallback. */
@@ -88,13 +89,15 @@ const REPORT_STATUS_CHOICES: ({ code: string } & LabBadge)[] = [
   { code: 'appended', label: 'Amended', tone: 'neutral', flagged: false },
 ]
 
-export class DiagnosticReportDTO extends defineDto('DiagnosticReport', {
-  env: {
+export class DiagnosticReportDTO extends defineDto('DiagnosticReport') {
+  // The badge tables belong to this DTO: its columns read them, projected or
+  // called, and no other expression on the engine can see them.
+  static env = {
     hgInterpretation: HG_INTERPRETATION,
     interpretationChoices: INTERPRETATION_CHOICES,
     reportStatusChoices: REPORT_STATUS_CHOICES,
-  },
-}) {
+  }
+
   @column('extension.where(url = %hgInterpretation).first().value.ofType(CodeableConcept).coding.first().code')
   interpretation!: string | undefined
 
@@ -327,11 +330,6 @@ export class LabRow extends badgedRow('DiagnosticReport', { vars: { badge: 'repo
  * rather than waiting.
  */
 export class LabResultRow extends badgedRow('ServiceRequest', {
-  env: {
-    // Badges for a lab order no table row can describe, because there is no report to read.
-    waitingBadge: { label: 'Waiting', tone: 'warning', flagged: false } as LabBadge,
-    cancelledBadge: { label: 'Cancelled', tone: 'neutral', flagged: false } as LabBadge,
-  },
   // mapLabResults passes the order→report table per call, so the DTO declares
   // the name rather than owning the data.
   callerEnv: ['reports'],
@@ -341,6 +339,12 @@ export class LabResultRow extends badgedRow('ServiceRequest', {
       "iif(%report.exists(), %report.reportBadge(), iif(%context.status = 'revoked', %cancelledBadge, %waitingBadge))",
   },
 }) {
+  // Badges for a lab order no table row can describe, because there is no report to read.
+  static env = {
+    waitingBadge: { label: 'Waiting', tone: 'warning', flagged: false } as LabBadge,
+    cancelledBadge: { label: 'Cancelled', tone: 'neutral', flagged: false } as LabBadge,
+  }
+
   // The ordered test names joined with commas; a blank join is dropped so the
   // order's own text can apply.
   @column(

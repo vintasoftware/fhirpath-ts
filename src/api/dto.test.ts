@@ -222,13 +222,31 @@ describe('DTO projection', () => {
     expect(r4.project([{ text: 'Weight' }], ConceptRow)).toEqual([expect.objectContaining({ text: 'Weight' })])
   })
 
-  it('DTO env applies when projecting, under per-call env', () => {
-    class Toned extends defineDto('Observation', { env: { tones: [{ code: 'final', tone: 'success' }] } }) {
+  it('DTO env applies when projecting, over a per-call name of its own', () => {
+    class Toned extends defineDto('Observation') {
+      static env = { tones: [{ code: 'final', tone: 'success' }] }
+
       @column('%tones.where(code = %context.status).tone', { type: 'string', default: 'neutral' })
       tone!: string
+
+      // The same table, reached the other way: a column called as a function.
+      @column('tone()', { type: 'string', default: 'neutral' })
+      viaCall!: string
+
+      @column('%caller', { type: 'string', default: '' })
+      supplied!: string
     }
-    expect(r4.project(weighed, Toned).tone).toBe('success')
-    expect(r4.project(weighed, Toned, { env: { tones: [] } }).tone).toBe('neutral')
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Toned] })
+    expect(engine.project(weighed, Toned, { env: { caller: 'through' } }).tone).toBe('success')
+    // A name the DTO declares means the DTO's value by either route. Answering
+    // one way through a path and another through a call would be the same
+    // declaration meaning two things in one projection.
+    const overridden = engine.project(weighed, Toned, { env: { tones: [], caller: 'through' } })
+    expect(overridden.tone).toBe('success')
+    expect(overridden.viaCall).toBe('success')
+    // Everything the DTO does not declare still arrives from the call, which is
+    // what `callerEnv` names and where per-request data belongs.
+    expect(overridden.supplied).toBe('through')
   })
 
   it('a class that never extended a DTO base is not projectable', () => {
@@ -344,14 +362,24 @@ describe('DTOs registered engine-wide', () => {
     expect(diagnostics).toEqual([])
   })
 
-  it('DTO env registers engine-wide, so other expressions see it', () => {
-    class Badges extends defineDto('Observation', { env: { badgeTones: [{ code: 'final', tone: 'success' }] } }) {
+  it('a registered column reads its DTO env, and no other expression can', () => {
+    class Badges extends defineDto('Observation') {
+      static env = { badgeTones: [{ code: 'final', tone: 'success' }] }
+
       @column('%badgeTones.where(code = %context.status).tone', { type: 'string' })
       badgeTone!: string | undefined
     }
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Badges] })
     expect(engine.evaluate('badgeTone()', weighed)).toEqual(['success'])
-    expect(engine.evaluate('%badgeTones.count()', weighed)).toEqual([1])
+    // Registering adds the function name and nothing else: the table stays the
+    // DTO's, so an expression that did not go through a column cannot read it.
+    expect(() => engine.evaluate('%badgeTones.count()', weighed)).toThrow('Undefined environment variable %badgeTones')
+    // Which is also what the static side is told, since it reads the same
+    // engine env — the name is not silently declared to every expression.
+    expect(engine.defaults.env).toBeUndefined()
+    expect(new FhirPathEngine({ model: r4Model, env: { site: 'a' }, resourceDtos: [Badges] }).defaults.env).toEqual({
+      site: 'a',
+    })
   })
 
   it('a criteria means the same thing as a column and as a call', () => {
@@ -476,32 +504,27 @@ describe('DTOs registered engine-wide', () => {
     )
   })
 
-  it('DTOs sharing an env name agree on its value, or fail loudly', () => {
-    // The ordinary case: one lookup table imported by two DTOs. Declaring it
-    // twice declares one variable, not a conflict.
-    const TONES = [{ code: 'final', tone: 'success' }]
-    class SharedA extends defineDto('Patient', { env: { tones: TONES } }) {
-      @column('gender', { type: 'string' })
-      a!: string | undefined
-    }
-    class SharedB extends defineDto('Practitioner', { env: { tones: TONES } }) {
-      @column('gender', { type: 'string' })
-      b!: string | undefined
-    }
-    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [SharedA, SharedB] })
-    expect(engine.evaluate('%tones.count()', { resourceType: 'Patient' })).toEqual([1])
+  it('two DTOs may declare one env name with different values; each column reads its own', () => {
+    // The case a shared engine namespace could not express: the two disagree
+    // about %system on purpose, and neither is asked to yield.
+    class Labs extends defineDto('Patient') {
+      static env = { system: 'http://loinc.org' }
 
-    class EnvA extends defineDto('Patient', { env: { tones: [] as never[] } }) {
-      @column('gender', { type: 'string' })
-      a!: string | undefined
+      @column('%system', { type: 'string', default: '' })
+      system!: string
     }
-    class EnvB extends defineDto('Practitioner', { env: { tones: [] as never[] } }) {
-      @column('gender', { type: 'string' })
-      b!: string | undefined
+    class Problems extends defineDto('Practitioner') {
+      static env = { system: 'http://snomed.info/sct' }
+
+      @column('%system', { type: 'string', default: '' })
+      problemSystem!: string
     }
-    expect(() => new FhirPathEngine({ model: r4Model, resourceDtos: [EnvA, EnvB] })).toThrow(
-      'DTO EnvB redefines the environment variable %tones with a different value'
-    )
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Labs, Problems] })
+    expect(engine.evaluate('system()', { resourceType: 'Patient' })).toEqual(['http://loinc.org'])
+    expect(engine.evaluate('problemSystem()', { resourceType: 'Practitioner' })).toEqual(['http://snomed.info/sct'])
+    // And projecting either one gives the same answer its column gives.
+    expect(engine.project({ resourceType: 'Patient' }, Labs).system).toBe('http://loinc.org')
+    expect(engine.project({ resourceType: 'Practitioner' }, Problems).problemSystem).toBe('http://snomed.info/sct')
   })
 
   it('several DTOs may register per fhirType; only a shared column name is a conflict', () => {
@@ -584,12 +607,13 @@ describe('analyzeDto', () => {
 
   it('declares DTO env, %rowIndex/%rowTotal, and vars in order; per-call names come via options', () => {
     class OrderRow extends defineDto('ServiceRequest', {
-      env: { waitingBadge: { label: 'Waiting' } },
       vars: {
         report: '%reports.where(orderId = %context.id).report',
         badge: 'iif(%report.exists(), %report, %waitingBadge)',
       },
     }) {
+      static env = { waitingBadge: { label: 'Waiting' } }
+
       @column('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
       id!: string
 
@@ -629,11 +653,12 @@ describe('analyzeDto', () => {
       displayText!: string | undefined
     }
     class Named extends defineDto('Condition', {
-      env: { fallback: 'Condition' },
       // The join table arrives per call, so the DTO declares only the name.
       callerEnv: ['reports'],
       vars: { report: '%reports.where(id = %context.id).first()' },
     }) {
+      static env = { fallback: 'Condition' }
+
       @column('(code.displayText() | %fallback).first()', { type: 'string', default: '' })
       name!: string
 
@@ -672,7 +697,9 @@ describe('analyzeDto', () => {
       @column('(text | coding.display.first()).first()', { type: 'string' })
       displayText!: string | undefined
     }
-    class Named extends defineDto('Condition', { env: { fallback: 'Condition' } }) {
+    class Named extends defineDto('Condition') {
+      static env = { fallback: 'Condition' }
+
       @column('(code.displayText() | %fallback | %hostVar).first()', { type: 'string', default: '' })
       name!: string
 

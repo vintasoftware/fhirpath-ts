@@ -408,8 +408,8 @@ export function expressionEntries<N>(argument: N, shape: CallSiteShape, ast: Exp
     })
   }
   if (shape === 'dto-vars') {
-    // defineDto() options: { vars: { name: 'expr' }, env: { ... } }. Only vars
-    // hold expressions; env holds data.
+    // defineDto() options: { vars: { name: 'expr' }, callerEnv: [...] }. Only
+    // vars hold expressions.
     const vars = (ast.properties(argument) ?? []).filter(({ name }) => name === 'vars')
     return vars.flatMap(({ value }) =>
       (ast.properties(value) ?? []).flatMap(({ value: expression }) => {

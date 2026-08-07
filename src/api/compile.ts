@@ -1,6 +1,7 @@
 import type { CustomFunctionSignature } from '../analyzer/signatures.ts'
 import {
   createContext,
+  envCollections,
   type EvaluationContext,
   forkVariables,
   type HostExpressionFunction,
@@ -44,10 +45,25 @@ import { LruCache } from './cache.ts'
  * expressions using the function analyze as unknown regions.
  */
 export type SingleCustomFunction =
-  | (HostNativeFunction & { signature?: CustomFunctionSignature; expression?: never; criteria?: never })
+  | (HostNativeFunction & {
+      signature?: CustomFunctionSignature
+      expression?: never
+      criteria?: never
+      /** Only an expression body reads `%name`; a native `fn` gets plain values. */
+      env?: never
+    })
   | {
       expression: AnyExpression
       signature?: CustomFunctionSignature
+      /**
+       * Environment variables the body needs that the call site does not
+       * supply — a lookup table, a system URL. They are laid over the caller's
+       * env while the body runs and are gone again after it, so a definition
+       * can carry its own data without adding a name to every expression the
+       * engine evaluates. Keyed with or without the leading `%`, like
+       * `EvaluateOptions.env`. A registered DTO's `static env` arrives here.
+       */
+      env?: Record<string, unknown>
       /**
        * Read the body's result as a criteria, so the function always returns
        * exactly one Boolean. The rule is `criteriaBoolean`: §4.5 singleton
@@ -79,6 +95,7 @@ export interface OverloadedCustomFunction {
   expression?: never
   signature?: never
   criteria?: never
+  env?: never
   minArity?: never
   maxArity?: never
 }
@@ -302,8 +319,29 @@ function hostExpressionFunction(
   return {
     ast: typeof expression === 'string' ? parse(expression) : expression.ast,
     ...(inputTypes !== undefined && { inputTypes }),
+    ...(custom.env !== undefined && { env: envOverlay(custom.env) }),
     ...(custom.criteria === true && { criteria: true }),
   }
+}
+
+/**
+ * Overlays already built, by the env record they were built from. A context
+ * factory is made per evaluation and resolves every host function, so without
+ * this a DTO's tables would be re-wrapped on every `evaluate()` — including
+ * evaluations that never call one of its columns. The record is the DTO's
+ * cached definition, one object shared by all of its columns, so the entry is
+ * reached again on the next evaluation and released with the class.
+ */
+const overlays = new WeakMap<object, ReadonlyMap<string, TypedValue[]>>()
+
+/** A definition's own env as the collections the context binds, wrapped once per record. */
+function envOverlay(env: Record<string, unknown>): ReadonlyMap<string, TypedValue[]> {
+  let overlay = overlays.get(env)
+  if (overlay === undefined) {
+    overlay = envCollections(env)
+    overlays.set(env, overlay)
+  }
+  return overlay
 }
 
 /** Default for `EngineOptions.cacheSize`, matching Firely's FhirPathCompilerCache default. */

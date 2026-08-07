@@ -70,9 +70,53 @@ type PathDecorator<Column extends { path: string }> = <This extends DtoInstance,
 ) => Checked<ColumnResult<Column, RootOf<This>>, Declared>
 
 /**
+ * The environment variables a DTO owns, declared as a `static env` field on the
+ * class — lookup tables, system URLs, anything its expressions read as `%name`,
+ * keyed with or without the leading `%`.
+ *
+ * ```ts
+ * class BadgeRow extends defineDto('Observation') {
+ *   static env = { tones: [{ code: 'final', tone: 'success' }] }
+ *
+ *   @column('%tones.where(code = %context.status).tone', { type: 'string', default: 'neutral' })
+ *   tone!: string
+ * }
+ * ```
+ *
+ * These reach this DTO's own columns and nowhere else: when the DTO is
+ * projected, and inside the body of each of its columns called as a function
+ * from another expression. Registering the DTO on an engine publishes nothing,
+ * so two DTOs may declare one name with two different values and neither
+ * shadows the other. Bind `env` on the engine to publish a variable to every
+ * expression it evaluates.
+ *
+ * A subclass adds to what its bases declare, per name — the same way it adds
+ * columns — so a shared base can own a table and each row shape override one
+ * entry of it. Annotate the base's field `DtoEnv` to write that: without the
+ * annotation TypeScript infers the base's exact record, and a subclass naming
+ * one entry does not satisfy it.
+ *
+ * ```ts
+ * class BadgedRow extends defineDto('DiagnosticReport') {
+ *   static env: DtoEnv = { unit: 'kg', label: 'Reading' }
+ * }
+ * class PoundsRow extends BadgedRow {
+ *   static override env = { unit: '[lb_av]' } // `label` still reads 'Reading'
+ * }
+ * ```
+ *
+ * A DTO that declares env once needs no annotation at all: `static env = { … }`.
+ * Write `static env = { … } satisfies DtoEnv` to have the shape checked where it
+ * is declared instead of when the DTO is first used.
+ */
+export type DtoEnv = Record<string, unknown>
+
+/**
  * The DTO class a `@column`-decorated class extends: it fixes the resource or
- * datatype the columns read — their inference root — and carries the `vars` and
- * `env` those columns need.
+ * datatype the columns read — their inference root — and carries the `vars`
+ * those columns need. The env they read is a `static env` on the class itself
+ * (see `DtoEnv`), which is deliberately not part of this type: declaring it
+ * here would make every DTO's own `static env` an override.
  */
 export type DtoBase<Root extends string> = (new () => { readonly fhirType: Root }) & { readonly fhirType: Root }
 
@@ -82,10 +126,11 @@ export type DtoClass = (new () => DtoInstance) & { readonly fhirType: string }
 /** The rows a DTO projection produces: the instance type itself, so getters and methods come along. */
 export type DtoRow<C extends DtoClass> = InstanceType<C>
 
-/** The data a DTO's columns read besides the resource itself. */
+/**
+ * The data a DTO's columns read besides the resource itself. The env the DTO
+ * owns is not here — it is a `static env` field on the class (see `DtoEnv`).
+ */
 export interface DtoOptions {
-  /** Env data the DTO owns: lookup tables, system URLs. Registered engine-wide via EngineOptions.resourceDtos, and always applied when projecting the DTO. */
-  env?: Record<string, unknown>
   /** Per-row bindings the columns read (EvaluateOptions.vars semantics; may reference per-call env). */
   vars?: Record<string, AnyExpression | readonly TypedValue[]>
   /**
@@ -104,13 +149,14 @@ export interface DtoDefinition {
   readonly fhirType: string
   /** A decorator always records an object form, so a consumer never has to handle the plain-string column. */
   readonly columns: Readonly<Record<string, ColumnSpec>>
+  /** The `static env` fields down the class chain, merged per name with the most derived winning. */
   readonly env: Record<string, unknown> | undefined
   readonly vars: Record<string, AnyExpression | readonly TypedValue[]> | undefined
   /** Env names the projecting call supplies (see DtoOptions.callerEnv). */
   readonly callerEnv: readonly string[] | undefined
 }
 
-/** The `fhirType`/`env`/`vars` a `defineDto()` base was created with, by that base class. */
+/** The `fhirType`/`vars` a `defineDto()` base was created with, by that base class. */
 const bases = new WeakMap<object, { fhirType: string } & DtoOptions>()
 
 /**
@@ -137,7 +183,7 @@ const definitions = new WeakMap<object, DtoDefinition>()
 let collecting: object | undefined
 
 /**
- * Declares the resource or datatype a DTO reads, plus the `vars`/`env` its
+ * Declares the resource or datatype a DTO reads, plus the `vars` its
  * columns need. Extend the result and declare the columns as `@column` fields:
  * `fhirType` is the context their paths infer against, so the paths stay
  * relative and each field's declared type is checked against what its
@@ -233,15 +279,67 @@ export function criteria(expr: string): unknown {
   return fieldDecorator({ test: expr })
 }
 
-/** The `defineDto()` base a class descends from, with the fhirType/env/vars it fixed. */
-function baseOf(cls: object): ({ fhirType: string } & DtoOptions) | undefined {
+/** A class and the classes it extends, most derived first. */
+function* classChain(cls: object): Generator<{ readonly name: string }> {
   for (let current: unknown = cls; typeof current === 'function'; current = Object.getPrototypeOf(current)) {
-    const base = bases.get(current as object)
+    yield current as { readonly name: string }
+  }
+}
+
+/** The `defineDto()` base a class descends from, with the fhirType/vars it fixed. */
+function baseOf(cls: object): ({ fhirType: string } & DtoOptions) | undefined {
+  for (const current of classChain(cls)) {
+    const base = bases.get(current)
     if (base !== undefined) {
       return base
     }
   }
   return undefined
+}
+
+/**
+ * The `static env` a DTO class declares, merged with the ones its bases declare
+ * — most derived last, so a row shape can override one entry of a table its
+ * base owns. Own properties only at each level, since a plain `cls.env` read
+ * would find an inherited field and count it twice. A `static get env()` is
+ * read the same way, and read once: the definition is collected once per class.
+ *
+ * Nothing declared and nothing left after merging are the same answer, so a DTO
+ * that declares an empty record carries no overlay rather than an empty one.
+ */
+function declaredEnv(cls: DtoClass): Record<string, unknown> | undefined {
+  const declared: Record<string, unknown>[] = []
+  for (const current of classChain(cls)) {
+    const own = staticEnv(current)
+    if (own !== undefined) {
+      declared.unshift(own)
+    }
+  }
+  const merged = Object.assign({}, ...declared.map(normalizeEnvKeys)) as Record<string, unknown>
+  return Object.keys(merged).length === 0 ? undefined : merged
+}
+
+/**
+ * One class's own `static env`, as a field or a getter, checked for the shape
+ * the engine can bind. Names the class that declared it, which is the one to
+ * edit even when the projected DTO is several subclasses below.
+ */
+function staticEnv(cls: { readonly name: string }): Record<string, unknown> | undefined {
+  const declared = Object.getOwnPropertyDescriptor(cls, 'env')
+  if (declared === undefined) {
+    return undefined
+  }
+  const own: unknown = declared.get === undefined ? declared.value : declared.get.call(cls)
+  if (own === undefined) {
+    return undefined
+  }
+  if (typeof own !== 'object' || own === null || Array.isArray(own)) {
+    throw new FhirPathTypeError(
+      `DTO ${cls.name} declares a static 'env' that is not a record of variables; ` +
+        'write it as { name: value }, the same shape as EvaluateOptions.env'
+    )
+  }
+  return own as Record<string, unknown>
 }
 
 /**
@@ -254,10 +352,10 @@ export function isDtoClass(value: unknown): value is DtoClass {
 }
 
 /**
- * The definition a DTO class declared: its base's `fhirType`/`env`/`vars`, and
- * every `@column`/`@criteria` field it or its bases declare. Collected by
- * instantiating the class once — field initializers are where the decorators
- * record — and cached per class, since a declaration never changes.
+ * The definition a DTO class declared: its base's `fhirType`/`vars`, its own
+ * `static env`, and every `@column`/`@criteria` field it or its bases declare.
+ * Collected by instantiating the class once — field initializers are where the
+ * decorators record — and cached per class, since a declaration never changes.
  */
 export function dtoDefinition(cls: DtoClass): DtoDefinition {
   const cached = definitions.get(cls)
@@ -294,7 +392,7 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
   const definition: DtoDefinition = {
     fhirType: base.fhirType,
     columns,
-    env: base.env,
+    env: declaredEnv(cls),
     vars: base.vars,
     callerEnv: base.callerEnv,
   }
@@ -305,8 +403,15 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
 /**
  * Fold registered DTO classes into the engine defaults: each column becomes an
  * expression-defined function (its analyzer signature derived from the column's
- * `type` when no `as`/`choices` reshapes the value), and each DTO's `env` merges
- * in.
+ * `type` when no `as`/`choices` reshapes the value), carrying its DTO's
+ * `static env` as the overlay its body reads.
+ *
+ * Registering a DTO adds function names and nothing else. The env stays the
+ * DTO's, readable inside its own columns and invisible to every other
+ * expression the engine evaluates, so two DTOs may declare one name with two
+ * different values and neither shadows the other. To publish a variable to
+ * every expression, bind it on the engine (`new FhirPathEngine({ env })`),
+ * where saying so is the point.
  *
  * A column name is scoped by the type its DTO was written for, not by the
  * engine: two DTOs may both declare a `displayText`, one for CodeableConcept and
@@ -318,17 +423,12 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
  * Names are the whole of it: how many DTOs a fhirType has is not the engine's
  * business. Several Observation DTOs — a weight row, a blood-pressure row, a lab
  * row — register side by side, and only a name two of them claim is a conflict.
- *
- * An env variable has no focus to be told apart by, so two DTOs may declare one
- * name only when they mean the same value by it, which is what sharing a lookup
- * table across DTOs does.
  */
 export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], compile: Compiler): EvaluateOptions {
   if (dtos.length === 0) {
     return defaults
   }
   const functions: Record<string, CustomFunction> = { ...defaults.functions }
-  const env: Record<string, unknown> = normalizeEnvKeys(defaults.env)
   for (const dto of dtos) {
     const definition = dtoDefinition(dto)
     for (const [name, spec] of Object.entries(definition.columns)) {
@@ -341,25 +441,13 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
       }
       functions[name] = declaredWith(
         functions[name],
-        columnFunction(spec, compile, definition.fhirType),
+        columnFunction(spec, compile, definition),
         defaults.model,
         () => `DTO ${dto.name} redefines the function '${name}'`
       )
     }
-    for (const [name, value] of Object.entries(normalizeEnvKeys(definition.env))) {
-      // Declaring one name twice is only a redefinition when the two mean
-      // different things. Two DTOs importing the same lookup table declare the
-      // same value, and that is one variable declared twice, not a conflict.
-      if (name in env && !Object.is(env[name], value)) {
-        throw new FhirPathTypeError(
-          `DTO ${dto.name} redefines the environment variable %${name} with a different value; ` +
-            'an env name has no focus to tell two declarations apart, so an engine binds one value for it'
-        )
-      }
-      env[name] = value
-    }
   }
-  return { ...defaults, functions, env }
+  return { ...defaults, functions }
 }
 
 /**
@@ -439,22 +527,35 @@ function canonicalTypes(model: ModelProvider, types: readonly string[] | undefin
 
 /**
  * Turns a column into an expression-defined function, with the signature it
- * claims and the DTO's own `fhirType` as the input it expects. A column is
- * written for one type, and calling it on anything else navigates to nothing.
+ * claims, the DTO's own `fhirType` as the input it expects, and the DTO's
+ * `static env` as the overlay its body reads. A column is written for one type,
+ * and calling it on anything else navigates to nothing.
+ *
+ * The env travels on the function so the body reads the same variables whether
+ * the column is projected or called. The DTO's `vars` cannot travel the same
+ * way — a var is an expression evaluated against a row, and a call has a focus
+ * rather than a row — which is why they apply only when the DTO is projected.
  *
  * A criteria registers with `criteria: true`, so the criteria rule travels on
  * the function itself. That is the same rule `planColumn` applies when the
  * criteria is projected, which is what lets one declaration mean one thing in
  * both places.
  */
-function columnFunction(spec: ColumnSpec, compile: Compiler, hostType: string): SingleCustomFunction {
+function columnFunction(spec: ColumnSpec, compile: Compiler, dto: DtoDefinition): SingleCustomFunction {
+  const { fhirType, env } = dto
   if ('test' in spec) {
-    return { expression: compile(spec.test), criteria: true, signature: criteriaSignature(hostType) }
+    return {
+      expression: compile(spec.test),
+      criteria: true,
+      signature: criteriaSignature(fhirType),
+      ...(env !== undefined && { env }),
+    }
   }
-  const signature = columnSignature(spec, hostType)
+  const signature = columnSignature(spec, fhirType)
   return {
     expression: compile(spec.path),
     ...(signature !== undefined && { signature }),
+    ...(env !== undefined && { env }),
   }
 }
 
@@ -480,10 +581,17 @@ export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
 }
 
 /**
- * A projected DTO's own env and vars, merged under the per-call options (per
- * name, call wins) — so precedence runs engine defaults, then DTO, then call.
- * A DTO registered via EngineOptions.resourceDtos re-applies its env here with
- * identical values, which is harmless.
+ * A projected DTO's own env laid over the per-call options, and its `vars` laid
+ * under them. The env goes over so its columns read the same data here as they
+ * do when a column is called from another expression — that overlay is the
+ * DTO's too (see `withEnvOverlay`).
+ * A name the DTO declares means the DTO's value by whichever route a column
+ * reaches it; every other name the call supplies comes through untouched, which
+ * is what `callerEnv` declares and where per-request data belongs.
+ *
+ * `vars` stay under the call: a var is reached by one route only, so there are
+ * no two answers to reconcile, and overriding one for a call is how a caller
+ * substitutes a binding.
  */
 export function dtoCallOptions(dto: DtoClass, options: EvaluateOptions | undefined): EvaluateOptions | undefined {
   const { env, vars } = dtoDefinition(dto)
@@ -492,7 +600,7 @@ export function dtoCallOptions(dto: DtoClass, options: EvaluateOptions | undefin
   }
   const merged: EvaluateOptions = { ...options }
   if (env !== undefined) {
-    merged.env = mergeEnvKeys(env, options?.env)
+    merged.env = mergeEnvKeys(options?.env, env)
   }
   if (vars !== undefined) {
     merged.vars = mergeEnvKeys(vars, options?.vars)

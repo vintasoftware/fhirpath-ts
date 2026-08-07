@@ -94,9 +94,8 @@ export interface EngineOptions extends EvaluateOptions {
   /**
    * DTO classes registered engine-wide (see `defineDto()`): every column
    * becomes an expression-defined function callable from any expression this
-   * engine evaluates, and each DTO's `env` merges into the engine env. A
-   * `@criteria` registers too and carries the criteria rule with it, so the
-   * call returns the same boolean the projected column holds.
+   * engine evaluates. A `@criteria` registers too and carries the criteria rule
+   * with it, so the call returns the same boolean the projected column holds.
    *
    * Every column declares the DTO's `fhirType` as the input it expects, so
    * calling one on a focus that can never hold that type throws instead of
@@ -107,12 +106,16 @@ export interface EngineOptions extends EvaluateOptions {
    * can describe the same value — is refused here rather than shadowed. Names
    * are the whole of the rule: several DTOs may read one fhirType (a weight row
    * and a blood-pressure row are both Observations), and only a name two of
-   * them claim is a conflict. Two DTOs may share an env name when they mean the
-   * same value by it, which is what importing one lookup table into both does.
-   * DTO `vars` are not registered —
-   * they may reference per-call env, so they apply only when projecting the
-   * DTO. A DTO you only ever project (never call into from other expressions)
-   * does not need to be listed here.
+   * them claim is a conflict.
+   *
+   * Registering adds names to the function table and nothing else. A DTO's
+   * `static env` stays the DTO's: each registered column body reads it, and no
+   * other expression sees it, so two DTOs may declare one env name with two
+   * different values. Bind `env` on the engine itself to publish a variable to
+   * every expression. DTO `vars` are not registered — they may reference
+   * per-call env, so they apply only when projecting the DTO. A DTO you only
+   * ever project (never call into from other expressions) does not need to be
+   * listed here.
    */
   resourceDtos?: readonly DtoClass[]
 }
