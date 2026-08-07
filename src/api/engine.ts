@@ -97,6 +97,14 @@ export interface EngineOptions extends EvaluateOptions {
    * engine evaluates. A `@criteria` registers too and carries the criteria rule
    * with it, so the call returns the same boolean the projected column holds.
    *
+   * Registering publishes every column of the DTO, not the one you had in
+   * mind, and each answers wherever its type turns up — reached through a
+   * Bundle, an `ofType()`, a `resolve()`, anywhere. What keeps that in bounds
+   * is the input type each column declares, which is why a `model` is required
+   * here: without one the engine cannot check a call's focus, and every
+   * registered column would answer every call. A DTO you only project needs no
+   * registration and no model.
+   *
    * Every column declares the DTO's `fhirType` as the input it expects, so
    * calling one on a focus that can never hold that type throws instead of
    * navigating to nothing. That is also what scopes the name: two DTOs may both

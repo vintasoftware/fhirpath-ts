@@ -428,6 +428,17 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
   if (dtos.length === 0) {
     return defaults
   }
+  const { model } = defaults
+  if (model === undefined) {
+    // Every guarantee registration makes is the model's: which focus a column
+    // answers on, and whether two columns sharing a name can be told apart.
+    // Without one, each registered column would answer every call.
+    throw new FhirPathTypeError(
+      `Registering DTOs (${dtos.map(dto => dto.name).join(', ')}) needs a model; ` +
+        'a column is written for one type, and without a model the engine cannot check a call against it. ' +
+        'Pass model to the engine, or project the DTO without registering it.'
+    )
+  }
   const functions: Record<string, CustomFunction> = { ...defaults.functions }
   for (const dto of dtos) {
     const definition = dtoDefinition(dto)
@@ -442,7 +453,7 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
       functions[name] = declaredWith(
         functions[name],
         columnFunction(spec, compile, definition),
-        defaults.model,
+        model,
         () => `DTO ${dto.name} redefines the function '${name}'`
       )
     }
@@ -460,7 +471,7 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
 function declaredWith(
   existing: CustomFunction | undefined,
   column: SingleCustomFunction,
-  model: ModelProvider | undefined,
+  model: ModelProvider,
   blamed: () => string
 ): CustomFunction {
   if (existing === undefined) {
@@ -489,14 +500,7 @@ function declaredWith(
  * whether two declarations may collide. Both err toward saying yes, which is
  * the safe direction in each case.
  */
-function indistinguishable(
-  model: ModelProvider | undefined,
-  a: SingleCustomFunction,
-  b: SingleCustomFunction
-): string | undefined {
-  if (model === undefined) {
-    return 'without a model bound, the engine cannot tell two declarations apart by their focus'
-  }
+function indistinguishable(model: ModelProvider, a: SingleCustomFunction, b: SingleCustomFunction): string | undefined {
   const wanted = canonicalTypes(model, a.signature?.input?.types)
   const claimed = canonicalTypes(model, b.signature?.input?.types)
   if (wanted === undefined || claimed === undefined) {
