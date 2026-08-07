@@ -160,9 +160,17 @@ A focus none of them accepts is one error naming all of them.
 What `withDtos` refuses is a name whose declarations a call could *not* tell
 apart, since that is what shadowing actually is: a `Quantity` column beside a
 `SimpleQuantity` one, two DTOs on one fhirType claiming the same field name,
-anything beside a host function that accepts every focus, or any pair at all on
-an engine with no model to compare types with. The refusal is at construction
-and names the field, so it is never a mystery at evaluation.
+anything beside a host function that accepts every focus. The refusal is at
+construction and names the field, so it is never a mystery at evaluation.
+
+Registering requires a model, refused in `withDtos` before any name is compared.
+A model is what decides which focus a column answers on, and whether two columns
+sharing a name can be told apart. Without one, `unsatisfiedInput` is silent and
+every registered column answers every call, so the check the rest of the design
+relies on stops reporting anything. This is also why `indistinguishable` takes a
+`ModelProvider` rather than an optional one; do not add an undefined-model branch
+back there, since nothing can reach it. Projection is untouched: a DTO nobody
+calls into needs neither registration nor a model.
 
 Names are the whole of the rule. There used to be a one-DTO-per-fhirType check
 on top of it, from before columns declared their input type; it refused a second
@@ -218,7 +226,6 @@ because reporting valid code is worse than missing a mistake. It says nothing
 about any of these:
 
 - an empty focus, which is the spec's own empty propagation
-- no model bound
 - a focus type the model has never heard of, which is the `Object` placeholder
   carried by plain env data, a pre-resolved `%var`, and a datatype root
 - a declared name the model rejects
