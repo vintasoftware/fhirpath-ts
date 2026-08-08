@@ -29,6 +29,10 @@ There are two source walkers because their callers receive different ASTs:
 TypeScript out of runtime dependencies and lets Monaco use the compiler already
 inside its worker.
 
+An older implementation also had a TypeScript-free lexical scanner. It was
+deleted after the demo moved extraction into Monaco's TypeScript worker. Do not
+add a third walker unless a real consumer cannot supply either supported AST.
+
 Keep decisions shared between the walkers in
 `src/analyzer/expression-policy.ts`: call names, expression argument positions,
 receiver checks, tag checks, DTO roots, site context, and expression shapes. A

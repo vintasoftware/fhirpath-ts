@@ -189,8 +189,9 @@ the stateless evaluator navigates plain JSON.
 
 ## Options
 
-Engine construction and evaluation calls share these options. Per-call values
-replace engine defaults, except `env` and `functions`, which merge by name.
+Engine construction and evaluation calls share most options. Per-call values
+replace engine defaults, except `env`, `vars`, and `functions`, which merge by
+name.
 
 | Option | Meaning |
 | --- | --- |
@@ -202,6 +203,10 @@ replace engine defaults, except `env` and `functions`, which merge by name.
 | `functions` | Host or expression-defined functions |
 | `regex` | Regular expression implementation |
 | `cacheSize` | Engine parse-cache capacity; construction only |
+| `type` | Compile-time result declaration for `evaluate()` or `first()`; per-call only |
+
+Use `type` when an expression is outside TypeScript's inference subset. It does
+not perform a runtime check and cannot be set as an engine default.
 
 ### `env` and `vars`
 
@@ -233,7 +238,7 @@ During projection, variables are evaluated once per row. `%context`,
 Pass `now` when tests or application logic need repeatable answers:
 
 ```ts
-fp.test(patient, 'birthDate <= today()', {
+r4.test(patient, 'birthDate <= today()', {
   now: new Date('2026-08-04T12:00:00Z'),
 })
 ```
@@ -280,12 +285,15 @@ checking after a later `as()` or `ofType()` narrows it.
 ### Expression-defined functions
 
 Use `expression` instead of `fn` for a zero-argument function written in
-FHIRPath:
+FHIRPath. It accepts a string or a compiled expression. Compiling with an input
+type lets static checking validate the relative path:
 
 ```ts
+import { compile, type CustomFunction } from 'fhirpath-ts'
+
 const functions = {
   displayText: {
-    expression: '(text | coding.display.first() | coding.first().code).first()',
+    expression: compile('(text | coding.display.first() | coding.first().code).first()', 'CodeableConcept'),
     signature: {
       input: { types: ['CodeableConcept'] },
       result: { types: ['System.String'], single: true },
@@ -302,9 +310,11 @@ Set `criteria: true` when the function should always return one boolean using
 the same rules as `test()`:
 
 ```ts
+import { compile, type CustomFunction } from 'fhirpath-ts'
+
 const functions = {
   isFinal: {
-    expression: "status = 'final'",
+    expression: compile("status = 'final'", 'Observation'),
     criteria: true,
   },
 } satisfies Record<string, CustomFunction>
@@ -447,8 +457,8 @@ part of a record. An inferred literal type may otherwise require every base key.
 Filter a mixed search Bundle before projecting it:
 
 ```ts
-const patients = fp.filter(searchset, '$this is Patient')
-const rows = fp.project(patients, PatientRow)
+const patients = r4.filter(searchset, '$this is Patient')
+const rows = r4.project(patients, PatientRow)
 ```
 
 This prevents a well-typed row filled only with defaults when the input resource
