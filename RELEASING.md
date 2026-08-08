@@ -159,13 +159,12 @@ DTO registering an engine in that copy of the library is invisible to a checker
 running from `src`: the symptom is `fhirpath-check` reporting a DTO module that
 "export[s] no DTO class", with an exit code of 0.
 
-The first condition in every `exports` entry points at `src` to fix that, and four
-places opt into it:
+The first condition in every `exports` entry points at `src` to fix that, and
+three places opt into it:
 
 | Where | How |
 | --- | --- |
 | `tsconfig.json` | `customConditions: ["fhirpath-ts-source"]` |
-| `vitest.config.ts` | `resolve.conditions` |
 | `check:fhirpath` script | `node --conditions=fhirpath-ts-source` |
 | `fhirpath-check.test.ts`, `patient-view-mappers.test.ts` | `--conditions=` on the spawned CLI |
 
@@ -174,6 +173,18 @@ for them, and no tool asks for this one by default — unlike `development`, whi
 Vite enables in dev and which would silently hand consumers raw `.ts` source. If a
 new place starts importing the library by name and sees a second copy of the
 engine, this condition is the thing it is missing.
+
+**Vitest is the exception**: it hands bare specifiers to Node to resolve, and Node
+knows nothing of Vite's conditions, so `vitest.config.ts` carries `resolve.alias`
+entries instead. A condition there looks like it works as long as a stale `dist`
+happens to exist — the tests read it, and an `analyzeEngineDtos(engine)` sweep
+against a registry that never saw that engine reports no problems for the wrong
+reason.
+
+The check that actually settles either mechanism is to delete `dist` and run the
+gates: `pnpm run clean && pnpm typecheck && pnpm coverage && pnpm check:fhirpath`.
+Anything reaching for the built output fails outright instead of passing quietly,
+which is also the order CI runs them in — `build` comes after `coverage`.
 
 `pnpm build` does not use the condition: nothing under `src` imports the package
 by name, and the build compiles `src` directly.

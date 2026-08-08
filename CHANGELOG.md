@@ -16,10 +16,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Fixed
 
-- `fhirpath-check` found no DTOs in this repo's own `dogfood/` directory. Modules
-  that import the library by package name self-resolve through `exports`, so they
-  loaded a second copy of the library whose engine registry the checker could not
-  see. See "The `fhirpath-ts-source` condition" in
+- `fhirpath-check` found no DTOs in this repo's own `dogfood/` directory, and the
+  `analyzeEngineDtos` sweep over them reported no problems whatever the DTOs said.
+  Modules that import the library by package name self-resolve through `exports`,
+  so they loaded a second copy of the library whose registries the code under test
+  had not populated. See "The `fhirpath-ts-source` condition" in
   [RELEASING.md](RELEASING.md).
 
 ### Changed

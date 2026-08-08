@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+
 import ts from 'typescript'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
@@ -40,14 +42,33 @@ function lowerDecorators(): Plugin {
   }
 }
 
+/**
+ * `dogfood` imports the library by package name, the way a consumer does, which
+ * resolves through this package.json's own `exports` — and those name `dist`. So
+ * the tests would read the built output: a *second* copy of the library, whose
+ * function and engine registries are not the ones the code under test populated.
+ * `analyzeEngineDtos(engine)` against a stranger's registry answers "no problems"
+ * for the wrong reason, and with no `dist` built at all the import just fails.
+ *
+ * Aliases rather than the `fhirpath-ts-source` export condition that
+ * tsconfig.json and `check:fhirpath` use: Vitest hands bare specifiers to Node to
+ * resolve, and Node knows nothing of Vite's conditions. An alias rewrites the
+ * specifier before that decision is made. Longest specifier first — matching is
+ * top-to-bottom.
+ */
+const entry = (path: string): string => fileURLToPath(new URL(`./src/${path}`, import.meta.url))
+
 export default defineConfig({
   plugins: [lowerDecorators()],
-  // `dogfood` imports the library by package name, which resolves through this
-  // package.json's own `exports` — and those name `dist`. Without this condition
-  // the tests would load a *second* copy of the library from the built output,
-  // one whose engine registry the code under test cannot see. See the same
-  // condition in tsconfig.json and in the `check:fhirpath` script.
-  resolve: { conditions: ['fhirpath-ts-source'] },
+  resolve: {
+    alias: [
+      { find: 'fhirpath-ts/analyzer', replacement: entry('analyzer/index.ts') },
+      { find: 'fhirpath-ts/sites', replacement: entry('sites/index.ts') },
+      { find: 'fhirpath-ts/eslint', replacement: entry('eslint/index.ts') },
+      { find: 'fhirpath-ts/r4', replacement: entry('r4/index.ts') },
+      { find: 'fhirpath-ts', replacement: entry('index.ts') },
+    ],
+  },
   test: {
     name: 'fhirpath',
     globals: true,
