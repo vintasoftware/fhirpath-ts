@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json.schemastore.org/tsconfig",
+  // The published build: `src` compiled to `dist` by tsc alone, one output file
+  // per input file. No bundler, so what a consumer steps into matches the
+  // source tree, and `dist/cli/ts-loader.mjs` stays a real file the CLI can
+  // hand to Node's `register`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+
+    // Resolve and emit the way Node will read the result, not the way the
+    // repo's own bundler-ish tooling reads the source. This is what makes the
+    // build a check on the published shape and not only on the types.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    // Source imports carry `.ts` extensions; this rewrites them to `.js` in the
+    // emitted JavaScript and declarations.
+    "rewriteRelativeImportExtensions": true,
+
+    // Vitest globals belong to the tests, which this build does not compile.
+    "types": ["node"],
+
+    // Both map kinds point at `../src/*.ts`, and the tarball ships `src`
+    // alongside `dist` (see `files` in package.json) so they resolve: stack
+    // traces land on the real source, and go-to-definition on a type walks into
+    // it rather than stopping at the .d.ts. Sources are *not* inlined — the
+    // shipped `src` is the one copy.
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    // JSDoc is the API documentation consumers read in their editor.
+    "removeComments": false
+  },
+  // `dogfood` is in the root config's `include` for typechecking; it is not part
+  // of the package.
+  "include": ["src/**/*.ts", "src/**/*.mjs"],
+  "exclude": ["**/*.test.ts", "src/testing/**"]
+}

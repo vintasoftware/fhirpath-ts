@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -61,6 +62,20 @@ jobs:
       # actually measures coverage, so the test step runs `pnpm coverage`.
       - name: Test (with coverage thresholds)
         run: pnpm coverage
+
+      # `pnpm typecheck` reads the source the way the repo's own tooling does
+      # (bundler resolution, `.ts` imports, tests included). The build resolves
+      # and emits the way Node will read the published result, so it catches a
+      # different class of problem — and it is what `bin` and `exports` point at.
+      - name: Build
+        run: pnpm build
+
+      # Packaging is easy to break from a distance: a moved entry point, a new
+      # `files` pattern, a dependency that only ever existed as a devDependency.
+      # publint checks the manifest against the tarball; attw resolves every
+      # entry point's types the way a consumer's TypeScript will.
+      - name: Check published package shape
+        run: pnpm check:package
 
   # The demo is its own npm project, so the root install and `pnpm typecheck`
   # (which covers `src` only) never reach it. Its own job does.

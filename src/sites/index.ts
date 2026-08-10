@@ -3,7 +3,12 @@
  * which keeps this entry point free of runtime dependencies. The ESLint rule has
  * a separate ESTree walker that uses the same expression policy.
  */
-import type * as TS from 'typescript'
+// A default import, not `* as TS`. Under Node's ESM resolution a namespace
+// import of `typescript` (a CommonJS `export =` module) carries a synthetic
+// `default` property that a caller's own `import ts from 'typescript'` does not,
+// so `typeof TS` would reject the very value callers pass. The default form
+// names the same namespace — `TS.Node` still resolves — and accepts both.
+import type TS from 'typescript'
 
 import {
   CALL_SITES,

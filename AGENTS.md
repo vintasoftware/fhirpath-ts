@@ -193,3 +193,19 @@ budget increase in the same change.
 
 The demo has its own typecheck. Files under `demo/src/monaco/*.d.ts` are
 generated; run `npm run generate:dts` in `demo/` after a public API change.
+
+`pnpm build` and `pnpm check:package` are package gates, and they catch a different
+class of problem than `pnpm typecheck` does. The build compiles under
+`nodenext` resolution — the way Node reads the published output — where the
+root config uses bundler resolution; `check:package` resolves every entry point's
+types and executes the installed tarball and CLI as a consumer. An import that
+only ever existed as a `devDependency` passes typecheck and fails here. See
+[RELEASING.md](RELEASING.md) for what the published tarball contains and why
+`sideEffects` is an allowlist rather than `false`.
+
+The checked-in `main`, `types`, `exports`, and `bin` fields point at `src` so
+repository self-references never load a second copy from `dist`.
+`publishConfig` mirrors those entry-point keys with paths under `dist`; pnpm
+rewrites them into the tarball manifest. Keep the key-parity assertion in
+`scripts/check-package.ts`, and pack with pnpm rather than npm. npm does not apply
+these overrides.

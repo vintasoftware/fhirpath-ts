@@ -1,0 +1,75 @@
+# Publishes to npm when a `v*` tag is pushed.
+#
+# Nothing here trusts the tag on its own: the full gate suite runs first, the tag
+# has to match the version in package.json, and the tarball is inspected before
+# it is sent. The publish step uses npm's OIDC trusted publishing, so there is no
+# long-lived npm token in this repository's secrets — see RELEASING.md for the
+# one-time setup on npmjs.com.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Reuse the complete PR workflow against the exact tagged commit. A tag can be
+  # pushed to a commit CI never saw, so this is not redundant.
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: read
+      # Mints the short-lived token used by npm trusted publishing.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # A tag that disagrees with package.json would publish a version nobody
+      # asked for, under a git ref that does not describe it.
+      - name: Check the tag matches the package version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME implies version $tag_version, but package.json says $pkg_version"
+            exit 1
+          fi
+          echo "Publishing version $pkg_version"
+
+      - name: Build
+        run: pnpm build
+
+      # Fail before publishing rather than after, and leave the file list in the
+      # run's log so what went out is auditable after the fact.
+      - name: Check published package shape
+        run: pnpm check:package -- --output "$RUNNER_TEMP/fhirpath-ts.tgz"
+
+      - name: List the validated tarball
+        run: node node_modules/npm/bin/npm-cli.js publish "$RUNNER_TEMP/fhirpath-ts.tgz" --dry-run --ignore-scripts
+
+      # Publish the exact bytes checked above. `--ignore-scripts` prevents a
+      # lifecycle hook from rebuilding them at publish time.
+      - name: Publish to npm
+        run: node node_modules/npm/bin/npm-cli.js publish "$RUNNER_TEMP/fhirpath-ts.tgz" --ignore-scripts
