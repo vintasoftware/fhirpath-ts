@@ -6,10 +6,12 @@
   "description": "Client-only playground for fhirpath-ts, deployable to Cloudflare Pages.",
   "scripts": {
     "generate:dts": "node scripts/generate-dts.mjs",
-    "predev": "npm run generate:dts",
+    "predev": "node scripts/generate-dts.mjs",
     "dev": "vite",
+    "pretest": "node scripts/generate-dts.mjs",
+    "test": "node --test scripts/playground-samples.test.mjs",
     "typecheck": "tsc --noEmit -p .",
-    "prebuild": "npm run generate:dts",
+    "prebuild": "node scripts/generate-dts.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "wrangler pages deploy dist --project-name fhirpath-ts-demo"

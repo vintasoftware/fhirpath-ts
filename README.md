@@ -139,56 +139,15 @@ const result = r4.checkConstraints(patient, [
   },
 ])
 
-result.valid
-result.issues
-result.toOperationOutcome()
-```
-
-### Project a DTO
-
-```ts
-class MedicationRow extends defineDto('MedicationRequest') {
-  @column('id', { default: '' })
-  id!: string
-
-  @column(
-    '(medication.ofType(CodeableConcept).select(text | coding.display.first()) | medication.ofType(Reference).display).first()',
-    { default: 'Medication' },
-  )
-  name!: string
-
-  @criteria("status = 'active'")
-  active!: boolean
-}
-
-const medicationRows = r4.project(requests, MedicationRow)
-```
-
-DTO fields are scalar by default. More than one result is an error. Use
-`first()` in the expression or `{ collection: true }` for an array field.
-
-### Display text with fallbacks
-
-A union tries alternatives in order. `first()` chooses the first value:
-
-```ts
-r4.first(
-  'Condition.code.select(text | coding.display.first() | coding.first().code).first()',
-  condition,
-  { type: 'string' },
-)
-
-r4.first(
-  "(Patient.name.where(use = 'official') | Patient.name).first().select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))",
-  patient,
-  { type: 'string' },
-)
+result.valid // true
+result.issues // []
+result.toOperationOutcome() // { resourceType: 'OperationOutcome', issue: [{ severity: 'information', ... }] }
 ```
 
 ### Convert quantities
 
-Known UCUM units compare and convert automatically. Unknown units can still
-compare with the same unit.
+Known [UCUM](https://ucum.org/ucum) units compare and convert automatically.
+Unknown units can still compare with the same unit.
 
 ```ts
 r4.filter(observations, "value.ofType(Quantity) > 140 'mm[Hg]'")
@@ -208,7 +167,7 @@ const STATUS_CHOICES = [
   { code: 'resolved', label: 'Resolved', tone: 'neutral' },
 ] as const
 
-r4.project(conditions, {
+const statusRows = r4.project(conditions, {
   label: {
     path: 'Condition.clinicalStatus.coding.first().code',
     choices: STATUS_CHOICES,
@@ -222,6 +181,8 @@ r4.project(conditions, {
     default: 'neutral' as const,
   },
 })
+
+statusRows // [{ label: 'Active', tone: 'info' }, ..., { label: 'Unknown', tone: 'neutral' }]
 ```
 
 ### Join related resources
@@ -260,6 +221,9 @@ r4.evaluate(
 
 ### Walk nested structures
 
+`repeat(item)` follows every nested `item` collection and returns the items at
+all depths, so this reads each questionnaire item's `linkId`.
+
 ```ts
 r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)
 ```
@@ -279,12 +243,12 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
 })
 ```
 
-## Important details
+## Important gotchas
 
 - FHIRPath always evaluates collections. Use `first()` when application code
   expects one optional value.
-- Unknown elements evaluate to an empty collection, as they do in the reference
-  engines. Use static checking to catch misspellings before runtime.
+- Unknown elements evaluate to an empty collection, as they do in other
+  engines. Use [static checking](#static-checking) to catch misspellings before runtime.
 - Use choice stems such as `Observation.value`, not JSON keys such as
   `valueQuantity`. The analyzer reports the latter as an error.
 - A bare search Bundle is treated as its entry resources for application helpers.
@@ -294,10 +258,6 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
   `%var` when a join condition needs the outer resource.
 - `env` contains plain host values. `vars` contains FHIRPath expressions evaluated
   against the input and keeps FHIRPath type information.
-- `project()` creates view data. It is not a replacement for StructureMap or the
-  FHIR Mapping Language.
-- The engine is synchronous. External reference resolution and terminology calls
-  need the deferred async API described below.
 
 ## Static checking
 
@@ -333,7 +293,7 @@ and intentional difference has a checked manifest entry with its reason.
 
 Property tests cover parser round trips, decimal arithmetic, and temporal
 comparisons. Generated expressions are also compared with fhirpath.js. A weekly
-job checks for changes in the upstream official suite.
+job checks for changes in the upstream official suite (FHIR/fhir-test-cases).
 
 See [Conformance](docs/conformance.md) for counts, skip categories, phase checks,
 reference-suite results, and test maintenance. See
@@ -344,8 +304,7 @@ comparison with other implementations.
 
 Package code is part of this private repository. Third-party material and full
 license texts are collected in
-[`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md). Include that file in any
-future npm package or open-source distribution.
+[`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md).
 
 - The parser structure is adapted from Medplum (Apache-2.0).
 - Official FHIRPath tests come from FHIR/fhir-test-cases (Apache-2.0 and FHIR CC0
@@ -384,8 +343,8 @@ are easy to break during maintenance.
 The package currently ships only an R4 model. The engine is synchronous. Tagged
 templates remain untyped because TypeScript does not preserve their literal type
 ([TypeScript #33304](https://github.com/microsoft/TypeScript/issues/33304)); use
-`fhirpath('...')` or `compile('...')` for inference. Regex evaluation of
-user-authored expressions needs the security setup below.
+`fhirpath('...')` or `compile('...')` for inference in strings.
+Regex evaluation of user-authored expressions needs the security setup below.
 
 These features are deferred and fail with a clear error today:
 
@@ -401,7 +360,7 @@ These features are deferred and fail with a clear error today:
 | Full UCUM | A full UCUM implementation behind the current interface |
 | R5 model package | Generated R5 definitions and types |
 
-## Security
+## Security guidelines
 
 ### Expression trust
 

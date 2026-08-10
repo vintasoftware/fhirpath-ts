@@ -36,11 +36,10 @@ const documentation: readonly DocumentExpectation[] = [
   {
     path: 'README.md',
     fences: [
-      valid(),
-      valid('Patient.name.given'),
       valid('Patient.name.given', 'Patient.name.family', 'Patient.active = true', 'Patient.name.family'),
       valid('%threshold + 1'),
       valid('id', "name.where(use = 'official').first().family", 'active = true'),
+      valid('(text | coding.display.first() | coding.first().code).first()', 'Condition.code.displayText()'),
       valid(
         'Patient.name.given',
         'Patient.name.family',
@@ -49,15 +48,6 @@ const documentation: readonly DocumentExpectation[] = [
         'Observation.sort(-(effective.ofType(dateTime) | issued).first())'
       ),
       valid('contact.all(name.exists() or telecom.exists())'),
-      valid(
-        'id',
-        '(medication.ofType(CodeableConcept).select(text | coding.display.first()) | medication.ofType(Reference).display).first()',
-        "status = 'active'"
-      ),
-      valid(
-        'Condition.code.select(text | coding.display.first() | coding.first().code).first()',
-        "(Patient.name.where(use = 'official') | Patient.name).first().select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))"
-      ),
       valid(
         "value.ofType(Quantity) > 140 'mm[Hg]'",
         "value.ofType(Quantity).convertsToQuantity('kg')",
@@ -68,6 +58,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid('Bundle.entry.resource.ofType(Observation).subject.resolve().name.family'),
       valid('Questionnaire.repeat(item).linkId'),
       valid('birthDate <= today()', "Patient.name.trace('names').given"),
+      valid('Patient.name.given'),
     ],
   },
   {

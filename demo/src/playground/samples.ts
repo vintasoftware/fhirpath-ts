@@ -54,7 +54,7 @@ analyzeExpression('Observation.valueQuantity', { inputType: 'Observation' })
 const patient = {
   resourceType: 'Patient' as const,
   name: [{ family: 'Okoro', given: ['Adaeze', 'Ngozi'] }],
-  telecom: [{ system: 'phone', value: '+1-555-0142' }],
+  telecom: [{ system: 'phone' as const, value: '+1-555-0142' }],
   birthDate: '1984-11-02',
 }
 

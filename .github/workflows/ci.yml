@@ -87,6 +87,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck --prefix demo
 
+      - name: Test editor samples
+        run: npm test --prefix demo
+
       # `prebuild` rolls demo/src/monaco/*.d.ts up from the library's current
       # types, so this also covers the declarations the playground feeds Monaco.
       - name: Build
