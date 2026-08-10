@@ -34,38 +34,18 @@
     "./dist/cli/*.js",
     "./src/cli/*.ts"
   ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
-    ".": {
-      "fhirpath-ts-source": "./src/index.ts",
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./r4": {
-      "fhirpath-ts-source": "./src/r4/index.ts",
-      "types": "./dist/r4/index.d.ts",
-      "default": "./dist/r4/index.js"
-    },
-    "./analyzer": {
-      "fhirpath-ts-source": "./src/analyzer/index.ts",
-      "types": "./dist/analyzer/index.d.ts",
-      "default": "./dist/analyzer/index.js"
-    },
-    "./eslint": {
-      "fhirpath-ts-source": "./src/eslint/index.ts",
-      "types": "./dist/eslint/index.d.ts",
-      "default": "./dist/eslint/index.js"
-    },
-    "./sites": {
-      "fhirpath-ts-source": "./src/sites/index.ts",
-      "types": "./dist/sites/index.d.ts",
-      "default": "./dist/sites/index.js"
-    },
+    ".": "./src/index.ts",
+    "./r4": "./src/r4/index.ts",
+    "./analyzer": "./src/analyzer/index.ts",
+    "./eslint": "./src/eslint/index.ts",
+    "./sites": "./src/sites/index.ts",
     "./package.json": "./package.json"
   },
   "bin": {
-    "fhirpath-check": "./dist/cli/fhirpath-check.js"
+    "fhirpath-check": "./src/cli/fhirpath-check.ts"
   },
   "files": [
     "dist",
@@ -75,14 +55,42 @@
     "THIRD-PARTY-NOTICES.md"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./r4": {
+        "types": "./dist/r4/index.d.ts",
+        "default": "./dist/r4/index.js"
+      },
+      "./analyzer": {
+        "types": "./dist/analyzer/index.d.ts",
+        "default": "./dist/analyzer/index.js"
+      },
+      "./eslint": {
+        "types": "./dist/eslint/index.d.ts",
+        "default": "./dist/eslint/index.js"
+      },
+      "./sites": {
+        "types": "./dist/sites/index.d.ts",
+        "default": "./dist/sites/index.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "bin": {
+      "fhirpath-check": "./dist/cli/fhirpath-check.js"
+    }
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "check:type-perf": "node scripts/check-type-perf.ts",
-    "check:package": "node scripts/check-package.mjs",
+    "check:package": "node scripts/check-package.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
@@ -90,7 +98,7 @@
     "lint:fix": "eslint --fix . && prettier --write .",
     "format": "prettier --write .",
     "generate:r4": "node scripts/generate-r4-model.ts",
-    "check:fhirpath": "node --conditions=fhirpath-ts-source src/cli/fhirpath-check.ts",
+    "check:fhirpath": "node src/cli/fhirpath-check.ts",
     "prepack": "pnpm run build",
     "prepare": "husky"
   },

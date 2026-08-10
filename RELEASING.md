@@ -115,7 +115,8 @@ its own. Everything else in the repo (`demo`, `dogfood`, `benchmarks`,
 To see the exact list without publishing:
 
 ```sh
-pnpm build && npm pack --dry-run --ignore-scripts
+pnpm build
+pnpm pack --config.ignore-scripts=true --dry-run
 ```
 
 `src` is in the tarball for the sourcemaps only: `dist/*.js.map` and
@@ -126,8 +127,9 @@ and nothing else, so `fhirpath-ts/src/anything` is blocked.
 
 ### Checking the tarball for real
 
-`pnpm check:package` packs once, then sends that exact tarball through two static
-validators:
+`pnpm check:package` packs once with pnpm, which applies the dist-facing
+`publishConfig` fields described below, then sends that exact tarball through two
+static validators:
 
 - **publint** — the manifest against the tarball: entry points that point at
   files that are not there, wrong `types` order, missing `files`.
@@ -171,45 +173,26 @@ The package is **ESM-only**. `engines.node` is `>=22`, so `require()` of it work
 on Node 22.12 and later through `require(esm)`; older 22.x and any CJS bundler
 that does not support it need a dynamic `import()`.
 
-### The `fhirpath-ts-source` condition
+### Source and published manifests
 
-`dogfood/` and the CLI's test fixtures import the library **by package name**, the
-way a consumer does. Node and TypeScript both resolve that through this
-package.json's own `exports` — a package can self-reference its own name — and
-those entries name `dist`. So the repo would read its own built output, and a
-DTO registering an engine in that copy of the library is invisible to a checker
-running from `src`: the symptom is `fhirpath-check` reporting a DTO module that
-"export[s] no DTO class", with an exit code of 0.
+The top-level `main`, `types`, `exports`, and `bin` fields point at `src`. That is
+the manifest the repository uses: package-name self-references in `dogfood/`, the
+CLI fixtures, TypeScript, and Vitest all load the same source modules without a
+custom export condition or alias table, and no local gate can accidentally read
+a stale `dist` tree.
 
-The first condition in every `exports` entry points at `src` to fix that, and
-three places opt into it:
+`publishConfig` carries the dist-facing versions of those fields. pnpm rewrites
+the manifest inside the tarball when it packs, so consumers see JavaScript and
+declarations under `dist`; the checked-in `package.json` remains source-facing.
+The package check requires the source and published export maps to have identical
+keys before packing, then publint, attw, and the temporary consumer validate the
+rewritten manifest.
 
-| Where | How |
-| --- | --- |
-| `tsconfig.json` | `customConditions: ["fhirpath-ts-source"]` |
-| `check:fhirpath` script | `node --conditions=fhirpath-ts-source` |
-| `fhirpath-check.test.ts`, `patient-view-mappers.test.ts` | `--conditions=` on the spawned CLI |
-
-The name is deliberately unlovely. Condition names are only active if a tool asks
-for them, and no tool asks for this one by default — unlike `development`, which
-Vite enables in dev and which would silently hand consumers raw `.ts` source. If a
-new place starts importing the library by name and sees a second copy of the
-engine, this condition is the thing it is missing.
-
-**Vitest is the exception**: it hands bare specifiers to Node to resolve, and Node
-knows nothing of Vite's conditions, so `vitest.config.ts` carries `resolve.alias`
-entries instead. A condition there looks like it works as long as a stale `dist`
-happens to exist — the tests read it, and an `analyzeEngineDtos(engine)` sweep
-against a registry that never saw that engine reports no problems for the wrong
-reason.
-
-The check that actually settles either mechanism is to delete `dist` and run the
-gates: `pnpm run clean && pnpm typecheck && pnpm coverage && pnpm check:fhirpath`.
-Anything reaching for the built output fails outright instead of passing quietly,
-which is also the order CI runs them in — `build` comes after `coverage`.
-
-`pnpm build` does not use the condition: nothing under `src` imports the package
-by name, and the build compiles `src` directly.
+This rewrite is a pnpm feature: `npm pack` leaves the source-facing fields alone.
+Every release tarball must therefore be created with the lockfile-pinned pnpm.
+The package check uses `pnpm pack --config.ignore-scripts=true` so it preserves
+the build it was given instead of running `prepack` and silently replacing the
+bytes that were about to be validated.
 
 `sideEffects` is an allowlist, not `false`. `src/functions/*` register themselves
 into the function registry at module scope and are imported for that effect
@@ -235,6 +218,20 @@ extra. When a new external import shows up in shipped source, it belongs in
 `dependencies` or `peerDependencies` — a `devDependency` will resolve locally and
 in CI and then fail for consumers. `pnpm check:package` catches the cases that
 reach a published `.d.ts`.
+
+## Pinned release tools
+
+`packageManager` pins pnpm 10.33 because the release depends on pnpm's
+`publishConfig` manifest rewrite. The exact `npm@11.11.0` devDependency is a
+separate deliberate pin: npm trusted publishing requires npm 11.5.1 or newer,
+while the npm bundled with a runner's Node release can be older or change without
+this repository's lockfile changing.
+
+The `node node_modules/npm/bin/npm-cli.js` commands in this document and the
+release workflow deliberately invoke that lockfile-installed npm. Do not replace
+them with plain `npm publish` unless the workflow supplies and verifies a suitable
+npm version. pnpm creates the tarball; the pinned npm client installs it in the
+package check and publishes those exact validated bytes in the release job.
 
 ## Why publishing only works from CI
 

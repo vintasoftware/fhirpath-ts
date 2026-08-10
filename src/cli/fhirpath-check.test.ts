@@ -11,11 +11,7 @@ describe('fhirpath-check CLI', () => {
   function run(args: string[], cwd?: string): { status: number; output: string } {
     // The file half needs no imports; every test that only checks literals passes
     // --no-import so a stray *.dto.ts in the working directory cannot affect it.
-    // `--conditions` resolves a fixture's `fhirpath-ts` import to `src`, which is
-    // where this CLI runs from. Through the package's published `exports` it
-    // would reach `dist` instead, and a DTO registering its engine in that second
-    // copy of the library is invisible to the checker in this one.
-    const result = spawnSync(process.execPath, ['--conditions=fhirpath-ts-source', cli, ...args], {
+    const result = spawnSync(process.execPath, [cli, ...args], {
       encoding: 'utf8',
       ...(cwd !== undefined && { cwd }),
     })
