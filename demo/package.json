@@ -8,6 +8,8 @@
     "generate:dts": "node scripts/generate-dts.mjs",
     "predev": "npm run generate:dts",
     "dev": "vite",
+    "pretest": "npm run generate:dts",
+    "test": "node --test scripts/playground-samples.test.mjs",
     "typecheck": "tsc --noEmit -p .",
     "prebuild": "npm run generate:dts",
     "build": "vite build",
