@@ -3,7 +3,8 @@
 > Status: **plan only, not scheduled**. This replaces PR #15's July plan with a
 > design based on current `main`. The implementation is one PR, split into green
 > commits in the order below. Keep this document current through its Amendments
-> section once implementation starts.
+> section once implementation starts. Revalidated against `main` at `c678abc`
+> on 2026-08-10.
 
 ## What users gain
 
@@ -62,6 +63,10 @@ Since PR #15 was opened, `main` has already landed work that this plan must reus
 - Analyzer tracking for lambda states, variable scopes, reference targets,
   custom-function overloads, and result-dependent functions such as `select`,
   `union`, and `iif`.
+- User-facing API documentation now lives in `docs/api.md`, while
+  `src/documentation.test.ts` keeps its examples tied to executable recipes.
+  The demo has its own editor-sample test in addition to declaration generation,
+  typechecking, and building.
 
 The current segment walker remains deliberately incomplete. In particular,
 operators are rejection signals rather than syntax, and function typing is split
@@ -86,8 +91,8 @@ static rule the analyzer can express:
 - `$this`, `$index`, `$total`, `defineVariable()`, and nested lambda frames
 - `%context`, `%resource`, `%rootResource`, declared `%env`, and declared `%vars`
 - generated R4 reference targets and `resolve()`
-- declared native, expression-defined, overloaded, and DTO-registered functions
-  to the extent their public declaration exposes a result
+- declared native, expression-defined, and overloaded custom functions when
+  their public declaration exposes a result
 
 “Full” does not mean guessing data-dependent values. These inputs stay opaque:
 
@@ -95,9 +100,12 @@ static rule the analyzer can express:
 - an expression over a model with no generated type maps (only R4 ships)
 - an environment value, pre-resolved var, native host function, or external
   reference with no type declaration
+- a function synthesized from standard DTO field decorators: decorators do not
+  add their column names or options to the class's static TypeScript type, so
+  `resourceDtos` alone cannot expose those functions soundly to the type layer
 - reflection or tree traversal whose result has no bounded static type
 - a construct whose analyzer result is unknown
-- an expression over the token budget
+- an expression over either scanner budget
 
 An opaque branch may become precise only through a rule whose result genuinely
 does not depend on that branch, such as `count()` or a declared fixed-result host
@@ -154,10 +162,24 @@ export type FhirpathResultIn<
 > = /* inferred collection */
 ```
 
+`FhirPathEngine` gains a defaulted context generic. Its constructor and every
+method-level options argument preserve a concrete context with `const` generic
+inference, then normalize and merge those maps by key. Direct object literals,
+`as const satisfies` declarations, and literal-typed compiled function bodies
+retain their declarations. A value already widened to plain `EngineOptions`,
+`EvaluateOptions`, or `CustomFunction` has intentionally lost those literals and
+degrades where they were needed; the implementation must not pretend to recover
+them. Add a small identity helper only if the Commit 5 API spike proves that
+ordinary reusable declarations otherwise widen in realistic calls.
+
 `EvaluateOptions` and `EngineOptions` gain `envTypes` and `varTypes`, both maps of
 `FhirpathTypeDeclaration`. Names normalize with or without their leading `%`, the
 same as runtime values. The declarations are compile-time/analyzer contracts and
-do not change evaluation values.
+do not change evaluation values. Where a declaration and its corresponding
+`env`/pre-resolved `vars` value are both visible in one literal options object,
+the generic API constrains that value to the declared element type and
+cardinality. Separately supplied or already widened values remain an explicit
+host contract.
 
 ```ts
 const fp = new FhirPathEngine({
@@ -176,18 +198,28 @@ fp.evaluate('%report.status.combine(%fallback)', patient)
 `FhirPathEngine` captures one context generic inferred from its constructor.
 Evaluate-family and projection methods merge per-call declarations into the
 captured context by normalized name; per-call declarations win, matching runtime
-`env`/`vars`/`functions` precedence. A function-local `envTypes` overlay wins for
-the duration of an expression-defined function, matching its runtime `env`
-overlay and the DTO-local precedence already documented in `AGENTS.md`.
+`env`/`vars`/`functions` precedence. The expression-defined branch of
+`SingleCustomFunction` also gains `envTypes`; that function-local overlay wins
+for the duration of its body, matching its runtime `env` overlay and the
+DTO-local precedence already documented in `AGENTS.md`.
 
-`CustomFunctionSignature` accepts readonly `input.types` / `result.types` so a
-literal signature remains narrow. The type layer normalizes local (`string`),
-System (`System.String`), and FHIR (`FHIR.Patient`) spellings the same way as the
-analyzer. A native function without a declared result is opaque. An
-expression-defined function may use its declared result; if it has none, its
-literal body is inferred against the call focus with recursion detection. An
-overload resolves by declared input type exactly as the engine does; if several
-candidates remain possible, their result states are widened together.
+Projection inference also injects `%rowIndex` and `%rowTotal` as single Integers,
+because `project()` replaces caller values for those names at runtime. Root-aware
+APIs use `FhirpathResultIn`: an explicit `inputType`, a DTO's `fhirType`, or a
+resource input's literal `resourceType` can supply `%context`, `%resource`, and
+`%rootResource`. A structurally typed datatype or ambiguous Bundle input does not
+get reverse-mapped to a guessed FHIR name; it needs an explicit input type or
+stays opaque.
+
+Every array in `CustomFunctionSignature` accepts readonly input, including
+`input.types`, `args`, and `result.types`, so a literal signature remains narrow.
+The type layer normalizes local (`string`), System (`System.String`), and FHIR
+(`FHIR.Patient`) spellings the same way as the analyzer. A native function
+without a declared result is opaque. An expression-defined function may use its
+declared result; if it has none, its literal body is inferred against the call
+focus with recursion detection. An overload resolves by declared input type
+exactly as the engine does; if several candidates remain possible, their result
+states are widened together.
 
 Expression-valued `vars` are inferred from their literal expression when their
 dependencies are available. `varTypes` supplies the type of pre-resolved values
@@ -195,26 +227,42 @@ or intentionally overrides inference as a declaration. Overlapping env/var names
 remain a runtime/analyzer error; result inference degrades that invalid context
 rather than choosing a winner.
 
-`CompiledExpression` and `BoundExpression` retain their explicit `TInput` and
-`TResult` escape hatches. Their normal inference carries the captured engine
-context and merges method-level options. The free exported result types accept a
-context explicitly for hosts building wrappers.
+`CompiledExpression` retains its existing explicit `TInput` and `TResult` escape
+hatches. Its default-result path must use a distinguishable internal sentinel (or
+an equivalently proven overload design), so method-level options can still refine
+the result while an explicitly supplied third generic always wins.
+`BoundExpression` has no independent `TInput`/`TResult` escape hatches today; it
+gains only the captured engine-context generic and merges method-level options.
+The free exported result types accept a context explicitly for hosts building
+wrappers. Commit 5 must lock all of these call shapes with exact public API tests
+before migrating internal callers.
+
+DTO field decorators still benefit from every new grammar and result rule that
+depends only on the expression and `fhirType`. They do not automatically publish
+decorated column metadata into `resourceDtos`' static class type. Registered DTO
+function calls therefore remain analyzer-checked but opaque to
+`FhirpathResult` unless a future API supplies explicit, cross-checked static
+metadata. Inferring every non-method instance property would incorrectly include
+ordinary fields and getters, so it is forbidden as an approximation.
 
 ## Type-level architecture
 
 ### Tokenizer and budget
 
-Implement a template-literal tokenizer with a token accumulator and an explicit
-step counter. It recognizes the runtime lexer's complete vocabulary, including
-comments, delimited identifiers, escaped strings, temporal/quantity literals,
-multi-character operators, and word operators.
+Implement a template-literal tokenizer with a token accumulator and explicit
+semantic-token and source-scan counters. It recognizes the runtime lexer's
+complete vocabulary, including comments, delimited identifiers, escaped strings,
+temporal/quantity literals, multi-character operators, and word operators.
 
-The hard cap is **64 semantic tokens** after comments and whitespace. A baseline
-audit of the vendored official R4/R5 suites and runnable fhirpath.js suites finds
-2,356 distinct expressions. The runtime parser accepts 2,348; 2,347 of those
-(99.6% of the combined runnable inventory) fit within 64 tokens. The remaining
-accepted expression has 208 tokens. Token 65 returns the opaque sentinel
-immediately. That long expression is an intentional budget-bail case, and the
+The hard caps are **64 semantic tokens** after comments and whitespace and **256
+source-scanner steps**. A baseline audit of the vendored official R4/R5 suites
+and runnable fhirpath.js suites finds 2,356 distinct expressions. The runtime
+parser accepts 2,348; 2,347 of those (99.6% of the combined runnable inventory)
+fit within 64 tokens. Every one of those 2,347 expressions is at most 255 source
+code units. The remaining accepted expression has 208 tokens. Token 65 or source
+step 257 returns the opaque sentinel immediately. The second cap prevents a huge
+comment, identifier, or one-token string literal from bypassing the semantic
+token budget. The long expression is an intentional budget-bail case, and the
 eight runtime-parser rejections are classified as invalid or unsupported corpus
 syntax rather than silently omitted.
 
@@ -404,11 +452,17 @@ The registry and its hygiene tests cover:
 - `%context`, `%resource`, `%rootResource`, built-in constants, typed env, typed
   vars, inferred expression vars, and missing declarations
 - native functions, expression-defined functions, overload selection, ambiguous
-  overload widening, recursion bail, function-local env overlays, DTO-declared
-  functions, and per-call/engine precedence
+  overload widening, recursion bail, function-local env overlays, and
+  per-call/engine precedence
+- registered DTO functions as an explicit opaque boundary in type-level tests,
+  while loaded DTO/analyzer tests continue to prove their declarations and
+  dispatch
 - generated and declared Reference targets, `resolve()`, and navigation after it
 - comments, whitespace, escaped strings, literal delimiter characters,
-  delimited identifiers, malformed syntax, incomplete calls, and tokens 64/65
+  delimited identifiers, malformed syntax, incomplete calls, tokens 64/65, and
+  source-scan steps 256/257
+- `%rowIndex` and `%rowTotal` in projections, including their precedence over
+  same-named caller declarations
 - every behavior already supported by the current subset, unchanged at the
   parser-parity commit
 
@@ -424,18 +478,19 @@ tests beside a hand-written “full-language” list. The baseline audit finds:
 - 2,356 distinct expressions across valid official R4/R5 cases and runnable
   fhirpath.js cases
 - 2,348 expressions accepted by the current runtime parser
-- 2,347 accepted expressions at or below the 64-token type-level budget (99.6%
-  of the combined inventory)
+- 2,347 accepted expressions at or below both type-level scanner budgets (99.6%
+  of the combined inventory): at most 64 semantic tokens and 255 source code
+  units
 - every runtime operator and every literal AST kind represented
 - 113 of 114 signed built-ins represented in runnable cases; `convertsToLong`
   appears in vendored skipped cases, so it can still supply the expression for a
   dedicated type assertion without claiming runtime agreement
 
 This means the grammar, literal, operator, and built-in-call fixture can be
-derived entirely from the references at baseline. The 99.6% figure is budget
-coverage of the runnable expression inventory, not a claim that the references
-can express host API contracts. Commit 1 checks in the audit script and its
-summary so these numbers are reproducible and drift is visible.
+derived entirely from the references at baseline. The 99.6% figure is coverage
+under both scanner budgets for the runnable expression inventory, not a claim
+that the references can express host API contracts. Commit 1 checks in the audit
+script and its summary so these numbers are reproducible and drift is visible.
 
 Hand-written expressions are allowed only where the reference formats cannot
 state the contract being tested:
@@ -445,8 +500,8 @@ state the contract being tested:
   projections, and DTO field checking
 - typed env, vars, native/expression functions, overloads, local overlays, and
   other host declarations absent from the reference suites
-- analyzer-opaque/degradation companions, the 64/65-token boundary, and focused
-  downstream-composition cases not present in the corpus
+- analyzer-opaque/degradation companions, the 64/65-token and 256/257-source-step
+  boundaries, and focused downstream-composition cases not present in the corpus
 - adversarial compiler-budget cases
 
 The generated capability index tags each corpus expression with every construct
@@ -501,6 +556,12 @@ parallel timing system:
 - Any budget increase must be in the same commit as the capability that needs it
   and explained in the PR description, per `AGENTS.md`.
 
+Commit 1 is a go/no-go gate. Continue only if at least one measured parser design
+can meet the common-path, representative-fixture, and per-case ceilings without
+weakening soundness or either scanner cap. If neither design fits, record the
+measurements and amend or stop the implementation PR; do not turn a failed spike
+into an unexplained budget increase.
+
 ### Runtime cross-engine benchmark
 
 Run the existing [`benchmarks/`](https://github.com/vintasoftware/fhirpath-ts/tree/main/benchmarks)
@@ -539,7 +600,7 @@ all earlier tests and applicable repository gates are green at every commit.
 - Add the generated parselet-record schema, runtime-metadata parity check, and
   vendored-corpus syntax support/divergence report before implementing new syntax.
 - Measure the fused-state/compact-AST parser spike, record the architecture
-  decision in Amendments, and delete the losing spike.
+  decision and go/no-go result in Amendments, and delete the losing spike.
 - Run and record the five-run runtime/Rust benchmark baseline on the current-main
   commit and pinned toolchains.
 - Introduce the declarative function/operator result rules and make the analyzer
@@ -551,6 +612,8 @@ all earlier tests and applicable repository gates are green at every commit.
 - Add the 64-token tokenizer and the selected shift-reduce parser for paths,
   indexers, existing calls, `select()` subexpressions, unions, groups, and `%var`
   roots.
+- Enforce the independent 256-step source scan cap while tokenizing trivia,
+  quoted values, and identifiers.
 - Drive prefix/infix/postfix dispatch, precedence, associativity, and RHS mode
   from the generated parselet records.
 - Pass all existing inference and capability tests unchanged.
@@ -576,18 +639,23 @@ all earlier tests and applicable repository gates are green at every commit.
 
 - Add the public type declarations and engine/per-call context generics.
 - Infer declared env, vars, native/expression functions, overloads, local
-  overlays, and registered DTO functions whose declarations are visible.
-- Test every merge/precedence route and confirm old untyped calls retain their
-  existing types.
+  overlays, projection row variables, and root-aware built-ins.
+- Keep functions synthesized only from `resourceDtos` opaque in the type layer;
+  retain their loaded analyzer checks and runtime dispatch tests.
+- Test literal capture, deliberately widened declarations, every merge/precedence
+  route, the `CompiledExpression` result override, and old untyped calls.
 
 ### Commit 6 — Ratchet, documentation, and generated declarations
 
 - Run and check in the final corpus precision report and budgets.
 - Rerun the five-run cross-engine benchmark on the same machine and publish the
   before/after fhirpath-ts and contextual Rust comparison in the PR description.
-- Update README examples to remove annotations inference now makes redundant,
-  while retaining the manual escape hatches for opaque cases.
-- Regenerate demo declarations and document typed dynamic contexts.
+- Update `docs/api.md` for the public context API and `README.md` examples to
+  remove annotations inference now makes redundant, while retaining the manual
+  escape hatches for opaque cases. Keep `src/documentation.test.ts` and its
+  executable recipe coverage in sync.
+- Regenerate demo declarations, update any affected playground examples, and run
+  the demo's editor-sample test as well as its typecheck and build.
 - Ensure the implementation PR description contains the generated capability
   table: capability id, construct, before type, after type, and test location.
 
@@ -608,11 +676,14 @@ The implementation is complete only when:
   parselet metadata agrees
 - the generated corpus soundness sweep has no narrower-than-analyzer result
 - the precision report has no unexplained regression from its prior commit
-- the 64-token bail and all intentional opaque rules are tested
+- the 64-token and 256-source-step bails and all intentional opaque rules are
+  tested
 - existing public inference tests pass unchanged at parity and remain green
 - `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm check:fhirpath`,
   `pnpm check:type-perf`, and `pnpm coverage` pass
-- the demo's declarations are regenerated and its typecheck/build pass
+- `src/documentation.test.ts` covers the changed README/API examples
+- the demo's declarations are regenerated and its editor-sample test,
+  typecheck, and build pass
 - the before/after TypeScript and five-run cross-engine benchmark tables are in
   the PR, with every regression over the stated thresholds resolved or explained
 - no runtime dependency is added
@@ -622,16 +693,36 @@ The implementation is complete only when:
 | Risk | Mitigation |
 | --- | --- |
 | TypeScript instantiation blowup | 64-token hard bail, tail recursion, compact tuple state, common/worst-case budgets |
+| Huge trivia or one-token literals bypass the token cap | Independent 256-step source scan cap with 256/257 boundary tests |
 | Plausible but wrong types | Analyzer-or-unknown corpus oracle; capability degradation and downstream tests |
 | Function/analyzer drift | Declarative result rules, generated type table, name-level hygiene tests |
 | Reference fixtures duplicate instead of replace hand-written cases | Registry stores corpus ids; generated index and corpus/manual count are checked |
 | A copied reference grammar drifts from this runtime | Generated parselet records come from runtime metadata; fhirpath.js alternatives have an explicit support/divergence audit |
 | Parser prior art does not fit FHIRPath | Measured fused/AST spike, general precedence stack, explicit documented decision before implementation |
 | Scoping differs from runtime | Capability cases for nested frames, forked operands/arguments, variable lifetime, and local overlays |
+| Context literals widen before inference | Const-generic capture tests, documented `as const satisfies` path, opaque fallback after deliberate widening |
+| DTO decorators appear statically enumerable when they are not | Keep `resourceDtos`-synthesized calls opaque; rely on loaded analyzer checks rather than guessing from instance fields |
 | Shared-rule refactor slows runtime | Same-machine five-run before/after benchmark plus contextual pinned Rust comparison |
 | Typed host declarations overpromise actual values | Declarations constrain supplied TypeScript values where possible; unsigned/dynamic data stays opaque |
 | One implementation PR becomes hard to review | Six ordered green commits, generated capability summary, and explicit budget/precision diffs per commit |
 
 ## Amendments
 
-*(none yet)*
+### 2026-08-10 — current-main revalidation
+
+- Rebased the plan over `main` at `c678abc` and reviewed the current analyzer,
+  engine/options merge paths, DTO registration, projection row context, parser
+  metadata, documentation tests, and demo CI.
+- Reproduced the corpus claims from the checked-in R4/R5 and fhirpath.js data:
+  2,356 distinct expressions, 2,348 accepted by the runtime parser, 2,347 at or
+  below 64 semantic tokens, one accepted 208-token bail case, every runtime
+  operator/literal kind, and 113 of 114 signed built-ins (`convertsToLong` is the
+  gap).
+- Added the independent 256-step scanner cap after confirming that the longest
+  accepted expression under the semantic-token cap is 255 source code units.
+- Corrected the public-context plan around literal widening, input-root flow,
+  `CompiledExpression` versus `BoundExpression`, projection row variables, and
+  the fact that standard DTO decorators do not expose registered column metadata
+  to TypeScript.
+- Updated the delivery gates for the current documentation split and demo
+  editor-sample test, and made Commit 1 an explicit go/no-go performance gate.
