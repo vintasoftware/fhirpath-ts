@@ -1,4 +1,4 @@
-/** Runtime half of the playground sandbox, kept independent of Monaco so the editor samples can be tested in Node. */
+/** Browser sandbox runtime, independent of Monaco and the DOM so editor samples can also be tested in Node. */
 
 export type OutputLevel = 'log' | 'warn' | 'error' | 'throw'
 
