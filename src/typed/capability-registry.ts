@@ -7,6 +7,7 @@ export type CapabilityFamily =
   | 'function-fixed'
   | 'function-input'
   | 'function-lambda'
+  | 'syntax'
   | 'variable'
 
 export interface CapabilityEntry {
@@ -124,6 +125,18 @@ export const INFERENCE_CAPABILITIES = {
     analyzer: { types: ['System.String'], single: true },
     degradation: '%rowIndex.nope',
     composition: '%rowIndex.toString().upper()',
+  },
+  'syntax.trivia': {
+    family: 'syntax',
+    source: {
+      expression: 'Patient /* ignored . | ( ) */ . name',
+      corpusGap: 'focused comment and whitespace tokenization case',
+    },
+    expectedType: 'HumanName[]',
+    runtime: true,
+    analyzer: { types: ['FHIR.HumanName'], single: false },
+    degradation: 'Patient /* unterminated . name',
+    composition: 'Patient /* ignored */ . name.first()',
   },
 } as const satisfies Record<string, CapabilityEntry>
 

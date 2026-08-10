@@ -84,6 +84,9 @@ for (const item of byExpression.values()) {
 
 const withinBudget = accepted.filter(item => item.tokens <= 64 && item.sourceSteps <= 256)
 const overBudget = accepted.filter(item => item.tokens > 64 || item.sourceSteps > 256)
+const longestWithinBudgetCase = [...withinBudget].sort(
+  (left, right) => right.sourceSteps - left.sourceSteps || left.item.id.localeCompare(right.item.id)
+)[0]
 const signedFunctions = Object.keys(FUNCTION_SIGNATURES).sort()
 const report = {
   totalCases: all.length,
@@ -98,6 +101,18 @@ const report = {
     sourceSteps: item.sourceSteps,
   })),
   longestWithinBudget: Math.max(...withinBudget.map(item => item.sourceSteps)),
+  longestWithinBudgetCase:
+    longestWithinBudgetCase === undefined
+      ? undefined
+      : {
+          id: longestWithinBudgetCase.item.id,
+          expression: longestWithinBudgetCase.item.expression,
+          ...(longestWithinBudgetCase.item.inputType !== undefined && {
+            inputType: longestWithinBudgetCase.item.inputType,
+          }),
+          tokens: longestWithinBudgetCase.tokens,
+          sourceSteps: longestWithinBudgetCase.sourceSteps,
+        },
   maxTokensWithinBudget: Math.max(...withinBudget.map(item => item.tokens)),
   operators: [...operators].sort(),
   literals: [...literals].sort(),

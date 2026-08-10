@@ -30,6 +30,8 @@ export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | re
 /** Per-call options that declare a result type when inference returns `unknown`. Runtime code ignores `type`. */
 export type TypedEvaluateOptions<T extends keyof R4TypeOf> = EvaluateOptions & { type: T }
 
+type CompiledForEngine<Expr extends string> = CompiledExpression<Expr, FhirpathInput<Expr>, unknown[]>
+
 /** Engines created during the current recording session. */
 let session: FhirPathEngine[] | undefined
 
@@ -101,12 +103,12 @@ export class FhirPathEngine {
 
   /** Compile (LRU-cached by expression text) and evaluate in one call; typed like `compile().evaluate()`. */
   evaluate<const Expr extends string, T extends keyof R4TypeOf>(
-    expression: Expr | CompiledExpression<Expr>,
+    expression: Expr | CompiledForEngine<Expr>,
     input: EngineInput<Expr> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T][]
   evaluate<const Expr extends string>(
-    expression: Expr | CompiledExpression<Expr>,
+    expression: Expr | CompiledForEngine<Expr>,
     input?: EngineInput<Expr>,
     options?: EvaluateOptions
   ): FhirpathResult<Expr>
@@ -130,12 +132,12 @@ export class FhirPathEngine {
 
   /** The first result, or undefined when the expression comes up empty. */
   first<const Expr extends string, T extends keyof R4TypeOf>(
-    expression: Expr | CompiledExpression<Expr>,
+    expression: Expr | CompiledForEngine<Expr>,
     input: EngineInput<Expr> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T] | undefined
   first<const Expr extends string>(
-    expression: Expr | CompiledExpression<Expr>,
+    expression: Expr | CompiledForEngine<Expr>,
     input?: EngineInput<Expr>,
     options?: EvaluateOptions
   ): FhirpathResult<Expr>[number] | undefined

@@ -115,6 +115,9 @@ describe('type-inference capability registry', () => {
     expectTypeOf<
       FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['variable.opaque-fixed']['expression']>
     >().toEqualTypeOf<string[]>()
+    expectTypeOf<
+      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['syntax.trivia']['expression']>
+    >().toEqualTypeOf<HumanName[]>()
   })
 
   it('pins opaque degradation for every baseline capability', () => {
@@ -144,6 +147,9 @@ describe('type-inference capability registry', () => {
     >().toEqualTypeOf<unknown[]>()
     expectTypeOf<
       FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['variable.opaque-fixed']['degradation']>
+    >().toEqualTypeOf<unknown[]>()
+    expectTypeOf<
+      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['syntax.trivia']['degradation']>
     >().toEqualTypeOf<unknown[]>()
   })
 
@@ -175,6 +181,9 @@ describe('type-inference capability registry', () => {
     expectTypeOf<
       FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['variable.opaque-fixed']['composition']>
     >().toEqualTypeOf<string[]>()
+    expectTypeOf<
+      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['syntax.trivia']['composition']>
+    >().toEqualTypeOf<HumanName[]>()
   })
 })
 
@@ -186,6 +195,7 @@ function runManualCapability(id: string, expression: string): string | undefined
     'union.navigation': { input: patient, expected: ['Peter', 'James', 'Jim', 'Chalmers'] },
     'function.input': { input: patient, expected: [patient.name[0]] },
     'variable.opaque-fixed': { input: patient, env: { rowIndex: 3 }, expected: ['3'] },
+    'syntax.trivia': { input: patient, expected: [...patient.name] },
   }
   const fixture = cases[id]
   if (fixture === undefined) return `missing manual runtime fixture for ${id}`

@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 import { RESOLVED_INFERENCE_CAPABILITIES } from '../src/typed/generated/capabilities.ts'
+import { INFERENCE_CORPUS_AUDIT } from '../src/typed/generated/corpus-audit.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
 
 const lines = [
@@ -12,11 +13,22 @@ const lines = [
 let index = 0
 for (const capability of Object.values(RESOLVED_INFERENCE_CAPABILITIES)) {
   index += 1
+  const input = 'input' in capability ? capability.input : 'inputType' in capability ? capability.inputType : 'opaque'
   lines.push(
-    `export type Capability${String(index).padStart(3, '0')} = FhirpathResultIn<${JSON.stringify(capability.expression)}, ${JSON.stringify('input' in capability ? capability.input : 'opaque')}>`,
-    `export type Composition${String(index).padStart(3, '0')} = FhirpathResultIn<${JSON.stringify(capability.composition)}, ${JSON.stringify('input' in capability ? capability.input : 'opaque')}>`
+    `export type Capability${String(index).padStart(3, '0')} = FhirpathResultIn<${JSON.stringify(capability.expression)}, ${JSON.stringify(input)}>`,
+    `export type Composition${String(index).padStart(3, '0')} = FhirpathResultIn<${JSON.stringify(capability.composition)}, ${JSON.stringify(input)}>`
   )
 }
+const longest = INFERENCE_CORPUS_AUDIT.longestWithinBudgetCase
+lines.push(
+  `export type LongestCorpusCase = FhirpathResultIn<${JSON.stringify(longest.expression)}, ${JSON.stringify('inputType' in longest ? longest.inputType : 'opaque')}>`,
+  "type Words<Count extends number, Seen extends unknown[] = [], Result extends string = ''> = Seen['length'] extends Count ? Result : Words<Count, [...Seen, 0], Result extends '' ? 'x' : `${Result} x`>",
+  "type Repeat<Count extends number, Seen extends unknown[] = [], Result extends string = ''> = Seen['length'] extends Count ? Result : Repeat<Count, [...Seen, 0], `${Result}x`>",
+  "export type Token64Boundary = FhirpathResultIn<Words<64>, 'opaque'>",
+  "export type Token65Boundary = FhirpathResultIn<Words<65>, 'opaque'>",
+  "export type Source256Boundary = FhirpathResultIn<`'${Repeat<254>}'`, 'opaque'>",
+  "export type Source257Boundary = FhirpathResultIn<`'${Repeat<255>}'`, 'opaque'>"
+)
 const generated = await formatGeneratedTypeScript(`${lines.join('\n')}\n`)
 const output = new URL('../src/typed/generated/full-language-perf.types.ts', import.meta.url)
 if (process.argv.includes('--check')) {

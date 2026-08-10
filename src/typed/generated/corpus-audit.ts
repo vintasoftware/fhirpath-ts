@@ -16,6 +16,14 @@ export const INFERENCE_CORPUS_AUDIT = {
     },
   ],
   longestWithinBudget: 255,
+  longestWithinBudgetCase: {
+    id: 'official:r5:defineVariable:dvConceptMapExample',
+    expression:
+      "\n\t\t\tgroup.select(\n\t\t\t\tdefineVariable('grp')\n\t\t\t\t.element\n\t\t\t\t.select(\n\t\t\t\t\tdefineVariable('ele')\n\t\t\t\t\t.target\n\t\t\t\t\t.select(%grp.source & '|' & %ele.code & ' ' & relationship & ' ' & %grp.target & '|' & code)\n\t\t\t\t)\n\t\t\t)\n\t\t\t.trace('all')\n\t\t\t.isDistinct()\n\t\t",
+    inputType: 'ConceptMap',
+    tokens: 60,
+    sourceSteps: 255,
+  },
   maxTokensWithinBudget: 61,
   operators: [
     '!=',

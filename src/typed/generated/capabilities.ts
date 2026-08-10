@@ -184,4 +184,20 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     composition: '%rowIndex.toString().upper()',
     expression: '%rowIndex.toString()',
   },
+  'syntax.trivia': {
+    family: 'syntax',
+    source: {
+      expression: 'Patient /* ignored . | ( ) */ . name',
+      corpusGap: 'focused comment and whitespace tokenization case',
+    },
+    expectedType: 'HumanName[]',
+    runtime: true,
+    analyzer: {
+      types: ['FHIR.HumanName'],
+      single: false,
+    },
+    degradation: 'Patient /* unterminated . name',
+    composition: 'Patient /* ignored */ . name.first()',
+    expression: 'Patient /* ignored . | ( ) */ . name',
+  },
 } as const

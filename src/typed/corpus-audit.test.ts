@@ -40,6 +40,7 @@ describe('reference-derived type-inference inventory', () => {
     })
     expect(INFERENCE_CORPUS_AUDIT.overBudget).toHaveLength(1)
     expect(INFERENCE_CORPUS_AUDIT.overBudget[0]).toMatchObject({ tokens: 208, sourceSteps: 438 })
+    expect(INFERENCE_CORPUS_AUDIT.longestWithinBudgetCase).toMatchObject({ sourceSteps: 255 })
   })
 
   it('covers every runtime operator and literal AST kind', () => {

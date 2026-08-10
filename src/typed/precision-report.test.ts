@@ -7,8 +7,8 @@ describe('type-inference precision report', () => {
     expect(INFERENCE_PRECISION_REPORT).toMatchObject({
       total: 2356,
       checked: 2347,
-      precise: 302,
-      opaque: 2045,
+      precise: 442,
+      opaque: 1905,
       conflict: 0,
       rejected: 8,
       budget: 1,
