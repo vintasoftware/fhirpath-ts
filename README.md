@@ -4,64 +4,13 @@ A TypeScript-native [FHIRPath](https://hl7.org/fhirpath/) engine for application
 development. It has zero runtime dependencies and includes:
 
 - typed results for literal expressions in plain TypeScript;
-- an R4 model and application helpers for common FHIRPath jobs;
-- DTOs that turn FHIR resources into checked application data;
-- static checks through TypeScript, ESLint, a CLI, and a public analyzer API;
-- exact decimal arithmetic, partial-precision dates and times, and UCUM conversions;
-- official HL7 conformance tests plus tests from other FHIRPath engines.
+- DTOs that transform FHIR resources into typed application data;
+- static checks through TypeScript, ESLint, a CLI linter/analyzer, and a public analyzer API;
+- official HL7 conformance tests plus tests from other FHIRPath engines;
+- [Medplum](https://www.medplum.com/) compatibility;
+- currently focused in FHIR R4, the most commonly used FHIR version.
 
-## Why use it
-
-### Application development
-
-FHIRPath is most useful in an application when it has a small, clear job. This
-package gives those jobs direct APIs:
-
-| Job | API | Result |
-| --- | --- | --- |
-| Read a collection | `evaluate()` | `T[]` |
-| Read one optional value | `first()` | `T \| undefined` |
-| Apply criteria | `test()` | `boolean` |
-| Filter resources | `filter()` | resources of the same type |
-| Check FHIR constraints | `checkConstraints()` | issues and an `OperationOutcome` |
-| Build application rows | `project()` with a DTO | typed class instances |
-
-The R4 entry point binds the model once:
-
-```ts
-import { r4 } from 'fhirpath-ts/r4'
-```
-
-Choice elements work by stem name, such as `Observation.value`. Primitive
-extensions, FHIR type checks, Bundle traversal, and contained or bundled
-references use the same model.
-
-### Developer experience
-
-Literal expressions infer useful result and input types without a compiler
-plugin:
-
-```ts
-const given = r4.compile('Patient.name.given')
-given.evaluate(patient) // string[]; the input must be a Patient
-```
-
-Type inference stays conservative. Expressions outside its supported subset
-become `unknown[]` instead of producing an incorrect type.
-
-The analyzer checks the rules in FHIRPath specification §11. It reports unknown
-elements and functions, wrong argument or operand types, invalid cardinality,
-and other errors before the expression runs. Use it through the ESLint rule,
-the `fhirpath-check` CLI, or `fhirpath-ts/analyzer`. See
-[Static checking](docs/static-checking.md) for setup and exact limits.
-
-Other development features include:
-
-- compile once and reuse, or rely on each engine's LRU parse cache;
-- fixed clocks and explicit `trace()` sinks for repeatable tests;
-- custom functions described once for evaluation and static checking;
-- source positions in parser and analyzer errors;
-- no runtime dependencies and no generated parser step.
+Check the [playground demo](demo/README.md) or keep reading!
 
 ## Quick start
 
@@ -127,20 +76,33 @@ rows[0]?.label // ''
 ```
 
 `@column` and `@criteria` use standard JavaScript decorators. Your build must
-lower them. TypeScript works with `target` set to ES2024 or lower. SWC and Babel
-also support them. For a build without decorator support, pass a plain column
-record to `project()`.
+transpile them. TypeScript works with `target` set to ES2024 or lower. SWC and Babel
+also support them. For a build without decorator support,
+[use records with `project()`](docs/api.md#project).
 
-DTOs can also register their columns as FHIRPath functions. This is useful for
-shared application vocabulary such as `displayText()` or `isFinal()`. Read the
-[DTO reference](docs/api.md#dtos) before registering DTOs because function names,
-input types, local environment values, inheritance, and dispatch have important
-rules.
+Pass DTOs through `resourceDtos` to call their columns from expressions with other
+FHIR resources as root:
+
+```ts
+class CodeableConceptDto extends defineDto('CodeableConcept') {
+  @column('(text | coding.display.first() | coding.first().code).first()')
+  displayText!: string | undefined
+}
+
+const fp = new FhirPathEngine({
+  model: r4Model,
+  resourceDtos: [CodeableConceptDto],
+})
+
+fp.first('Condition.code.displayText()', condition)
+```
+
+This is useful for shared application vocabulary such as `displayText()` or `isFinal()`.
 
 ## Usage recipes
 
 These short examples show the main application APIs. The
-[playground](demo/README.md) is the best place to explore expressions
+[playground demo](demo/README.md) is the best place to explore expressions
 interactively. A test runs every static expression in this section and checks it
 with the analyzer.
 
@@ -339,6 +301,17 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
 
 ## Static checking
 
+Literal expressions infer useful result and input types without a compiler
+plugin:
+
+```ts
+const given = r4.compile('Patient.name.given')
+given.evaluate(patient) // string[]; the input must be a Patient
+```
+
+Type inference stays conservative. Expressions outside its supported subset
+become `unknown[]` instead of producing an incorrect type.
+
 Static checking has three layers:
 
 1. TypeScript infers common literal expressions at compile time.
@@ -347,7 +320,8 @@ Static checking has three layers:
    exported DTOs for a complete DTO check.
 
 The analyzer is also public for editors, tests, and other tools. It follows the
-FHIRPath §11 rules and is tested against the official valid and invalid cases.
+[FHIRPath §11 rules](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation)
+and is tested against the official valid and invalid cases.
 See [Static checking](docs/static-checking.md) for configuration, supported call
 sites, DTO discovery, and cases where source-only checks stay quiet.
 

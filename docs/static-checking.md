@@ -1,8 +1,8 @@
 # Static checking
 
-FHIRPath specification §11 defines type safety and strict evaluation rules. This
-package applies them before expressions run through TypeScript inference, an
-ESLint rule, a CLI, and a public analyzer API.
+[FHIRPath specification §11](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation)
+defines type safety and strict evaluation rules. This package applies them before expressions
+run through TypeScript inference, an ESLint rule, a CLI, and a public analyzer API.
 
 ## The three layers
 
@@ -190,7 +190,7 @@ The analyzer checks:
 - regular expression literals that may have catastrophic backtracking.
 
 Unknown regions remain unknown until narrowed. Examples include `children()`,
-`descendants()`, an untyped `resolve()`, and undeclared `%vars`. This follows §11
+`descendants()`, an untyped `resolve()`, and undeclared `%vars`. This follows spec
 and prevents incorrect diagnostics.
 
 Declare host variables and functions so the analyzer can check their use:

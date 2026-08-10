@@ -2,6 +2,7 @@
  * The live Monaco playground. Its TypeScript worker uses the package declarations
  * for normal type checks and finds FHIRPath literals for the §11 analyzer. Each
  * sample owns its editor model, markers, and output.
+ * SeeL https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
  */
 
 import { analyzeSite } from 'fhirpath-ts/analyzer'

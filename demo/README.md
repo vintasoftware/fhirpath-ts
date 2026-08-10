@@ -1,7 +1,8 @@
 # fhirpath-ts playground
 
 The playground is a client-only demonstration of the engine, TypeScript
-inference, and the specification §11 analyzer. It runs entirely in the browser.
+inference, and the [specification §11 analyzer](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation).
+It runs entirely in the browser.
 No FHIR data is sent to a server.
 
 Use it to explore:

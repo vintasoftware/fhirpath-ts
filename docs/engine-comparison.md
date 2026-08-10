@@ -14,7 +14,7 @@ outside that tool's purpose.
 | Official R4 and R5 suites in CI | all non-skipped cases | not run | not run | regrouped R5 | not run | R4 and R5 | R4 and R5 | R4 only | none |
 | Tests from other engines | yes, with reasons for each difference | no | no | no | no | no | no | no | Not applicable |
 | Compile-time result types | plain `tsc` | no | no | no | no | no | no | no | no |
-| Specification §11 tooling | CLI, ESLint, and API | no | no | runtime analyzer | no | `check()` API | display-only inference | no | editor inference |
+| [Spec §11 static analysis](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation) | CLI, ESLint, and API | no | no | runtime analyzer | no | `check()` API | display-only inference | no | editor inference |
 | Terminology, async evaluation, `%factory` | deferred | yes | partial | `%factory` | no | yes | — | — | Not applicable |
 | FHIR models | R4; provider interface | DSTU2 through R5 | DSTU2 through R5 | R5 | R4 | DSTU2 through R5 | R4 and R5 | R4, R4B, and R5 | — |
 

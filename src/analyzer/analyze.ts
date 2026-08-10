@@ -130,6 +130,7 @@ export interface AnalysisDetails {
  * Statically check one expression against the model: spec §11's strict-mode rules
  * (singleton misuse, wrong operand and argument types, incomparable equality)
  * plus unknown elements, functions, arities, type names, and variables.
+ * See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
  */
 export function analyzeExpression(expression: string, options?: AnalyzeOptions): AnalyzerDiagnostic[] {
   return analyzeExpressionDetailed(expression, options).diagnostics

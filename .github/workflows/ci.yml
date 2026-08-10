@@ -36,6 +36,7 @@ jobs:
       # `pnpm lint` runs ESLint — including the dogfooded
       # fhirpath/no-invalid-expressions rule, i.e. the spec §11 analyzer over the
       # library source — followed by a Prettier format check.
+      # See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
       - name: Lint (ESLint + FHIRPath analyzer + Prettier)
         run: pnpm lint
 
