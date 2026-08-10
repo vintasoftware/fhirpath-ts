@@ -2,8 +2,9 @@
 
 How a new version of `fhirpath-ts` gets to npm, and what the setup behind it is.
 
-Publishing is done by CI, from a tag. There is no npm token in this repository's
-secrets and `npm publish` from a laptop is expected to fail — see
+After the one-time first-publish bootstrap, publishing is done by CI from a tag.
+There is no npm token in this repository's secrets, and a normal `npm publish`
+from a laptop is expected to fail — see
 [Why publishing only works from CI](#why-publishing-only-works-from-ci).
 
 ## Cutting a release
@@ -47,13 +48,13 @@ secrets and `npm publish` from a laptop is expected to fail — see
    The tag must be `v` + the exact `version` in `package.json`. The release
    workflow compares the two and stops if they disagree.
 
-5. **Watch the run.** `.github/workflows/release.yml` re-runs the full gate suite
-   on the tagged commit, builds, checks the package shape, prints the tarball's
-   file list, and publishes. If the `npm-publish` environment has required
-   reviewers configured, it waits for an approval between the two jobs.
+5. **Watch the run.** `.github/workflows/release.yml` calls the same full CI
+   workflow on the tagged commit, then checks the version, builds, checks the
+   package, prints the tarball's file list, and publishes. If the `npm-publish`
+   environment has required reviewers configured, it waits for an approval
+   between the two jobs.
 
-6. **Check what landed:** `npm view fhirpath-ts version`, and confirm the
-   provenance badge appears on the package page.
+6. **Check what landed:** `npm view fhirpath-ts version`.
 
 ### If a release goes wrong
 
@@ -66,27 +67,43 @@ marks the bad version so installs warn.
 
 Only needed once, or if the workflow file is renamed.
 
-1. Publish nothing manually first. On npmjs.com, the package's **Settings →
-   Trusted publisher** needs:
+1. If the package name has never been published, use a fresh disposable clone to
+   publish a prerelease with a granular access token. npm cannot attach a trusted
+   publisher until the package exists. The bootstrap uses a version and dist-tag
+   that the real release will never reuse:
+
+   ```sh
+   pnpm install --frozen-lockfile
+   node node_modules/npm/bin/npm-cli.js pkg set version=0.0.0-bootstrap.0
+   pnpm build
+   bootstrap_dir="$(mktemp -d)"
+   pnpm check:package -- --output "$bootstrap_dir/fhirpath-ts.tgz"
+   node node_modules/npm/bin/npm-cli.js publish "$bootstrap_dir/fhirpath-ts.tgz" --access public --tag bootstrap --ignore-scripts
+   ```
+
+   This publishes the exact tarball the package check installed and exercised.
+   Do not commit or tag the temporary version change; discard the clone after the
+   remaining setup. In particular, do not publish the real `0.1.0` here.
+
+2. On npmjs.com, the package's **Settings → Trusted publisher** needs:
    - Publisher: **GitHub Actions**
    - Organization / repository: `vintasoftware` / `fhirpath-ts`
    - Workflow filename: `release.yml`
    - Environment: `npm-publish`
+   - Allowed action: **npm publish**
 
    The environment field has to match the `environment:` in the publish job. The
    OIDC token's subject includes the environment name, so a mismatch fails the
    publish with an authentication error rather than a helpful one.
 
-2. In this repository's **Settings → Environments**, create `npm-publish`. Adding
+3. In this repository's **Settings → Environments**, create `npm-publish`. Adding
    required reviewers there is what turns a pushed tag into something a second
    person approves.
 
-For the very first publish of the name, npm has no package to attach a trusted
-publisher to yet. Either create the trusted publisher against the not-yet-existing
-package name if npm allows it for your account, or do the first publish manually
-with a granular access token (`npm publish --access public`, with
-`publishConfig.provenance` temporarily removed since provenance needs OIDC), then
-configure trusted publishing and delete the token.
+4. Delete the bootstrap token and discard the bootstrap clone. Future publishes
+   authenticate only through the workflow's short-lived OIDC token. The first
+   real release is still `v0.1.0`, cut through the normal process above; its
+   workflow publishes `0.1.0` under npm's default `latest` dist-tag.
 
 ## What gets published
 
@@ -109,7 +126,8 @@ and nothing else, so `fhirpath-ts/src/anything` is blocked.
 
 ### Checking the tarball for real
 
-`pnpm check:package` runs two validators, both of which pack the package first:
+`pnpm check:package` packs once, then sends that exact tarball through two static
+validators:
 
 - **publint** — the manifest against the tarball: entry points that point at
   files that are not there, wrong `types` order, missing `files`.
@@ -120,12 +138,16 @@ and nothing else, so `fhirpath-ts/src/anything` is blocked.
   `exports`. Both are still printed, so a *new* problem in those columns is
   visible.
 
-Neither validator runs the code. To check that the published package actually
-works, install the tarball into an empty directory and use it as a consumer
-would — import each entry point, and run `npx fhirpath-check` over a file with a
-deliberate mistake in it. This is worth doing whenever the build config, the
-`exports` map or `src/cli/` changes, because that is the path CI cannot see:
-`pnpm check:fhirpath` runs the CLI from source, not from `dist`.
+The same command then installs the tarball into a temporary consumer, links the
+lockfile-installed optional peers, imports every public entry point, type-checks
+them without `skipLibCheck`, and runs the installed `fhirpath-check` binary
+through both source-only and loaded-DTO checks. This covers emitted imports,
+`bin`, `dist/cli/ts-loader.mjs`, and peer resolution rather than testing the
+source tree twice.
+
+Pass `-- --output <path>` to preserve the validated tarball. The release workflow
+uses that path for both its dry run and `npm publish`, so it publishes the exact
+bytes the validators and temporary consumer exercised.
 
 ## How the build works
 
@@ -216,14 +238,12 @@ reach a published `.d.ts`.
 
 ## Why publishing only works from CI
 
-`publishConfig.provenance` is `true`, and provenance is signed with an OIDC token
-that only a CI run can mint. A local `npm publish` has no such token and fails.
-That is deliberate — it means every published tarball has an attestation tying it
-to a specific workflow run, commit and repository, which anyone can verify:
+The trusted publisher accepts the short-lived OIDC token minted for the
+configured workflow, repository, and environment. After the bootstrap token is
+deleted, a local `npm publish` has no publish credential and fails. There is no
+long-lived npm token to leak, rotate, or scope.
 
-```sh
-npm audit signatures
-```
-
-The same OIDC token authenticates the publish itself, so there is no long-lived
-npm token to leak, rotate, or scope.
+npm does not generate provenance attestations for private source repositories.
+If this repository becomes public, trusted publishing will add provenance
+automatically; the release workflow does not need a second authentication path
+or a `publishConfig.provenance` flag.

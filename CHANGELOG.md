@@ -22,6 +22,8 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   so they loaded a second copy of the library whose registries the code under test
   had not populated. See "The `fhirpath-ts-source` condition" in
   [RELEASING.md](RELEASING.md).
+- The ESLint plugin metadata now reads the package version instead of retaining
+  the initial version after future releases.
 
 ### Changed
 

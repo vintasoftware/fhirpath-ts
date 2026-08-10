@@ -76,15 +76,14 @@
     "THIRD-PARTY-NOTICES.md"
   ],
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "check:type-perf": "node scripts/check-type-perf.ts",
-    "check:package": "publint --strict && attw --pack . --profile esm-only",
+    "check:package": "node scripts/check-package.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
@@ -126,6 +125,7 @@
     "husky": "^9.1.7",
     "jiti": "^2.6.1",
     "lint-staged": "^16.2.4",
+    "npm": "11.11.0",
     "prettier": "^3.6.2",
     "publint": "^0.3.23",
     "typescript": "^5.9.3",

@@ -198,7 +198,7 @@ generated; run `npm run generate:dts` in `demo/` after a public API change.
 class of problem than `pnpm typecheck` does. The build compiles under
 `nodenext` resolution — the way Node reads the published output — where the
 root config uses bundler resolution; `check:package` resolves every entry point's
-types the way a consumer's TypeScript will. An import that only ever existed as a
-`devDependency` passes typecheck and fails here. See
+types and executes the installed tarball and CLI as a consumer. An import that
+only ever existed as a `devDependency` passes typecheck and fails here. See
 [RELEASING.md](RELEASING.md) for what the published tarball contains and why
 `sideEffects` is an allowlist rather than `false`.

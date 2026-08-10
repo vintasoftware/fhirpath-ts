@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import type { Rule } from 'eslint'
 import type * as ESTree from 'estree'
 
@@ -372,8 +374,12 @@ const noInvalidExpressions: Rule.RuleModule = {
   },
 }
 
+const { name: packageName, version: packageVersion }: { name: string; version: string } = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
+)
+
 const plugin = {
-  meta: { name: 'fhirpath-ts', version: '0.1.0' },
+  meta: { name: packageName, version: packageVersion },
   rules: {
     'no-invalid-expressions': noInvalidExpressions,
   },
