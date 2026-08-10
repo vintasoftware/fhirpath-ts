@@ -1,12 +1,7 @@
 /**
- * Shared policy for deciding which call/tag sites in source code hold FHIRPath
- * expressions. Both the `fhirpath-check` CLI (TypeScript AST) and the ESLint rule
- * (ESTree AST) apply the same rules; only the tree-walking differs, so everything
- * that is a *decision* lives here — the call-name table, the check/skip rules,
- * the context a site carries, and the expression-shape extraction (via the
- * `ExpressionAst` adapter) — and the walkers supply only AST access. This module
- * must stay free of `typescript` and `eslint` imports so either walker can load
- * it alone; `column-signature.ts` is dependency-free for the same reason.
+ * Shared expression-site rules for the TypeScript and ESTree walkers. This file
+ * owns call names, argument shapes, receiver checks, and site context. Walkers
+ * provide AST access only. It must not import TypeScript or ESLint at runtime.
  */
 import {
   type ColumnFunctionSignature,
@@ -15,16 +10,7 @@ import {
   criteriaSignature,
 } from '../api/column-signature.ts'
 
-/**
- * How a call site carries its FHIRPath expression(s):
- * - `expression`: the argument is the expression string itself.
- * - `columns`: the argument is a `project()` columns object — each property value
- *   is an expression string, a `{ path }` object, or a `{ test }` criteria object.
- * - `constraints`: the argument is a `checkConstraints()` array of
- *   `{ expression }` constraint objects.
- * - `dto-vars`: the argument is a `defineDto()` options object — each `vars`
- *   property value is an expression.
- */
+/** The supported expression argument shapes: one string, columns, constraints, or DTO variables. */
 export type CallSiteShape = 'expression' | 'columns' | 'constraints' | 'dto-vars'
 
 export interface CallSitePolicy {
@@ -32,22 +18,9 @@ export interface CallSitePolicy {
   argIndex: number
   shape: CallSiteShape
   /**
-   * What the callee's receiver must be for the call to be checked:
-   * - `any`: checked unless the name is bound by a foreign import — right for
-   *   distinctive names (`fhirpath`, `analyzeExpression`) that rarely collide.
-   * - `engine`: checked only when the receiver root is a trusted binding
-   *   (imported from this package, or a `new FhirPathEngine(...)` local —
-   *   see `SourceBindings.trusted`).
-   *   Required for `test`/`filter`/`first`/`project`: they exist only as engine
-   *   methods, and the names are so common (knex `db.first('col')`, lodash
-   *   `_.filter(...)`) that flag-by-default would report other libraries' code.
-   *   The cost: an engine reached through an untracked alias (`this.engine`,
-   *   a function parameter) is not checked.
-   * - `import`: checked only when the callee name itself is a trusted binding —
-   *   a name this file imported from the package. Right for the DTO vocabulary
-   *   (`column`, `criteria`, `defineDto`): the names are ordinary words other
-   *   libraries use too (a table's `column('id')`), and a DTO always imports
-   *   them, so requiring the import costs nothing and reports nobody else.
+   * Required receiver evidence. `any` accepts bare or member calls unless a
+   * foreign import owns the name. `engine` requires a package import or local
+   * `FhirPathEngine`. `import` requires the called name to come from this package.
    */
   receiver: 'any' | 'engine' | 'import'
   /**
@@ -73,17 +46,7 @@ export interface CallSitePolicy {
    * checks all of it properly.
    */
   dto?: true
-  /**
-   * The call declares a function named after the field it decorates, and says
-   * which kind of column it is. A registered `@column` or `@criteria` becomes a
-   * zero-argument function that every expression on that engine can call (see
-   * `withDtos`). A walker collects one per decorated field and passes them to
-   * `analyzeSite`, which is how a call between a file's own columns resolves.
-   * The kind decides the signature: a criteria returns a single Boolean whatever
-   * its expression returns, so there are no options to read. This lives in the
-   * table rather than as a name comparison in each walker, so the two walkers
-   * cannot disagree about which call it is.
-   */
+  /** Declares a zero-argument function named after the decorated field. */
   declaresField?: 'column' | 'criteria'
 }
 
@@ -141,31 +104,11 @@ export interface SourceBindings {
    * (`compile` from handlebars is not a FHIRPath entry point).
    */
   foreign: ReadonlySet<string>
-  /**
-   * Receiver roots trusted to be this package's API objects: every local name
-   * bound by a package import (`r4`, a namespace import), plus locals declared
-   * with `new FhirPathEngine(...)` (see `constructsEngine`). Trusted is wider
-   * than "engine" on purpose: any package import counts, so
-   * `r4Model.filter(rows, '...')` is analyzed even though `r4Model` is not an
-   * engine — a hand-maintained list of which exports are engines would drift.
-   * It is also narrower than the runtime: an engine reached through an
-   * untracked alias (`this.engine`, a function parameter) or bound by
-   * assignment rather than declaration (`let e; e = new FhirPathEngine()`)
-   * is not tracked.
-   */
+  /** Package imports and locals created with `new FhirPathEngine()`. */
   trusted: ReadonlySet<string>
   /**
-   * Names the file re-binds by anything other than a package import or an
-   * engine construction: parameters (including destructuring and catch
-   * clauses), other variable declarations, and function/class names. Trust is
-   * name-based, not scope-based, so a trusted name that is also re-bound loses
-   * `receiver: 'engine'` trust for the whole file — otherwise a
-   * `function query(r4)` parameter would have its `r4.filter(rows, '...')`
-   * read as FHIRPath. Demotion over-corrects on purpose (a legitimate
-   * module-scope `r4.filter(...)` in the same file is skipped too): a missed
-   * check is the documented tradeoff, a false positive on valid code is not.
-   * Distinctive `receiver: 'any'` names are unaffected — they are checked
-   * even with no binding at all.
+   * Trusted names also declared for another purpose. Trust is file-wide, so a
+   * rebound name is skipped to prevent false positives in another scope.
    */
   rebound: ReadonlySet<string>
 }
@@ -192,18 +135,7 @@ export function isCheckedCall(
   return !bindings.foreign.has(receiverRoot ?? calleeName)
 }
 
-/**
- * Whether a `` fhirpath`…` `` tag is this package's, given the name it is reached
- * by. The same rule the distinctive call names get (`receiver: 'any'`): checked
- * unless that name is bound by a foreign import, so `` hb.fhirpath`…` `` under
- * `import * as hb from 'handlebars'` is not ours, while a bare tag in a file with
- * no imports still is.
- *
- * A tag is a call site in every respect but syntax, and this is the same test
- * `isCheckedCall` makes. It lives here because each walker used to hand-roll it,
- * and neither consulted the receiver — so a foreign namespaced tag was reported as
- * invalid FHIRPath, which is the failure mode this whole policy exists to avoid.
- */
+/** Checks a `fhirpath` tag unless its bare name or namespace comes from another package. */
 export function isCheckedTag(receiverRoot: string | undefined, bindings: SourceBindings): boolean {
   return !bindings.foreign.has(receiverRoot ?? TAG_NAME)
 }
@@ -274,17 +206,9 @@ export interface ClassHeritage {
 }
 
 /**
- * The DTO root each named class of a file settles on, following `extends` chains
- * through the file's own classes. Sharing columns by extending a base DTO class is
- * the documented way to do it, and a base class carries its root along with the
- * columns it lends — so `class WeightRow extends ObservationRow` reads against
- * Observation, and its paths are checkable rather than syntax-only.
- *
- * Two guards, both because a wrong root would report valid code: a name declared
- * twice in one file is dropped rather than guessed (two scopes can hold different
- * classes of one name), and a cycle resolves to nothing. A base reached by
- * anything but a plain identifier — a factory call, an imported class — is not
- * resolvable here, and stays rootless.
+ * Resolves DTO roots through base classes declared in the same file. Duplicate
+ * names, cycles, factories, and imported bases remain unresolved because the
+ * source cannot prove their root.
  */
 export function dtoRootsOf(classes: readonly ClassHeritage[]): ReadonlyMap<string, string> {
   const byName = new Map<string, ClassHeritage>()
@@ -450,17 +374,9 @@ export interface DeclaredColumnFunction {
 export type FileColumnFunction = DeclaredColumnFunction | { overloads: readonly DeclaredColumnFunction[] }
 
 /**
- * Builds the function a `@column(path, options)` declaration contributes, given
- * the `fhirType` its class settled on. Both halves of the signature come from
- * `columnSignature`, the same decision the runtime registers, so the two cannot
- * drift apart. All this adds is reading the options out of the source.
- *
- * The two halves fail independently. A class whose root the file cannot
- * resolve, such as one extending an imported base or a factory call, declares
- * no input, so calls to its columns go unchecked. See `dtoRootsOf` for why
- * guessing a root is worse. An option whose value is not a literal is not in
- * the source at all, so a `collection` set from a variable drops the result
- * claim and keeps the input one.
+ * Builds a DTO column's function declaration from literal source options and a
+ * visible class root. Unknown roots omit the input claim. Dynamic options omit
+ * the result claim.
  */
 export function columnFunctionDeclaration<N>(
   kind: 'column' | 'criteria',
@@ -478,17 +394,7 @@ export function columnFunctionDeclaration<N>(
   return signature === undefined ? declaration : { ...declaration, signature }
 }
 
-/**
- * What a file's column vocabulary keeps for a field name it has already seen:
- * every declaration of it, as overloads. Two classes in one file may declare the
- * same field name against different `fhirType`s, and both can register on one
- * engine — a column's name is scoped by the type it was written for, so a call
- * resolves to the declaration its focus fits (`withDtos`, api/dto.ts). The
- * analyzer resolves the set the same way the engine does, and falls back to what
- * the declarations agree on when the focus cannot tell them apart. AGENTS.md,
- * "The lint and editor half", works through what keeping the last one seen would
- * report instead.
- */
+/** Keeps every same-name column declaration as an overload for focus-based analysis. */
 export function declaredColumnOverloads(
   seen: FileColumnFunction | undefined,
   next: DeclaredColumnFunction

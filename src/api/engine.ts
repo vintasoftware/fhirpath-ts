@@ -27,40 +27,16 @@ import { type Projection, type ProjectionColumns, projectRows } from './project.
  */
 export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | readonly unknown[] | BundleLike
 
-/**
- * Per-call options for `evaluate()`/`first()` that also declare the result type,
- * for expressions outside the inference subset — the scalar-helper counterpart
- * of a project column's `type`. Like that column field, `type` is a compile-time
- * assertion only, never checked at runtime; the implementation passes the
- * options through untouched and the evaluator ignores the extra key. It is
- * deliberately not part of `EvaluateOptions`, so a result type can never be
- * bound as an engine-wide default at construction.
- */
+/** Per-call options that declare a result type when inference returns `unknown`. Runtime code ignores `type`. */
 export type TypedEvaluateOptions<T extends keyof R4TypeOf> = EvaluateOptions & { type: T }
 
-/**
- * Where engine constructions are collected while a recording session is open, and
- * `undefined` — the default — when none is: an application that never records
- * retains nothing, and neither does one whose session has ended.
- */
+/** Engines created during the current recording session. */
 let session: FhirPathEngine[] | undefined
 
 /**
- * Open a recording session, for tooling that needs the engines a project builds
- * rather than the ones it exports (an engine is usually module-private, so
- * scanning exports would miss it). Returns the way to close it: import the
- * modules that construct the engines, then call the returned function for them.
- *
- * ```ts
- * const engines = recordEngines()
- * await import(dtoModule)
- * for (const engine of engines()) { … }
- * ```
- *
- * Closing is what keeps this from leaking: every engine built while the session
- * is open is held until then, and each one holds its `defaults.env`. One session
- * at a time — a second call takes over, and closing yields only what its own
- * session saw.
+ * Records engines created while project modules are imported. Call the returned
+ * function to close the session and read its engines. Only one session is active
+ * at a time, and closing it releases the recorded engine references.
  */
 export function recordEngines(): () => readonly FhirPathEngine[] {
   const open: FhirPathEngine[] = []
@@ -92,57 +68,18 @@ export interface EngineOptions extends EvaluateOptions {
    */
   cacheSize?: number
   /**
-   * DTO classes registered engine-wide (see `defineDto()`): every column
-   * becomes an expression-defined function callable from any expression this
-   * engine evaluates. A `@criteria` registers too and carries the criteria rule
-   * with it, so the call returns the same boolean the projected column holds.
-   *
-   * Registering publishes every column of the DTO, not only the one you meant
-   * to call. Each column answers on the type it was written for, however the
-   * expression got there: through a Bundle, an `ofType()`, a `resolve()`.
-   * Checking a call's focus against that type needs a model, so registering
-   * without one is refused. A DTO you only project needs neither registration
-   * nor a model.
-   *
-   * Every column declares the DTO's `fhirType` as the input it expects, so
-   * calling one on a focus that can never hold that type throws instead of
-   * navigating to nothing. That is also what scopes the name: two DTOs may both
-   * declare a `displayText` column, and a call resolves to the one its focus
-   * fits. A name whose declarations a call could not tell apart — a built-in
-   * name, one a host function already answers on any focus, or two types that
-   * can describe the same value — is refused here rather than shadowed. Names
-   * are the whole of the rule: several DTOs may read one fhirType (a weight row
-   * and a blood-pressure row are both Observations), and only a name two of
-   * them claim is a conflict.
-   *
-   * Registering adds names to the function table and nothing else. A DTO's
-   * `static env` stays the DTO's: each registered column body reads it, and no
-   * other expression sees it, so two DTOs may declare one env name with two
-   * different values. Bind `env` on the engine itself to publish a variable to
-   * every expression. DTO `vars` are not registered — they may reference
-   * per-call env, so they apply only when projecting the DTO. A DTO you only
-   * ever project (never call into from other expressions) does not need to be
-   * listed here.
+   * DTOs whose columns become typed FHIRPath functions. Registration requires a
+   * model and publishes every column name, but it does not publish DTO `env` or
+   * `vars`. Same-name columns are allowed only when their input types do not
+   * overlap. See `docs/api.md#registering-dto-columns-as-functions`.
    */
   resourceDtos?: readonly DtoClass[]
 }
 
 /**
- * A FHIRPath engine with the model (and any env/now/trace defaults) bound once,
- * so every call site stops repeating `{ model: r4Model }`. Per-call options
- * override the bound defaults field by field. `fhirpath-ts/r4` exports a
- * ready-made instance as `r4`.
- *
- * The evaluate-family methods take the expression first, mirroring the
- * low-level `evaluate()`; the per-resource helpers (`test`, `filter`,
- * `project`, `checkConstraints`) take their subject first.
- *
- * An engine is meant to outlive the work it serves: its parse cache is its own,
- * so a fresh engine starts cold. To vary `env`, `now`, or any other option per
- * request, keep one engine and pass them in that call's `options` — per-call
- * values override the bound defaults field by field, except `env`, `vars`, and
- * `functions`, which merge per name (per-call entries add to the bound ones
- * and win on the same name).
+ * A FHIRPath engine with shared model and evaluation defaults. Per-call values
+ * replace defaults, while `env`, `vars`, and `functions` merge by name. Keep an
+ * engine for reuse because its parse cache is private to that instance.
  */
 export class FhirPathEngine {
   /** The per-call options bound at construction; engine-only settings are not part of them. */
@@ -233,15 +170,9 @@ export class FhirPathEngine {
   }
 
   /**
-   * Shape a resource into a flat row, one expression per column, following
-   * SQL-on-FHIR ViewDefinition column semantics: a column is a scalar (first
-   * value or undefined) and yielding several values is an error — append
-   * `.first()` or opt into `{ path, collection: true }` to keep them all.
-   * An array or Bundle input produces one row per resource, and every column
-   * evaluates with `%rowIndex`/`%rowTotal` set to the row's position (`0`/`1` for a
-   * single resource) — e.g. `(id | %rowIndex.toString()).first()` for a key that
-   * falls back to the row number. Columns compile up front, so a malformed
-   * column expression throws even when the input yields no rows.
+   * Projects each resource into a flat row. Columns return one optional value
+   * unless `collection: true` is set. `%rowIndex` and `%rowTotal` are available
+   * in every column. All columns compile before any row is read.
    */
   project<C extends DtoClass>(
     input: readonly unknown[] | BundleLike,
@@ -279,12 +210,9 @@ export class FhirPathEngine {
   }
 
   /**
-   * Evaluate FHIR invariants (`ElementDefinition.constraint`-shaped) against a
-   * resource — or each resource of an array or Bundle, where issues carry the
-   * failing position as `index`. This checks constraint expressions only — it is
-   * not full profile validation (no cardinality, bindings, or slicing). A
-   * constraint whose expression itself errors is reported as a failed issue, not
-   * thrown.
+   * Evaluates FHIR constraint expressions. Arrays and Bundles add the resource
+   * index to each issue. Expression errors become failed issues. This is not full
+   * profile validation.
    */
   checkConstraints(
     input: unknown,
@@ -295,14 +223,8 @@ export class FhirPathEngine {
   }
 
   /**
-   * Per-call options override the bound defaults field by field, except `env`,
-   * which merges per variable: per-call variables add to the bound ones and win
-   * on the same name — in either spelling, since env keys are normalized
-   * (`threshold` and `%threshold` are the same variable). Passing
-   * `env: { reports }` to an engine bound with lookup tables must not silently
-   * unbind the tables for that call. (To blank a bound variable for one call,
-   * pass it as `undefined` — it resolves to empty.) `vars` and `functions`
-   * merge the same way, per name, for the same reason.
+   * Replaces scalar defaults and merges `env`, `vars`, and `functions` by name.
+   * Per-call entries win. Environment keys are normalized with or without `%`.
    */
   private merged(options?: EvaluateOptions): EvaluateOptions {
     if (!options) {

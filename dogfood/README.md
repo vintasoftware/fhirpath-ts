@@ -1,23 +1,20 @@
-# Real-usage tests
+# Application examples
 
-Modules in this directory come from real apps and use the engine the way an
-app does. `patient-view.dto.ts` holds the row shapes and the engine that projects
-them — DTO definitions, shared base classes, `vars` joins, display choices, and
-`enum` columns; `patient-view-mappers.ts` holds the functions an app calls, with
-`@medplum/fhirtypes` inputs. The split follows the `*.dto.ts` convention
-`fhirpath-check` discovers, so `pnpm check:fhirpath` imports this directory's
-DTOs and checks them against their engine. Each module has a test beside it that:
+This directory uses the engine in the same way as a healthcare application.
 
-- asserts every exported function end to end, on synthetic FHIR data;
-- runs `analyzeExpression` over the expressions no checker can discover — the
-  ones held in a `const`, which every source walker sees as a variable;
-- runs the real `fhirpath-check` over this directory, so DTO discovery itself is
-  under test: it imports `patient-view.dto.ts`, finds the engine it constructs,
-  and analyzes all 13 exported DTOs against it.
+`patient-view.dto.ts` contains DTOs, shared base classes, variable joins, display
+choices, and enum columns. It also creates the engine that uses them.
+`patient-view-mappers.ts` contains application functions with
+`@medplum/fhirtypes` inputs.
 
-Nothing lists the DTOs. Discovery covers them, which is the point of the
-`*.dto.ts` convention.
+The `*.dto.ts` suffix lets `fhirpath-check` import the DTO module and check each
+exported class with its engine. The tests:
 
-The directory is part of `pnpm typecheck` and `pnpm test`, which CI runs on
-every push. When an engine change breaks how a real app uses it, it breaks
-here first.
+- run every exported mapper on synthetic FHIR data;
+- analyze expressions stored in constants, which source checks cannot connect to
+  their later call site;
+- run `fhirpath-check` on this directory and confirm that it finds the engine and
+  all 13 exported DTOs.
+
+No DTO list is maintained by hand. This directory is included in `pnpm
+typecheck`, `pnpm test`, and the CI checks.

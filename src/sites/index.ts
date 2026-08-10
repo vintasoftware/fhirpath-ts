@@ -1,21 +1,7 @@
 /**
- * Expression-site extraction: the shared call-site policy applied over the real
- * TypeScript AST, for every tool that reads source files — the `fhirpath-check`
- * CLI, a bundler plugin, the demo playground's editor markers. (The ESLint rule
- * is the one walker that does not use this: ESLint hands it an ESTree AST it
- * must report on.)
- *
- * Its own entry point (`fhirpath-ts/sites`) so `fhirpath-ts/analyzer` stays
- * dependency-free for the hosts that analyze *expressions* at runtime — a rules
- * editor validating what a user typed needs no compiler. Reading `.ts` source is
- * the one job that does, and even here the compiler is the caller's to provide:
- * `createSiteFinder(ts)` takes the TypeScript namespace as an argument, so the
- * CLI passes the `typescript` package (an optional peer dependency) while the
- * demo passes the copy Monaco already ships in its worker — nobody bundles a
- * second compiler. Only stable AST API is touched, so any TypeScript in the
- * peer range works. That range stops below 7: the native port's `typescript`
- * entry point exports `version` and little else, so `ts.ScriptTarget` and
- * `ts.transpileModule` are simply absent there.
+ * Finds FHIRPath expressions in a TypeScript AST. The caller supplies TypeScript,
+ * which keeps this entry point free of runtime dependencies. The ESLint rule has
+ * a separate ESTree walker that uses the same expression policy.
  */
 // A default import, not `* as TS`. Under Node's ESM resolution a namespace
 // import of `typescript` (a CommonJS `export =` module) carries a synthetic
@@ -46,7 +32,7 @@ import {
   TAG_NAME,
 } from '../analyzer/expression-policy.ts'
 
-/** The TypeScript API surface `createSiteFinder` needs: the namespace itself. */
+/** The TypeScript namespace accepted by `createSiteFinder`. */
 export type TypeScriptApi = typeof TS
 
 export interface ExpressionSite {
@@ -57,37 +43,19 @@ export interface ExpressionSite {
   column: number
   /** The DTO fhirType the expression is analyzed against, when the site fixes one. */
   inputType?: string
-  /** A DTO member site: its `%variables` are not the walker's to judge (see `analyzeSite`). */
+  /** A DTO member site, which `analyzeSite` checks with source-only limits. */
   dto?: true
-  /**
-   * The functions the file declares: one per `@column` field, since a registered
-   * DTO column is callable from any expression. Shared by every site of the
-   * file, and absent when it declares none.
-   */
+  /** Callable DTO columns declared in the same file. */
   functions?: Readonly<Record<string, FileColumnFunction>>
 }
 
-/**
- * What a site finder does: every FHIRPath expression literal in one source
- * file. `options` widens which import sources count as the real FHIRPath API
- * (LocalModuleOptions, same as the ESLint rule's).
- */
+/** Finds every static FHIRPath expression in one source file. */
 export type SiteFinder = (sourceText: string, fileName: string, options?: LocalModuleOptions) => ExpressionSite[]
 
 /**
- * Build a site finder around the given TypeScript namespace. The finder locates
- * `` fhirpath`...` `` tags plus literal expression arguments to the call names
- * in `CALL_SITES` — including expressions inside project() columns objects,
- * checkConstraints() constraint arrays, a DTO's `vars`, and its
- * `@column`/`@criteria` fields. Which calls count, and which are skipped, is the
- * shared policy's decision — see src/analyzer/expression-policy.ts. Dynamic
- * expressions cannot be checked statically and are left alone.
- *
- * A `@column` site is analyzed against its class's fhirType, taken from the
- * class's `extends defineDto('…')` clause and threaded down the walk; a class
- * extending a base class or a root-generic factory has none. Each `@column` also
- * declares a function named by the field it decorates, so calls between a file's
- * own columns resolve.
+ * Creates a finder for the calls and tags in `CALL_SITES`. DTO fields include a
+ * root type when the class declares one, and each column is exposed as a local
+ * function declaration. Dynamic expressions are skipped.
  */
 export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
   /** How the shared shape extractor reads TypeScript AST nodes. */
@@ -147,15 +115,7 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
     return heritage
   }
 
-  /**
-   * Everything about the file that extraction needs to know up front, in one pass
-   * over the tree: the name bindings — foreign- and package-import names from the
-   * top-level import statements, then engine locals (`const engine = new
-   * FhirPathEngine(...)`) and re-bound names (parameters, other declarations — see
-   * `SourceBindings.rebound`) — and every class's heritage, which is what resolves
-   * a DTO root through a shared base class. Collecting before extracting is what
-   * lets a module-scope engine, or a base class, be used above its declaration.
-   */
+  /** Collects imports, engine locals, rebound names, and DTO class roots before extracting sites. */
   function collectFile(
     source: TS.SourceFile,
     options: LocalModuleOptions

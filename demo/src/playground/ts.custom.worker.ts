@@ -1,13 +1,8 @@
 /**
- * Monaco's TypeScript worker plus a FHIRPath side channel. The side-effect
- * import wires Monaco's own worker protocol unchanged AND exposes the bundled
- * compiler as `globalThis.ts` (ts.worker does that at module scope) — which is
- * what lets the playground extract expression sites with the real TypeScript
- * AST without bundling a second compiler or blocking the main thread.
- *
- * The two protocols share one worker without touching each other: Monaco's
- * messages carry a `vsWorker` field and its handler ignores anything without
- * one, while this channel answers only messages carrying `fhirpathSites`.
+ * Adds a FHIRPath message channel to Monaco's TypeScript worker. Monaco exposes
+ * its compiler as `globalThis.ts`, so the channel can find expression sites
+ * without another compiler bundle. Monaco handles `vsWorker` messages; this
+ * channel handles only `fhirpathSites` messages.
  */
 import 'monaco-editor/esm/vs/language/typescript/ts.worker'
 

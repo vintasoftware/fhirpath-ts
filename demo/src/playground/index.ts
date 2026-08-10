@@ -1,14 +1,8 @@
 /**
- * The "Edit it — checked live" playground. A Monaco editor whose TypeScript worker
- * type-checks the buffer against fhirpath-ts's real declarations (bundled into
- * src/monaco/*.d.ts), so the inferred result types and the input mismatches surface
- * exactly as they would in your editor. On top of that the §11 analyzer runs over
- * the FHIRPath literals the buffer contains — found with the same TypeScript-AST
- * walker the fhirpath-check CLI uses, running inside Monaco's own worker where
- * the compiler already lives (see ts.custom.worker.ts).
- *
- * Each sample owns its model, so its markers, its output and the reader's edits all
- * belong to it and a tab switch cannot spill one tab's state into another.
+ * The live Monaco playground. Its TypeScript worker uses the package declarations
+ * for normal type checks and finds FHIRPath literals for the §11 analyzer. Each
+ * sample owns its editor model, markers, and output.
+ * See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
  */
 
 import { analyzeSite } from 'fhirpath-ts/analyzer'
@@ -32,19 +26,13 @@ interface Tab {
   running: boolean
 }
 
-// project() sets %rowIndex/%rowTotal per row at runtime; declared here so the samples
-// that use them lint clean (the analyzer has no notion of the call site).
+// Declare projection row variables because the analyzer cannot see the runtime call.
 const PROJECT_ROW_VARIABLES = {
   rowIndex: { types: ['System.Integer'], single: true },
   rowTotal: { types: ['System.Integer'], single: true },
 }
 
-/**
- * Ask the TypeScript worker for the buffer's expression sites. Extraction rides
- * the worker Monaco already runs (see ts.custom.worker.ts) — the compiler is
- * there, the main thread stays free, and each request is matched to its reply
- * by id so answers can never cross.
- */
+/** Requests expression sites from Monaco's TypeScript worker. IDs match each reply. */
 let sitesRequestId = 0
 const pendingSites = new Map<number, (sites: ExpressionSite[] | undefined) => void>()
 /** The worker the pending requests were sent to, so a replaced one is noticed. */
@@ -54,10 +42,8 @@ let listeningTo: Worker | undefined
 async function requestSites(text: string): Promise<ExpressionSite[] | undefined> {
   const worker = await tsWorkerHandle()
   if (worker !== listeningTo) {
-    // Monaco owns this worker's lifetime and disposes it on a config change, so
-    // the handle can be a different worker than last time. Answers to requests
-    // sent to the old one will never arrive, so settle them rather than leave
-    // lint awaiting them forever — which would stop markers for good.
+    // Monaco replaces the worker after configuration changes. Complete requests
+    // sent to the old worker so linting can continue.
     for (const [id, resolve] of pendingSites) {
       pendingSites.delete(id)
       resolve(undefined)
@@ -86,15 +72,14 @@ async function lint(model: monaco.editor.ITextModel): Promise<void> {
   const version = model.getVersionId()
   const sites = await requestSites(model.getValue())
   if (sites === undefined) {
-    return // No answer coming; leave the markers as they are rather than clearing them.
+    return // Keep the current markers when the worker cannot answer.
   }
   if (model.isDisposed() || model.getVersionId() !== version) {
-    return // The buffer moved on; the keystroke that changed it re-linted.
+    return // A newer editor version has already started another lint.
   }
   const markers: monaco.editor.IMarkerData[] = []
   for (const site of sites) {
-    // analyzeSite applies each site's own context: a DTO `@column` field runs
-    // against its class's fhirType (see the dto sample).
+    // `analyzeSite` includes the DTO type and other context found with each site.
     for (const diagnostic of analyzeSite(site, { model: r4Model, variables: PROJECT_ROW_VARIABLES })) {
       const start = model.getPositionAt(site.start + diagnostic.span.start)
       const end = model.getPositionAt(site.start + diagnostic.span.end)

@@ -15,23 +15,10 @@ import {
 import { analyzeExpression } from './analyze.ts'
 
 /**
- * Runs the static analyzer over the official test suites. The evaluator's
- * suite run (src/official.test.ts) skips mode="strict" cases because static
- * typing is the analyzer's job — this file is where that claim is tested:
- *
- * - invalid="syntax"/"semantic" and mode="strict" cases must produce at least one
- *   error-severity diagnostic.
- * - Valid cases must produce none, so the analyzer cannot drift into false
- *   positives.
- * - invalid="execution" cases are exempt either way: they fail only once data
- *   flows, and the analyzer legitimately flags some of them early (e.g. the
- *   singleton misuse in `(1|2).not()`).
- *
- * Cases skipped by the runtime manifest for non-strict reasons (CDA model,
- * terminology service, R5-only elements, ...) are outside the engine's guarantee
- * and are skipped here too. skipStaticCheck and the analyzer skip manifest
- * (test-data/official/analyzer-skip-manifest.ts) handle the rest, with the same
- * stale-entry hygiene as the runtime manifest.
+ * Runs the analyzer over the official suites. Syntax, semantic, and strict cases
+ * must report an error; valid cases must report none. Execution-only failures
+ * are excluded. Runtime feature skips and the analyzer skip manifest apply with
+ * stale-entry checks.
  */
 
 const suites: Record<SuiteName, OfficialGroup[]> = {

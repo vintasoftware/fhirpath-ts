@@ -1,123 +1,38 @@
 # fhirpath-ts
 
-A TypeScript-native [FHIRPath](https://hl7.org/fhirpath/) engine with zero runtime
-dependencies, verified against the official HL7 conformance suites, plus two things no
-other implementation offers together:
+A TypeScript-native [FHIRPath](https://hl7.org/fhirpath/) engine for application
+development. It has zero runtime dependencies and includes:
 
-- **Compile-time result types** for common expressions, in plain `tsc` with no plugin:
-  `compile('Patient.name.given').evaluate(patient)` is a `string[]`.
-- **A static analyzer for the official spec's §11**
-  ([Type safety and strict evaluation](https://hl7.org/fhirpath/#typesafety)) that
-  checks full expressions (unknown elements, wrong types, singleton misuse) at CI
-  time, via a CLI or an ESLint rule.
+- typed results for literal expressions in plain TypeScript;
+- DTOs that transform FHIR resources into typed application data;
+- static checks through TypeScript, ESLint, a CLI linter/analyzer, and a public analyzer API;
+- official HL7 conformance tests plus tests from other FHIRPath engines;
+- [Medplum](https://www.medplum.com/) compatibility;
+- currently focused in FHIR R4, the most commonly used FHIR version.
 
-## Why this engine
-
-| | **fhirpath-ts** | fhirpath.js | fhirpath-py | fhirpath-rs | Medplum | HAPI / HL7 Java | helios-fhirpath | kotlin-fhirpath | HealthSamurai editor |
-|---|---|---|---|---|---|---|---|---|---|
-| Runtime deps | zero | ANTLR runtime, ucum-lhc, … | ANTLR runtime | Rust crates | none (large SDK) | org.hl7.fhir.core (Java) | Rust crates | ANTLR runtime (KMP) | n/a (block editor) |
-| Decimal arithmetic | exact, always on | floats (opt-in precise mode) | Python decimal | Rust decimal | floats | BigDecimal | loses trailing zeros (documented) | precision 15, open TODO | n/a |
-| Official R4+R5 suites in CI | 100% of non-skipped | not run | not run | regrouped R5 | not run | R4/R5 | R4 + R5, zero-failure | R4 only (6-platform matrix) | none |
-| Runs the other engines' suites | yes, with evidence for each divergence | no | no | no | no | no | no | no | n/a |
-| Compile-time result types | yes (plain `tsc`) | no | no | no | no | no | no | no | n/a |
-| Spec §11 as dev tooling | CLI + ESLint + API | no | no | runtime analyzer | no | `check()` API | inference, display-only | no | editor inference |
-| Terminology / async / `%factory` | deferred (see Gaps) | yes | partial | `%factory` | no | yes | — | — | n/a |
-| FHIR models | R4 (provider interface) | DSTU2–R5 | DSTU2–R5 | R5 | R4 | DSTU2–R5 | R4 + R5 | R4/R4B/R5 (only R4 tested) | — |
-
-(— means not assessed; n/a means out of scope for that tool.)
-
-Three things set this engine apart.
-
-**Expressions are checked before they run — and the checker itself is
-conformance-tested.** The spec has had §11 for years, but the reference engines
-treat it as at most a runtime mode. Here a typo like `Observation.valueQuantity`
-or a singleton misuse is a build failure — caught by type inference in `tsc`,
-the `fhirpath-check` CLI, or the ESLint rule — instead of an empty result in
-production. The analyzer runs against both official suites: every strict-mode
-and semantic-invalid case must produce an error diagnostic, and every valid case
-must produce none, so it cannot drift into false positives. It types
-`resolve()` from `Reference.targetProfile`, tracks `defineVariable()` scopes
-exactly like the runtime, and host-supplied custom functions declare one record
-— arity, signature, implementation — that the evaluator and the analyzer both
-understand, so using a custom function never blinds the checker.
-
-**Correctness is demonstrated against everyone else's tests, not just ours.** The
-engine passes 100% of the non-skipped official suites plus the fhirpath.js and
-fhirpath-py corpora, and every intentional divergence carries its spec citation.
-Failing cases must fail in the phase the suite names — syntax at parse, semantic
-as a type error, execution at runtime. On top of the fixed suites, property
-tests check what example-based tests cannot: printer/parser round-trips over
-generated ASTs, exact-decimal arithmetic laws, temporal comparison laws at mixed
-precisions, and generated expressions evaluated differentially against
-fhirpath.js. That process caught reference-implementation bugs this engine
-refused to inherit: Medplum's `(0).not() = true` contradicts the official suite,
-and fhirpath.js treats `1 month = 30 days` as true. A weekly job re-converts the
-suites from `FHIR/fhir-test-cases@master` and flags new or changed cases.
-
-**The engineering fits this repo.** Zero dependencies, consumed from source,
-hardened against hostile expressions — including two ReDoS answers for
-`matches()`: a static warning on backtracking-prone literal patterns and a
-pluggable linear-time regex engine — and model-agnostic behind a provider
-interface, so R5 and CDA are additive.
-
-### Correctness practices across the field
-
-The correctness work studied the strongest implementations in the field — HAPI
-(the HL7 Java reference engine),
-[helios-fhirpath](https://github.com/HeliosSoftware/hfs) (Rust),
-[kotlin-fhirpath](https://github.com/ohs-foundation/kotlin-fhirpath) (Kotlin
-Multiplatform), and the analyzer behind
-[HealthSamurai's fhirpath-editor](https://github.com/HealthSamurai/fhirpath-editor)
-— and adopted each practice that survived scrutiny. Same columns as above:
-
-| Practice | **fhirpath-ts** | fhirpath.js | fhirpath-py | fhirpath-rs | Medplum | HAPI / HL7 Java | helios-fhirpath | kotlin-fhirpath | HealthSamurai editor |
-|---|---|---|---|---|---|---|---|---|---|
-| Failures land in the tagged phase | yes, with documented overrides | no | no | no | no | yes (the practice's origin) | no | no | n/a |
-| Static checker tested against the suites | yes, both directions | n/a | n/a | — | n/a | via phase assertions | no | n/a | no (curated units only) |
-| Custom functions visible to static checking | yes (one record for both) | runtime-only table | — | — | — | yes (resolve/check/execute) | no | no | n/a |
-| `resolve()` typed from targetProfile | yes | n/a | n/a | — | n/a | yes | no | n/a | `resolve()` absent |
-| Property + differential fuzzing | round-trips, value laws, vs fhirpath.js | — | — | — | — | none | none | none | none |
-| Upstream suite drift watch | weekly re-convert + diff | — | — | — | — | no | releases blocked on upstream master | no | no |
-| Skips documented with root causes | hygiene-checked manifests + README classes | — | — | — | — | — | reason-annotated failure list | skip registry + README table | n/a |
-| ReDoS on `matches()` | static warning + pluggable engine | — | — | — | — | 500 ms regex timeout | none | none | n/a |
-
-The trade-offs live in [Gaps and deferred features](#gaps-and-deferred-features).
+Check the [playground demo](demo/README.md) or keep reading!
 
 ## Quick start
 
 ```ts
 import { r4 } from 'fhirpath-ts/r4'
 
-// One import: a FhirPathEngine with the R4 model already bound.
-r4.evaluate('Patient.name.given', patient) // string[] — compile + evaluate in one call
-r4.first('Patient.name.family', patient)   // string | undefined — the scalar 90% case
+const patient = {
+  resourceType: 'Patient',
+  active: true,
+  name: [{ family: 'Okoro', given: ['Adaeze', 'Mina'] }],
+} as const
 
-// Compile once for hot paths; the engine's defaults stay bound:
-const given = r4.compile('Patient.name.given')
-given.evaluate(patient) // string[] — and `patient` must be a Patient
+r4.evaluate('Patient.name.given', patient) // ['Adaeze', 'Mina']
+r4.first('Patient.name.family', patient) // 'Okoro'
+r4.test(patient, 'Patient.active = true') // true
 
-// Bundles and resource arrays work transparently — a searchset behaves as its
-// entry resources, and expressions rooted at Bundle still see the bundle itself:
-r4.evaluate('Patient.name.given', searchset)   // string[] across every Patient entry
-r4.evaluate('Bundle.entry.count()', searchset) // the bundle, because the root is Bundle
-r4.evaluate('Bundle.type', [searchset])        // wrap in an array to force one-resource treatment
-r4.evaluate('entry.count()', searchset)        // throws: a bare Bundle element is ambiguous —
-                                               // start at Bundle, or wrap the input in an array
+const family = r4.compile('Patient.name.family')
+family.evaluate(patient) // ['Okoro']
 ```
 
-Engine methods parse on demand (LRU-cached by expression text) and infer result
-and input types from literal expressions in plain `tsc` — see
-[Static checking](#static-checking-official-spec-11). The bound model gives
-FHIR-aware evaluation: choice elements by stem name (`Observation.value`),
-primitive `_field` extensions, and type checks (`is`/`as`/`ofType`). Unknown
-elements navigate to empty like the reference engines (typos are the static
-analyzer's job); the one runtime semantic error is choice-key misuse
-(`Observation.valueQuantity`).
-
-Need different defaults — `%env` variables, a fixed clock, a trace sink, another
-model? Construct your own engine; per-call options override its defaults field
-by field, except `env` and `functions`, which merge per name — per-call entries
-add to the bound ones and win on the same name:
+Engine methods parse on demand and cache by expression text. Build a separate
+engine when you need different defaults:
 
 ```ts
 import { FhirPathEngine } from 'fhirpath-ts'
@@ -127,297 +42,49 @@ const fp = new FhirPathEngine({ model: r4Model, env: { threshold: 5 } })
 fp.evaluate('%threshold + 1') // [6]
 ```
 
-### The main FHIRPath jobs, as helpers
+See [API reference](docs/api.md) for all entry points, options, custom functions,
+DTO behavior, parse caching, and Medplum type compatibility.
 
-FHIRPath earns its keep in FHIR doing a few specific jobs — extracting values,
-checking invariants, filtering by criteria, shaping data — and the engine has a
-helper for each:
+## Suggested usage: DTOs
 
-```ts
-// Criteria — the boolean semantics FHIR invariants, Subscription criteria, and
-// Questionnaire enableWhen share. One boolean returns itself (spec §4.5
-// singleton evaluation). Empty returns false, which is how those callers read
-// an empty result.
-r4.test(patient, "name.family = 'Chalmers'")   // boolean
-r4.filter(patients, 'birthDate < @1990-01-01') // Patient[] — arrays and Bundles alike
-
-// Invariants, shaped exactly like ElementDefinition.constraint:
-const result = r4.checkConstraints(patient, [
-  { key: 'pat-1', severity: 'error', human: 'Contact needs a name or telecom',
-    expression: 'contact.all(name.exists() or telecom.exists())' },
-])
-result.valid                // false only if an error-severity constraint failed
-result.issues               // the failed constraints, echoing their definitions
-result.toOperationOutcome() // FHIR-native report (issue.code = 'invariant')
-
-// Shape a resource into a typed row, following SQL-on-FHIR ViewDefinition column
-// semantics: columns are scalars; more than one value is an error (append first()
-// or opt into collection: true). Each column's type is inferred from its expression;
-// when the expression is outside the inference subset, declare it with `type`
-// (mirroring ViewDefinition column.type — a compile-time assertion, unchecked at runtime).
-r4.project(patient, {
-  id: 'Patient.id',                                         // string | undefined
-  family: 'Patient.name.family.first()',                    // string | undefined
-  given: { path: 'Patient.name.given', collection: true },  // string[]
-  name: "Patient.name.given.join(' ')",                     // string | undefined
-  born: { path: 'Patient.birthDate', as: 'Date' },          // Date | undefined — see below
-  gender: { path: 'Patient.gender', default: 'unknown' },   // string — default fills empty AND types away undefined
-  isActive: { test: 'Patient.active = true' },              // boolean — criteria column, test() semantics
-})
-r4.project(searchset, { id: 'Patient.id' }) // arrays and Bundles: one row per resource
-
-// Every column evaluates with %rowIndex/%rowTotal set to the row's position (0/1 for a
-// single resource), so a row key can fall back to the row number:
-r4.project(searchset, { key: '(Patient.id | %rowIndex.toString()).first()' }) // string | undefined, inferred
-
-// `as: 'Date'` coerces a column to JS Dates: partial dates become the UTC start of
-// their period, and an unparseable value coerces to empty (the toX() contract).
-// `as` also takes a function over each value — the escape hatch for display-ready
-// shaping; its return type becomes the column type. `default` fills an empty result
-// with a plain JS value (FHIRPath has no null, so this is also how a column yields
-// one) and substitutes for `undefined` in the column's type — with unions covering
-// in-expression fallbacks and these two covering the rest, a view-model mapper can
-// be a project() call with no .map() after it.
-// `evaluate` and `first` accept the same `type` declaration a column does, for
-// expressions outside the inference subset — per-call only, never an engine default:
-r4.first("Patient.name.select(family & ', ' & given.first())", patient, { type: 'string' })
-```
-
-Arrays and Bundles flow through all of these: `filter` and `project` iterate the
-resources, and `checkConstraints` checks each one — its issues then carry the
-failing position as `index`, and for Bundles the OperationOutcome points at
-`Bundle.entry[i].resource`. A Bundle is validated as a resource in its own right
-(e.g. against the `bdl-*` invariants) by wrapping it: `checkConstraints([bundle], …)`.
-
-Two scope notes, so the names don't overpromise: `checkConstraints` evaluates
-constraint *expressions* only — it is not full profile validation (no cardinality,
-bindings, or slicing). And `project` shapes values *out of* a resource;
-structure-to-structure mapping is the FHIR Mapping Language / StructureMap's job,
-where FHIRPath is just the expression component.
-
-### Low-level API
-
-The engine wraps a smaller stateless layer that stays public — the same options,
-passed per call:
+For application code, prefer a DTO when several expressions build one row or
+view model. The resource type is declared once. Each field keeps its TypeScript
+type, and getters or methods can handle work that is clearer in TypeScript.
 
 ```ts
-import { evaluate, compile, fhirpath } from 'fhirpath-ts'
-import { r4Model } from 'fhirpath-ts/r4'
+import { column, criteria, defineDto } from 'fhirpath-ts'
+import { r4 } from 'fhirpath-ts/r4'
 
-// One-off evaluation (LRU-cached parse), untyped results:
-evaluate('Patient.name.given', patient, { model: r4Model }) // unknown[]
+class PatientRow extends defineDto('Patient') {
+  @column('id', { default: '' })
+  id!: string
 
-// Compile once, reuse; literal expressions infer result and input types:
-compile('Patient.name.given').evaluate(patient, { model: r4Model }) // string[]
+  @column("name.where(use = 'official').first().family", { default: '' })
+  family!: string
 
-// The fhirpath() call form is equivalent; the tag form works but stays untyped
-// because TypeScript cannot carry literal types through tagged templates (TS#33304):
-fhirpath('Patient.name.given').evaluate(patient, { model: r4Model }) // string[]
-fhirpath`Patient.name.given`.evaluate(patient, { model: r4Model }) // unknown[]
-```
+  @column('name.given', { collection: true })
+  givenNames!: string[]
 
-Without a model (engine default or per-call), the engine navigates raw JSON.
+  @criteria('active = true')
+  active!: boolean
 
-### Options
-
-`new FhirPathEngine(options)` and every evaluate-family call's trailing
-`options` argument accept the same fields (per-call wins), plus `cacheSize`,
-which the engine keeps for itself:
-
-| Option | Meaning |
-| --- | --- |
-| `model` | A `ModelProvider`; use `r4Model` from `fhirpath-ts/r4` |
-| `env` | Environment variables: `{ myVar: 5 }` resolves `%myVar` |
-| `vars` | FHIRPath variable bindings, evaluated against the input — see below |
-| `now` | Evaluation clock for `now()`/`today()`/`timeOfDay()` (deterministic tests) |
-| `trace` | Sink for `trace()` calls — see the PHI note below |
-| `functions` | Host-supplied functions — see Custom functions below |
-| `cacheSize` | Parse-cache capacity, at construction only — see Parse caching below |
-
-`evaluateTyped(...)` (on the engine, bound expressions, and compiled expressions)
-returns the internal `TypedValue[]` (type names plus `Decimal`/`Temporal` value
-objects) instead of unwrapped JS values.
-
-#### `env` vs `vars`
-
-Both resolve `%name` references, both accept keys with or without the leading
-`%`, and both merge per name between the engine's bound defaults and a
-per-call record. They differ in what crosses the host boundary:
-
-- `env` carries host **data**: plain JS values, wrapped as-is. Lookup tables,
-  system URLs, request parameters.
-- `vars` carries **derived bindings**: each entry is a FHIRPath expression the
-  engine evaluates against the call's input — `%context`, `env`, and earlier
-  vars are in scope — and binds with full type fidelity. A var holding a
-  dateTime compares as a dateTime; a var holding a Quantity keeps unit
-  arithmetic. Env data enters untyped, so
-  `env: { w: { value: 72.5, unit: 'kg' } }` can never satisfy `%w > 70 'kg'`,
-  but `vars: { w: 'value.ofType(Quantity)' }` does.
-
-`vars` is the option form of `defineVariable()` and follows its rules: entries
-bind in declaration order (later vars can reference earlier ones), and a var
-may not override an environment variable — including built-ins like `%loinc` —
-that throws instead of shadowing. In `project()`, vars resolve once per row,
-with the row as focus and `%rowIndex`/`%rowTotal` in scope, and every column
-reads the same bindings — the join recipe below shows why that matters. A
-`readonly TypedValue[]` value (say, a previous `evaluateTyped()` result) binds
-directly without evaluation.
-
-### Custom functions
-
-A custom function is a HAPI-style triple on one record — resolve (name +
-arity), check (optional `signature`, for the analyzer), execute (`fn`).
-Plain JS values cross the boundary in both directions, arguments are eager,
-and built-in names cannot be overridden:
-
-```ts
-const functions = {
-  initials: {
-    minArity: 0,
-    maxArity: 0,
-    // The static-typing leg: without it, expressions using initials() analyze
-    // as unknown regions (still sound, just unchecked past the call).
-    signature: { input: { kind: 'String' }, result: { types: ['System.String'], single: false } },
-    fn: (input: unknown[]) => input.map(v => String(v).charAt(0)),
-  },
-} satisfies Record<string, CustomFunction>
-
-evaluate('name.given.initials()', patient, { functions })
-analyzeExpression('name.given.initials()', { model: r4Model, inputType: 'Patient', functions })
-```
-
-The same record works for both calls. Environment variables get the matching
-treatment on the static side: `AnalyzeOptions.variables` declares the `%vars`
-the host will pass (optionally with their types), so the analyzer can check
-them instead of flagging `unknown-variable`. When checking `project()` column
-expressions, declare `rowIndex` and `rowTotal` there too — the runtime sets
-them per row, but the analyzer has no notion of the call site that will run an
-expression.
-
-An expression kept in a `const` and evaluated elsewhere can declare the type it
-runs against, which is what makes it checkable — the checkers see the literal but
-not the call that will run it:
-
-```ts
-const VISIBLE_MEDICATION = fhirpath("(status in ('entered-in-error' | 'draft')).not()", 'MedicationRequest')
-const WEIGHT_KG = compile("value.ofType(Quantity).toQuantity('kg').value", 'Observation') // number[]
-
-fp.test(request, VISIBLE_MEDICATION)
-```
-
-The declared type does three things: a relative path infers like a DTO column
-(`number[]` above, rather than degrading to `unknown[]`), the expression's input
-type becomes that resource instead of one guessed from the path, and the ESLint
-rule and `fhirpath-check` analyze the expression against it — so an element typo
-in a shared criteria fails the same way it would inside a `@column`. Like a
-column's `type`, it is a declaration: nothing checks it at runtime.
-
-A function can also be defined in FHIRPath itself — `expression` instead of
-`fn`. The body evaluates as if spliced at the call site: the call's input is
-the focus, while `%context` and the environment stay the caller's. This is the
-alias mechanism for a chain you keep repeating:
-
-```ts
-const functions = {
-  displayText: {
-    expression: '(text | coding.display.first() | coding.first().code).first()',
-    signature: { result: { types: ['System.String'], single: true } },
-  },
-} satisfies Record<string, CustomFunction>
-
-const fp = new FhirPathEngine({ model: r4Model, functions })
-fp.first('Condition.code.displayText()', condition, { type: 'string' })
-fp.first('MedicationRequest.medication.ofType(CodeableConcept).displayText()', request, { type: 'string' })
-```
-
-Expression-defined functions take zero arguments and keep values typed
-end-to-end — a body yielding a dateTime compares as one, with none of the
-unwrap-to-JS flattening a native `fn` implies. A body that reaches itself,
-directly or through another definition, fails as recursion. The analyzer
-resolves them at arity 0 from the same record. An engine pre-parses bodies
-through its parse cache; pass a `CompiledExpression` body to get the same
-effect with the free `evaluate()`.
-
-Two signature fields say what a function is for, rather than only what it
-returns:
-
-```ts
-const functions = {
-  displayText: {
-    expression: '(text | coding.display.first() | coding.first().code).first()',
-    // Written for a CodeableConcept. Calling it on anything that can never be
-    // one throws at runtime and reports `input-type` in the analyzer.
-    signature: { input: { types: ['CodeableConcept'] }, result: { types: ['string'], single: true } },
-  },
-  isFinal: {
-    expression: "status = 'final'",
-    // Read the result as a criteria: §4.5 singleton evaluation, with empty read
-    // as false. The call is then one boolean, so `isFinal().not()` chains.
-    criteria: true,
-  },
-} satisfies Record<string, CustomFunction>
-```
-
-`input.types` reports only what it can prove. It stays silent on an empty focus,
-on a call with no model, on a value the model does not describe such as plain
-`env` data or a pre-resolved var, and on a focus where any one type fits. It
-also reads the hierarchy in both directions, so a `Quantity` function accepts a
-`SimpleQuantity`.
-
-### DTOs
-
-A DTO is a class: `defineDto(fhirType)` fixes the resource or datatype its
-columns read, and each `@column` field declares one column — the expression on
-the decorator, the column's type on the field below it. `fhirType` is the
-context every path infers against, so paths stay relative, and **the field's
-declared type is checked against what its expression yields**:
-
-```ts
-class WeightRow extends defineDto('Observation') {
-  @column("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
-  lbs!: number
-
-  @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
-  at!: Date | undefined
-
-  @criteria("status = 'final'")
-  isFinal!: boolean
-
-  get rounded(): number {
-    return Math.round(this.lbs)
+  get label(): string {
+    return this.family || this.id
   }
 }
-const rows = fp.project(observations, WeightRow) // WeightRow[], getters and methods included
+
+const rows = r4.project([patient], PatientRow)
+rows[0] // PatientRow { id: '', family: '', givenNames: [], active: true }
+rows[0]?.label // ''
 ```
 
-Declare a type the column cannot hold and the checker names both sides on the
-offending decorator:
+`@column` and `@criteria` use standard JavaScript decorators. Your build must
+transpile them. TypeScript works with `target` set to ES2024 or lower. SWC and Babel
+also support them. For a build without decorator support,
+[use records with `project()`](docs/api.md#project).
 
-```ts
-@column('clinicalStatus.coding.first().code')
-statusCode!: number
-//        ^ Decorator function return type 'ColumnTypeMismatch<number, string | undefined>'
-//          is not assignable to type 'void | ((this: ProblemRow, value: number) => number)'
-```
-
-`@column` takes the same options as a `project()` column — `type`, `as`,
-`choices`/`pick`, `enum`, `default`, `collection`. `@criteria` declares a
-boolean criteria column, using the `test()` semantics above, and it reads the
-same way when called as a function. Rows are real instances, so anything
-derived from the columns belongs on the class as a getter or method rather than
-in a column shaper.
-
-**Decorators need a build step.** They are TC39 standard decorators, so the
-consuming build must lower them: `tsc` (with `target` ES2024 or lower — at
-`esnext` it emits them untouched), swc, or Babel. esbuild, oxc, and
-`node --experimental-strip-types` do not support them; this repo's own vitest
-config carries a small tsc transform for exactly that reason. Without a
-decorator-capable build, `project(input, { … })` with a plain columns record
-still works.
-
-Registering DTOs engine-wide turns every column into an expression-defined
-function (named by the field, not a built-in name, analyzer signature derived
-from the column's `type`):
+Pass DTOs through `resourceDtos` to call their columns from expressions with other
+FHIR resources as root:
 
 ```ts
 class CodeableConceptDto extends defineDto('CodeableConcept') {
@@ -425,410 +92,76 @@ class CodeableConceptDto extends defineDto('CodeableConcept') {
   displayText!: string | undefined
 }
 
-const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
-fp.first('Condition.code.displayText()', condition, { type: 'string' })
-fp.first('Condition.subject.reference.displayText()', condition) // throws: a reference is not a CodeableConcept
-```
-
-Registering publishes **every** column of the DTO. Each column answers on the
-type it was written for, however the expression got there:
-
-```ts
-fp.evaluate('Bundle.entry.resource.ofType(Condition).code.displayText()', bundle) // works
-```
-
-Each column declares its DTO's `fhirType` as the input it expects, so calling
-one on a focus that can never hold that type is an error at both ends rather
-than an expression that quietly returns empty. That check is what limits a
-published name, and it needs a `model`, so registering without one is refused.
-Without a model the engine cannot compare a call's focus against the column's
-type, and every registered column would answer every call. A DTO you only
-project needs neither registration nor a model. A `@criteria` registers the same
-way and carries the criteria rule with it, so `isFinal()` returns one boolean
-whether it is projected as a column or called from an expression:
-
-```ts
-fp.evaluate('isFinal().not()', observationWithNoStatus) // [true], the same answer the column holds
-```
-
-A column's name is scoped by the type it was written for, so two DTOs may share
-one — a `displayText` for CodeableConcept and another for Coding — and each call
-runs the one its focus fits:
-
-```ts
-class CodingDto extends defineDto('Coding') {
-  @column('(display | code).first()')
-  displayText!: string | undefined
-}
-
-const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto, CodingDto] })
-fp.first('Condition.code.displayText()', condition) // the CodeableConcept column
-fp.first('Condition.code.coding.first().displayText()', condition) // the Coding one
-```
-
-Names are the whole of the rule, so several DTOs may read one resource — a
-weight row and a blood-pressure row are both Observations — and register side by
-side. What fails at construction, rather than shadowing anything, is a name
-whose declarations a call could not tell apart: a built-in function's name, a
-name a host function already answers on any focus, two types that can describe
-the same value (`Quantity` and `SimpleQuantity`), two DTOs on the same fhirType
-claiming one field name, or any shared name on an engine with no model to
-compare types with. The error names the DTO and the field.
-
-#### A DTO's own env
-
-The lookup tables and constants a DTO's expressions read are a `static env` on
-the class. They reach that DTO's columns and stop there — when it is projected,
-and inside the body of each of its columns called as a function:
-
-```ts
-class LabRow extends defineDto('DiagnosticReport') {
-  static env = { system: 'http://loinc.org' }
-
-  @column('code.coding.where(system = %system).first().code', { type: 'string', default: '' })
-  loincCode!: string
-}
-
-const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [LabRow] })
-fp.evaluate('loincCode()', report) // reads %system
-fp.evaluate('%system', report) // throws: undefined environment variable
-```
-
-Registering a DTO adds function names and nothing else, so two DTOs may declare
-one env name with two different values and neither shadows the other — a lab
-row on LOINC beside a problem row on SNOMED. To publish a variable to every
-expression an engine evaluates, bind it on the engine (`new FhirPathEngine({ env })`),
-where saying so is the point.
-
-Inside a column body the DTO's names are laid over the caller's environment for
-the length of the call: every other name — the built-ins, `%context`, whatever
-the call supplied, `%rowIndex` during a projection — stays the caller's, and the
-overlay is gone again afterwards.
-
-A name the DTO declares means the DTO's value, by whichever route a column
-reaches it — a projected column, a column called from another expression, or the
-DTO's own `vars`. Precedence for a DTO's expressions runs **engine env, then
-per-call env, then the DTO's own**, so passing that name to `project()` does not
-override it:
-
-```ts
-const fp = new FhirPathEngine({ model: r4Model, env: { system: 'engine' }, resourceDtos: [LabRow] })
-
-fp.project(report, LabRow)                                     // %system is LabRow's, not 'engine'
-fp.project(report, LabRow, { env: { system: 'urn:other' } })   // still LabRow's
-fp.project(orders, LabResultRow, { env: { reports } })         // %reports arrives: LabResultRow never declares it
-fp.evaluate('%system', report)                                 // 'engine' — outside a column, nothing is overlaid
-```
-
-The reason is that a column can be reached two ways in one projection — as a
-path, and as a function another column or `var` calls. If the call won on one
-route and the DTO on the other, a single declaration would answer twice in one
-`project()`. Data that varies per call is a *different* name, which the DTO
-declares as `callerEnv`.
-
-To read a DTO's columns against a different table — a stubbed lookup in a test —
-extend it and override the entry, as `PoundsRow` does below. Note what that does
-*not* cover: a call like `loincCode()` resolves to whichever DTO is registered,
-and runs with that DTO's env. Subclassing swaps the table for the subclass's own
-projected columns; register the subclass in place of the original to swap it for
-calls too.
-
-A subclass adds to what its bases declare, per name. To override one entry of a
-base's table, annotate the *base's* field `DtoEnv` — an inferred literal type
-would make TypeScript demand the whole record back from the subclass:
-
-```ts
-class BadgedRow extends defineDto('DiagnosticReport') {
-  static env: DtoEnv = { unit: 'kg', label: 'Reading' }
-}
-class PoundsRow extends BadgedRow {
-  static override env = { unit: '[lb_av]' } // `label` still reads 'Reading'
-}
-```
-
-A DTO that declares env once needs no annotation. Add `satisfies DtoEnv` to have
-the shape checked at compile time rather than when the DTO is first used.
-
-`vars` travel with the DTO as the second argument to `defineDto`. They are not
-registered — a var is an expression evaluated against a row, and a call has a
-focus rather than a row — so they apply when the DTO itself is projected, merged
-under any per-call `vars`. That keeps join tables and their bindings inside the
-DTO:
-
-```ts
-class OrderRow extends defineDto('ServiceRequest', {
-  vars: { report: '%reports.where(orderId = %context.id).report' },
-}) {
-  @column('id', { default: '' })
-  id!: string
-
-  @column('%report.status', { type: 'string', default: 'waiting' })
-  reportStatus!: string
-}
-fp.project(orders, OrderRow, { env: { reports } })
-```
-
-Columns several DTOs share live on a base class — extend it and its columns come
-along, so the row key or a badge group is written once:
-
-```ts
-class ObservationRow extends defineDto('Observation') {
-  @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
-  at!: Date | undefined
-}
-class WeightRow extends ObservationRow { … }
-class HeightRow extends ObservationRow { … }
-```
-
-For a group shared across *different* resources, make the base a function of the
-root — `function keyedRow<Root extends FhirTypeName>(fhirType: Root) { class KeyedRow extends defineDto(fhirType) { … } return KeyedRow }` —
-and the columns keep inferring against whatever root each DTO passes.
-
-For a column that yields one of a few known codes, `enum` gives a cast-free
-literal-union type and checks it at runtime (a value outside the list becomes
-empty, so `default` catches it):
-
-```ts
-@column('iif(dosageInstruction.asNeeded.ofType(boolean) = true, …)', {
-  enum: ['asNeeded', 'continuous'],
-  default: 'continuous',
+const fp = new FhirPathEngine({
+  model: r4Model,
+  resourceDtos: [CodeableConceptDto],
 })
-group!: 'asNeeded' | 'continuous'
+
+fp.first('Condition.code.displayText()', condition)
 ```
 
-`project()` checks every row's `resourceType` against the DTO's `fhirType` and
-throws on a mismatch — without the check, wrong input would come back as
-well-typed rows full of defaults. Filter the input first to project a subset; a
-subject with no `resourceType` (a datatype value) has nothing to check.
-
-> **Projecting a search Bundle:** a `searchset` carrying `_include` or
-> `_revinclude` results holds more than one resource type, so projecting it
-> whole throws on the first included resource
-> (`project(): row 1 is a Organization, but PatientRow declares fhirType
-> 'Patient'`). Filter to the type the DTO reads first — the check is deliberate,
-> since a Bundle whose extra types you did not expect is usually the bug:
->
-> ```ts
-> fp.project(fp.filter(searchset, '$this is Patient'), PatientRow)
-> ```
->
-> `filter` iterates the Bundle's entry resources, so the result is a plain array
-> of Patients and `project` gives one row each. To keep only the search matches
-> rather than every Patient in the Bundle, filter the entries instead:
-> `fp.evaluate("Bundle.entry.where(search.mode = 'match').resource", searchset)`.
-
-If a scalar column yields several values, the error names the column — and, when
-there is more than one row, the row it happened in (`yielded 3 values in row
-1`), so a long export points at the record to look at. The whole projection
-fails; there is no per-row error mode.
-
-TypeScript checks the declaration shapes and the field types, but never looks
-inside the expression strings. `analyzeDto` from `fhirpath-ts/analyzer` closes
-that gap — run it in a test next to each DTO:
-
-```ts
-import { analyzeDto, analyzeEngineDtos } from 'fhirpath-ts/analyzer'
-
-// The engine carries everything the check needs: its model, the functions its
-// registered DTOs contribute, and its env names.
-expect(analyzeDto(LabResultRow, { engine: fp })).toEqual([])
-
-// And it knows which DTOs it registered, so the vocabulary needs no list:
-expect(analyzeEngineDtos(fp)).toEqual([])
-```
-
-Data that arrives per call is the DTO's own declaration, not the checker's
-configuration: `callerEnv` names the env the projecting call supplies, so the
-expressions reading it are checked instead of reported as undefined.
-
-```ts
-class LabResultRow extends defineDto('ServiceRequest', {
-  callerEnv: ['reports'], // fp.project(orders, LabResultRow, { env: { reports } })
-  vars: { report: '%reports.where(orderId = %context.id).report' },
-}) { … }
-```
-
-Each finding carries the `member` it came from (a column name, or
-`vars.<name>`), the diagnostic code, and the message — so a typo inside an
-expression fails CI pointing at the exact column.
-
-`analyzeDto` also cross-checks a column's declared `type` (or `enum`) against
-what the analyzer infers the expression yields, which covers the whole language
-rather than the inference subset. That is the check for an expression TypeScript
-cannot see through — a `&` concatenation, a custom-function call: declare the
-column's `type` and a wrong claim becomes a `column-type` finding.
-
-### Parse caching
-
-An engine parses each expression once and keeps it in a private LRU sized by
-`cacheSize` (default `DEFAULT_PARSE_CACHE_SIZE`, 500; `0` disables reuse).
-Each engine caches independently of other engines and of the free `evaluate()`.
-Expressions you `compile()` yourself bypass the cache entirely. `cacheSize` is
-read at construction — unlike the other options, passing it per call does nothing.
-
-```ts
-const fp = new FhirPathEngine({ model: r4Model, cacheSize: 2000 })
-```
-
-Because the cache belongs to the engine, a fresh engine starts cold — keep one
-around rather than building one per request. Options that change per request go
-in that call's `options`, which override the bound defaults field by field
-(`env` and `functions` merge per name instead, so per-request entries sit
-alongside the bound ones):
-
-```ts
-const fp = new FhirPathEngine({ model: r4Model }) // once, at startup
-fp.test(patient, criteria, { env: { requestor }, now: receivedAt }) // per request
-```
-
-### Medplum compatibility
-
-`fhirpath-ts/r4` and `@medplum/fhirtypes` are generated from the same HL7 R4
-StructureDefinitions, so their types line up closely.
-
-A Medplum resource can be passed straight in, with no cast:
-
-```ts
-r4.evaluate('Patient.gender', medplumPatient) // works as-is
-```
-
-Fields with a `required` binding to a closed code set are typed as the codes
-themselves instead of `string`, taken from the R4 ValueSet and CodeSystem data
-at generation time:
-
-```ts
-patient.gender // 'male' | 'female' | 'other' | 'unknown'
-```
-
-R4 nests narrower codes under broader ones, such as `maiden` under `old` and
-`active` under `accepted`. A binding accepts the whole tree, so the nested codes
-are included too. Every field that both packages type as a set of codes agrees
-code for code, all 429 of them. Bindings to open-ended code systems like MIME
-types, and to very large lists like `ResourceType`, stay `string`.
-
-Every field here is optional, including ones the spec marks required, such as
-`Observation.status` and `Extension.url`. These types describe shapes to
-navigate; checking whether a resource is valid is the analyzer's job. So the two
-packages' field types are close without being identical: `Observation['status']`
-includes `undefined` here and does not in Medplum's types.
-
-To use Medplum's types for both the input and the result, pass them to
-`compile()` or `fhirpath()`:
-
-```ts
-import type { HumanName, Patient } from '@medplum/fhirtypes'
-
-const given = compile<'Patient.name', Patient, HumanName[]>('Patient.name')
-given.evaluate(medplumPatient, { model: r4Model }) // HumanName[]
-```
+This is useful for shared application vocabulary such as `displayText()` or `isFinal()`.
 
 ## Usage recipes
 
-The engine API above is the intended front door for application code. These are
-the patterns that come up constantly when building healthcare apps, each one
-runnable as shown. `src/api/recipes.test.ts` keeps this section honest: it
-exercises every snippet against the engine, and it also reads this section
-back — each expression string below must be one the tests run, and must pass
-the static analyzer clean — so an edit that lets the README and the tests
-drift apart fails the suite. (The join recipe composes its expression from a
-fragment at runtime, so its runtime test alone covers it.) To get the same
-static checks in your own CI, declare the `%vars` a snippet uses (and
-`rowIndex`/`rowTotal` for project columns) via `AnalyzeOptions.variables` / the
-ESLint rule's `variables`.
+These short examples show the main application APIs. The
+[playground demo](demo/README.md) is the best place to explore expressions
+interactively. A test runs every static expression in this section and checks it
+with the analyzer.
 
-### Display text with fallbacks
-
-FHIR rarely guarantees which field carries the human-readable text. A union
-tries alternatives in order (left wins), `first()` picks the survivor —
-FHIRPath's spelling of `a ?? b ?? c`:
+### Read, test, and filter
 
 ```ts
-// CodeableConcept: text, else the first coding with a display, else a code.
-r4.first('Condition.code.select(text | coding.display.first() | coding.first().code).first()', condition, {
-  type: 'string',
-})
+r4.evaluate('Patient.name.given', patient)
+r4.first('Patient.name.family', patient)
+r4.test(patient, 'birthDate <= today()', { now: new Date('2026-08-04T12:00:00Z') })
 
-// A patient's display name: prefer the official name, build "Given Family".
-r4.first(
-  "(Patient.name.where(use = 'official') | Patient.name).first().select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))",
-  patient,
-  { type: 'string' }
+const systolic = r4.filter(
+  observations,
+  "Observation.code.coding.exists(system = %loinc and code = '8480-6')",
+  { env: { loinc: 'http://loinc.org' } },
+)
+const newestFirst = r4.evaluate(
+  'Observation.sort(-(effective.ofType(dateTime) | issued).first())',
+  systolic,
 )
 ```
 
-A chain you use everywhere deserves a name: bind it as an expression-defined
-function (see Custom functions) and every CodeableConcept can call it —
+### Check constraints
+
+`checkConstraints()` evaluates constraint expressions. It does not perform full
+profile validation such as cardinality, bindings, or slicing.
 
 ```ts
-const fp = new FhirPathEngine({
-  model: r4Model,
-  functions: { displayText: { expression: '(text | coding.display.first() | coding.first().code).first()' } },
-})
-fp.first('Condition.code.displayText()', condition, { type: 'string' })
+const result = r4.checkConstraints(patient, [
+  {
+    key: 'pat-1',
+    severity: 'error',
+    human: 'Contact needs a name or telecom',
+    expression: 'contact.all(name.exists() or telecom.exists())',
+  },
+])
+
+result.valid // true
+result.issues // []
+result.toOperationOutcome() // { resourceType: 'OperationOutcome', issue: [{ severity: 'information', ... }] }
 ```
 
-### Filter and sort a worklist
+### Convert quantities
 
-`filter()` keeps the matching resources; `sort()` (ballot STU, in the
-[CI-build spec](https://build.fhir.org/ig/HL7/FHIRPath/)) orders them — a `-`
-prefix on a key sorts descending. Choice elements go by stem (`effective`, not
-`effectiveDateTime`):
-
-```ts
-const systolic = r4.filter(observations, "Observation.code.coding.exists(system = %loinc and code = '8480-6')", {
-  env: { loinc: 'http://loinc.org' },
-})
-const newestFirst = r4.evaluate('Observation.sort(-(effective.ofType(dateTime) | issued).first())', systolic)
-```
-
-### Unit-safe quantities
-
-Quantity literals compare with automatic UCUM conversion for the units the
-engine knows (see `src/values/ucum.ts`); unknown units still compare within
-themselves. `toQuantity(unit)` converts, `.value` extracts the number, and
-`convertsToQuantity(unit)` is the criteria-side check for dirty data:
+Known [UCUM](https://ucum.org/ucum) units compare and convert automatically.
+Unknown units can still compare with the same unit.
 
 ```ts
 r4.filter(observations, "value.ofType(Quantity) > 140 'mm[Hg]'")
-r4.filter(observations, "value.ofType(Quantity).convertsToQuantity('kg')") // drops unit: "lbs" with no code
-r4.first("Observation.value.ofType(Quantity).toQuantity('kg').value", weight) // number | undefined, inferred
+r4.filter(observations, "value.ofType(Quantity).convertsToQuantity('kg')")
+r4.first("Observation.value.ofType(Quantity).toQuantity('kg').value", weight)
 ```
 
-### View rows straight from project()
+### Map status labels
 
-With `%rowIndex` keys, `default` fallbacks, `test` flags, and `as` narrowing, the
-column map is the view model — no `.map()` after it. `default` also removes
-`undefined` from the column's type, which an in-expression `| 'fallback'`
-union cannot do, and it is the only way a column yields `null`:
-
-```ts
-const cards: MedicationCard[] = r4.project(requests, {
-  id: { path: '(MedicationRequest.id | %rowIndex.toString()).first()', default: '' },
-  name: {
-    path: '(MedicationRequest.medication.ofType(CodeableConcept).select(text | coding.display.first()) | MedicationRequest.medication.ofType(Reference).display).first()',
-    default: 'Medication',
-  },
-  sig: { path: 'MedicationRequest.dosageInstruction.first().text', default: '' },
-  isActive: { test: "MedicationRequest.status = 'active'" },
-  prescribedOn: { path: 'MedicationRequest.authoredOn', default: null }, // string | null
-})
-```
-
-Only declare `type` when inference can't see the expression — `iif`, a `%var`
-navigated without a fixed-return tail, or a path built with `+`/template
-strings (TypeScript types those `string`, not a literal). A plain literal
-path infers on its own, often more precisely (`MedicationRequest.status`
-infers the R4 status-code union), and that includes `a | b` unions,
-`(…)` groups, and `%var` roots ending in a fixed-return call like
-`%rowIndex.toString()`.
-
-### Status labels from code choices
-
-`choices` decodes a code into your display vocabulary in TypeScript — no cast,
-no env-table join — the way a Django field's `choices` name the values it may
-hold. Give it a display table (rows keyed by `code`) and `pick` the field each
-column reads, typed from the row; a miss becomes empty, so `default` doubles as
-the fallback for unexpected or future codes:
+`choices` converts codes into typed application values. A missing code becomes
+empty, so `default` also handles future or unexpected codes.
 
 ```ts
 const STATUS_CHOICES = [
@@ -836,64 +169,63 @@ const STATUS_CHOICES = [
   { code: 'recurrence', label: 'Recurrence', tone: 'danger' },
   { code: 'resolved', label: 'Resolved', tone: 'neutral' },
 ] as const
-r4.project(conditions, {
-  label: { path: 'Condition.clinicalStatus.coding.first().code', choices: STATUS_CHOICES, pick: 'label', default: 'Unknown' },
-  tone: { path: 'Condition.clinicalStatus.coding.first().code', choices: STATUS_CHOICES, pick: 'tone', default: 'neutral' as const },
-})
-```
 
-Omit `pick` to yield the whole matching row, or pass a plain Record
-(`choices: { active: 'info', … }`) when there is a single field to decode. When
-the fallback is computed rather than constant — say, title-casing the raw code —
-a DTO getter reads the code column back off the row (see [DTOs](#dtos)), and a
-bare `project()` call can use an `as` function:
-`as: code => STATUS_CHOICES.find(row => row.code === code)?.label ?? titleCase(String(code))`.
+const statusRows = r4.project(conditions, {
+  label: {
+    path: 'Condition.clinicalStatus.coding.first().code',
+    choices: STATUS_CHOICES,
+    pick: 'label',
+    default: 'Unknown',
+  },
+  tone: {
+    path: 'Condition.clinicalStatus.coding.first().code',
+    choices: STATUS_CHOICES,
+    pick: 'tone',
+    default: 'neutral' as const,
+  },
+})
+
+statusRows // [{ label: 'Active', tone: 'info' }, ..., { label: 'Unknown', tone: 'neutral' }]
+```
 
 ### Join related resources
 
-A lookup `Map` becomes an env table of `{ key, resource }` pairs, and a `vars`
-entry scans it once per row — a correlated left join written in one place
-instead of spliced into every column. `%context` is the row's own resource; a
-row with no match survives with each column's `default` (pre-filter with
-`r4.filter` for inner-join semantics). Resources inside env values are
-model-typed by `resourceType`, so choice stems like `effective` work, and the
-var keeps that typing for every column that reads it:
+Pass lookup data through `env`. Use `vars` to find the related item once per
+row. `%context` is the resource for the current row.
 
 ```ts
 const reports = [...reportsByOrderId].map(([orderId, report]) => ({ orderId, report }))
-r4.project(orders, {
-  resultDate: { path: '(%report.effective.ofType(dateTime) | %report.issued).first()', type: 'string', default: null },
-  hasResult: { test: '%report.exists()' },
-}, { env: { reports }, vars: { report: '%reports.where(orderId = %context.id).report' } })
+
+r4.project(
+  orders,
+  {
+    resultDate: {
+      path: '(%report.effective.ofType(dateTime) | %report.issued).first()',
+      type: 'string',
+      default: null,
+    },
+    hasResult: { test: '%report.exists()' },
+  },
+  { env: { reports }, vars: { report: '%reports.where(orderId = %context.id).report' } },
+)
 ```
 
-### Extensions — including primitive extensions
+### Follow references in a Bundle
 
-`extension(url)` filters by URL; the `%ext-` variable family expands to
-`http://hl7.org/fhir/StructureDefinition/…`. Extensions on primitives (the
-JSON `_field` sibling) navigate transparently:
-
-```ts
-r4.first('Patient.extension(%pharmacyUrl).value.ofType(string)', patient, {
-  env: { pharmacyUrl: 'http://example.org/fhir/StructureDefinition/preferred-pharmacy' },
-})
-r4.first('Patient.birthDate.extension(%`ext-patient-birthTime`).value.ofType(dateTime)', patient)
-```
-
-### Follow references inside a Bundle
-
-`resolve()` follows a Reference to a contained resource or another Bundle
-entry (by `fullUrl` or `ResourceType/id`). Root the expression at `Bundle` —
-that keeps the bundle as the resolution scope:
+`resolve()` follows contained references and references to another Bundle entry.
+Start at `Bundle` so the Bundle remains available as the lookup scope.
 
 ```ts
-r4.evaluate('Bundle.entry.resource.ofType(Observation).subject.resolve().name.family', searchset)
+r4.evaluate(
+  'Bundle.entry.resource.ofType(Observation).subject.resolve().name.family',
+  searchset,
+)
 ```
 
 ### Walk nested structures
 
-`repeat()` closes over a recursive element — every `linkId` of a nested
-Questionnaire, in document order:
+`repeat(item)` follows every nested `item` collection and returns the items at
+all depths, so this reads each questionnaire item's `linkId`.
 
 ```ts
 r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)
@@ -901,349 +233,159 @@ r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)
 
 ### Deterministic tests and debugging
 
-`now` pins the evaluation clock, so `today()`/`now()` comparisons are
-reproducible; `trace()` reports through the `trace` sink instead of logging
-(traced values may contain patient data — nothing is logged by default):
+`now` fixes the evaluation clock. `trace()` sends values to the sink you provide
+and does not log by itself.
 
 ```ts
-r4.test(patient, 'birthDate <= today()', { now: new Date('2026-08-04T12:00:00Z') })
-r4.evaluate("Patient.name.trace('names').given", patient, { trace: (name, values) => debugSink(name, values) })
+r4.test(patient, 'birthDate <= today()', {
+  now: new Date('2026-08-04T12:00:00Z'),
+})
+
+r4.evaluate("Patient.name.trace('names').given", patient, {
+  trace: (name, values) => debugSink(name, values),
+})
 ```
 
-### One gotcha worth knowing
+## Important gotchas
 
-**Inside `where()` the focus is the item being scanned.** In
-`%table.where(code = DiagnosticReport.status)` the path navigates from the
-table row — silently empty, since unknown elements navigate to empty. Start
-join paths at `%context` or another `%var`, which resolve independent of
-focus.
+- FHIRPath always evaluates collections. Use `first()` when application code
+  expects one optional value.
+- Unknown elements evaluate to an empty collection, as they do in other
+  engines. Use [static checking](#static-checking) to catch misspellings before runtime.
+- Use choice stems such as `Observation.value`, not JSON keys such as
+  `valueQuantity`. The analyzer reports the latter as an error.
+- A bare search Bundle is treated as its entry resources for application helpers.
+  Start an expression at `Bundle` to address the Bundle itself, or wrap it in an
+  array to force one-resource treatment.
+- Inside `where()`, the focus is the item being scanned. Use `%context` or a
+  `%var` when a join condition needs the outer resource.
+- `env` contains plain host values. `vars` contains FHIRPath expressions evaluated
+  against the input and keeps FHIRPath type information.
+
+## Static checking
+
+Literal expressions infer useful result and input types without a compiler
+plugin:
+
+```ts
+const given = r4.compile('Patient.name.given')
+given.evaluate(patient) // string[]; the input must be a Patient
+```
+
+Type inference stays conservative. Expressions outside its supported subset
+become `unknown[]` instead of producing an incorrect type.
+
+Static checking has three layers:
+
+1. TypeScript infers common literal expressions at compile time.
+2. `fhirpath-ts/eslint` checks expression literals while linting.
+3. `fhirpath-check` runs the same analyzer without requiring ESLint and can load
+   exported DTOs for a complete DTO check.
+
+The analyzer is also public for editors, tests, and other tools. It follows the
+[FHIRPath §11 rules](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation)
+and is tested against the official valid and invalid cases.
+See [Static checking](docs/static-checking.md) for configuration, supported call
+sites, DTO discovery, and cases where source-only checks stay quiet.
 
 ## Conformance
 
-The official test suites from
-[FHIR/fhir-test-cases](https://github.com/FHIR/fhir-test-cases) are vendored,
-converted to JSON offline, and run in vitest on every test run:
+The engine passes every non-skipped case in the vendored official R4 and R5
+FHIRPath suites. It also runs the fhirpath.js and fhirpath-py corpora. Each skip
+and intentional difference has a checked manifest entry with its reason.
 
-| Suite | Pass | Skipped (with reasons) | Failing |
-| --- | --- | --- | --- |
-| R4 (`tests-fhir-r4.xml`) | 923 | 12 | 0 |
-| R5 (`tests-fhir-r5.xml`) | 1,026 | 25 | 0 |
+Property tests cover parser round trips, decimal arithmetic, and temporal
+comparisons. Generated expressions are also compared with fhirpath.js. A weekly
+job checks for changes in the upstream official suite (FHIR/fhir-test-cases).
 
-**100% of non-skipped cases pass**, and failing cases must fail in the phase
-the suite names: `invalid="syntax"` raises `FhirPathSyntaxError` at parse,
-`invalid="semantic"` a `FhirPathTypeError`, `invalid="execution"` a runtime or
-type error — with the six deliberate divergences documented in a
-hygiene-enforced `PHASE_OVERRIDES` list. The static analyzer runs its own
-conformance pass over both suites (`src/analyzer/official-conformance.test.ts`):
-strict-mode and semantic cases must produce an error diagnostic, and every
-valid case must produce none.
-
-Every skip is listed in `test-data/official/skip-manifest.ts` with a reason,
-and a hygiene test fails if an entry stops matching. Each category carries its
-root cause:
-
-| Skip category | Root cause | Evidence |
-| --- | --- | --- |
-| Terminology mode (needs a terminology service) | Implementation (deferred feature) | README, deferred features |
-| CDA mode (needs a CDA ModelInfo) | Implementation (deferred feature) | README, deferred features |
-| Lenient-polymorphics mode | Implementation (profile-dependent behavior not offered) | skip-manifest reasons |
-| Strict-mode static-typing cases | By design — enforced by the analyzer's conformance pass instead of the evaluator | `official-conformance.test.ts` |
-| R5-only elements (`DiagnosticReport.composition`, `ConceptMap.target.relationship`) | Implementation (this package ships the R4 model) | skip-manifest reasons |
-| `LowBoundary`/`HighBoundary` decimal-15/16 and DateTime-millisecond cases | Test bug — the suite's expected boundaries contradict the mathematical bounds (worth filing upstream at [fhir-test-cases](https://github.com/FHIR/fhir-test-cases/issues)) | reasons in `skip-manifest.ts` |
-| `testIif6` (R4), `testPlusDate19` (R4) | Spec ambiguity — R5 revised the R4 behavior; this engine follows R5 | skip-manifest reasons |
-
-Two guards watch the suites themselves:
-
-- **Property + differential fuzzing** (none of the reference engines studied
-  have any): printer/parser round-trip over generated ASTs
-  (`src/parser/roundtrip-fuzz.test.ts`), exact-decimal arithmetic laws and
-  temporal comparison laws (`src/values/*-properties.test.ts`), and generated
-  expressions evaluated against both this engine and
-  [fhirpath.js](https://github.com/HL7/fhirpath.js) over the official patient
-  fixture (`src/testing/differential-fuzz.test.ts`).
-- **Upstream drift watch** (`.github/workflows/drift-watch.yml`): a weekly,
-  report-only job re-converts the suites from `FHIR/fhir-test-cases@master`
-  and fails when new or changed cases appear, with the diff as an artifact.
-
-The reference implementations' own corpora run too (`src/fhirpathjs.test.ts`):
-
-| Corpus | Pass | Skipped (with reasons) |
-| --- | --- | --- |
-| [HL7/fhirpath.js](https://github.com/HL7/fhirpath.js) `test/cases` + [fhirpath-py](https://github.com/beda-software/fhirpath-py) extras | 2,289 | 1,380 |
-
-Skips are non-R4 models (1,078 — mostly `model: r5`), cases disabled upstream, and
-241 **documented intentional divergences** in `test-data/fhirpathjs/quirk-manifest.ts`
-— places where the reference behavior contradicts the spec text or the official
-suites (their whitespace-trimming `~`, month = 30 days, flags argument on
-`matches()`, …). Each manifest family carries its evidence, and hygiene tests keep
-it exact. [octofhir/fhirpath-rs](https://github.com/octofhir/fhirpath-rs) was
-reviewed as well: its corpus is a regrouped official R5 suite plus custom cases
-ported into `src/reference-crosschecks.test.ts` (alongside Medplum spot checks).
-
-## Static checking (official spec §11)
-
-Three layers, from cheapest to most thorough:
-
-1. **Type-level inference** (`tsc`, zero infrastructure) for the tractable subset:
-   dotted paths, `[n]`, the type-preserving identity functions
-   (`where()/first()/last()/single()/distinct()/tail()/skip()/take()/exclude()/intersect()/trace()`),
-   `select()` sub-paths, `ofType()/as()`, the fixed-return family —
-   existence/comparison booleans (`exists()/empty()/not()/matches()/startsWith()`, …),
-   `count()/length()/indexOf()` and the other integer/decimal results, the
-   `toX()`/`convertsToX()` conversions, and the string functions
-   (`join()`, `trim()`, `replace()`, `substring()`, `split()`, …) — choice
-   stems, `a | b` unions and `(…)` groups of inferable terms, and `%var`
-   roots (which stay `unknown[]` unless a fixed-return call ends the chain).
-   Anything else degrades to `unknown[]` — never a type error.
-2. **ESLint rule** (`fhirpath-ts/eslint`) — runs the analyzer as a lint rule over
-   every literal expression at each API entry point: the `` fhirpath`...` `` tag,
-   the expression-first calls (`fhirpath()`, `compile()`, `evaluate()`,
-   `evaluateTyped()`, `first()`, `analyzeExpression()`), the subject-first
-   `FhirPathEngine` helpers (`test()`, `filter()`, `project()` column expressions,
-   `checkConstraints()` constraint expressions), and DTO declarations —
-   `@column`/`@criteria` fields and a `defineDto()` `vars`. This repo dogfoods it, so
-   `pnpm lint` — locally, on pre-commit, and in CI — statically checks the
-   library's own expressions alongside the ordinary JS/TS rules:
-
-   ```js
-   import fhirpathPlugin from 'fhirpath-ts/eslint'
-   export default [
-     { plugins: { fhirpath: fhirpathPlugin }, rules: { 'fhirpath/no-invalid-expressions': 'error' } },
-   ]
-   ```
-
-   By default only the API imported from `fhirpath-ts` (or used bare) is checked.
-   The rule takes options to widen that: `packages` adds import-source prefixes to
-   treat as the FHIRPath API, and `localImports: true` also treats relative imports
-   as the API — which is how this repo dogfoods the rule on its own relatively-imported
-   source (see `eslint.config.ts`).
-
-   A DTO field is analyzed against its class's `fhirType`, read from the class's
-   `extends defineDto('…')` clause, so relative column paths are checked the same
-   way `analyzeDto` checks them. Each `@column` field also *declares* a
-   zero-argument function named by the field — what registering the DTO does at
-   runtime — so calls between a file's own columns resolve, carry their declared
-   result type into the calling expression (`code.displayText() + 1` is an
-   operand-type error), and stop being reported at ordinary call sites.
-
-   Where a source walker cannot know the whole picture it stays quiet rather than
-   guessing: a column's `%vars` may come from a base class or the projecting call,
-   so they are not judged; a call into a DTO that lives in *another* module is
-   invisible here, so an unresolved function is reported only when it plausibly
-   misspells a column the same file declares (`code.displayTxt()` next to a
-   `displayText` column); and a class with no statically-known `fhirType` is
-   checked for syntax only, since a relative path with a leading `code`/`text`
-   segment would otherwise be misread as a type-name root. Extending a base class
-   the same file declares keeps the root — the base lends its `fhirType` along
-   with its columns, however deep the chain — so it is a root-generic factory
-   (`extends keyedRow('Condition')`) or a base from another module that ends the
-   checking. For cross-module DTO vocabularies, list the column names
-   in the rule's `functions` option; `analyzeDto` in a test is the complete check
-   either way, since it sees the engine's real function set.
-
-   The common-name helpers (`test`, `filter`, `first`, `project`) fire only on
-   receivers the file binds to this package — an import like `r4`, or a
-   `new FhirPathEngine(...)` local — so other libraries' `.filter()`/`.first()`
-   calls are never analyzed as FHIRPath. A trusted name the file also re-binds
-   (a `function query(r4)` parameter) loses that trust for the whole file, favoring
-   silence over false positives. The flip side: an engine reached through an
-   untracked alias (`this.engine`, a function parameter) is not statically checked.
-   The DTO vocabulary (`column`, `criteria`, `defineDto`) goes further: those names
-   are checked only when the file imports them from the package, so another
-   library's `column('id')` is never read as FHIRPath.
-
-3. **`fhirpath-check` CLI** — the same analyzer (and the same call-site policy) as a
-   standalone command, for repos that do not lint with ESLint (e.g. Biome repos, whose
-   GritQL plugins cannot execute the analyzer). It needs `typescript` installed (an
-   optional peer dependency — the compiler both parses your files and loads your DTO
-   modules). It does two things:
-
-   ```sh
-   # Every expression literal in the given files, read from source.
-   pnpm exec fhirpath-check "src/**/*.ts"
-
-   # Plus every DTO in the project's *.dto.ts modules, imported and checked
-   # against the engine that projects it. This half needs no arguments.
-   pnpm exec fhirpath-check
-   ```
-
-   The second half is the one a source walker cannot do. DTO modules are
-   *imported*, so `analyzeDto` runs with the real thing: calls between columns
-   resolve through the engine's registered DTOs, `vars` and `env` are known, and a
-   declared column `type` is cross-checked against the analyzer's own inference.
-   Findings carry the class, the member and a source position:
-
-   ```
-   src/fhir/patient.dto.ts:18:42 ProblemRow.statusCode [unknown-element] Element 'codee' is not defined on FHIR.Coding — did you mean 'code'?
-   fhirpath-check: analyzed 13 DTO(s) from 1 module(s) against 1 engine(s)
-   ```
-
-   Discovery needs no configuration, which is why the convention matters:
-
-   - **DTOs live in `*.dto.ts`.** That is the default glob; `--dtos "<glob>"`
-     (repeatable) points elsewhere.
-   - **Export the DTO classes** you want checked — the checker reads a module's
-     exports. Engines need no export: constructions are recorded, so a
-     module-private `const fp = new FhirPathEngine(…)` is still found.
-   - Put the engine where the DTOs are (the same `*.dto.ts` file is fine) or point
-     `--dtos` at both. Without an engine in reach, column-to-column calls cannot
-     resolve, and the CLI says so instead of failing the run.
-   - `--no-import` skips this half entirely, for a source-only pass.
-
-   It exits non-zero on any error-severity diagnostic, so both halves drop into CI
-   and pre-commit as they are:
-
-   ```yaml
-   # .github/workflows/ci.yml
-   - run: pnpm exec fhirpath-check "src/**/*.ts"   # source literals + the DTO sweep
-   ```
-
-   ```json
-   // package.json — with lint-staged, on pre-commit
-   { "lint-staged": { "*.ts": ["fhirpath-check --no-import"] } }
-   ```
-
-   A pre-commit hook usually wants `--no-import` on the staged files (fast, no
-   module side effects), with the DTO sweep in CI where importing is fine. This
-   repo does exactly that: the ESLint rule covers the source half on every commit,
-   and `pnpm check:fhirpath` runs the sweep in CI.
-
-Both read the same call-site policy (`src/analyzer/expression-policy.ts`) and
-analyze each site through the same `analyzeSite`, so they agree on what counts as
-an expression and on what a site's context is — a suite runs one corpus through
-both and compares the diagnostics, not just the positions. The rule walks ESLint's AST;
-everything else — the CLI, the demo playground's editor markers, a bundler
-plugin — extracts sites with `fhirpath-ts/sites`, which walks the real
-TypeScript AST. Its `createSiteFinder(ts)` takes the compiler as an argument
-rather than importing it, so the package itself stays dependency-free and each
-caller supplies the TypeScript it already has: the CLI uses the `typescript`
-package (an optional peer dependency), and the demo hands in the copy Monaco
-ships inside its worker — extraction runs there, off the main thread, and no one
-bundles a second compiler.
-
-The analyzer (`fhirpath-ts/analyzer`, `analyzeExpression(expr, { model, inputType })`)
-implements the spec's strict-mode rules: singleton misuse on inputs, operands and
-arguments; wrong operand/argument types; equality that can never hold; unknown
-elements (including choice-key misuse like `Observation.valueQuantity`), functions,
-arities, and type names. Unknown regions (`children()`, `descendants()`, `resolve()`,
-`%vars`) mute checks until narrowed with `as`/`ofType()`, exactly as §11 prescribes.
-
-## Architecture
-
-- Hand-written lexer and Pratt parser over a plain discriminated-union AST with
-  source spans; a canonical printer round-trips every official-suite expression.
-  Hand-written beats ANTLR generation here for four reasons: no runtime dependency
-  (the ANTLR runtime is what fhirpath.js/fhirpath-py ship), no codegen build step
-  (this repo consumes packages from source), full control over error positions and
-  hostile-input bounds (the 500-level depth cap; generated parsers recurse
-  unboundedly), and speed (~2µs parses). The grammar is small and frozen (13
-  precedence levels), so the usual ANTLR advantage — tracking a moving grammar —
-  does not apply; the normative `fhirpath.g4` stays the source of truth for tests.
-  The Pratt structure is adapted from
-  [Medplum](https://github.com/medplum/medplum)'s parser (Apache-2.0).
-- Exact decimal arithmetic on a BigInt-scaled `Decimal` (no float drift:
-  `0.1 + 0.2 = 0.3` holds), partial-precision `Temporal` date/time values, and a
-  built-in UCUM subset with exact conversion factors (`1 'm' = 100 'cm'`).
-  "Exact-factor subset" means a curated table (SI prefixes × base units plus the
-  customary units the official suites exercise) whose factors are exact decimal
-  strings — conversions carry zero rounding error, where `@lhncbc/ucum-lhc` (used
-  by fhirpath.js) covers all ~300 UCUM units in float arithmetic. What the subset
-  omits: offset units (`Cel`, `[degF]`), logarithmic/special units (`B`, `Np`),
-  and arbitrary units. Units outside the table still work as opaque units that
-  compare with themselves; only cross-unit conversion needs the table.
-- The engine core is model-agnostic behind a `ModelProvider` interface (the spec's
-  ModelInfo concept). `scripts/generate-r4-model.ts` generates the R4 model from the
-  HL7 StructureDefinitions in `@medplum/definitions` — runtime tables and the
-  type-level maps come from the same generator run, so they cannot drift apart.
-
-## Coverage
-
-Enforced vitest thresholds: 99% statements / 96% branches / 99.5% functions / 99%
-lines (current: 99.4 / 96.5 / 99.8 / 99.3). The uncovered remainder is annotated
-`v8 ignore` defensive guards (exhaustiveness defaults, impossible states) and
-fallback halves of `??`-style guards on shapes real FHIR data does not produce.
-
-## Gaps and deferred features
-
-Current limitations beyond the deferred features below: the R4 model is the only
-one shipped (`model: r5/stu3/dstu2` reference-corpus cases are skipped); the
-engine is synchronous by design; regex evaluation of **user-authored** expressions
-is the one unhardened dimension (see Security); and tagged templates stay untyped
-(TS#33304) — use the `fhirpath('...')`/`compile('...')` call forms for inference.
-Behavioral differences from the reference implementations are not gaps but
-documented choices: see the divergence manifest under Conformance.
-
-Deferred features — planned but deliberately out of v1; each fails with a clear
-error today:
-
-| Feature | Why deferred | Unblocks it |
-| --- | --- | --- |
-| `memberOf()`, `subsumes()`, `subsumedBy()`, `%terminologies` | Need a terminology service | A pluggable async `TerminologyProvider` + `evaluateAsync()` |
-| `resolve()` of external references | Sync engine; only Bundle/contained resolve today | Same async path |
-| `conformsTo()` beyond base StructureDefinitions | Needs a FHIR profile validator | Profile-aware validation layer |
-| `slice()`, `elementDefinition()`, `checkModifiers()` | Need profile definitions (the reference implementation skips these too) | Profile-aware ModelProvider |
-| `weight()` | Needs code-system itemWeight lookups | Terminology provider |
-| `%factory` type-factory API | R5 draft, maturity 0 | Demand |
-| CDA mode | Different data model | A CDA ModelProvider (the interface already allows it) |
-| Full UCUM | The built-in subset covers the official suites | Swap `values/ucum.ts` internals for `@lhncbc/ucum-lhc` |
-| R5 model package | This repo runs R4 (Medplum) | Re-run the generator against R5 definitions |
-
-## Security
-
-**Expression trust boundary.** The engine is hardened against hostile *expressions*
-in most dimensions — parser nesting is capped, tokenization is linear, UCUM
-exponents and decimal exponents are bounded, and navigation never reads the
-prototype chain — with one documented exception: by default `matches()`,
-`matchesFull()`, and `replaceMatches()` compile their pattern argument with the
-host `RegExp`, so a catastrophic-backtracking pattern like `(a+)+$` can stall the
-event loop (a true regex timeout is impractical without native dependencies).
-This is fine when expressions are developer-authored (the normal case). Two
-guards cover the rest:
-
-- **Static detection.** The analyzer (and therefore the ESLint rule and the
-  `fhirpath-check` CLI) emits a `regex-backtracking` warning when a literal
-  pattern nests unbounded repetition — the exponential shape — so
-  developer-authored patterns get caught in review.
-- **Pluggable engine.** If a deployment evaluates **user-authored** FHIRPath —
-  SDC `enableWhen`, Questionnaire logic, stored expressions — supply a
-  linear-time regex engine (e.g. an RE2 binding) via `EvaluateOptions.regex`;
-  the zero-dependency default stays untouched. Vet or sandbox such expressions
-  regardless.
-
-**Narrative checking.** `htmlChecks()` validates against FHIR's narrative rules
-with an inert-URL-scheme allowlist, entity-decoding attribute values the way a
-browser would. A `true` result means the narrative carries no active content.
-
-**PHI note.** `trace()` is a no-op unless you pass a `trace` sink. Traced values
-may contain patient data — do not point the sink at console output or log files in
-production (org policy: never log PHI values; use record ids instead).
+See [Conformance](docs/conformance.md) for counts, skip categories, phase checks,
+reference-suite results, and test maintenance. See
+[Engine comparison](docs/engine-comparison.md) for the feature and correctness
+comparison with other implementations.
 
 ## Licensing and attribution
 
-Package code is part of this repository (private). All third-party material it
-contains is consolidated with full license texts in
-[`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md) — ship that file with any
-future redistribution (npm, OSS extraction). In short:
+Package code is part of this private repository. Third-party material and full
+license texts are collected in
+[`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md).
 
-- Parser structure adapted from Medplum (Apache-2.0) — see `src/parser/parser.ts`.
-- Official FHIRPath test suites from FHIR/fhir-test-cases (Apache-2.0 / FHIR CC0
-  content) — `test-data/official/`, license alongside.
-- Reference test corpora from HL7/fhirpath.js (NLM BSD-style) and
-  beda-software/fhirpath-py (MIT) — `test-data/fhirpathjs/`, licenses alongside.
-- Custom test cases from octofhir/fhirpath-rs (Apache-2.0) and Medplum spot checks
-  — `src/reference-crosschecks.test.ts`.
-- R4 model data generated from the HL7 FHIR R4 StructureDefinitions (CC0) shipped in
+- The parser structure is adapted from Medplum (Apache-2.0).
+- Official FHIRPath tests come from FHIR/fhir-test-cases (Apache-2.0 and FHIR CC0
+  content).
+- Reference tests come from HL7/fhirpath.js (NLM BSD-style) and fhirpath-py (MIT).
+- Additional cases come from fhirpath-rs (Apache-2.0) and Medplum.
+- R4 model data is generated from HL7 FHIR R4 StructureDefinitions (CC0) in
   `@medplum/definitions`. FHIR® is a registered trademark of HL7.
 
 ## Development
 
 ```bash
-pnpm test        # full suite incl. official conformance
-pnpm coverage    # with enforced thresholds
+pnpm test
+pnpm coverage
 pnpm typecheck
-pnpm generate:r4 # regenerate model data (offline)
-node packages/fhirpath/scripts/bench.ts      # parse/eval micro-benchmarks
+pnpm lint
+pnpm check:fhirpath
+pnpm check:type-perf
+pnpm generate:r4
 ```
 
-Regenerate `test-data/official/*/tests.json` with
-`node scripts/convert-official-tests.ts` after refreshing the vendored XML.
+Run the demo separately:
+
+```bash
+cd demo
+npm install
+npm run dev
+```
+
+After changing the public API, run `npm run generate:dts` in `demo/` to refresh
+the Monaco declarations. See [AGENTS.md](AGENTS.md) for repository decisions that
+are easy to break during maintenance.
+
+## Gaps and deferred features
+
+The package currently ships only an R4 model. The engine is synchronous. Tagged
+templates remain untyped because TypeScript does not preserve their literal type
+([TypeScript #33304](https://github.com/microsoft/TypeScript/issues/33304)); use
+`fhirpath('...')` or `compile('...')` for inference in strings.
+Regex evaluation of user-authored expressions needs the security setup below.
+
+These features are deferred and fail with a clear error today:
+
+| Feature | What it needs |
+| --- | --- |
+| `memberOf()`, `subsumes()`, `subsumedBy()`, `%terminologies` | An async `TerminologyProvider` |
+| External `resolve()` | The same async evaluation path |
+| `conformsTo()` beyond base StructureDefinitions | Profile-aware validation |
+| `slice()`, `elementDefinition()`, `checkModifiers()` | Profile definitions in the model |
+| `weight()` | Code-system `itemWeight` lookups |
+| `%factory` | Demand for the current R5 draft API |
+| CDA mode | A CDA `ModelProvider` |
+| Full UCUM | A full UCUM implementation behind the current interface |
+| R5 model package | Generated R5 definitions and types |
+
+## Security guidelines
+
+### Expression trust
+
+Parser depth, tokenization, decimal and UCUM exponents, and property navigation
+have limits suitable for untrusted input. Regular expressions need one extra
+step. By default, `matches()`, `matchesFull()`, and `replaceMatches()` use the
+host `RegExp`, so a pattern with catastrophic backtracking can block the event
+loop.
+
+The analyzer warns about backtracking-prone literal patterns. If users can write
+expressions, also provide a linear-time regular expression engine, such as an RE2
+binding, through `EvaluateOptions.regex`. Review or sandbox user expressions as
+appropriate for the application.
+
+### Narrative checking
+
+`htmlChecks()` checks FHIR narrative rules and allows only inert URL schemes. It
+decodes attribute entities in the same way as a browser. A `true` result means
+the narrative contains no active content.
+
+### PHI and tracing
+
+`trace()` does nothing unless a trace sink is provided. Traced values may contain
+patient data. Never send PHI values to console output or production logs; use
+record identifiers instead.

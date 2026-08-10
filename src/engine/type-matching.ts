@@ -18,14 +18,7 @@ const SYSTEM_LOCAL_NAMES = new Set([
 
 const SYSTEM_LOCAL_NAMES_LOWER = new Set([...SYSTEM_LOCAL_NAMES].map(name => name.toLowerCase()))
 
-/**
- * Does the requested type name alias a System type (`string`, `boolean`, ...)? This
- * is the narrow case the official suite pins `as`/`ofType` to an exact match on
- * (`Patient.gender.as(string)` is empty even though `code` is a subtype of `string`,
- * per testFHIRPathAsFunction11's "Contested: code type is a subtype of string").
- * Structural FHIR names (`DomainResource`, `Element`, `Resource`, ...) are never
- * ambiguous this way, so they keep normal subtype matching for `as`/`ofType` too.
- */
+/** True when an unqualified name may mean a System primitive and requires exact `as`/`ofType` matching. */
 function isSystemAmbiguousName(name: string): boolean {
   return SYSTEM_LOCAL_NAMES_LOWER.has(name.toLowerCase())
 }
@@ -83,20 +76,8 @@ export function itemMatchesType(
 }
 
 /**
- * The function a call runs, and the point where a call on the wrong focus
- * throws. `status.displayText()` is the case to picture, where `displayText` was
- * written for a CodeableConcept. The call resolves and the body then finds
- * nothing, so this is the only place the mistake shows. The engine reports every
- * structural problem this way, and a function's declared input is one.
- *
- * A name several DTOs declare resolves here too: the overloads are tried in
- * registration order and the first whose declared input the focus satisfies is
- * the one that runs. When none does, the message names every type the whole set
- * accepts, so one name still gives one error.
- *
- * `unsatisfiedInput` and `resolveByInput` make both decisions. This function
- * only writes the message, in the same form as the engine's other function
- * errors.
+ * Selects a host function by focus type. Same-name overloads use registration
+ * order. If none accepts the focus, one error lists all accepted input types.
  */
 export function resolveHostCall(
   name: string,

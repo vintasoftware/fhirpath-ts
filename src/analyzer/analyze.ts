@@ -21,12 +21,7 @@ import {
 
 export interface AnalyzerDiagnostic {
   severity: 'error' | 'warning'
-  /**
-   * The unresolved name, for the codes that name one (`unknown-element`,
-   * `unknown-function`, `unknown-variable`) — so a caller can act on the name
-   * without parsing the message, e.g. to weigh a suggestion (see `analyzeSite`)
-   * or offer a quick fix.
-   */
+  /** Unresolved element, function, or variable name, when the diagnostic has one. */
   name?: string
   /** Stable rule identifier, e.g. `unknown-element` or `singleton-required`. */
   code: string
@@ -34,12 +29,7 @@ export interface AnalyzerDiagnostic {
   span: SourceSpan
 }
 
-/**
- * A host-supplied variable declared to the analyzer (HAPI's
- * resolveConstantType): the host will pass it at evaluation via
- * EvaluateOptions.env, so `%name` is not an unknown-variable error. Types are
- * optional — an untyped declaration stays an unknown region.
- */
+/** A host variable known to the analyzer. Omit its types to keep the value unknown. */
 export interface DeclaredVariable {
   /** Candidate type names ('Patient', 'System.String'); omit to leave the type unknown. */
   types?: string[]
@@ -47,15 +37,7 @@ export interface DeclaredVariable {
   single?: boolean
 }
 
-/**
- * A host-supplied function declared to the analyzer (HAPI's resolveFunction +
- * checkFunction): the name and arities resolve calls, and the optional
- * signature type-checks them. A CustomFunction (EvaluateOptions.functions)
- * satisfies this shape, so the same record can be passed to both — an
- * expression-defined one (an `expression` present) declares arity 0, matching
- * how the runtime calls it. A name several functions share is declared as
- * `OverloadedDeclaredFunction` instead.
- */
+/** A host function declaration. Arity resolves the call; an optional signature checks it. */
 export type SingleDeclaredFunction =
   | { minArity?: number; maxArity?: number; expression?: never; signature?: CustomFunctionSignature }
   | {
@@ -66,14 +48,7 @@ export type SingleDeclaredFunction =
       signature?: CustomFunctionSignature
     }
 
-/**
- * A name several functions share, told apart by the focus each declares in
- * `signature.input.types` — what `EngineOptions.resourceDtos` builds when two
- * DTOs declare one column name for two types. A call resolves to the
- * declaration its focus fits; where the focus cannot say (an unknown region),
- * the call is checked against all of them at once and keeps only what they
- * agree on.
- */
+/** Same-name functions selected by the call focus. Unknown focus keeps only their shared claims. */
 export interface OverloadedDeclaredFunction {
   overloads: readonly SingleDeclaredFunction[]
   expression?: never
@@ -95,14 +70,9 @@ export interface AnalyzeOptions {
 }
 
 /**
- * Inferred static type of a sub-expression: candidate canonical type names plus
- * cardinality. `types: undefined` means unknown — after children()/descendants()/
- * resolve(), external constants, or anything the analyzer cannot see through —
- * and mutes further checks on that branch, exactly as spec §11 prescribes
- * (authors narrow with `as`/`ofType()`). `single` is a tri-state: true (at most
- * one item), false (may hold several — what the singleton checks fire on), or
- * undefined (unknown, e.g. after narrowing an unknown region, which must not
- * pretend to know the cardinality).
+ * Candidate type names and cardinality for one sub-expression. `undefined`
+ * means unknown and pauses checks that need that fact. `single` is true for at
+ * most one item, false for a possible collection, and undefined when unknown.
  */
 interface StaticState {
   types: string[] | undefined
@@ -113,27 +83,16 @@ interface StaticState {
    * navigation and cardinality-preserving functions; absent means unknown.
    */
   targets?: string[]
-  /**
-   * True while the state still holds the raw evaluation input, whose runtime
-   * type comes from toTypedValue alone — a resourceType discriminator or
-   * nothing. A type-name segment can only match such a value through
-   * resourceType, so non-resource names navigate it to empty. Element
-   * navigation and function results build fresh, model-typed states, so the
-   * flag never survives past the first real step.
-   */
+  /** True until the raw input has been narrowed or navigated through the model. */
   rawInput?: boolean
 }
 
 const UNKNOWN: StaticState = { types: undefined, single: undefined }
 
 /**
- * The `defineVariable()` bindings visible at a point of the walk, each with the
- * analyzed state of its value. Mirrors the runtime's scoping exactly: dots
- * thread one scope along the chain, while operator operands and function
- * arguments each analyze against a copy (compare EvaluationContext.variables).
- * A defineVariable() whose name is not a string literal sets `hasDynamic`,
- * muting undefined-variable errors for the rest of that chain — the analyzer
- * cannot know which name it bound.
+ * Variables visible at one point in analysis. Operators and arguments receive a
+ * copy. A dynamic variable name prevents later unknown-variable diagnostics in
+ * that chain.
  */
 interface VariableScope {
   vars: Map<string, StaticState>
@@ -171,39 +130,20 @@ export interface AnalysisDetails {
  * Statically check one expression against the model: spec §11's strict-mode rules
  * (singleton misuse, wrong operand and argument types, incomparable equality)
  * plus unknown elements, functions, arities, type names, and variables.
+ * See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
  */
 export function analyzeExpression(expression: string, options?: AnalyzeOptions): AnalyzerDiagnostic[] {
   return analyzeExpressionDetailed(expression, options).diagnostics
 }
 
 /**
- * One expression site a source walker found (`fhirpath-ts/sites`, the ESLint
- * rule), analyzed with the context the site carries, and stripped of the findings
- * a source walker is not in a position to make.
- *
- * An ordinary site is analyzed as written, except that a *declared* root
- * (`fhirpath(expr, 'Observation')`) also drops `unknown-variable`: saying where an
- * expression runs says nothing about the data the engine or the evaluating call
- * binds to it, and that call is usually in another file.
- *
- * A DTO member (a `@column`/`@criteria` field, a DTO's `vars`) runs against its
- * class's `fhirType`, and drops more:
- *
- * - `unknown-variable`: a DTO's `vars`/`env` may come from a base class or from
- *   the projecting call, so the declared set is not visible here.
- * - `unknown-function`, unless the name plausibly misspells one of the columns
- *   the site's own file declares (`site.functions`). Every registered DTO column
- *   becomes an engine function, and a DTO the file merely imports is invisible
- *   here — so an unresolved call is usually valid code, while a near-miss of a
- *   name declared right there is a typo.
- * - everything but `syntax`, when the DTO's `fhirType` is unknown (the class
- *   extends a base class or a root-generic factory). A relative path is not
- *   merely uncheckable without a root — it can be *mis*read, because a leading
- *   `code`/`text`/`status` segment is also a model type name and would resolve
- *   as a type-name root against an unknown input.
- *
- * `analyzeDto` has all of that context and checks the same expressions in full;
- * this is the editor-and-lint half, which must never report valid code.
+ * Analyzes one source site with only facts visible in that file. A declared root
+ * does not prove which variables the later call provides. DTO sites may also
+ * receive variables and functions from base classes, other modules, or
+ * `project()`. Such sites omit unknown-variable diagnostics and report an
+ * unknown function only when it resembles a local column. A DTO without a known
+ * root receives syntax checks only. Use `analyzeDto` when the class and engine
+ * are loaded.
  */
 export function analyzeSite(
   site: {
@@ -350,7 +290,7 @@ class Analyzer {
         return this.walkBinary(node, input, scope)
       case 'typeOp':
         return this.walkTypeOp(node, input, scope)
-      /* v8 ignore start -- exhaustiveness guard */
+      /* v8 ignore start -- exhaustive fallback */
       default: {
         const unreachable: never = node
         throw new Error(`Unhandled node ${String(unreachable)}`)
@@ -605,21 +545,9 @@ class Analyzer {
   }
 
   /**
-   * The one declaration a call to a host-supplied name is checked against.
-   * Names with a single declaration — every one but an overloaded DTO column —
-   * are that declaration.
-   *
-   * An overloaded name is resolved by the focus, the same way the engine
-   * resolves it (`resolveHostCall`), and the answer is a declaration built for
-   * this call site:
-   *
-   * - Exactly one declaration fits the focus: that one, whole, so the call is
-   *   checked as precisely as an unshared name.
-   * - Several still fit, which is what an unknown or empty focus does: what
-   *   they agree on. The result is the union of theirs, the arguments go
-   *   unchecked, and the input is left alone since one of them accepts it.
-   * - None fits: every type any of them wanted, so `checkCallInput` reports the
-   *   whole set in one `input-type` finding.
+   * Selects a host declaration from the focus. One match keeps its full
+   * signature. Several matches are merged conservatively. No match merges their
+   * input types so `checkCallInput` can report one error.
    */
   private declarationFor(name: string, input: StaticState): ResolvedDeclaration | undefined {
     const candidates = this.customFunctions.get(name)

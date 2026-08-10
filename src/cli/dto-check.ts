@@ -1,13 +1,7 @@
 /**
- * The `fhirpath-check` half that imports a project rather than reading it: DTO
- * modules are loaded, the engines they construct are discovered, and every DTO
- * is analyzed against the engine that projects it — the exhaustive check
- * `analyzeDto` performs, with the engine's real functions and env instead of the
- * hedges a source walker has to make (see analyzer/analyze.ts, `analyzeSite`).
- *
- * DTOs live in `*.dto.ts` by convention, so discovery needs no configuration;
- * `--dtos <glob>` overrides it. Importing runs module side effects, the same
- * bargain an ORM's schema command makes — `--no-import` skips this half entirely.
+ * Imports DTO modules, records the engines they create, and checks each exported
+ * DTO with loaded runtime context. The default module pattern is `*.dto.ts`.
+ * Importing runs module initialization; `--no-import` skips this pass.
  */
 /* v8 ignore file -- covered end-to-end as a subprocess in fhirpath-check.test.ts, which is the only way to exercise a module loader and engine discovery in a fresh process */
 import { glob } from 'node:fs/promises'
@@ -42,12 +36,7 @@ export interface DtoCheckResult {
   dtos: { file: string; dto: string }[]
 }
 
-/**
- * Import the DTO modules matching `patterns`, then analyze every DTO they export
- * against the engines they built. An engine is usually module-private, so
- * discovery records constructions rather than scanning exports; a DTO must be
- * exported to be found, which is what makes the convention worth standardizing.
- */
+/** Imports matching modules and checks their exported DTOs against recorded engines. */
 export async function checkDtoModules(patterns: readonly string[], cwd: string): Promise<DtoCheckResult> {
   const recorded = recordEngines()
   register(new URL('ts-loader.mjs', import.meta.url))

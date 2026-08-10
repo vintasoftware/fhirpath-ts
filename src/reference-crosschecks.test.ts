@@ -4,16 +4,9 @@ import { evaluate } from './api/evaluate.ts'
 import { r4Model } from './r4/index.ts'
 
 /**
- * Custom cases from other reference implementations, ported where they add
- * coverage beyond the official suites and the fhirpath.js corpus:
- *
- * - octofhir/fhirpath-rs `test-cases/groups/other/fhir_functions.json`
- *   (Apache-2.0/MIT) — its remaining ~1,100 cases are a regrouped copy of the
- *   official R5 suite, which official.test.ts already runs in full. The
- *   factory_functions group exercises %factory, a deferred feature.
- * - medplum/medplum `packages/core/src/fhirpath/fhirpath.test.ts` (Apache-2.0)
- *   — its corpus is derived from the spec examples; the rows here are the
- *   distinctive empty-vs-zero and precedence spot checks.
+ * Additional cases from fhirpath-rs and Medplum. The rest of the Rust corpus
+ * repeats the official R5 suite or requires the deferred `%factory` API. The
+ * Medplum cases here cover empty values, zero, and operator precedence.
  */
 
 const patient = {

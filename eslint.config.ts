@@ -13,6 +13,7 @@ import fhirpath from './src/eslint/index.ts'
  * literal FHIRPath expression alongside the ordinary JS/TS rules. Formatting is
  * owned by Prettier; `eslint-config-prettier` (last) disables any stylistic rule
  * that would fight it.
+ * See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
  */
 export default tseslint.config(
   {

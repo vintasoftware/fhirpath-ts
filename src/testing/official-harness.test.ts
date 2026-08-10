@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { runOfficialTest } from './official-harness.ts'
 
-// The harness's own failure paths, exercised with synthetic cases.
+// Synthetic cases cover errors in the official-suite runner.
 describe('official harness', () => {
   it('passes and fails value comparisons', () => {
     expect(

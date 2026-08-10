@@ -21,6 +21,7 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
         // runtime. Everything else is the static analyzer's job (spec §11) — plain
         // unknown elements navigate to empty, and types the model has never heard of
         // (custom resourceTypes) read like raw JSON.
+        // See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
         if (isChoiceKeyMisuse(context, item.type, name)) {
           throw new FhirPathTypeError(
             `Element '${name}' is not defined on ${item.type}; choice elements use their stem name`

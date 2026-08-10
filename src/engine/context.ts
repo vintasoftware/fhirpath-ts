@@ -235,15 +235,8 @@ export function createContext(options: {
 }
 
 /**
- * A context whose env is the caller's with `overlay` laid on top: a name the
- * overlay declares resolves to its value, every other name — the built-ins,
- * `%context`, whatever the call supplied — stays the caller's. Used for the
- * length of one expression-defined function body, so the names its definition
- * owns are readable inside it and nowhere else.
- *
- * `variables` (defineVariable() and `vars` bindings) still win over env, as
- * `resolveEnvironmentVariable` reads them first. A body that wants its own name
- * regardless should not have a var of that name in scope.
+ * Adds environment values for one expression function body. Existing variables
+ * still take priority because variable lookup happens before environment lookup.
  */
 export function withEnvOverlay(
   context: EvaluationContext,

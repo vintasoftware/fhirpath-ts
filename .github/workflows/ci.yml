@@ -36,6 +36,7 @@ jobs:
       # `pnpm lint` runs ESLint — including the dogfooded
       # fhirpath/no-invalid-expressions rule, i.e. the spec §11 analyzer over the
       # library source — followed by a Prettier format check.
+      # See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
       - name: Lint (ESLint + FHIRPath analyzer + Prettier)
         run: pnpm lint
 
@@ -99,6 +100,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck --prefix demo
+
+      - name: Test editor samples
+        run: npm test --prefix demo
 
       # `prebuild` rolls demo/src/monaco/*.d.ts up from the library's current
       # types, so this also covers the declarations the playground feeds Monaco.

@@ -1,5 +1,5 @@
 // tsc-perf fixture: keeps roughly a hundred typed expressions in the normal
-// typecheck run so type-level inference cost regressions surface in CI.
+// typecheck run so CI reports higher type-level inference costs.
 import type { FhirpathResult } from './infer.ts'
 
 export type T001 = FhirpathResult<'Patient.name.given'>

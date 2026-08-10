@@ -143,7 +143,7 @@ function compileRegex(name: string, pattern: string, flags: string): RegExp {
 /**
  * Compile with the host's regex engine (EvaluateOptions.regex) when supplied —
  * the ReDoS protection for untrusted expressions — and the built-in RegExp
- * otherwise. A custom engine's compile errors surface as the same
+ * otherwise. A custom engine's compile errors become the same
  * invalid-expression type error the built-in path raises.
  */
 function compilePattern(

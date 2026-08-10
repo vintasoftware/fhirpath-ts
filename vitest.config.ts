@@ -5,15 +5,9 @@ import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 
 /**
- * Lowers TC39 standard decorators with tsc before Vite's own transform sees
- * them: `@column`/`@criteria` DTO fields (api/dto.ts) are decorator syntax,
- * which oxc does not support yet — it leaves the `@` in place and Node throws a
- * SyntaxError. Only files that actually carry a decorator pay for this; the rest
- * take Vite's normal path.
- *
- * Consumers need the same thing from their own build (tsc, swc, or Babel — not
- * esbuild, oxc, or `node --experimental-strip-types`), which is the cost of
- * declaring a column's type on the field it belongs to.
+ * Uses TypeScript to lower standard decorators before Vite runs oxc. Only files
+ * containing decorators use this transform. Consumer builds need TypeScript,
+ * SWC, or Babel for the same syntax.
  */
 function lowerDecorators(): Plugin {
   const decorated = /^\s*@[A-Za-z_$]/m

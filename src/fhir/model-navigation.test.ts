@@ -26,6 +26,7 @@ describe('model navigation branches', () => {
   it('unknown elements navigate to empty; choice-key misuse is the runtime error', () => {
     const resource = { resourceType: 'Patient', unknownKey: 'x' }
     // Typos are the static analyzer's job (spec §11); runtime navigation is lenient.
+    // See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
     expect(evaluate('unknownKey', resource, options)).toEqual([])
     expect(evaluate('resourceType', resource, options)).toEqual(['Patient'])
     // The one shape the official suites pin as a runtime semantic error.
