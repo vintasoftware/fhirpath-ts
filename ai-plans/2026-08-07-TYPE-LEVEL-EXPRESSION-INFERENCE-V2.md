@@ -726,3 +726,52 @@ The implementation is complete only when:
   to TypeScript.
 - Updated the delivery gates for the current documentation split and demo
   editor-sample test, and made Commit 1 an explicit go/no-go performance gate.
+
+### 2026-08-10 — Commit 1 measurements and parser decision
+
+- Started implementation from merged `main` at `1730ab6`. The Rust manifest's
+  `"0.4.50"` requirement admitted 0.4.53 through Cargo's caret semantics, so the
+  harness now uses `"=0.4.50"`; the baseline below was rebuilt and verified
+  against octofhir-fhirpath 0.4.50.
+- Reproduced the corpus inventory in a generated audit: 4,190 raw cases, 2,356
+  distinct expressions, 2,348 runtime-parser acceptances, 2,347 expressions at
+  or below 64 semantic tokens, and one accepted 208-token budget case. The audit
+  covers every runtime literal and operator and 113 of 114 signed built-ins;
+  `convertsToLong` remains the explicit source gap.
+- Measured disposable forced-evaluation parser spikes with TypeScript 5.9.3.
+  On the common-path spike fixture, fused state used 7,852 instantiations and a
+  compact AST used 9,763 (+24.3%). On the grammar-stress fixture, fused state
+  used 24,547 and a compact AST used 28,901 (+17.7%). Both were below the hard
+  ceilings, but the AST design missed the 15% replacement threshold in both
+  fixtures. The implementation therefore proceeds with one bounded fused-state
+  shift-reduce parser; both disposable spikes were deleted.
+- Recorded deterministic baselines for both pinned compiler lanes. TypeScript
+  5.9.3 uses 25,872 common-path instantiations before the refactor and 7,383 for
+  the generated full-language fixture; the Commit 1 common path is 26,639
+  (+3.0%). TypeScript 5.8.3 uses 27,054 and 7,398 respectively. The worst
+  independently compiled registered case is 4,685/4,691 instantiations, well
+  below the 100,000 ceiling.
+- The first generated soundness sweep reported three narrower-than-analyzer
+  baseline cases: incompatible `as`/`ofType` narrowing and `toQuantity()` using
+  the FHIR Quantity shape for a System Quantity. Commit 1 now degrades the two
+  incompatible narrowing cases to opaque and adds the correct System Quantity
+  public shape. The checked-in baseline is 302 precise, 2,045 opaque, and zero
+  conflicts across the 2,347 in-budget accepted expressions.
+- Ran the cross-engine harness five times on an idle Intel Core i7-10750H host
+  running Ubuntu 22.04.5, Linux 6.8.0, Node 24.14.1, TypeScript 5.9.3, and
+  rustc/cargo 1.96.0. All five runs had the same 809-case common accepted set
+  after excluding trace cases. Values below are the median across runs of each
+  run's aggregate mean, median, and p95:
+
+| Engine | Metric | Median aggregate mean | Median | p95 |
+| --- | --- | ---: | ---: | ---: |
+| fhirpath-ts (R4 model) | Evaluation | 6.58 µs | 1.92 µs | 8.49 µs |
+| fhirpath-ts (R4 model) | Parse | 1.16 µs | 1.01 µs | 2.18 µs |
+| fhirpath-ts (no model) | Evaluation | 3.38 µs | 1.76 µs | 5.79 µs |
+| fhirpath-ts (no model) | Parse | 1.17 µs | 1.01 µs | 2.20 µs |
+| fhirpath-rs (octofhir 0.4.50) | Evaluation | 3.84 µs | 761 ns | 13.62 µs |
+| fhirpath-rs (octofhir 0.4.50) | Parse | 6.28 µs | 5.42 µs | 12.35 µs |
+
+The raw baseline JSON is retained outside the worktree under
+`/tmp/fhirpath-type-inference-benchmarks/baseline/`; the reusable summarizer is
+checked in under `benchmarks/`.

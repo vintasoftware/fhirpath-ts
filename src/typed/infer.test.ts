@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { FUNCTION_SIGNATURES } from '../analyzer/signatures.ts'
+import { applyResultRule, FUNCTION_SIGNATURES } from '../analyzer/signatures.ts'
 import { compile } from '../api/compile.ts'
 import { column, defineDto } from '../api/dto.ts'
 import { fhirpath } from '../api/tagged.ts'
@@ -11,6 +11,7 @@ import type {
   Patient,
   PatientContact,
   Quantity,
+  SystemQuantity,
 } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
 import { type FhirpathInput, type FhirpathResult, FIXED_RETURNS, IDENTITY_RETURNS } from './infer.ts'
@@ -122,7 +123,7 @@ describe('type-level inference agrees with the runtime', () => {
 describe('fixed-return conversion functions', () => {
   it('toQuantity() chains agree with the runtime', () => {
     const quantity = compile("Observation.value.ofType(Quantity).toQuantity('kg')").evaluate(observation, options)
-    expectTypeOf(quantity).toEqualTypeOf<Quantity[]>()
+    expectTypeOf(quantity).toEqualTypeOf<SystemQuantity[]>()
     expect(quantity).toEqual([{ value: 80, unit: 'kg' }])
 
     const value = compile("Observation.value.ofType(Quantity).toQuantity('kg').value").evaluate(observation, options)
@@ -133,7 +134,7 @@ describe('fixed-return conversion functions', () => {
     expectTypeOf<FhirpathResult<"Observation.value.ofType(Quantity).toQuantity('kg.m/s2').value">>().toEqualTypeOf<
       number[]
     >()
-    expectTypeOf<FhirpathResult<'Observation.value.ofType(Quantity).toQuantity()'>>().toEqualTypeOf<Quantity[]>()
+    expectTypeOf<FhirpathResult<'Observation.value.ofType(Quantity).toQuantity()'>>().toEqualTypeOf<SystemQuantity[]>()
   })
 
   it('string and boolean conversions agree with the runtime', () => {
@@ -313,14 +314,17 @@ describe('the tables cannot drift from the analyzer', () => {
     date: 'System.Date',
     dateTime: 'System.DateTime',
     time: 'System.Time',
-    Quantity: 'System.Quantity',
+    'System.Quantity': 'System.Quantity',
   }
 
   it('every FIXED_RETURNS entry matches its FUNCTION_SIGNATURES result type', () => {
     for (const [fn, r4Name] of Object.entries(FIXED_RETURNS)) {
       const signature = FUNCTION_SIGNATURES[fn]
       expect(signature, `${fn}() has no analyzer signature`).toBeDefined()
-      const result = signature?.result({ types: ['FHIR.Patient'], single: undefined }, [])
+      const result =
+        signature === undefined
+          ? undefined
+          : applyResultRule(signature.result, { types: ['FHIR.Patient'], single: undefined }, [])
       expect(result?.types, `${fn}() disagrees with the analyzer`).toEqual([SYSTEM_OF[r4Name]])
     }
   })
@@ -330,7 +334,7 @@ describe('the tables cannot drift from the analyzer', () => {
       const signature = FUNCTION_SIGNATURES[fn]
       expect(signature, `${fn}() has no analyzer signature`).toBeDefined()
       const input = { types: ['FHIR.HumanName'], single: false }
-      const result = signature?.result(input, [undefined])
+      const result = signature === undefined ? undefined : applyResultRule(signature.result, input, [undefined])
       // Same reference: the signature passes the input's types through
       // untouched, so the function is genuinely type-preserving.
       expect(result?.types, `${fn}() does not preserve its input type`).toBe(input.types)

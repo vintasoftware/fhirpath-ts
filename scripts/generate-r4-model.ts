@@ -353,6 +353,7 @@ const SYSTEM_TS: Readonly<Record<string, string>> = {
   'System.Date': 'string',
   'System.DateTime': 'string',
   'System.Time': 'string',
+  'System.Quantity': 'SystemQuantity',
 }
 
 /** `Patient.contact` → `PatientContact`; plain names stay as they are. */
@@ -398,6 +399,12 @@ function emitTypeMaps(all: Record<string, GeneratedType>, resourceNames: string[
     ' */',
     'export interface FhirResource {',
     '  resourceType: string',
+    '}',
+    '',
+    '/** Plain JavaScript shape returned for a System.Quantity value. */',
+    'export interface SystemQuantity {',
+    '  value: number',
+    '  unit: string',
     '}',
     '',
   ]

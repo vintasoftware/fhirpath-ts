@@ -1,4 +1,15 @@
 {
-  "instantiations": 25872,
-  "tolerancePct": 5
+  "tolerancePct": 5,
+  "compilers": {
+    "typescript": {
+      "commonPath": 25872,
+      "fullLanguage": 7383
+    },
+    "typescript-5-8": {
+      "commonPath": 27054,
+      "fullLanguage": 7398
+    }
+  },
+  "fullLanguageLimit": 5000000,
+  "perCaseLimit": 100000
 }

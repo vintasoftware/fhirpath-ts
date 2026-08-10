@@ -24,7 +24,13 @@ type ElementInfo<T extends string, E extends string> = T extends keyof R4Element
         ? ElementInfo<R4Bases[T], E>
         : never
       : never
-  : never
+  : T extends 'System.Quantity'
+    ? E extends 'value'
+      ? { t: 'System.Decimal'; a: false }
+      : E extends 'unit'
+        ? { t: 'System.String'; a: false }
+        : never
+    : never
 
 /**
  * Characters that never appear in an element or variable name: their presence
@@ -165,7 +171,7 @@ export const FIXED_RETURNS = {
   toDate: 'date',
   toDateTime: 'dateTime',
   toTime: 'time',
-  toQuantity: 'Quantity',
+  toQuantity: 'System.Quantity',
   toChars: 'string',
   join: 'string',
   trim: 'string',
@@ -229,12 +235,35 @@ export const IDENTITY_RETURNS = [
 
 type IdentityFn = (typeof IDENTITY_RETURNS)[number]
 
+type IsSubtype<T extends string, Base extends string, Seen extends string = never> = T extends Base
+  ? true
+  : T extends Seen
+    ? false
+    : T extends keyof R4Bases
+      ? R4Bases[T] extends string
+        ? IsSubtype<R4Bases[T], Base, Seen | T>
+        : false
+      : false
+
+type PairOverlaps<A extends string, B extends string> =
+  IsSubtype<A, B> extends true ? true : IsSubtype<B, A> extends true ? true : false
+
+type TypesOverlap<A extends string, B extends string> = true extends (
+  A extends A ? (B extends B ? PairOverlaps<A, B> : never) : never
+)
+  ? true
+  : false
+
 /** One call segment, dispatched on the function name. */
 type Call<S extends string, Fn extends string, Arg extends string> = Fn extends IdentityFn
   ? S
   : Fn extends 'ofType' | 'as'
     ? Arg extends FhirTypeName
-      ? Arg
+      ? string extends S
+        ? Arg
+        : TypesOverlap<S, Arg> extends true
+          ? Arg
+          : 'opaque'
       : 'opaque'
     : Fn extends keyof FixedReturns
       ? FixedReturns[Fn]

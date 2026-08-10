@@ -12,6 +12,12 @@ export interface FhirResource {
   resourceType: string
 }
 
+/** Plain JavaScript shape returned for a System.Quantity value. */
+export interface SystemQuantity {
+  value: number
+  unit: string
+}
+
 export interface Address extends Element {
   city?: string
   country?: string
@@ -20617,6 +20623,7 @@ export interface R4TypeOf {
   'System.Date': string
   'System.DateTime': string
   'System.Time': string
+  'System.Quantity': SystemQuantity
   Resource: FhirResource
   DomainResource: FhirResource
   Address: Address

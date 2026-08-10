@@ -8,8 +8,10 @@ import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { unsatisfiedInput, type ValueKind, valueKindOfTypeName } from '../values/type-compat.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
+import { applyOperatorResultRule, TYPE_OPERATOR_RESULT_RULES } from './operator-rules.ts'
 import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
+  applyResultRule,
   type CustomFunctionSignature,
   FUNCTION_SIGNATURES,
   type FunctionSignature,
@@ -541,7 +543,7 @@ class Analyzer {
     if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
       return { types: this.narrowTypes(input, typeTarget, node.span), single: input.single }
     }
-    return signature.result(input, argStates)
+    return applyResultRule(signature.result, input, argStates)
   }
 
   /**
@@ -740,7 +742,11 @@ class Analyzer {
     return {
       ...(declared.input !== undefined && { input: declared.input }),
       ...(declared.args !== undefined && { args: declared.args }),
-      result: () => ({ types, single }),
+      result: {
+        kind: 'fixed',
+        ...(types !== undefined && { types }),
+        ...(single !== undefined && { single }),
+      },
     }
   }
 
@@ -826,24 +832,14 @@ class Analyzer {
       case 'div':
       case 'mod': {
         this.checkArithmetic(node.operator, left, right, node.span)
-        // Quantity arithmetic yields Quantity (4.0 'g' / 2.0 'm' is 2 'g/m');
-        // plain division yields Decimal; everything else keeps the operand type.
-        const quantity =
-          (node.operator === '*' || node.operator === '/') &&
-          (kindOf(left) === 'Quantity' || kindOf(right) === 'Quantity')
-        const types = quantity
-          ? ['System.Quantity']
-          : node.operator === '/'
-            ? ['System.Decimal']
-            : (left.types ?? right.types)
-        return { types, single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       }
       case '&':
         this.requireSingle(left, node.left.span, "'&' expects single-item operands")
         this.requireSingle(right, node.right.span, "'&' expects single-item operands")
         this.requireKind(left, 'String', node.left.span, "'&' expects String operands")
         this.requireKind(right, 'String', node.right.span, "'&' expects String operands")
-        return { types: ['System.String'], single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       case '<':
       case '>':
       case '<=':
@@ -851,13 +847,13 @@ class Analyzer {
         this.requireSingle(left, node.left.span, `Operator '${node.operator}' expects single-item operands`)
         this.requireSingle(right, node.right.span, `Operator '${node.operator}' expects single-item operands`)
         this.checkComparable(left, right, node.span)
-        return { types: ['System.Boolean'], single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       case '=':
       case '!=':
       case '~':
       case '!~':
         this.checkEquality(left, right, node.span)
-        return { types: ['System.Boolean'], single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       case 'and':
       case 'or':
       case 'xor':
@@ -866,17 +862,10 @@ class Analyzer {
         // rule, so only cardinality is checkable here.
         this.requireSingle(left, node.left.span, `'${node.operator}' expects single-item operands`)
         this.requireSingle(right, node.right.span, `'${node.operator}' expects single-item operands`)
-        return { types: ['System.Boolean'], single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       }
       case '|': {
-        // A statically empty side contributes nothing: `{} | true` is one item.
-        if (left.types?.length === 0) {
-          return right
-        }
-        if (right.types?.length === 0) {
-          return left
-        }
-        return withSingle(unionStates([left, right]), false)
+        return applyOperatorResultRule(node.operator, left, right)
       }
       case 'in':
       case 'contains': {
@@ -887,7 +876,7 @@ class Analyzer {
           singletonSpan,
           `The ${node.operator === 'in' ? 'left' : 'right'} operand of '${node.operator}' must be a single item`
         )
-        return { types: ['System.Boolean'], single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       }
       /* v8 ignore start -- the parser produces no other binary operators */
       default:
@@ -908,7 +897,8 @@ class Analyzer {
     this.requireSingle(operand, node.operand.span, `'${node.operator}' expects a single item operand`)
     const resolved = this.checkTypeName(node.type.parts, node.type.span)
     if (node.operator === 'is') {
-      return { types: ['System.Boolean'], single: true }
+      const rule = TYPE_OPERATOR_RESULT_RULES.is
+      return { types: [...rule.types], single: rule.single }
     }
     if (resolved === undefined) {
       return UNKNOWN
@@ -1061,7 +1051,7 @@ function mergedInput(candidates: readonly ResolvedDeclaration[]): InputSpec | un
 function mergedResult(candidates: readonly ResolvedDeclaration[]): { types?: string[]; single?: boolean } | undefined {
   const union = unionStates(
     candidates.map(candidate => ({
-      types: candidate.signature?.result?.types,
+      types: candidate.signature?.result?.types === undefined ? undefined : [...candidate.signature.result.types],
       single: candidate.signature?.result?.single,
     }))
   )
