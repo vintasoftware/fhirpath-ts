@@ -12,7 +12,6 @@
     "static-analysis",
     "type-inference",
     "eslint-plugin",
-    "sql-on-fhir",
     "typescript"
   ],
   "license": "Apache-2.0",
