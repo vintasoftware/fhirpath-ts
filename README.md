@@ -253,10 +253,28 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
 
 ## Important gotchas
 
+FHIRPath uses an empty collection for absence. `evaluate()` returns `[]` when a
+root type does not match the input, a known element is absent, an index is out of
+range, or a path segment is unknown. A misspelled path such as
+`Patient.name.givenn` therefore does not throw at runtime. `first()` turns an
+empty result into `undefined`; `test()` treats it as `false`; and `filter()`
+drops that input.
+
+Engine-generated failures use these exported `FhirPathError` subclasses:
+
+| Error | When evaluation throws |
+| --- | --- |
+| `FhirPathSyntaxError` | The expression does not match the grammar. Parsing fails before it can run. |
+| `FhirPathTypeError` | The expression is grammatical but violates a semantic rule, such as calling an unknown function, using the wrong argument count or type, reading an undefined `%variable`, or navigating a choice element by its JSON key (`Observation.valueQuantity`) instead of its FHIRPath stem (`Observation.value`). |
+| `FhirPathRuntimeError` | Evaluation cannot continue for the given data, such as a singleton operation receiving several items, `single()` finding several items, or a bare search Bundle path being ambiguous. |
+
+Caller-supplied callbacks, including custom functions, conversion functions,
+regular expression engines, and trace sinks, may also throw their own errors;
+the engine does not swallow them. Use [static checking](#static-checking) to
+catch wrong paths and other expression errors before runtime.
+
 - FHIRPath always evaluates collections. Use `first()` when application code
   expects one optional value.
-- Unknown elements evaluate to an empty collection, as they do in other
-  engines. Use [static checking](#static-checking) to catch misspellings before runtime.
 - Use choice stems such as `Observation.value`, not JSON keys such as
   `valueQuantity`. The analyzer and runtime report the latter as an error.
 - Function names and arguments are strict: an unknown function, wrong arity or

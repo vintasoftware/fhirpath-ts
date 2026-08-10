@@ -120,6 +120,11 @@ The CLI finds DTOs by convention:
   it imports the selected DTO modules.
 - Put engines in the selected modules or include their modules in `--dtos`.
 
+Importing a DTO module executes its top-level code, decorator and class
+initialization, and imported dependencies. Keep selected DTO modules and their
+imports free of unexpected side effects, and run the import pass only on trusted
+project code. Use `--no-import` when module execution is not appropriate.
+
 The loaded DTO check has the engine's real model, registered functions, and
 environment names. It can resolve calls between DTO columns and compare declared
 column types with the analyzer result.
