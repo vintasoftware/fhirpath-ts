@@ -84,13 +84,9 @@ registerFunction('getValue', {
 })
 
 /**
- * Sync resolve() against the evaluation root: contained references (`#id`) and
- * Bundle-internal references (by fullUrl or type/id). References are resolved
- * relative to the root resource — per-item re-rooting to a containing resource is
- * not done yet, so a `#id` that lives inside a Bundle entry resolves to empty
- * rather than reaching into that entry's `contained`. Never touches the network:
- * external references quietly resolve to nothing (the async story is a deferred
- * feature, see the README).
+ * Resolves contained references and Bundle entries against the evaluation root.
+ * External references return empty. A contained reference inside a Bundle entry
+ * also returns empty because resolution does not change root for each entry.
  */
 registerFunction('resolve', {
   minArity: 0,

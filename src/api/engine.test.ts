@@ -408,11 +408,11 @@ describe('FhirPathEngine.project', () => {
   })
 
   it('a column declares at most one of as, map, enum — rejected at compile and plan time', () => {
-    // @ts-expect-error -- as and map are mutually exclusive; plan time backstops untyped callers
+    // @ts-expect-error -- as and map are mutually exclusive; planning also checks untyped callers
     expect(() => r4.project([], { bad: { path: 'Patient.gender', as: String, choices: { male: 'M' } } })).toThrow(
       "column 'bad' declares more than one of 'as', 'choices', 'enum'"
     )
-    // @ts-expect-error -- enum and as are mutually exclusive; plan time backstops untyped callers
+    // @ts-expect-error -- enum and as are mutually exclusive; planning also checks untyped callers
     expect(() => r4.project([], { bad: { path: 'Patient.gender', enum: ['male'], as: String } })).toThrow(
       "column 'bad' declares more than one of 'as', 'choices', 'enum'"
     )
@@ -457,11 +457,11 @@ describe('FhirPathEngine.project', () => {
   })
 
   it('pick requires the table form of map and a field its rows carry — rejected at compile and plan time', () => {
-    // @ts-expect-error -- pick needs the table form of map; plan time backstops untyped callers
+    // @ts-expect-error -- pick needs the table form of map; planning also checks untyped callers
     expect(() => r4.project([], { bad: { path: 'Patient.gender', choices: { male: 'M' }, pick: 'label' } })).toThrow(
       "column 'bad' has 'pick' without a table 'choices'"
     )
-    // @ts-expect-error -- pick without a map; plan time backstops untyped callers
+    // @ts-expect-error -- pick without a map; planning also checks untyped callers
     expect(() => r4.project([], { bad: { path: 'Patient.gender', pick: 'label' } })).toThrow(
       "column 'bad' has 'pick' without a table 'choices'"
     )

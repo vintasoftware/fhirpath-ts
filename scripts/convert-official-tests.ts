@@ -1,6 +1,6 @@
 /**
  * Converts the vendored official FHIRPath test suites (fhir-test-cases XML) to the
- * committed JSON the vitest harness runs. Preserves groups, invalid/predicate/mode
+ * committed JSON the Vitest runner reads. Preserves groups, invalid/predicate/mode
  * attributes, and multiple outputs.
  *
  * Run from packages/fhirpath: node scripts/convert-official-tests.ts

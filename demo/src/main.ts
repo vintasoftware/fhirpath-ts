@@ -111,7 +111,7 @@ function renderResults(
     resultEl.className = 'result is-throw'
     if (caughtStatically) {
       // The analyzer already flagged this above — the throw is what you avoided,
-      // not the only way to find it. Say so, so runtime doesn't look like the gate.
+      // Explain that runtime is only one of three places that can report the error.
       resultCountEl.textContent = 'caught first'
       resultEl.innerHTML =
         `<p class="throw-head throw-head-caught">Caught above, before you ran it</p>` +

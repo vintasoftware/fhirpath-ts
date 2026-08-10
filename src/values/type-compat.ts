@@ -1,14 +1,4 @@
-/**
- * Whether a value of one type can also be a value of another. Both halves of the
- * input-type check ask this. The engine asks it about a call's real focus (see
- * `resolveHostCall` in engine/type-matching.ts), and the analyzer asks it about
- * the types it inferred (see `checkCallInput` in analyzer/analyze.ts). Those two
- * modules must not import each other, so the rule lives here, below both.
- *
- * Every answer here is deliberately permissive. When a check cannot prove that
- * two types are incompatible, it says nothing. Reporting valid code is worse
- * than missing a mistake.
- */
+/** Shared, conservative type compatibility for runtime dispatch and static checks. */
 import type { ModelProvider } from '../model/provider.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from './typed-value.ts'
 
@@ -38,15 +28,8 @@ export function valueKindOfTypeName(canonical: string): ValueKind {
 }
 
 /**
- * Returns the canonical model name for a type name, or undefined when the model
- * does not know it. Every caller treats undefined as "say nothing".
- *
- * The full name is tried before its local part. A model resolves backbone paths
- * under their full name (`Patient.contact`), but canonical names only under
- * their local one, because `resolveType` does not strip its own prefix, so
- * `FHIR.Patient` resolves as `Patient`. The undefined result is what keeps the
- * check quiet for values no model describes: the `Object` placeholder, System
- * types, and a `FHIR.`-prefixed name under a model of another namespace.
+ * Resolves a focus type through its full name, then its local name. Unknown names
+ * return undefined so callers can skip claims the model cannot support.
  */
 export function canonicalFocusType(model: ModelProvider, raw: string): string | undefined {
   if (raw.startsWith('System.')) {
@@ -64,16 +47,9 @@ function typeSatisfies(model: ModelProvider, type: string, base: string): boolea
 }
 
 /**
- * Can one value be both an `a` and a `b`? Either direction of the model's
- * hierarchy counts. A declared `Quantity` accepts a `SimpleQuantity` focus, and
- * the other way round.
- *
- * The value-kind test covers the pairs the model cannot connect, and only those.
- * Those pairs are `System.Quantity` (a quantity literal, or `toQuantity()`)
- * against `FHIR.Quantity`, and sibling primitives that behave the same way, such
- * as `code` and `uri`, which are both Strings. Run the model test even when the
- * kinds differ. `FHIR.SimpleQuantity` has kind `Complex` while `FHIR.Quantity`
- * has kind `Quantity`, so testing kinds first would reject a valid call.
+ * Returns whether one value may have both types. Compatible value kinds and
+ * either direction of the model hierarchy count. The model check must still run
+ * when kinds differ because `SimpleQuantity` and `Quantity` use different kinds.
  */
 export function typesOverlap(model: ModelProvider, a: string, b: string): boolean {
   const kind = valueKindOfTypeName(a)
@@ -95,21 +71,10 @@ export interface UnsatisfiedInput {
 }
 
 /**
- * Decides whether a function written for the `declared` types can be running on
- * this focus. Returns undefined when the call may be valid, and the proof above
- * when the call is definitely wrong.
- *
- * This is the whole rule for both halves of the input-type check. The engine
- * passes a call's real values (`resolveHostCall`) and the analyzer passes the
- * types it inferred (`checkCallInput`). They must agree on what counts as a
- * mistake, so each one only decides how to report it.
- *
- * Anything unprovable counts as valid: no model, no declaration, a declared name
- * the model rejects, a focus type the model has never heard of (the `Object`
- * placeholder, a datatype root, plain host data), a focus with no values, and
- * any focus where one type fits, since one is enough. The loop stops at that
- * first fitting type, so a valid call does not canonicalize the whole
- * collection.
+ * Returns proof only when every known focus type is incompatible with every
+ * declared input type. Missing models, unknown types, empty focus, and any
+ * matching type remain allowed. Runtime dispatch and the analyzer share this
+ * decision and report it in their own way.
  */
 export function unsatisfiedInput(
   model: ModelProvider | undefined,
@@ -140,21 +105,10 @@ export function unsatisfiedInput(
 export type InputResolution<T> = { resolved: T } | { unsatisfied: UnsatisfiedInput }
 
 /**
- * Which of the declarations sharing one name a call resolves to: the first
- * whose declared input the focus can satisfy. A DTO column registers under the
- * field's name with the DTO's `fhirType` as its input, so `displayText()` on a
- * CodeableConcept focus and `displayText()` on a Coding focus reach different
- * bodies (see `withDtos`, api/dto.ts).
- *
- * The call is wrong only when *no* declaration fits, and the proof then names
- * every type any of them wanted, so one name still produces one message. With a
- * single declaration this is `unsatisfiedInput` and nothing more.
- *
- * `unsatisfiedInput` stays permissive here, which is what makes the order
- * matter: an empty focus, a focus type no model describes, and a missing model
- * each fit every declaration, so the first one registered wins them.
- * `withDtos` is what keeps that from mattering — it refuses to register two
- * columns of one name unless their types tell every known focus apart.
+ * Selects the first same-name declaration accepted by the focus. If none fits,
+ * the result combines their expected and found types into one error. Unknown or
+ * empty focus selects the first declaration; registration prevents ambiguous
+ * known focus types.
  */
 export function resolveByInput<T>(
   model: ModelProvider | undefined,

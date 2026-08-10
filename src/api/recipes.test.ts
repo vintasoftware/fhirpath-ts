@@ -5,7 +5,7 @@ import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
-import { FhirPathEngine } from '../index.ts'
+import { column, criteria, defineDto, FhirPathEngine } from '../index.ts'
 import type {
   Bundle,
   Condition,
@@ -67,6 +67,7 @@ describe('README usage recipes', () => {
 
     const patient: Patient = {
       resourceType: 'Patient',
+      active: true,
       name: [
         { use: 'nickname', given: ['Molly'] },
         { use: 'official', given: ['Mary', 'Ann'], family: 'Miller' },
@@ -79,6 +80,10 @@ describe('README usage recipes', () => {
         { type: 'string' }
       )
     ).toBe('Mary Miller')
+    expect(r4.evaluate('Patient.name.given', patient)).toEqual(['Molly', 'Mary', 'Ann'])
+    expect(r4.first('Patient.name.family', patient)).toBe('Miller')
+    expect(r4.test(patient, 'Patient.active = true')).toBe(true)
+    expect(r4.evaluate('%threshold + 1', patient, { env: { threshold: 5 } })).toEqual([6])
 
     // The fallback chain named once, as an expression-defined function.
     const fp = new FhirPathEngine({
@@ -153,6 +158,40 @@ describe('README usage recipes', () => {
       { id: 'm1', name: 'Lisinopril', sig: 'Take with food', isActive: true, prescribedOn: '2026-05-01' },
       { id: '1', name: 'Medication', sig: '', isActive: false, prescribedOn: null },
     ])
+
+    class MedicationRow extends defineDto('MedicationRequest') {
+      @column('id', { default: '' })
+      id!: string
+
+      @column(
+        '(medication.ofType(CodeableConcept).select(text | coding.display.first()) | medication.ofType(Reference).display).first()',
+        { default: 'Medication' }
+      )
+      name!: string
+
+      @criteria("status = 'active'")
+      active!: boolean
+    }
+
+    expect(r4.project(requests, MedicationRow).map(row => row.name)).toEqual(['Lisinopril', 'Medication'])
+  })
+
+  it('checks constraints', () => {
+    const patient: Patient = {
+      resourceType: 'Patient',
+      contact: [{}],
+    }
+    const result = r4.checkConstraints(patient, [
+      {
+        key: 'pat-1',
+        severity: 'error',
+        human: 'Contact needs a name or telecom',
+        expression: 'contact.all(name.exists() or telecom.exists())',
+      },
+    ])
+    expect(result.valid).toBe(false)
+    expect(result.issues).toHaveLength(1)
+    expect(result.toOperationOutcome().issue).toHaveLength(1)
   })
 
   it('status labels from a code map', () => {
@@ -304,6 +343,101 @@ describe('README usage recipes', () => {
       { trace: name => traced.push(name) }
     )
     expect(traced).toEqual(['names'])
+  })
+
+  it('covers expressions used by the longer reference docs', () => {
+    const patient: Patient = {
+      resourceType: 'Patient',
+      active: true,
+      name: [{ use: 'official', family: 'Okoro' }],
+    }
+    expect(r4.first("name.where(use = 'official').first().family", patient)).toBe('Okoro')
+    expect(r4.test(patient, 'active = true')).toBe(true)
+    expect(r4.evaluate("name.trace('names').given", patient, { trace: () => undefined })).toEqual([])
+
+    const request: MedicationRequest = {
+      resourceType: 'MedicationRequest',
+      status: 'active',
+      intent: 'order',
+      subject: { reference: 'Patient/p1' },
+    }
+    expect(r4.test(request, "(status in ('entered-in-error' | 'draft')).not()")).toBe(true)
+
+    const report: DiagnosticReport = {
+      resourceType: 'DiagnosticReport',
+      status: 'final',
+      code: { coding: [{ system: LOINC, code: '58410-2' }] },
+    }
+    expect(
+      r4.first('code.coding.where(system = %system).first().code', report, {
+        env: { system: LOINC },
+      })
+    ).toBe('58410-2')
+
+    expect(
+      r4.test(systolicReadings[0]!, '%limit < value.count()', {
+        env: { limit: 0 },
+      })
+    ).toBe(true)
+  })
+
+  it('covers API reference expressions in their runtime contexts', () => {
+    const patient: Patient = {
+      resourceType: 'Patient',
+      id: 'p1',
+      birthDate: '1980-01-01',
+      gender: 'female',
+      name: [{ family: 'Okoro' }],
+    }
+    expect(r4.test(patient, 'birthDate < @1990-01-01')).toBe(true)
+    expect(r4.evaluate('Patient.id', patient)).toEqual(['p1'])
+    expect(r4.first('Patient.name.family.first()', patient)).toBe('Okoro')
+    expect(r4.evaluate('Patient.birthDate', patient)).toEqual(['1980-01-01'])
+    expect(r4.evaluate('Patient.gender', patient)).toEqual(['female'])
+    expect(r4.evaluate('Patient.name', patient)).toEqual([{ family: 'Okoro' }])
+
+    const weight: Observation = {
+      resourceType: 'Observation',
+      status: 'final',
+      code: { text: 'Body weight' },
+      valueQuantity: { value: 80, unit: 'kg', code: 'kg' },
+      effectiveDateTime: '2026-08-01T12:00:00Z',
+    }
+    expect(r4.first("value.ofType(Quantity).toQuantity('[lb_av]').value", weight)).toBeCloseTo(176.3698)
+    expect(r4.first('(effective.ofType(dateTime) | issued).first()', weight)).toBe('2026-08-01T12:00:00Z')
+    expect(r4.test(weight, "status = 'final'")).toBe(true)
+    expect(
+      r4.first('(text | coding.display.first() | coding.first().code).first()', weight.code, { type: 'string' })
+    ).toBe('Body weight')
+
+    const order: ServiceRequest = {
+      resourceType: 'ServiceRequest',
+      id: 'order-1',
+      status: 'active',
+      intent: 'order',
+      code: {},
+      subject: { reference: 'Patient/p1' },
+    }
+    const report: DiagnosticReport = {
+      resourceType: 'DiagnosticReport',
+      status: 'final',
+      code: {},
+    }
+    expect(
+      r4.evaluate('%reports.where(orderId = %context.id).report', order, {
+        env: { reports: [{ orderId: 'order-1', report }] },
+      })
+    ).toEqual([report])
+    expect(r4.evaluate('%report.status', order, { env: { report } })).toEqual(['final'])
+    expect(r4.test(patient, '$this is Patient')).toBe(true)
+
+    const bundle: Bundle = {
+      resourceType: 'Bundle',
+      type: 'searchset',
+      entry: [{ resource: patient }],
+    }
+    expect(r4.first('Bundle.entry.count()', bundle)).toBe(1)
+    expect(r4.first('Bundle.type', bundle)).toBe('searchset')
   })
 })
 

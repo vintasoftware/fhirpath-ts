@@ -1,4 +1,4 @@
-// Gates the type-level inference cost of FhirpathResult<Expr>.
+// Limits the type-level inference cost of FhirpathResult<Expr>.
 //
 // `tsc --extendedDiagnostics` instantiation counts are deterministic for a
 // pinned TypeScript version and fixed sources, so this compares the perf
@@ -22,7 +22,7 @@ try {
   )
 } catch (error) {
   // tsc exits non-zero on type errors; `pnpm typecheck` owns those. Still
-  // surface them here so a broken fixture cannot silently skip the gate.
+  // report them here so a broken fixture cannot skip this check.
   const failed = error as { stdout?: string; message: string }
   console.error(failed.stdout ?? failed.message)
   process.exit(1)

@@ -1,12 +1,7 @@
 /**
- * Runs a playground buffer. Monaco's TypeScript worker transpiles the buffer to
- * CommonJS, and we call it with a `require` shim that hands back the real bundled
- * engine plus a `console` that collects output instead of writing to devtools.
- *
- * The code being run is whatever the reader typed into the editor on their own
- * machine: `new Function` is given the compiler's output verbatim, never a string
- * built from other values, and the page has no server, no credentials and no data
- * but the synthetic resources in the samples. Nothing leaves the browser.
+ * Runs the current playground buffer after Monaco compiles it to CommonJS. A
+ * small `require` function provides the bundled package, and a local console
+ * captures output. The static page has no server, credentials, or external data.
  */
 
 import { column, criteria, defineDto, FhirPathEngine } from 'fhirpath-ts'
@@ -37,8 +32,7 @@ function formatArg(value: unknown): string {
   if (value === undefined) {
     return 'undefined'
   }
-  // JSON.stringify throws on a bigint, which toLong() returns. Keep JavaScript's
-  // own `5n` notation so a Long stays distinguishable from a string of digits.
+  // JSON.stringify rejects bigint. Keep JavaScript's `5n` form for Long values.
   const json = JSON.stringify(value, (_key, item) => (typeof item === 'bigint' ? `${item}n` : item))
   return json ?? String(value)
 }

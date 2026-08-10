@@ -2,7 +2,7 @@
 //!
 //! Reads the shared workload.json, and for each case parses the expression once
 //! (`parse_ast`) then times parse and eval (`evaluate_ast`) in warmed loops —
-//! mirroring the fhirpath-ts harness. Emits the same per-expression record shape
+//! using the same workload as the fhirpath-ts runner. Writes the same record
 //! so `compare.mjs` can line the two engines up.
 //!
 //! Runs with octofhir's `EmptyModelProvider` (model-unaware): the crate ships no

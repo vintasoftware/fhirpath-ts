@@ -1,17 +1,7 @@
 /**
- * A Node module loader that compiles TypeScript on the fly, so `fhirpath-check`
- * can *import* a project's DTO modules and check them against the engine they
- * are projected by (see fhirpath-check.ts).
- *
- * It exists because the DTO files are exactly the ones Node cannot load itself:
- * `@column`/`@criteria` are decorators, which type stripping cannot erase.
- * TypeScript is already this package's own dependency, and the emit target is
- * pinned to ES2022 — at `esnext` tsc leaves decorators in place and the import
- * fails with a SyntaxError.
- *
- * Deliberately minimal: no tsconfig lookup, no path mapping, no type checking
- * (`pnpm typecheck` owns that). A project whose imports need more than
- * Node's own resolution should compile first and point the CLI at the output.
+ * Minimal Node loader for DTO checks. It compiles standard decorators to ES2022
+ * before importing TypeScript modules. It does not read tsconfig paths or run
+ * type checks; projects that need custom module resolution should compile first.
  */
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'

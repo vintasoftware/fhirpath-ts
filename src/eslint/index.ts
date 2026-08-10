@@ -96,15 +96,7 @@ function receiverRoot(callee: ESTree.Expression | ESTree.Super): string | undefi
   return current.type === 'Identifier' ? current.name : undefined
 }
 
-/**
- * The name a callee or tag is known by: its own identifier, or the property of a
- * member access (`fhirpath` in `api.fhirpath`). Every place that resolves a name
- * uses this one — calls, `` fhirpath`…` `` tags, and a class's
- * `extends defineDto(…)` clause. They were three separate tests once, and the tag
- * and heritage copies rejected a member access the call copy accepted, so a
- * namespace-imported `api.fhirpath` tag and an `extends api.defineDto('Condition')`
- * root went unchecked here while `fhirpath-ts/sites` checked both.
- */
+/** Returns an identifier name or the property name of a non-computed member access. */
 function nameOf(node: ESTree.Node): string | undefined {
   if (node.type === 'Identifier') {
     return node.name
@@ -155,21 +147,9 @@ function enclosingClass(ancestors: readonly ESTree.Node[]): ClassHeritage | unde
 }
 
 /**
- * ESLint flat-config plugin that checks every literal FHIRPath expression with
- * the spec §11 analyzer and the R4 model. Which call sites carry expressions,
- * and which are skipped, is the shared policy's decision — see
- * src/analyzer/expression-policy.ts.
- *
- * By default only the FHIRPath API imported from `fhirpath-ts` — or used bare,
- * without an import — is checked, so a local `compile` from another module is
- * left alone. Two options widen that:
- *   - `packages`: extra import-source prefixes to treat as the FHIRPath API.
- *   - `localImports`: also treat relative imports as the FHIRPath API, so the
- *     package can dogfood this rule on its own source (which imports relatively).
- *
- * Usage:
- *   import fhirpathPlugin from 'fhirpath-ts/eslint'
- *   export default [{ plugins: { fhirpath: fhirpathPlugin }, rules: { 'fhirpath/no-invalid-expressions': 'error' } }]
+ * ESLint rule for literal FHIRPath expressions. The shared source policy decides
+ * which calls and tags count. `packages` adds trusted import prefixes, and
+ * `localImports` trusts relative imports.
  */
 const noInvalidExpressions: Rule.RuleModule = {
   meta: {
@@ -197,10 +177,8 @@ const noInvalidExpressions: Rule.RuleModule = {
       variables?: Record<string, DeclaredVariable>
       functions?: Record<string, DeclaredFunction>
     }
-    // Candidate sites are collected during ESLint's own traversal and decided in
-    // Program:exit, because the bindings that gate them (imports, engine locals)
-    // can appear after the calls they gate — a module-scope engine used by an
-    // earlier function.
+    // Decide candidate sites at Program:exit because imports and engine
+    // declarations may appear after calls that depend on them.
     const foreign = new Set<string>()
     const trusted = new Set<string>()
     const rebound = new Set<string>()

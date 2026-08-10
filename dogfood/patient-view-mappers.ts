@@ -152,15 +152,9 @@ export function mapMedications(requests: MedicationRequest[]): MedicationView[] 
 }
 
 /**
- * Maps MedicationRequests (active and past) to the Medications page view-model.
- * Adds status, dose, route, prescriber, and start/stop dates for the fuller list.
- * Unlike the Home card, `instructions` is the sig text only (no dose • route
- * fallback) because the detail row renders dose and route on their own. Stays
- * focused on the FHIR shape: the caller pairs the result with the resolved pharmacy.
- *
- * Applies the visibility rule itself (see isVisibleMedicationRequest), so the
- * status decode and the view's derived counts stay correct even when a caller
- * passes the raw resource set.
+ * Maps visible medication requests for the details page. Instructions contain
+ * only sig text because dose and route have separate fields. The caller adds the
+ * resolved pharmacy.
  */
 export function mapMedicationDetails(requests: MedicationRequest[]): MedicationDetailView[] {
   return fp.project(fp.filter(requests, VISIBLE_MEDICATION), MedicationDetailRow)

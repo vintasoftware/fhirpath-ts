@@ -1,24 +1,9 @@
 #!/usr/bin/env node
 /**
- * Static FHIRPath checking for a codebase, in two halves:
- *
- * 1. Every FHIRPath expression literal in the given files, analyzed with the R4
- *    model. Which call sites carry expressions, and which are skipped, is the
- *    shared policy's decision — see src/analyzer/expression-policy.ts. Sites come
- *    from `fhirpath-ts/sites`, the shared TypeScript-AST walker, with the
- *    `typescript` package (an optional peer dependency, and this command's one
- *    requirement beyond Node) supplying the compiler.
- *
- * 2. Every DTO in the project's `*.dto.ts` modules, *imported* and analyzed
- *    against the engine that projects it (see dto-check.ts) — the exhaustive
- *    check, with the engine's real functions and env, where the first half has to
- *    hedge. `--no-import` skips it; `--dtos <glob>` points it elsewhere.
- *
- * Exits non-zero when any error-severity diagnostic is found, so it drops into a
- * CI job or a pre-commit hook. It is the standalone equivalent of the ./eslint
- * rule, for repos that do not lint with ESLint (e.g. Biome repos). This repo
- * itself dogfoods the ./eslint rule, so its own CI enforces the first half
- * through `pnpm lint`.
+ * Checks source literals with the TypeScript site finder, then imports DTO
+ * modules for checks that need their engine context. Errors produce a non-zero
+ * exit status. Use `--no-import` for source only and `--dtos` to change the DTO
+ * module glob.
  *
  * Usage: fhirpath-check [--dtos <glob>]... [--no-import] <file...>
  */
@@ -88,7 +73,7 @@ function positionIn(site: { line: number; column: number }, span: { line: number
   return `${line}:${column}`
 }
 
-/** A file's expression sites, parsed on first use and kept — a file is read once however many findings it holds. */
+/** Expression sites cached so each source file is read once. */
 const sitesByFile = new Map<string, ExpressionSite[]>()
 
 function sitesOf(file: string): ExpressionSite[] {
@@ -101,7 +86,7 @@ function sitesOf(file: string): ExpressionSite[] {
   return sites
 }
 
-// --- 1. expression literals in the given files ---
+// Check source literals first.
 for (const file of args.files) {
   let sites: ExpressionSite[]
   try {

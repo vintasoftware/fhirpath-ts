@@ -23,26 +23,11 @@ import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
 
 /**
- * A host-supplied FHIRPath function, in one of two forms. Built-in names
- * cannot be overridden by either.
- *
- * Native (HAPI-style triple): `minArity`/`maxArity` resolve it, the optional
- * `signature` lets the static analyzer check it, and `fn` executes it. Plain
- * JS values cross the boundary in both directions; arguments are eager.
- *
- * Expression-defined: `expression` is a FHIRPath body that evaluates as if
- * spliced at the call site — the call's input becomes the focus (and `$this`),
- * while `%context` and the environment stay the caller's. The engine's alias
- * mechanism: name a recurring chain once (`displayText()` for
- * `text | coding.display.first() | …`) instead of splicing strings, and the
- * call keeps values typed end-to-end (no unwrap at the host boundary). Takes
- * zero arguments; a definition that reaches itself, directly or through
- * another definition, fails as recursion. Pass a `CompiledExpression` (or use
- * a `FhirPathEngine`, which pre-compiles through its parse cache) to avoid
- * re-parsing the body on every call.
- *
- * Pass the same record to AnalyzeOptions.functions: without a `signature`,
- * expressions using the function analyze as unknown regions.
+ * A native or expression-defined FHIRPath function. Native functions receive
+ * evaluated JavaScript values. Expression functions take no arguments, keep
+ * FHIRPath types, and use the call focus with the caller's `%context` and
+ * environment. A signature lets the analyzer check either form. Built-in names
+ * cannot be replaced.
  */
 export type SingleCustomFunction =
   | (HostNativeFunction & {
@@ -55,40 +40,16 @@ export type SingleCustomFunction =
   | {
       expression: AnyExpression
       signature?: CustomFunctionSignature
-      /**
-       * Environment variables the body needs that the call site does not
-       * supply — a lookup table, a system URL. They are laid over the caller's
-       * env while the body runs and are gone again after it, so a definition
-       * can carry its own data without adding a name to every expression the
-       * engine evaluates. Keyed with or without the leading `%`, like
-       * `EvaluateOptions.env`. A registered DTO's `static env` arrives here.
-       */
+      /** Environment values available only while this expression body runs. */
       env?: Record<string, unknown>
-      /**
-       * Read the body's result as a criteria, so the function always returns
-       * exactly one Boolean. The rule is `criteriaBoolean`: §4.5 singleton
-       * evaluation, with an empty result read as false. A `@criteria` field
-       * registers this way, which is what makes one declaration mean the same
-       * thing whether it is projected as a column or called from an
-       * expression. Without it, `isFinal().not()` on a resource with no status
-       * returns empty rather than true.
-       */
+      /** Return one criteria Boolean. An empty body result becomes `false`. */
       criteria?: boolean
       fn?: never
       minArity?: never
       maxArity?: never
     }
 
-/**
- * One name standing for several functions, told apart by the focus each was
- * written for: a call runs the first whose `signature.input.types` the focus
- * satisfies, and a focus none of them accepts is an error naming all of them.
- *
- * This is how two DTOs registered on one engine can both declare a
- * `displayText` column — one for CodeableConcept, one for Coding. `withDtos`
- * builds these; it also refuses to build one whose members a call could not
- * tell apart, so every member declares its input type.
- */
+/** Same-name functions selected in order by `signature.input.types`. */
 export interface OverloadedCustomFunction {
   overloads: readonly SingleCustomFunction[]
   fn?: never
@@ -106,38 +67,20 @@ export interface EvaluateOptions {
   /** Environment variables (`%name`), keyed with or without the leading `%`. */
   env?: Record<string, unknown>
   /**
-   * FHIRPath variable bindings (`%name`, keyed with or without the `%`),
-   * evaluated against the input before the main expression runs — the option
-   * form of `defineVariable()`, and the complement of `env`:
-   *
-   * - `env` carries host **data** into the evaluation: plain JS values, wrapped
-   *   as-is. Use it for lookup tables, system URLs, request parameters.
-   * - `vars` carries **derived bindings**: each entry is a FHIRPath expression
-   *   the engine evaluates against the same input (so `%context` and `env` are
-   *   in scope), bound with full type fidelity — a var holding a dateTime
-   *   compares as a dateTime, a Quantity keeps its unit arithmetic. Use it to
-   *   name a shared intermediate once instead of splicing it into several
-   *   expressions: a joined resource, a chosen element, a decoded row.
-   *
-   * Entries bind in declaration order, so later vars can reference earlier
-   * ones. Like `defineVariable()`, a var may not override an environment
-   * variable (including the built-ins) — that throws. In `project()`, vars
-   * evaluate once per row, with the row as focus and `%rowIndex`/`%rowTotal`
-   * in scope, and every column reads the same bindings.
-   *
-   * A `readonly TypedValue[]` value (e.g. a previous `evaluateTyped()` result)
-   * binds directly without evaluation.
+   * FHIRPath bindings evaluated against the input in declaration order. They
+   * keep FHIRPath types and may use `%context`, `env`, and earlier variables.
+   * During projection they run once per row. A `TypedValue[]` binds directly.
    */
   vars?: Record<string, AnyExpression | readonly TypedValue[]>
   model?: ModelProvider
-  /** Evaluation clock for now()/today()/timeOfDay(); defaults to the real time. */
+  /** Clock for `now()`, `today()`, and `timeOfDay()`. Defaults to the current time. */
   now?: Date
   /**
    * Sink for trace(name, ...) calls. No default logging: traced values may contain
    * patient data, so sending them anywhere is an explicit choice.
    */
   trace?: (name: string, values: TypedValue[]) => void
-  /** Host-supplied functions by name. Declare them to the analyzer too via AnalyzeOptions.functions. */
+  /** Host functions by name. Pass the same declarations to `AnalyzeOptions.functions`. */
   functions?: Record<string, CustomFunction>
   /**
    * Regex engine for matches()/matchesFull()/replaceMatches(). The default is
@@ -245,18 +188,9 @@ function planVars(vars: Record<string, AnyExpression | readonly TypedValue[]>): 
 }
 
 /**
- * The single mapping from `EvaluateOptions` onto evaluation contexts — every
- * evaluation path builds its context here, so an option added to
- * EvaluateOptions is consumed in one place. Option-wide work happens once per
- * factory (host functions resolve, env keys normalize, var bodies parse); each
- * call then builds one context for its root and binds the vars against it, in
- * declaration order — each body evaluates in the new context (`%context`, env,
- * and every earlier binding in scope, the root as focus), a body's own
- * defineVariable() bindings stay local (forkVariables), a pre-resolved
- * `TypedValue[]` binds without evaluation, and, like defineVariable(), a var
- * may not shadow an environment variable. `extraEnv` carries caller-computed
- * env entries (projectRows' row numbering) that win over same-named option
- * keys.
+ * Prepares options once, then creates an evaluation context for each root.
+ * Variables bind in order. `extraEnv` contains call-specific values, such as
+ * projection row numbers, and replaces matching option values.
  */
 export function contextFactory(
   options: EvaluateOptions | undefined

@@ -42,20 +42,9 @@ function evaluateArgument(node: AstNode, context: EvaluationContext, _input: Typ
 }
 
 /**
- * Call a host-supplied function (EvaluateOptions.functions). An
- * expression-defined function evaluates its body as if spliced at the call
- * site: the call's input is the focus (and `$this`), while `%context` and the
- * other environment variables stay the caller's, except the names the
- * definition declares for itself (`env`), which are laid over the caller's for
- * the length of the call; the body runs typed
- * end-to-end, so dates, Decimals, and Quantities keep their types. A native
- * function arity-checks, then eagerly evaluates every argument and unwraps
- * both input and arguments to plain JS values — the host boundary — and
- * converts the plain result back.
- *
- * Either form may declare the types its focus must be able to hold. That is
- * checked before anything else runs, and it is also what picks between the
- * functions a name shared by several DTOs stands for (see `resolveHostCall`).
+ * Calls a host function after focus-type dispatch. Expression functions keep
+ * typed values, use the call focus as `$this`, and apply their local environment.
+ * Native functions receive eagerly evaluated plain JavaScript values.
  */
 function evaluateHostFunction(
   name: string,
@@ -76,9 +65,7 @@ function evaluateHostFunction(
     }
     context.activeExpressionFunctions.add(name)
     try {
-      // The env the definition owns is visible only here. The overlaid context
-      // keeps the caller's activeExpressionFunctions Set by reference, so the
-      // recursion guard still spans the body.
+      // Keep the function's environment local and recursion detection active.
       const scoped = host.env === undefined ? context : withEnvOverlay(context, host.env)
       // withFrame rebinds $this to the input and forks variables, so the
       // body's defineVariable() bindings stay local to the body.
@@ -155,7 +142,7 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
       )
     case 'typeOp':
       return evaluateTypeOp(context, node.operator, evaluateNode(node.operand, context, input), node.type)
-    /* v8 ignore start -- exhaustiveness guard, unreachable for real ASTs */
+    /* v8 ignore start -- exhaustive fallback, unreachable for real ASTs */
     default: {
       const unreachable: never = node
       throw new FhirPathRuntimeError(`Unhandled node ${String(unreachable)}`)
