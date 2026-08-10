@@ -62,6 +62,9 @@ class PatientRow extends defineDto('Patient') {
   @column("name.where(use = 'official').first().family", { default: '' })
   family!: string
 
+  @column('name.given', { collection: true })
+  givenNames!: string[]
+
   @criteria('active = true')
   active!: boolean
 
@@ -71,7 +74,7 @@ class PatientRow extends defineDto('Patient') {
 }
 
 const rows = r4.project([patient], PatientRow)
-rows[0] // PatientRow { id: '', family: '', active: true }
+rows[0] // PatientRow { id: '', family: '', givenNames: [], active: true }
 rows[0]?.label // ''
 ```
 

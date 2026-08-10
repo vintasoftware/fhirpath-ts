@@ -339,6 +339,9 @@ class WeightRow extends defineDto('Observation') {
   @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
   at!: Date | undefined
 
+  @column('note.text', { collection: true })
+  notes!: string[]
+
   @criteria("status = 'final'")
   final!: boolean
 
