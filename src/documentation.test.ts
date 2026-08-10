@@ -38,7 +38,7 @@ const documentation: readonly DocumentExpectation[] = [
     fences: [
       valid('Patient.name.given', 'Patient.name.family', 'Patient.active = true', 'Patient.name.family'),
       valid('%threshold + 1'),
-      valid('id', "name.where(use = 'official').first().family", 'active = true'),
+      valid('id', "name.where(use = 'official').first().family", 'name.given', 'active = true'),
       valid('(text | coding.display.first() | coding.first().code).first()', 'Condition.code.displayText()'),
       valid(
         'Patient.name.given',
@@ -91,6 +91,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid(
         "value.ofType(Quantity).toQuantity('[lb_av]').value",
         '(effective.ofType(dateTime) | issued).first()',
+        'note.text',
         "status = 'final'"
       ),
       valid('(text | coding.display.first() | coding.first().code).first()', 'Condition.code.displayText()'),

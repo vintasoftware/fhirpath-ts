@@ -349,11 +349,12 @@ describe('README usage recipes', () => {
     const patient: Patient = {
       resourceType: 'Patient',
       active: true,
-      name: [{ use: 'official', family: 'Okoro' }],
+      name: [{ use: 'official', family: 'Okoro', given: ['Adaeze'] }],
     }
     expect(r4.first("name.where(use = 'official').first().family", patient)).toBe('Okoro')
+    expect(r4.evaluate('name.given', patient)).toEqual(['Adaeze'])
     expect(r4.test(patient, 'active = true')).toBe(true)
-    expect(r4.evaluate("name.trace('names').given", patient, { trace: () => undefined })).toEqual([])
+    expect(r4.evaluate("name.trace('names').given", patient, { trace: () => undefined })).toEqual(['Adaeze'])
 
     const request: MedicationRequest = {
       resourceType: 'MedicationRequest',
@@ -402,9 +403,11 @@ describe('README usage recipes', () => {
       code: { text: 'Body weight' },
       valueQuantity: { value: 80, unit: 'kg', code: 'kg' },
       effectiveDateTime: '2026-08-01T12:00:00Z',
+      note: [{ text: 'Scale calibrated' }],
     }
     expect(r4.first("value.ofType(Quantity).toQuantity('[lb_av]').value", weight)).toBeCloseTo(176.3698)
     expect(r4.first('(effective.ofType(dateTime) | issued).first()', weight)).toBe('2026-08-01T12:00:00Z')
+    expect(r4.evaluate('note.text', weight)).toEqual(['Scale calibrated'])
     expect(r4.test(weight, "status = 'final'")).toBe(true)
     expect(
       r4.first('(text | coding.display.first() | coding.first().code).first()', weight.code, { type: 'string' })
