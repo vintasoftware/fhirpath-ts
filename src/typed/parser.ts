@@ -591,8 +591,7 @@ type EmitFinal<Token extends TypeToken, Tokens extends TypeTokens> = Tokens['len
   ? ScanFailure
   : [...Tokens, Token]
 
-type Cardinality = true | false | 'unknown'
-type CoreState = [types: string, single: Cardinality, targets: string]
+type CoreState = [types: string, targets: string]
 type VariableBinding = [name: string, value: CoreState]
 type VariableBindings = VariableBinding[]
 type BindingState = VariableBindings | 'opaque'
@@ -600,29 +599,27 @@ type EmptyHostContext = Record<never, never>
 type InferenceEnvironment = [
   bindings: BindingState,
   rootTypes: string,
-  rootSingle: Cardinality,
   rootTargets: string,
   host: object,
   activeHostDeclarations: string,
 ]
-type DefaultEnvironment = [[], 'unknown', 'unknown', never, EmptyHostContext, never]
+type DefaultEnvironment = [[], 'unknown', never, EmptyHostContext, never]
 type EnvironmentCarrier<Environment extends InferenceEnvironment> = { readonly __environment: Environment }
 type InferenceState = CoreState
-type OpaqueCore = ['opaque', 'unknown', never]
-type UnknownCore = ['unknown', 'unknown', never]
-type EmptyCore = [never, true, never]
+type OpaqueCore = ['opaque', never]
+type UnknownCore = ['unknown', never]
+type EmptyCore = [never, never]
 type OpaqueState = OpaqueCore
 type UnknownState = UnknownCore
 type EmptyState = EmptyCore
-type CoreOf<State extends InferenceState> = [State[0], State[1], State[2]]
+type CoreOf<State extends InferenceState> = [State[0], State[1]]
 type EnvironmentOf<State extends InferenceState> =
   State extends EnvironmentCarrier<infer Environment> ? Environment : DefaultEnvironment
 type BindingsOf<State extends InferenceState> = EnvironmentOf<State>[0]
 type RootTypesOf<State extends InferenceState> = EnvironmentOf<State>[1]
-type RootSingleOf<State extends InferenceState> = EnvironmentOf<State>[2]
-type RootTargetsOf<State extends InferenceState> = EnvironmentOf<State>[3]
-type HostContextOf<State extends InferenceState> = EnvironmentOf<State>[4]
-type ActiveHostDeclarationsOf<State extends InferenceState> = EnvironmentOf<State>[5]
+type RootTargetsOf<State extends InferenceState> = EnvironmentOf<State>[2]
+type HostContextOf<State extends InferenceState> = EnvironmentOf<State>[3]
+type ActiveHostDeclarationsOf<State extends InferenceState> = EnvironmentOf<State>[4]
 type CopyEnvironment<State extends CoreState, Environment extends InferenceState> =
   Environment extends EnvironmentCarrier<infer Existing> ? State & EnvironmentCarrier<Existing> : State
 type IsOpaqueState<State extends InferenceState> = [State[0]] extends [never]
@@ -727,10 +724,10 @@ type InferParsed<
  */
 type FastExpression<Expression extends string, Input extends string> = Expression extends `${infer Root}.${infer Rest}`
   ? Root extends keyof R4Resources & string
-    ? FastChain<Rest, [Root, true, never], []>
+    ? FastChain<Rest, [Root, never], []>
     : FastInputChain<Expression, Input>
   : Expression extends keyof R4Resources & string
-    ? [Expression, true, never]
+    ? [Expression, never]
     : FastInputChain<Expression, Input>
 
 type FastInputChain<Expression extends string, Input extends string> =
@@ -789,7 +786,7 @@ type FastStep<Segment extends string, State extends CoreState> = Segment extends
           : FastMiss
         : Name extends 'select'
           ? IdentifierText<Argument> extends true
-            ? FastNavigate<SetSingle<State, true>, Argument> extends infer Projection
+            ? FastNavigate<State, Argument> extends infer Projection
               ? Projection extends CoreState
                 ? FastCallResult<ApplyCall<State, Name, [Projection]>>
                 : FastMiss
@@ -923,7 +920,7 @@ type ParseOperand<
         ? Word extends 'true' | 'false'
           ? ParseLoop<
               Rest,
-              [...Stack, CopyEnvironment<['System.Boolean', true, never], Context>],
+              [...Stack, CopyEnvironment<['System.Boolean', never], Context>],
               Ops,
               Delimiters,
               Context,
@@ -984,26 +981,14 @@ type ParseNumberOperand<
   Delimiters extends Frames,
   Context extends InferenceState,
 > = NumberText extends `${string}L`
-  ? ContinueOperand<
-      Tokens,
-      [...Stack, CopyEnvironment<['System.Long', true, never], Context>],
-      Ops,
-      Delimiters,
-      Context
-    >
+  ? ContinueOperand<Tokens, [...Stack, CopyEnvironment<['System.Long', never], Context>], Ops, Delimiters, Context>
   : Tokens extends [['string', string], ...infer Rest extends TypeTokens]
-    ? ContinueOperand<
-        Rest,
-        [...Stack, CopyEnvironment<['System.Quantity', true, never], Context>],
-        Ops,
-        Delimiters,
-        Context
-      >
+    ? ContinueOperand<Rest, [...Stack, CopyEnvironment<['System.Quantity', never], Context>], Ops, Delimiters, Context>
     : Tokens extends [['name', infer Unit extends string], ...infer Rest extends TypeTokens]
       ? Unit extends CompactCalendarUnit
         ? ContinueOperand<
             Rest,
-            [...Stack, CopyEnvironment<['System.Quantity', true, never], Context>],
+            [...Stack, CopyEnvironment<['System.Quantity', never], Context>],
             Ops,
             Delimiters,
             Context
@@ -1023,7 +1008,7 @@ type ContinueNumber<
   [
     ...Stack,
     CopyEnvironment<
-      NumberText extends `${string}.${string}` ? ['System.Decimal', true, never] : ['System.Integer', true, never],
+      NumberText extends `${string}.${string}` ? ['System.Decimal', never] : ['System.Integer', never],
       Context
     >,
   ],
@@ -1379,8 +1364,8 @@ type ApplyOperatorRule<Rule, Name extends string, Left extends InferenceState, R
     ? OpaqueState
     : IsOpaqueState<Right> extends true
       ? OpaqueState
-      : Rule extends readonly ['fixed', infer Type extends string, infer Single extends boolean]
-        ? [Canonical<Type>, Single, never]
+      : Rule extends readonly ['fixed', infer Type extends string, unknown]
+        ? [Canonical<Type>, never]
         : Rule extends readonly ['arithmetic']
           ? ArithmeticState<Name, Left, Right>
           : Rule extends readonly ['union']
@@ -1393,21 +1378,21 @@ type ArithmeticState<
   Right extends InferenceState,
 > = Operator extends '*' | '/'
   ? IsQuantityState<Left> extends true
-    ? ['System.Quantity', true, never]
+    ? ['System.Quantity', never]
     : IsQuantityState<Right> extends true
-      ? ['System.Quantity', true, never]
+      ? ['System.Quantity', never]
       : Operator extends '/'
-        ? ['System.Decimal', true, never]
+        ? ['System.Decimal', never]
         : ArithmeticInput<Left, Right>
   : ArithmeticInput<Left, Right>
 
 type ArithmeticInput<Left extends InferenceState, Right extends InferenceState> = [Left[0]] extends [never]
-  ? SetSingle<Left, true>
+  ? Left
   : IsUnknownState<Left> extends true
     ? IsUnknownState<Right> extends true
       ? UnknownState
-      : SetSingle<Right, true>
-    : SetSingle<Left, true>
+      : Right
+    : Left
 
 type IsQuantityState<State extends InferenceState> = [State[0]] extends [never]
   ? false
@@ -1473,8 +1458,8 @@ type ApplyTypeResult<
 type ApplyTypeOperator<Rule, Operand extends InferenceState, Target extends string> =
   IsOpaqueState<Operand> extends true
     ? CopyEnvironment<OpaqueState, Operand>
-    : Rule extends readonly ['fixed', infer Type extends string, infer Single extends boolean]
-      ? CopyEnvironment<[Canonical<Type>, Single, never], Operand>
+    : Rule extends readonly ['fixed', infer Type extends string, unknown]
+      ? CopyEnvironment<[Canonical<Type>, never], Operand>
       : Rule extends readonly ['narrow']
         ? Narrow<Operand, Target>
         : CopyEnvironment<OpaqueState, Operand>
@@ -1557,7 +1542,7 @@ type AmbiguousHostResult<Declaration, Input extends InferenceState> = Declaratio
   ? Signature extends { readonly result?: infer Result }
     ? Result extends { readonly types?: infer Types }
       ? Types extends readonly string[]
-        ? HostSignatureResult<Types[number], Result, Input>
+        ? HostSignatureResult<Types[number], Input>
         : CopyEnvironment<UnknownState, Input>
       : CopyEnvironment<UnknownState, Input>
     : CopyEnvironment<UnknownState, Input>
@@ -1592,30 +1577,23 @@ type TypesOverlap<Left extends string, Right extends string> = true extends (
 type InferHostDeclaration<Declaration, Input extends InferenceState, Name extends string> = Declaration extends {
   readonly criteria?: true
 }
-  ? CopyEnvironment<['System.Boolean', true, never], Input>
+  ? CopyEnvironment<['System.Boolean', never], Input>
   : Declaration extends { readonly signature?: infer Signature }
     ? Signature extends { readonly result?: infer Result }
       ? Result extends { readonly types?: infer Types }
         ? Types extends readonly string[]
-          ? HostSignatureResult<Types[number], Result, Input>
+          ? HostSignatureResult<Types[number], Input>
           : InferHostBody<Declaration, Input, Name>
         : InferHostBody<Declaration, Input, Name>
       : InferHostBody<Declaration, Input, Name>
     : InferHostBody<Declaration, Input, Name>
 
-type HostSignatureResult<Types extends string, Result, Input extends InferenceState> = [Types] extends [never]
+type HostSignatureResult<Types extends string, Input extends InferenceState> = [Types] extends [never]
   ? CopyEnvironment<EmptyState, Input>
   : WideTypeName<Types> extends true
     ? CopyEnvironment<UnknownState, Input>
     : Canonical<Types> extends keyof R4TypeOf
-      ? CopyEnvironment<
-          [
-            Canonical<Types>,
-            Result extends { readonly single: infer Single extends boolean } ? Single : 'unknown',
-            never,
-          ],
-          Input
-        >
+      ? CopyEnvironment<[Canonical<Types>, never], Input>
       : CopyEnvironment<UnknownState, Input>
 
 type InferHostBody<Declaration, Input extends InferenceState, Name extends string> =
@@ -1647,7 +1625,6 @@ type WithHostCallEnvironment<Input extends InferenceState, Declaration, Active e
     [
       BindingsOf<Input>,
       RootTypesOf<Input>,
-      RootSingleOf<Input>,
       RootTargetsOf<Input>,
       OverlayFunctionContext<HostContextOf<Input>, Declaration>,
       Active,
@@ -1672,33 +1649,27 @@ type ApplyDefineVariable<
 type ApplyResultRule<Rule, Input extends InferenceState, Args extends InferenceState[]> = Rule extends {
   readonly 0: 'fixed'
   readonly 1: infer Type extends string
-  readonly 2: infer Single extends Cardinality
+  readonly 2: unknown
 }
-  ? CopyEnvironment<[Canonical<Type>, Single, never], Input>
+  ? CopyEnvironment<[Canonical<Type>, never], Input>
   : Rule extends readonly ['input']
     ? Input
     : Rule extends readonly ['input-item']
-      ? SetSingle<Input, true>
-      : Rule extends readonly [
-            'argument',
-            infer Index extends number,
-            infer CardinalityRule extends 'argument' | 'input-and-argument',
-          ]
+      ? Input
+      : Rule extends readonly ['argument', infer Index extends number, 'argument' | 'input-and-argument']
         ? ArgumentState<Args, Index> extends infer Argument extends InferenceState
-          ? CardinalityRule extends 'input-and-argument'
-            ? SetSingle<CopyEnvironment<Argument, Input>, BothSingle<Input[1], Argument[1]>>
-            : CopyEnvironment<Argument, Input>
+          ? CopyEnvironment<Argument, Input>
           : CopyEnvironment<UnknownState, Input>
-        : Rule extends readonly ['union', infer Sources extends 'input' | number, infer Single extends boolean | 'all']
+        : Rule extends readonly ['union', infer Sources extends 'input' | number, boolean | 'all']
           ? CombineRuleSources<Sources, Input, Args> extends infer Combined extends InferenceState
-            ? SetSingle<CopyEnvironment<Combined, Input>, Single extends 'all' ? Combined[1] : Extract<Single, boolean>>
+            ? CopyEnvironment<Combined, Input>
             : CopyEnvironment<UnknownState, Input>
           : Rule extends readonly ['arguments-union']
             ? CopyEnvironment<UnionArguments<Args>, Input>
             : Rule extends readonly ['reference-targets']
-              ? [Input[2]] extends [never]
+              ? [Input[1]] extends [never]
                 ? CopyEnvironment<UnknownState, Input>
-                : CopyEnvironment<[Input[2], Input[1], never], Input>
+                : CopyEnvironment<[Input[1], never], Input>
               : Rule extends readonly ['unknown']
                 ? CopyEnvironment<UnknownState, Input>
                 : CopyEnvironment<OpaqueState, Input>
@@ -1727,9 +1698,7 @@ type CollapseStateUnion<States extends InferenceState> = 'opaque' extends States
   ? OpaqueState
   : 'unknown' extends States[0]
     ? UnknownState
-    : CopyEnvironment<[States[0], AllSingle<States[1]>, never], States>
-
-type AllSingle<Single extends Cardinality> = false extends Single ? false : 'unknown' extends Single ? 'unknown' : true
+    : CopyEnvironment<[States[0], never], States>
 
 type UnionArguments<Args extends InferenceState[], Accumulator extends InferenceState = EmptyState> = Args extends [
   infer Head extends InferenceState,
@@ -1750,13 +1719,13 @@ type MergeStates<Left extends InferenceState, Right extends InferenceState> = [L
           ? UnknownState
           : IsUnknownState<Right> extends true
             ? UnknownState
-            : CopyEnvironment<[Left[0] | Right[0], BothSingle<Left[1], Right[1]>, CommonTargets<Left, Right>], Left>
+            : CopyEnvironment<[Left[0] | Right[0], CommonTargets<Left, Right>], Left>
 
-type CommonTargets<Left extends InferenceState, Right extends InferenceState> = [Left[2]] extends [never]
+type CommonTargets<Left extends InferenceState, Right extends InferenceState> = [Left[1]] extends [never]
   ? never
-  : [Right[2]] extends [never]
+  : [Right[1]] extends [never]
     ? never
-    : Left[2] | Right[2]
+    : Left[1] | Right[1]
 
 type BindVariable<Result extends InferenceState, Name extends string, Value extends InferenceState> =
   BindingsOf<Result> extends 'opaque'
@@ -1769,7 +1738,6 @@ type BindVariable<Result extends InferenceState, Name extends string, Value exte
               [
                 [...BindingsOf<Result>, [Name, CoreOf<Value>]],
                 RootTypesOf<Result>,
-                RootSingleOf<Result>,
                 RootTargetsOf<Result>,
                 HostContextOf<Result>,
                 ActiveHostDeclarationsOf<Result>,
@@ -1829,33 +1797,26 @@ type InferEmbeddedState<Expression extends string, Initial extends InferenceStat
 
 type WithOpaqueBindings<State extends InferenceState> = CoreOf<State> &
   EnvironmentCarrier<
-    [
-      'opaque',
-      RootTypesOf<State>,
-      RootSingleOf<State>,
-      RootTargetsOf<State>,
-      HostContextOf<State>,
-      ActiveHostDeclarationsOf<State>,
-    ]
+    ['opaque', RootTypesOf<State>, RootTargetsOf<State>, HostContextOf<State>, ActiveHostDeclarationsOf<State>]
   >
 
 type NameState<Name extends string, Context extends InferenceState> = Name extends keyof R4Resources & string
-  ? CopyEnvironment<[Name, true, never], Context>
+  ? CopyEnvironment<[Name, never], Context>
   : Navigate<Context, Name>
 
 type SpecialState<Name extends 'this' | 'index' | 'total', Context extends InferenceState> = Name extends 'this'
-  ? SetSingle<Context, true>
+  ? Context
   : Name extends 'index'
-    ? CopyEnvironment<['System.Integer', true, never], Context>
+    ? CopyEnvironment<['System.Integer', never], Context>
     : CopyEnvironment<UnknownState, Context>
 
 type ExternalState<Name extends string, Context extends InferenceState> =
   LookupBinding<BindingsOf<Context>, Name> extends infer Found
     ? [Found] extends [never]
       ? Name extends 'context' | 'resource' | 'rootResource'
-        ? CopyEnvironment<[RootTypesOf<Context>, RootSingleOf<Context>, RootTargetsOf<Context>], Context>
+        ? CopyEnvironment<[RootTypesOf<Context>, RootTargetsOf<Context>], Context>
         : Name extends 'ucum' | 'sct' | 'loinc' | `vs-${string}` | `ext-${string}`
-          ? CopyEnvironment<['System.String', true, never], Context>
+          ? CopyEnvironment<['System.String', never], Context>
           : HostVariableState<Name, Context>
       : Found extends CoreState
         ? CopyEnvironment<Found, Context>
@@ -1901,37 +1862,16 @@ type VariableBodyHostContext<Context extends InferenceState> = {
 type VariableRootState<Context extends InferenceState, Active extends string> = [RootTypesOf<Context>] extends [never]
   ? EmptyCore &
       EnvironmentCarrier<
-        [
-          BindingsOf<Context>,
-          RootTypesOf<Context>,
-          RootSingleOf<Context>,
-          RootTargetsOf<Context>,
-          VariableBodyHostContext<Context>,
-          Active,
-        ]
+        [BindingsOf<Context>, RootTypesOf<Context>, RootTargetsOf<Context>, VariableBodyHostContext<Context>, Active]
       >
   : [RootTypesOf<Context>] extends ['unknown']
     ? UnknownCore &
         EnvironmentCarrier<
-          [
-            BindingsOf<Context>,
-            RootTypesOf<Context>,
-            RootSingleOf<Context>,
-            RootTargetsOf<Context>,
-            VariableBodyHostContext<Context>,
-            Active,
-          ]
+          [BindingsOf<Context>, RootTypesOf<Context>, RootTargetsOf<Context>, VariableBodyHostContext<Context>, Active]
         >
-    : [RootTypesOf<Context>, RootSingleOf<Context>, RootTargetsOf<Context>] &
+    : [RootTypesOf<Context>, RootTargetsOf<Context>] &
         EnvironmentCarrier<
-          [
-            BindingsOf<Context>,
-            RootTypesOf<Context>,
-            RootSingleOf<Context>,
-            RootTargetsOf<Context>,
-            VariableBodyHostContext<Context>,
-            Active,
-          ]
+          [BindingsOf<Context>, RootTypesOf<Context>, RootTargetsOf<Context>, VariableBodyHostContext<Context>, Active]
         >
 
 type DeclaredTypeState<Declaration, Context extends InferenceState> = Declaration extends {
@@ -1942,18 +1882,7 @@ type DeclaredTypeState<Declaration, Context extends InferenceState> = Declaratio
       ? CopyEnvironment<UnknownState, Context>
       : WideTypeName<Types> extends true
         ? CopyEnvironment<UnknownState, Context>
-        : CopyEnvironment<
-            [
-              Canonical<Types>,
-              Declaration extends { readonly collection: infer Collection extends boolean }
-                ? Collection extends true
-                  ? false
-                  : true
-                : true,
-              DeclarationTargets<Declaration>,
-            ],
-            Context
-          >
+        : CopyEnvironment<[Canonical<Types>, DeclarationTargets<Declaration>], Context>
     : CopyEnvironment<UnknownState, Context>
   : CopyEnvironment<UnknownState, Context>
 
@@ -2004,31 +1933,31 @@ type InputState<
   Normalize<Input> extends infer Name extends string
     ? Name extends keyof R4TypeOf
       ? BindingFallback extends true
-        ? [Name, true, never] & EnvironmentCarrier<['opaque', Name, true, never, HostContext, never]>
+        ? [Name, never] & EnvironmentCarrier<['opaque', Name, never, HostContext, never]>
         : TrackEnvironment extends true
-          ? [Name, true, never] & EnvironmentCarrier<[[], Name, true, never, HostContext, never]>
+          ? [Name, never] & EnvironmentCarrier<[[], Name, never, HostContext, never]>
           : HasHostContext<HostContext> extends true
-            ? [Name, true, never] & EnvironmentCarrier<[[], Name, true, never, HostContext, never]>
-            : [Name, true, never]
+            ? [Name, never] & EnvironmentCarrier<[[], Name, never, HostContext, never]>
+            : [Name, never]
       : BindingFallback extends true
-        ? UnknownCore & EnvironmentCarrier<['opaque', 'unknown', 'unknown', never, HostContext, never]>
+        ? UnknownCore & EnvironmentCarrier<['opaque', 'unknown', never, HostContext, never]>
         : TrackEnvironment extends true
-          ? UnknownCore & EnvironmentCarrier<[[], 'unknown', 'unknown', never, HostContext, never]>
+          ? UnknownCore & EnvironmentCarrier<[[], 'unknown', never, HostContext, never]>
           : HasHostContext<HostContext> extends true
-            ? UnknownCore & EnvironmentCarrier<[[], 'unknown', 'unknown', never, HostContext, never]>
+            ? UnknownCore & EnvironmentCarrier<[[], 'unknown', never, HostContext, never]>
             : UnknownCore
     : BindingFallback extends true
-      ? UnknownCore & EnvironmentCarrier<['opaque', 'unknown', 'unknown', never, HostContext, never]>
+      ? UnknownCore & EnvironmentCarrier<['opaque', 'unknown', never, HostContext, never]>
       : TrackEnvironment extends true
-        ? UnknownCore & EnvironmentCarrier<[[], 'unknown', 'unknown', never, HostContext, never]>
+        ? UnknownCore & EnvironmentCarrier<[[], 'unknown', never, HostContext, never]>
         : HasHostContext<HostContext> extends true
-          ? UnknownCore & EnvironmentCarrier<[[], 'unknown', 'unknown', never, HostContext, never]>
+          ? UnknownCore & EnvironmentCarrier<[[], 'unknown', never, HostContext, never]>
           : UnknownCore
 
 type FastInputState<Input extends string> =
   Normalize<Input> extends infer Name extends string
     ? Name extends keyof R4TypeOf
-      ? [Name, true, never]
+      ? [Name, never]
       : UnknownCore
     : UnknownCore
 
@@ -2041,15 +1970,8 @@ type Navigate<Input extends InferenceState, Element extends string> = [Input[0]]
       : ElementInformation<Input[0], Element> extends infer Information
         ? [Information] extends [never]
           ? CopyEnvironment<UnknownState, Input>
-          : Information extends { t: infer Types extends string; a: infer Array extends boolean }
-            ? CopyEnvironment<
-                [
-                  Canonical<Types>,
-                  Input[1] extends true ? (true extends Array ? false : true) : Input[1],
-                  ReferenceTargets<Input[0], Element, Types>,
-                ],
-                Input
-              >
+          : Information extends { t: infer Types extends string }
+            ? CopyEnvironment<[Canonical<Types>, ReferenceTargets<Input[0], Element, Types>], Input>
             : CopyEnvironment<OpaqueState, Input>
         : CopyEnvironment<OpaqueState, Input>
 
@@ -2115,7 +2037,7 @@ type Narrow<Input extends InferenceState, Target extends string> = [Input[0]] ex
       : NarrowCandidates<Input[0], Normalize<Target>> extends infer Survivors extends string
         ? [Survivors] extends [never]
           ? CopyEnvironment<OpaqueState, Input>
-          : CopyEnvironment<[Survivors, true, never], Input>
+          : CopyEnvironment<[Survivors, never], Input>
         : CopyEnvironment<OpaqueState, Input>
 
 type NarrowCandidates<Candidates extends string, Target extends string> = Candidates extends Candidates
@@ -2185,20 +2107,7 @@ type UnionState<Left extends InferenceState, Right extends InferenceState> = [Le
           ? UnknownState
           : Right[0] extends 'unknown'
             ? UnknownState
-            : [Left[0] | Right[0], false, CommonTargets<Left, Right>]
-
-type SetSingle<State extends InferenceState, Single extends Cardinality> = CopyEnvironment<
-  [State[0], Single, State[2]],
-  State
->
-
-type BothSingle<Left extends Cardinality, Right extends Cardinality> = Left extends false
-  ? false
-  : Right extends false
-    ? false
-    : Left extends true
-      ? Right
-      : 'unknown'
+            : [Left[0] | Right[0], CommonTargets<Left, Right>]
 
 type PublicResult<State extends CoreState> = [State[0]] extends [never]
   ? never[]
@@ -2209,13 +2118,13 @@ type PublicResult<State extends CoreState> = [State[0]] extends [never]
       : R4TypeOf[Extract<State[0], keyof R4TypeOf>][]
 
 type LiteralState<Token extends LiteralToken> = Token[0] extends 'string'
-  ? ['System.String', true, never]
+  ? ['System.String', never]
   : Token[0] extends 'date'
-    ? ['System.Date', true, never]
+    ? ['System.Date', never]
     : Token[0] extends 'dateTime'
-      ? ['System.DateTime', true, never]
+      ? ['System.DateTime', never]
       : Token[0] extends 'time'
-        ? ['System.Time', true, never]
+        ? ['System.Time', never]
         : UnknownState
 
 type IndexResult<Stack extends Values, Index extends InferenceState> = Stack extends [
