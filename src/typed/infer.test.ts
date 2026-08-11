@@ -375,30 +375,27 @@ describe('DTO column integration', () => {
   })
 })
 
-describe('operator-glued segments degrade instead of inferring the swallowed match', () => {
-  // Each of these runtime-evaluates to a boolean or a union, but the last
-  // segment ends in ')' or ']', so a naive pattern match would swallow the
-  // operator and claim the function's type. They must all be unknown[].
+describe('operators after calls and indexers keep their runtime result', () => {
   it('a parenthesized right operand cannot hide inside a function argument', () => {
-    expectTypeOf<FhirpathResult<"Patient.name.given.join(', ') = ('x')">>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<"Patient.name.where(use = 'a') = (Patient.name)">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.given.join(', ') = ('x')">>().toEqualTypeOf<boolean[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.where(use = 'a') = (Patient.name)">>().toEqualTypeOf<boolean[]>()
     expectTypeOf<FhirpathResult<"Observation.value.ofType(Quantity).toQuantity('kg') > (5)">>().toEqualTypeOf<
-      unknown[]
+      boolean[]
     >()
     expectTypeOf<
       FhirpathResult<"Observation.value.ofType(Quantity).convertsToQuantity('kg') or (true)">
-    >().toEqualTypeOf<unknown[]>()
+    >().toEqualTypeOf<boolean[]>()
   })
 
   it('comma-separated arguments cannot hide a glued operator either', () => {
     // Runtime: [false] / [true] — comparisons, not strings; both must degrade.
-    expectTypeOf<FhirpathResult<"Patient.name.given.first().replace('a', 'b') = ('x')">>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<"Patient.name.given.first().substring(0, 1) = ('P')">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.given.first().replace('a', 'b') = ('x')">>().toEqualTypeOf<boolean[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.given.first().substring(0, 1) = ('P')">>().toEqualTypeOf<boolean[]>()
   })
 
   it('an operator between two indexers cannot hide inside one indexer', () => {
     expectTypeOf<FhirpathResult<'Patient.name.family[0] | active[0]'>>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<'Patient.name.family[0] = given[0]'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.family[0] = given[0]'>>().toEqualTypeOf<boolean[]>()
   })
 
   it('a paren inside a string literal does not confuse the segment close', () => {
@@ -416,12 +413,10 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
     expectTypeOf<FhirpathResult<"Patient.name.given.join('(')">>().toEqualTypeOf<string[]>()
   })
 
-  it('escaped quotes and delimited identifiers in arguments degrade, never lie', () => {
-    // Backslash escapes can confound quote pairing, so such arguments are
-    // declined outright — including the glued-operator shape they could hide.
-    expectTypeOf<FhirpathResult<"Patient.name.where(family = 'it\\'s') = ('y')">>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<"Patient.name.where(given.first() = 'it\\'s')">>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<'Patient.name.where(`div`.exists())'>>().toEqualTypeOf<unknown[]>()
+  it('escaped quotes and delimited identifiers preserve token boundaries', () => {
+    expectTypeOf<FhirpathResult<"Patient.name.where(family = 'it\\'s') = ('y')">>().toEqualTypeOf<boolean[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.where(given.first() = 'it\\'s')">>().toEqualTypeOf<HumanName[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.where(`div`.exists())'>>().toEqualTypeOf<HumanName[]>()
   })
 
   it('where() conditions with sane parentheses keep their precision', () => {
@@ -447,7 +442,7 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
   it('select() stays sound without an argument guard, and keeps nested precision', () => {
     // select's argument is re-parsed rather than CleanArg-guarded: glued
     // operators die in Navigate on the way through…
-    expectTypeOf<FhirpathResult<"Patient.name.select(family) = ('x')">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.select(family) = ('x')">>().toEqualTypeOf<boolean[]>()
     // Direct dispatch keeps nested calls that the argument check would reject.
     const nested = compile('Patient.name.select(given.where(use.exists()))').evaluate(patient, options)
     expectTypeOf(nested).toEqualTypeOf<string[]>()
@@ -522,35 +517,30 @@ describe('union groups and top-level unions', () => {
   })
 })
 
-describe('union adversarial battery: glued operators and garbage terms degrade', () => {
-  it('an operator glued after a group cannot claim the group type', () => {
-    // Runtime: [false] / [true] — comparisons; both must degrade.
-    expectTypeOf<FhirpathResult<"(Patient.name.given | Patient.name.family) = ('x')">>().toEqualTypeOf<unknown[]>()
+describe('unions compose through operators', () => {
+  it('an operator after a group reports the operator result', () => {
+    expectTypeOf<FhirpathResult<"(Patient.name.given | Patient.name.family) = ('x')">>().toEqualTypeOf<boolean[]>()
     expectTypeOf<FhirpathResult<'(Patient.name.given | Patient.name.family).count() > (0)'>>().toEqualTypeOf<
-      unknown[]
+      boolean[]
     >()
     expectTypeOf<FhirpathResult<"(Patient.name.given | Patient.name.family) | (Patient.id) = ('x')">>().toEqualTypeOf<
-      unknown[]
+      boolean[]
     >()
   })
 
-  it('one garbage term poisons the whole union', () => {
-    // Runtime yields mixed strings and the number 8 — string[] would be a lie.
-    expectTypeOf<FhirpathResult<'Patient.name.select((given | 5 + 3).first())'>>().toEqualTypeOf<unknown[]>()
+  it('mixed inferable terms produce their public union', () => {
+    expectTypeOf<FhirpathResult<'Patient.name.select((given | 5 + 3).first())'>>().toEqualTypeOf<(string | number)[]>()
     // A relative term has no root at the top level (the id | %rowIndex idiom
     // needs a projection context), so the union degrades rather than guessing.
     expectTypeOf<FhirpathResult<'(id | %rowIndex.toString()).first()'>>().toEqualTypeOf<unknown[]>()
   })
 
-  it('a word or symbol operator glued into a middle segment degrades', () => {
-    // Regression: these used to widen to the broad state and let the trailing
-    // fixed-return call claim integer[] — a wrong type, the runtime evaluates
-    // a comparison. GluedName sends them to 'opaque' instead.
-    expectTypeOf<FhirpathResult<'Patient.name and x.count()'>>().toEqualTypeOf<unknown[]>()
+  it('word and symbol operators in the middle produce Boolean results', () => {
+    expectTypeOf<FhirpathResult<'Patient.name and x.count()'>>().toEqualTypeOf<boolean[]>()
     const compared = compile('Patient.gender = gender.count()').evaluate(patient, options)
-    expectTypeOf(compared).toEqualTypeOf<unknown[]>()
+    expectTypeOf(compared).toEqualTypeOf<boolean[]>()
     expect(compared).toEqual([])
-    expectTypeOf<FhirpathResult<'%a = b.count()'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'%a = b.count()'>>().toEqualTypeOf<boolean[]>()
   })
 })
 

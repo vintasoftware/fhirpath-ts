@@ -21,6 +21,108 @@ export type Capability009 = FhirpathResultIn<'%rowIndex.toString()', 'opaque'>
 export type Composition009 = FhirpathResultIn<'%rowIndex.toString().upper()', 'opaque'>
 export type Capability010 = FhirpathResultIn<'Patient /* ignored . | ( ) */ . name', 'opaque'>
 export type Composition010 = FhirpathResultIn<'Patient /* ignored */ . name.first()', 'opaque'>
+export type Capability011 = FhirpathResultIn<"'\\u00e9'", 'opaque'>
+export type Composition011 = FhirpathResultIn<"'\\u00e9'.upper()", 'opaque'>
+export type Capability012 = FhirpathResultIn<'Patient.`name`', 'opaque'>
+export type Composition012 = FhirpathResultIn<'Patient.`name`.first()', 'opaque'>
+export type Capability013 = FhirpathResultIn<'{}', 'opaque'>
+export type Composition013 = FhirpathResultIn<'{}.exists()', 'opaque'>
+export type Capability014 = FhirpathResultIn<'true', 'Functions'>
+export type Composition014 = FhirpathResultIn<'true.toString()', 'Functions'>
+export type Capability015 = FhirpathResultIn<'+7', 'opaque'>
+export type Composition015 = FhirpathResultIn<'(+7).toString()', 'opaque'>
+export type Capability016 = FhirpathResultIn<'-7L', 'opaque'>
+export type Composition016 = FhirpathResultIn<'(-7L).toString()', 'opaque'>
+export type Capability017 = FhirpathResultIn<'-7.3', 'opaque'>
+export type Composition017 = FhirpathResultIn<'(-7.3).round()', 'opaque'>
+export type Capability018 = FhirpathResultIn<"'\\u00e9'", 'opaque'>
+export type Composition018 = FhirpathResultIn<"'\\u00e9'.upper()", 'opaque'>
+export type Capability019 = FhirpathResultIn<'@2019', 'opaque'>
+export type Composition019 = FhirpathResultIn<'@2019.toString()', 'opaque'>
+export type Capability020 = FhirpathResultIn<'@2019-02-29T12:00', 'opaque'>
+export type Composition020 = FhirpathResultIn<'@2019-02-29T12:00.toString()', 'opaque'>
+export type Capability021 = FhirpathResultIn<'@T14:30:00', 'opaque'>
+export type Composition021 = FhirpathResultIn<'@T14:30:00.toString()', 'opaque'>
+export type Capability022 = FhirpathResultIn<"2 'mo'", 'opaque'>
+export type Composition022 = FhirpathResultIn<"(2 'mo').value", 'opaque'>
+export type Capability023 = FhirpathResultIn<'+7', 'opaque'>
+export type Composition023 = FhirpathResultIn<'(+7).toString()', 'opaque'>
+export type Capability024 = FhirpathResultIn<'-7', 'opaque'>
+export type Composition024 = FhirpathResultIn<'(-7).toString()', 'opaque'>
+export type Capability025 = FhirpathResultIn<'2 * 4', 'MathTestData'>
+export type Composition025 = FhirpathResultIn<'(2 * 4).toString()', 'MathTestData'>
+export type Capability026 = FhirpathResultIn<'5/2', 'MathTestData'>
+export type Composition026 = FhirpathResultIn<'(5 / 2).toString()', 'MathTestData'>
+export type Capability027 = FhirpathResultIn<'5 div 0', 'Patient'>
+export type Composition027 = FhirpathResultIn<'(5 div 2).toString()', 'Patient'>
+export type Capability028 = FhirpathResultIn<'5 mod 0', 'Patient'>
+export type Composition028 = FhirpathResultIn<'(5 mod 2).toString()', 'Patient'>
+export type Capability029 = FhirpathResultIn<'2+3', 'MathTestData'>
+export type Composition029 = FhirpathResultIn<'(2 + 3).toString()', 'MathTestData'>
+export type Capability030 = FhirpathResultIn<'5-3', 'MathTestData'>
+export type Composition030 = FhirpathResultIn<'(5 - 3).toString()', 'MathTestData'>
+export type Capability031 = FhirpathResultIn<'s5 & s6', 'MathTestData'>
+export type Composition031 = FhirpathResultIn<"('a' & 'b').upper()", 'MathTestData'>
+export type Capability032 = FhirpathResultIn<"'a' | 'b'", 'Patient'>
+export type Composition032 = FhirpathResultIn<"('a' | 'b').first()", 'Patient'>
+export type Capability033 = FhirpathResultIn<'a < b', 'opaque'>
+export type Composition033 = FhirpathResultIn<'(1 < 2).toString()', 'opaque'>
+export type Capability034 = FhirpathResultIn<'b > a', 'opaque'>
+export type Composition034 = FhirpathResultIn<'(1 > 2).toString()', 'opaque'>
+export type Capability035 = FhirpathResultIn<'b <= c', 'opaque'>
+export type Composition035 = FhirpathResultIn<'(1 <= 2).toString()', 'opaque'>
+export type Capability036 = FhirpathResultIn<'b >= c', 'opaque'>
+export type Composition036 = FhirpathResultIn<'(1 >= 2).toString()', 'opaque'>
+export type Capability037 = FhirpathResultIn<'1 = 1', 'Patient'>
+export type Composition037 = FhirpathResultIn<'(1 = 1).toString()', 'Patient'>
+export type Capability038 = FhirpathResultIn<'1 ~ 1', 'Patient'>
+export type Composition038 = FhirpathResultIn<'(1 ~ 1).toString()', 'Patient'>
+export type Capability039 = FhirpathResultIn<'1 != 1', 'Patient'>
+export type Composition039 = FhirpathResultIn<'(1 != 2).toString()', 'Patient'>
+export type Capability040 = FhirpathResultIn<'1 !~ 1', 'Patient'>
+export type Composition040 = FhirpathResultIn<'(1 !~ 2).toString()', 'Patient'>
+export type Capability041 = FhirpathResultIn<'1 in {}', 'Patient'>
+export type Composition041 = FhirpathResultIn<'(1 in (1 | 2)).toString()', 'Patient'>
+export type Capability042 = FhirpathResultIn<'{} contains 1', 'Patient'>
+export type Composition042 = FhirpathResultIn<'((1 | 2) contains 1).toString()', 'Patient'>
+export type Capability043 = FhirpathResultIn<'ok1 and ok2', 'opaque'>
+export type Composition043 = FhirpathResultIn<'(true and false).toString()', 'opaque'>
+export type Capability044 = FhirpathResultIn<'ok1 xor ok2', 'opaque'>
+export type Composition044 = FhirpathResultIn<'(true xor false).toString()', 'opaque'>
+export type Capability045 = FhirpathResultIn<'ok1 or ok2', 'opaque'>
+export type Composition045 = FhirpathResultIn<'(true or false).toString()', 'opaque'>
+export type Capability046 = FhirpathResultIn<'ok1 implies ok2', 'opaque'>
+export type Composition046 = FhirpathResultIn<'(true implies false).toString()', 'opaque'>
+export type Capability047 = FhirpathResultIn<'5L is Long', 'opaque'>
+export type Composition047 = FhirpathResultIn<'(5L is Long).toString()', 'opaque'>
+export type Capability048 = FhirpathResultIn<'1 year as System.Quantity', 'opaque'>
+export type Composition048 = FhirpathResultIn<'(1 year as System.Quantity).value', 'opaque'>
+export type Capability049 = FhirpathResultIn<'Patient.name.first().given', 'opaque'>
+export type Composition049 = FhirpathResultIn<'Patient.name.first().given.first()', 'opaque'>
+export type Capability050 = FhirpathResultIn<'Patient.name[0].given', 'opaque'>
+export type Composition050 = FhirpathResultIn<'Patient.name[0].given.first()', 'opaque'>
+export type Capability051 = FhirpathResultIn<'-Patient.name.given[0].length()', 'opaque'>
+export type Composition051 = FhirpathResultIn<'(-Patient.name.given[0].length()).toString()', 'opaque'>
+export type Capability052 = FhirpathResultIn<'-1 * 2', 'opaque'>
+export type Composition052 = FhirpathResultIn<'(-1 * 2).toString()', 'opaque'>
+export type Capability053 = FhirpathResultIn<'1 + 2 * 3', 'opaque'>
+export type Composition053 = FhirpathResultIn<'(1 + 2 * 3).toString()', 'opaque'>
+export type Capability054 = FhirpathResultIn<'1 + 2 is Integer', 'opaque'>
+export type Composition054 = FhirpathResultIn<'(1 + 2 is Integer).toString()', 'opaque'>
+export type Capability055 = FhirpathResultIn<'1 | 2 is Integer', 'opaque'>
+export type Composition055 = FhirpathResultIn<'(1 | 2 is Integer).toString()', 'opaque'>
+export type Capability056 = FhirpathResultIn<'1 < 2 | 2', 'opaque'>
+export type Composition056 = FhirpathResultIn<'(1 < 2 | 2).toString()', 'opaque'>
+export type Capability057 = FhirpathResultIn<'true = 1 < 2', 'opaque'>
+export type Composition057 = FhirpathResultIn<'(true = 1 < 2).toString()', 'opaque'>
+export type Capability058 = FhirpathResultIn<'1 in 1 = 1', 'opaque'>
+export type Composition058 = FhirpathResultIn<'(1 in 1 = 1).toString()', 'opaque'>
+export type Capability059 = FhirpathResultIn<'1 in (1 | 2) and true', 'opaque'>
+export type Composition059 = FhirpathResultIn<'(1 in (1 | 2) and true).toString()', 'opaque'>
+export type Capability060 = FhirpathResultIn<'true or false and false', 'opaque'>
+export type Composition060 = FhirpathResultIn<'(true or false and false).toString()', 'opaque'>
+export type Capability061 = FhirpathResultIn<'true implies false or true', 'opaque'>
+export type Composition061 = FhirpathResultIn<'(true implies false or true).toString()', 'opaque'>
 export type LongestCorpusCase = FhirpathResultIn<
   "\n\t\t\tgroup.select(\n\t\t\t\tdefineVariable('grp')\n\t\t\t\t.element\n\t\t\t\t.select(\n\t\t\t\t\tdefineVariable('ele')\n\t\t\t\t\t.target\n\t\t\t\t\t.select(%grp.source & '|' & %ele.code & ' ' & relationship & ' ' & %grp.target & '|' & code)\n\t\t\t\t)\n\t\t\t)\n\t\t\t.trace('all')\n\t\t\t.isDistinct()\n\t\t",
   'ConceptMap'

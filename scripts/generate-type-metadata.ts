@@ -1,8 +1,13 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { OPERATOR_RESULT_RULES, TYPE_OPERATOR_RESULT_RULES } from '../src/analyzer/operator-rules.ts'
+import {
+  OPERATOR_RESULT_RULES,
+  type OperatorResultRule,
+  TYPE_OPERATOR_RESULT_RULES,
+} from '../src/analyzer/operator-rules.ts'
 import { FUNCTION_SIGNATURES, type ResultRule } from '../src/analyzer/signatures.ts'
+import { CALENDAR_DURATION_UNITS } from '../src/lexer/tokens.ts'
 import { INFIX_PARSELETS, PREFIX_PARSELETS } from '../src/parser/precedence.ts'
 import { R4_RESOURCES } from '../src/r4/generated/resources-data.ts'
 import { R4_DATA_TYPES } from '../src/r4/generated/types-data.ts'
@@ -63,6 +68,36 @@ ${Object.entries(FUNCTION_SIGNATURES)
   .join('\n')}
 }
 
+export interface CompactOperatorRules {
+${Object.entries(OPERATOR_RESULT_RULES)
+  .map(([operator, rule]) => `  ${JSON.stringify(operator)}: ${compactOperatorRuleType(rule)}`)
+  .join('\n')}
+}
+
+export interface CompactTypeOperatorRules {
+${Object.entries(TYPE_OPERATOR_RESULT_RULES)
+  .map(([operator, rule]) => `  ${JSON.stringify(operator)}: ${compactOperatorRuleType(rule)}`)
+  .join('\n')}
+}
+
+export interface CompactPrefixParselets {
+${Object.entries(PREFIX_PARSELETS)
+  .map(
+    ([token, record]) =>
+      `  ${JSON.stringify(token)}: readonly [${[
+        record.tokenKind,
+        record.fixity,
+        record.bindingPower,
+        record.associativity,
+        record.rhs,
+        record.reducer,
+      ]
+        .map(value => JSON.stringify(value))
+        .join(', ')}]`
+  )
+  .join('\n')}
+}
+
 export interface CompactInfixParselets {
 ${Object.entries(INFIX_PARSELETS)
   .map(
@@ -80,6 +115,11 @@ ${Object.entries(INFIX_PARSELETS)
   )
   .join('\n')}
 }
+
+export type CompactCalendarUnit = ${[...CALENDAR_DURATION_UNITS]
+    .sort()
+    .map(unit => JSON.stringify(unit))
+    .join(' | ')}
 `
 }
 
@@ -101,6 +141,19 @@ function compactResultRuleType(rule: ResultRule): string {
       return "readonly ['reference-targets']"
     case 'unknown':
       return "readonly ['unknown']"
+  }
+}
+
+function compactOperatorRuleType(rule: OperatorResultRule): string {
+  switch (rule.kind) {
+    case 'fixed':
+      return `readonly ['fixed', ${rule.types.map(type => JSON.stringify(type)).join(' | ')}, ${rule.single}]`
+    case 'arithmetic':
+      return "readonly ['arithmetic']"
+    case 'union':
+      return "readonly ['union']"
+    case 'narrow':
+      return "readonly ['narrow']"
   }
 }
 

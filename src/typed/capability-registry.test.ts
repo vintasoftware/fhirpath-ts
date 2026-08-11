@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeExpressionDetailed, type DeclaredVariable } from '../analyzer/analyze.ts'
+import { OPERATOR_RESULT_RULES, TYPE_OPERATOR_RESULT_RULES } from '../analyzer/operator-rules.ts'
 import { compile } from '../api/compile.ts'
 import { parse } from '../parser/parser.ts'
 import type { HumanName, R4TypeOf } from '../r4/generated/type-maps.ts'
@@ -42,6 +43,71 @@ describe('type-inference capability registry', () => {
       expect(() => parse(capability.expression), id).not.toThrow()
       expect(capability.degradation, id).not.toBe(capability.expression)
       expect(capability.composition, id).not.toBe(capability.expression)
+    }
+  })
+
+  it('has an exact capability for every literal, operator, and adjacent precedence boundary', () => {
+    const ids = new Set(Object.keys(INFERENCE_CAPABILITIES))
+    for (const literal of [
+      'empty',
+      'boolean',
+      'integer',
+      'long',
+      'decimal',
+      'string',
+      'date',
+      'date-time',
+      'time',
+      'quantity',
+    ]) {
+      expect(ids.has(`literal.${literal}`), literal).toBe(true)
+    }
+    const operatorIds: Record<keyof typeof OPERATOR_RESULT_RULES, string> = {
+      '*': 'operator.multiply',
+      '/': 'operator.divide',
+      div: 'operator.div',
+      mod: 'operator.mod',
+      '+': 'operator.add',
+      '-': 'operator.subtract',
+      '&': 'operator.concatenate',
+      '|': 'operator.union',
+      '<': 'operator.less-than',
+      '>': 'operator.greater-than',
+      '<=': 'operator.less-or-equal',
+      '>=': 'operator.greater-or-equal',
+      '=': 'operator.equal',
+      '~': 'operator.equivalent',
+      '!=': 'operator.not-equal',
+      '!~': 'operator.not-equivalent',
+      in: 'operator.in',
+      contains: 'operator.contains',
+      and: 'operator.and',
+      or: 'operator.or',
+      xor: 'operator.xor',
+      implies: 'operator.implies',
+    }
+    expect(Object.keys(operatorIds).sort()).toEqual(Object.keys(OPERATOR_RESULT_RULES).sort())
+    for (const [operator, id] of Object.entries(operatorIds)) expect(ids.has(id), operator).toBe(true)
+    for (const operator of Object.keys(TYPE_OPERATOR_RESULT_RULES))
+      expect(ids.has(`operator.${operator}`), operator).toBe(true)
+    expect(ids.has('operator.unary-plus')).toBe(true)
+    expect(ids.has('operator.unary-minus')).toBe(true)
+    for (const boundary of [
+      'call-dot',
+      'dot-index',
+      'index-unary',
+      'unary-multiplicative',
+      'multiplicative-additive',
+      'additive-type',
+      'type-union',
+      'union-comparison',
+      'comparison-equality',
+      'equality-membership',
+      'membership-and',
+      'and-or',
+      'or-implies',
+    ]) {
+      expect(ids.has(`precedence.${boundary}`), boundary).toBe(true)
     }
   })
 
@@ -196,6 +262,20 @@ function runManualCapability(id: string, expression: string): string | undefined
     'function.input': { input: patient, expected: [patient.name[0]] },
     'variable.opaque-fixed': { input: patient, env: { rowIndex: 3 }, expected: ['3'] },
     'syntax.trivia': { input: patient, expected: [...patient.name] },
+    'syntax.delimited-identifier': { input: patient, expected: [...patient.name] },
+    'precedence.call-dot': { input: patient, expected: ['Peter', 'James'] },
+    'precedence.dot-index': { input: patient, expected: ['Peter', 'James'] },
+    'precedence.index-unary': { input: patient, expected: [-5] },
+    'precedence.unary-multiplicative': { input: undefined, expected: [-2] },
+    'precedence.multiplicative-additive': { input: undefined, expected: [7] },
+    'precedence.additive-type': { input: undefined, expected: [true] },
+    'precedence.type-union': { input: undefined, expected: [1, true] },
+    'precedence.union-comparison': { input: undefined, expected: [true] },
+    'precedence.comparison-equality': { input: undefined, expected: [true] },
+    'precedence.equality-membership': { input: undefined, expected: [false] },
+    'precedence.membership-and': { input: undefined, expected: [true] },
+    'precedence.and-or': { input: undefined, expected: [true] },
+    'precedence.or-implies': { input: undefined, expected: [true] },
   }
   const fixture = cases[id]
   if (fixture === undefined) return `missing manual runtime fixture for ${id}`

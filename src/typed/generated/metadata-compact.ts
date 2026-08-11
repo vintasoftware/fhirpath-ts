@@ -117,6 +117,47 @@ export interface CompactFunctionRules {
   yearOf: readonly ['fixed', 'System.Integer', true]
 }
 
+export interface CompactOperatorRules {
+  '*': readonly ['arithmetic']
+  '/': readonly ['arithmetic']
+  div: readonly ['arithmetic']
+  mod: readonly ['arithmetic']
+  '+': readonly ['arithmetic']
+  '-': readonly ['arithmetic']
+  '&': readonly ['fixed', 'System.String', true]
+  '|': readonly ['union']
+  '<': readonly ['fixed', 'System.Boolean', true]
+  '>': readonly ['fixed', 'System.Boolean', true]
+  '<=': readonly ['fixed', 'System.Boolean', true]
+  '>=': readonly ['fixed', 'System.Boolean', true]
+  '=': readonly ['fixed', 'System.Boolean', true]
+  '~': readonly ['fixed', 'System.Boolean', true]
+  '!=': readonly ['fixed', 'System.Boolean', true]
+  '!~': readonly ['fixed', 'System.Boolean', true]
+  in: readonly ['fixed', 'System.Boolean', true]
+  contains: readonly ['fixed', 'System.Boolean', true]
+  and: readonly ['fixed', 'System.Boolean', true]
+  or: readonly ['fixed', 'System.Boolean', true]
+  xor: readonly ['fixed', 'System.Boolean', true]
+  implies: readonly ['fixed', 'System.Boolean', true]
+}
+
+export interface CompactTypeOperatorRules {
+  is: readonly ['fixed', 'System.Boolean', true]
+  as: readonly ['narrow']
+}
+
+export interface CompactPrefixParselets {
+  identifier: readonly ['identifier', 'prefix', 0, 'none', 'none', 'identifier']
+  literal: readonly ['literal', 'prefix', 0, 'none', 'none', 'literal']
+  variable: readonly ['variable', 'prefix', 0, 'none', 'none', 'identifier']
+  '+': readonly ['operator', 'prefix', 11, 'right', 'expression', 'unary']
+  '-': readonly ['operator', 'prefix', 11, 'right', 'expression', 'unary']
+  '(': readonly ['punct', 'prefix', 0, 'none', 'group', 'group']
+  '{': readonly ['punct', 'prefix', 0, 'none', 'none', 'empty']
+  '%': readonly ['punct', 'prefix', 0, 'none', 'external-name', 'external']
+}
+
 export interface CompactInfixParselets {
   implies: readonly ['keyword', 'infix', 1, 'left', 'expression', 'binary']
   or: readonly ['keyword', 'infix', 2, 'left', 'expression', 'binary']
@@ -146,3 +187,21 @@ export interface CompactInfixParselets {
   '.': readonly ['punct', 'infix', 13, 'left', 'path', 'dot']
   '(': readonly ['punct', 'postfix', 14, 'left', 'arguments', 'call']
 }
+
+export type CompactCalendarUnit =
+  | 'day'
+  | 'days'
+  | 'hour'
+  | 'hours'
+  | 'millisecond'
+  | 'milliseconds'
+  | 'minute'
+  | 'minutes'
+  | 'month'
+  | 'months'
+  | 'second'
+  | 'seconds'
+  | 'week'
+  | 'weeks'
+  | 'year'
+  | 'years'

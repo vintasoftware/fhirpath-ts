@@ -804,3 +804,19 @@ checked in under `benchmarks/`.
 - Parser parity raises the corpus precision baseline from 302 to 442 precise
   cases, leaves 1,905 opaque, retains every previously precise case, and reports
   zero conflicts.
+
+### 2026-08-10 — Commit 3 literal and operator measurements
+
+- Generated assertions now cover all 10 literal kinds, both unary operators,
+  every binary/type operator, and all 13 adjacent precedence boundaries. Each
+  registry entry checks its exact positive type, opaque companion, analyzer
+  state, runtime fixture, and downstream composition.
+- Corpus precision rises from 442 to 1,766 cases, leaving 581 opaque and zero
+  conflicts. All 442 cases precise at the Commit 2 boundary remain precise; the
+  operator family rises from 49 to 1,301 precise cases and the literal family
+  from 288 to 1,475.
+- The common fixture remains effectively flat at 107,758/110,603
+  instantiations (+0.05%/+0.02% from the completed Commit 2 fixture). Expanding
+  the registry-derived full-language fixture raises it from 101,328/102,334 to
+  195,061/197,268, still under 4% of the 5,000,000 ceiling. The worst registered
+  case uses 12,892/13,085 instantiations, below the 100,000 per-case ceiling.

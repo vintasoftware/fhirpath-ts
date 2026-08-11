@@ -3,11 +3,11 @@
   "compilers": {
     "typescript": {
       "commonPath": 103943,
-      "fullLanguage": 101328
+      "fullLanguage": 195061
     },
     "typescript-5-8": {
       "commonPath": 106774,
-      "fullLanguage": 102334
+      "fullLanguage": 197268
     }
   },
   "fullLanguageLimit": 5000000,

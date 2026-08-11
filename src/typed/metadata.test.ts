@@ -10,7 +10,13 @@ import {
   TYPE_PREFIX_PARSELETS,
   TYPE_TYPE_OPERATOR_RULES,
 } from './generated/metadata.ts'
-import type { CompactFunctionRules, CompactInfixParselets } from './generated/metadata-compact.ts'
+import type {
+  CompactFunctionRules,
+  CompactInfixParselets,
+  CompactOperatorRules,
+  CompactPrefixParselets,
+  CompactTypeOperatorRules,
+} from './generated/metadata-compact.ts'
 
 describe('generated type-inference metadata', () => {
   it('matches every analyzer function result rule', () => {
@@ -26,6 +32,9 @@ describe('generated type-inference metadata', () => {
     expect(TYPE_TYPE_OPERATOR_RULES).toEqual(TYPE_OPERATOR_RESULT_RULES)
     expect(TYPE_PREFIX_PARSELETS).toEqual(PREFIX_PARSELETS)
     expect(TYPE_INFIX_PARSELETS).toEqual(INFIX_PARSELETS)
+    expectTypeOf<keyof CompactOperatorRules>().toEqualTypeOf<keyof typeof OPERATOR_RESULT_RULES>()
+    expectTypeOf<keyof CompactTypeOperatorRules>().toEqualTypeOf<keyof typeof TYPE_OPERATOR_RESULT_RULES>()
+    expectTypeOf<keyof CompactPrefixParselets>().toEqualTypeOf<keyof typeof PREFIX_PARSELETS>()
     expectTypeOf<keyof CompactInfixParselets>().toEqualTypeOf<keyof typeof INFIX_PARSELETS>()
   })
 })

@@ -1,5 +1,12 @@
 import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { CompactFunctionRules, CompactInfixParselets } from './generated/metadata-compact.ts'
+import type {
+  CompactCalendarUnit,
+  CompactFunctionRules,
+  CompactInfixParselets,
+  CompactOperatorRules,
+  CompactPrefixParselets,
+  CompactTypeOperatorRules,
+} from './generated/metadata-compact.ts'
 
 type NameToken = ['name', string]
 type KeywordToken = ['keyword', string]
@@ -94,7 +101,7 @@ type Scan<Source extends string, Tokens extends TypeTokens, Steps extends unknow
             : Character extends "'"
               ? ReadQuoted<Rest, '', "'", 'string', Tokens, Step<Steps>>
               : Character extends '`'
-                ? ReadQuoted<Rest, '', '`', 'unsafe', Tokens, Step<Steps>>
+                ? ReadQuoted<Rest, '', '`', 'name', Tokens, Step<Steps>>
                 : Character extends '@'
                   ? ReadTemporal<Rest, '', Tokens, Step<Steps>>
                   : Character extends '$'
@@ -183,7 +190,7 @@ type ReadQuoted<
             Step<Steps>
           >
         : Character extends '\\'
-          ? ReadEscape<Rest, Acc, Quote, 'unsafe', Tokens, Step<Steps>>
+          ? ReadEscape<Rest, Acc, Quote, Kind, Tokens, Step<Steps>>
           : ReadQuoted<Rest, `${Acc}${Character}`, Quote, Kind, Tokens, Step<Steps>>
       : ScanFailure
 
@@ -215,7 +222,7 @@ type ReadUnicodeEscape<
   Steps extends unknown[],
   Digits extends unknown[],
 > = Digits['length'] extends 4
-  ? ReadQuoted<Source, `${Acc}${string}`, Quote, Kind, Tokens, Steps>
+  ? ReadQuoted<Source, `${Acc}${string}`, Quote, Kind extends 'name' ? 'unsafe' : Kind, Tokens, Steps>
   : Source extends ''
     ? ScanFailure
     : Steps['length'] extends 256
@@ -236,32 +243,239 @@ type Escaped<Character extends SimpleEscape> = Character extends 'f'
         ? '\t'
         : Character
 
-type TemporalCharacter = Digit | 'T' | 'Z' | '-' | '+' | ':' | '.'
-
 type ReadTemporal<
   Source extends string,
-  Acc extends string,
+  _Acc extends string,
   Tokens extends TypeTokens,
   Steps extends unknown[],
-> = Source extends ''
-  ? Acc extends ''
+> = Source extends `T${infer Rest}`
+  ? Steps['length'] extends 256
     ? ScanFailure
-    : EmitFinal<TemporalToken<Acc>, Tokens>
-  : Steps['length'] extends 256
-    ? ScanFailure
-    : Source extends `${infer Character}${infer Rest}`
-      ? Character extends TemporalCharacter
-        ? ReadTemporal<Rest, `${Acc}${Character}`, Tokens, Step<Steps>>
-        : Acc extends ''
-          ? ScanFailure
-          : EmitAndScan<Source, TemporalToken<Acc>, Tokens, Steps>
+    : ReadClock<Rest, 'T', Tokens, Step<Steps>, 'time'>
+  : ReadFixedDigits<Source, '', Steps, [], 4> extends infer Year
+    ? Year extends [infer Rest extends string, infer Value extends string, infer NextSteps extends unknown[]]
+      ? ReadDateAfterYear<Rest, Value, Tokens, NextSteps>
       : ScanFailure
+    : ScanFailure
 
-type TemporalToken<Value extends string> = Value extends `T${string}`
-  ? ['time', Value]
-  : Value extends `${string}T${string}`
-    ? ['dateTime', Value]
-    : ['date', Value]
+type ReadDateAfterYear<
+  Source extends string,
+  Value extends string,
+  Tokens extends TypeTokens,
+  Steps extends unknown[],
+> = Source extends `-${infer Rest}`
+  ? HasTwoDigits<Rest> extends true
+    ? Steps['length'] extends 256
+      ? ScanFailure
+      : ReadFixedDigits<Rest, `${Value}-`, Step<Steps>, [], 2> extends infer Month
+        ? Month extends [infer Tail extends string, infer NextValue extends string, infer NextSteps extends unknown[]]
+          ? ReadDateAfterMonth<Tail, NextValue, Tokens, NextSteps>
+          : ScanFailure
+        : ScanFailure
+    : FinishDate<Source, Value, Tokens, Steps>
+  : FinishDate<Source, Value, Tokens, Steps>
+
+type ReadDateAfterMonth<
+  Source extends string,
+  Value extends string,
+  Tokens extends TypeTokens,
+  Steps extends unknown[],
+> = Source extends `-${infer Rest}`
+  ? HasTwoDigits<Rest> extends true
+    ? Steps['length'] extends 256
+      ? ScanFailure
+      : ReadFixedDigits<Rest, `${Value}-`, Step<Steps>, [], 2> extends infer Day
+        ? Day extends [infer Tail extends string, infer NextValue extends string, infer NextSteps extends unknown[]]
+          ? FinishDate<Tail, NextValue, Tokens, NextSteps>
+          : ScanFailure
+        : ScanFailure
+    : FinishDate<Source, Value, Tokens, Steps>
+  : FinishDate<Source, Value, Tokens, Steps>
+
+type FinishDate<
+  Source extends string,
+  Value extends string,
+  Tokens extends TypeTokens,
+  Steps extends unknown[],
+> = Source extends `T${infer Rest}`
+  ? Steps['length'] extends 256
+    ? ScanFailure
+    : Rest extends `${infer First}${string}`
+      ? First extends Digit
+        ? ReadClock<Rest, `${Value}T`, Tokens, Step<Steps>, 'dateTime'>
+        : EmitTemporal<Rest, ['dateTime', `${Value}T`], Tokens, Step<Steps>>
+      : EmitFinal<['dateTime', `${Value}T`], Tokens>
+  : EmitTemporal<Source, ['date', Value], Tokens, Steps>
+
+type ReadClock<
+  Source extends string,
+  Value extends string,
+  Tokens extends TypeTokens,
+  Steps extends unknown[],
+  Kind extends 'time' | 'dateTime',
+> =
+  ReadFixedDigits<Source, Value, Steps, [], 2> extends infer Hour
+    ? Hour extends [infer Rest extends string, infer NextValue extends string, infer NextSteps extends unknown[]]
+      ? ReadClockAfterHour<Rest, NextValue, Tokens, NextSteps, Kind>
+      : ScanFailure
+    : ScanFailure
+
+type ReadClockAfterHour<
+  Source extends string,
+  Value extends string,
+  Tokens extends TypeTokens,
+  Steps extends unknown[],
+  Kind extends 'time' | 'dateTime',
+> = Source extends `:${infer Rest}`
+  ? HasTwoDigits<Rest> extends true
+    ? Steps['length'] extends 256
+      ? ScanFailure
+      : ReadFixedDigits<Rest, `${Value}:`, Step<Steps>, [], 2> extends infer Minute
+        ? Minute extends [infer Tail extends string, infer NextValue extends string, infer NextSteps extends unknown[]]
+          ? ReadClockAfterMinute<Tail, NextValue, Tokens, NextSteps, Kind>
+          : ScanFailure
+        : ScanFailure
+    : FinishClock<Source, Value, Tokens, Steps, Kind>
+  : FinishClock<Source, Value, Tokens, Steps, Kind>
+
+type ReadClockAfterMinute<
+  Source extends string,
+  Value extends string,
+  Tokens extends TypeTokens,
+  Steps extends unknown[],
+  Kind extends 'time' | 'dateTime',
+> = Source extends `:${infer Rest}`
+  ? HasTwoDigits<Rest> extends true
+    ? Steps['length'] extends 256
+      ? ScanFailure
+      : ReadFixedDigits<Rest, `${Value}:`, Step<Steps>, [], 2> extends infer Second
+        ? Second extends [infer Tail extends string, infer NextValue extends string, infer NextSteps extends unknown[]]
+          ? ReadClockFraction<Tail, NextValue, Tokens, NextSteps, Kind>
+          : ScanFailure
+        : ScanFailure
+    : FinishClock<Source, Value, Tokens, Steps, Kind>
+  : FinishClock<Source, Value, Tokens, Steps, Kind>
+
+type ReadClockFraction<
+  Source extends string,
+  Value extends string,
+  Tokens extends TypeTokens,
+  Steps extends unknown[],
+  Kind extends 'time' | 'dateTime',
+> = Source extends `.${infer Rest}`
+  ? Rest extends `${infer First}${string}`
+    ? First extends Digit
+      ? Steps['length'] extends 256
+        ? ScanFailure
+        : ReadFractionDigits<Rest, `${Value}.`, Tokens, Step<Steps>, Kind>
+      : FinishClock<Source, Value, Tokens, Steps, Kind>
+    : FinishClock<Source, Value, Tokens, Steps, Kind>
+  : FinishClock<Source, Value, Tokens, Steps, Kind>
+
+type ReadFractionDigits<
+  Source extends string,
+  Value extends string,
+  Tokens extends TypeTokens,
+  Steps extends unknown[],
+  Kind extends 'time' | 'dateTime',
+> = Source extends `${infer Character}${infer Rest}`
+  ? Character extends Digit
+    ? Steps['length'] extends 256
+      ? ScanFailure
+      : ReadFractionDigits<Rest, `${Value}${Character}`, Tokens, Step<Steps>, Kind>
+    : FinishClock<Source, Value, Tokens, Steps, Kind>
+  : FinishClock<'', Value, Tokens, Steps, Kind>
+
+type FinishClock<
+  Source extends string,
+  Value extends string,
+  Tokens extends TypeTokens,
+  Steps extends unknown[],
+  Kind extends 'time' | 'dateTime',
+> = Kind extends 'time'
+  ? EmitTemporal<Source, ['time', Value], Tokens, Steps>
+  : Source extends `Z${infer Rest}`
+    ? Steps['length'] extends 256
+      ? ScanFailure
+      : EmitTemporal<Rest, ['dateTime', `${Value}Z`], Tokens, Step<Steps>>
+    : Source extends `${infer Sign}${infer Rest}`
+      ? Sign extends '+' | '-'
+        ? HasOffsetTail<Rest> extends true
+          ? ConsumeCharacters<Source, Steps, [], 6> extends infer Offset
+            ? Offset extends [infer Tail extends string, infer NextSteps extends unknown[]]
+              ? EmitTemporal<Tail, ['dateTime', Value], Tokens, NextSteps>
+              : ScanFailure
+            : ScanFailure
+          : EmitTemporal<Source, ['dateTime', Value], Tokens, Steps>
+        : EmitTemporal<Source, ['dateTime', Value], Tokens, Steps>
+      : EmitFinal<['dateTime', Value], Tokens>
+
+type ReadFixedDigits<
+  Source extends string,
+  Value extends string,
+  Steps extends unknown[],
+  Seen extends unknown[],
+  Count extends number,
+> = Seen['length'] extends Count
+  ? [Source, Value, Steps]
+  : Source extends `${infer Character}${infer Rest}`
+    ? Character extends Digit
+      ? Steps['length'] extends 256
+        ? ScanFailure
+        : ReadFixedDigits<Rest, `${Value}${Character}`, Step<Steps>, [...Seen, 0], Count>
+      : ScanFailure
+    : ScanFailure
+
+type HasTwoDigits<Source extends string> = Source extends `${infer First}${infer Rest}`
+  ? First extends Digit
+    ? Rest extends `${infer Second}${string}`
+      ? Second extends Digit
+        ? true
+        : false
+      : false
+    : false
+  : false
+
+type TwoDigitRest<Source extends string> = Source extends `${infer First}${infer Rest}`
+  ? First extends Digit
+    ? Rest extends `${infer Second}${infer Tail}`
+      ? Second extends Digit
+        ? Tail
+        : never
+      : never
+    : never
+  : never
+
+type HasOffsetTail<Source extends string> =
+  TwoDigitRest<Source> extends infer AfterHour
+    ? [AfterHour] extends [never]
+      ? false
+      : AfterHour extends `:${infer AfterColon}`
+        ? [TwoDigitRest<AfterColon>] extends [never]
+          ? false
+          : true
+        : false
+    : false
+
+type ConsumeCharacters<
+  Source extends string,
+  Steps extends unknown[],
+  Seen extends unknown[],
+  Count extends number,
+> = Seen['length'] extends Count
+  ? [Source, Steps]
+  : Source extends `${infer _Character}${infer Rest}`
+    ? Steps['length'] extends 256
+      ? ScanFailure
+      : ConsumeCharacters<Rest, Step<Steps>, [...Seen, 0], Count>
+    : ScanFailure
+
+type EmitTemporal<
+  Source extends string,
+  Token extends LiteralToken,
+  Tokens extends TypeTokens,
+  Steps extends unknown[],
+> = Source extends '' ? EmitFinal<Token, Tokens> : EmitAndScan<Source, Token, Tokens, Steps>
 
 type ReadSpecial<
   Source extends string,
@@ -378,6 +592,16 @@ type InferenceState = [types: string, single: Cardinality, targets: string, rawI
 type OpaqueState = ['opaque', 'unknown', never, false, never]
 type UnknownState = ['unknown', 'unknown', never, false, never]
 type EmptyState = [never, true, never, false, never]
+type IsOpaqueState<State extends InferenceState> = [State[0]] extends [never]
+  ? false
+  : State[0] extends 'opaque'
+    ? true
+    : false
+type IsUnknownState<State extends InferenceState> = [State[0]] extends [never]
+  ? false
+  : State[0] extends 'unknown'
+    ? true
+    : false
 type Values = InferenceState[]
 type BinaryOperatorFrame = ['binary', string, number]
 type UnaryOperatorFrame = ['unary', '+' | '-', number]
@@ -392,6 +616,9 @@ type ParseMode = 'operand' | 'operator' | 'member'
 
 type TypeFunctionRules = CompactFunctionRules
 type TypeInfixParselets = CompactInfixParselets
+type TypeOperatorRules = CompactOperatorRules
+type TypeTypeOperatorRules = CompactTypeOperatorRules
+type TypePrefixParselets = CompactPrefixParselets
 type FastMiss = { readonly fastMiss: true }
 
 /** Parse and infer one expression without retaining an intermediate type-level AST. */
@@ -641,7 +868,7 @@ type ParseOperand<
         ? Word extends 'true' | 'false'
           ? ParseLoop<
               Rest,
-              [...Stack, UnknownState],
+              [...Stack, ['System.Boolean', true, never, false, Word]],
               Ops,
               Delimiters,
               Context,
@@ -663,21 +890,12 @@ type ParseOperand<
                   IdentityFunctions
                 >
             : OpaqueState
-        : Token extends LiteralToken
-          ? ParseLoop<
-              Rest,
-              [...Stack, LiteralState<Token>],
-              Ops,
-              Delimiters,
-              Context,
-              'operator',
-              FixedFunctions,
-              IdentityFunctions
-            >
-          : Token extends ['special', infer Special extends 'this' | 'index' | 'total']
+        : Token extends ['number', infer Number extends string]
+          ? ParseNumberOperand<Number, Rest, Stack, Ops, Delimiters, Context, FixedFunctions, IdentityFunctions>
+          : Token extends LiteralToken
             ? ParseLoop<
                 Rest,
-                [...Stack, SpecialState<Special, Context>],
+                [...Stack, LiteralState<Token>],
                 Ops,
                 Delimiters,
                 Context,
@@ -685,47 +903,135 @@ type ParseOperand<
                 FixedFunctions,
                 IdentityFunctions
               >
-            : Token extends ['symbol', '%']
-              ? ParseExternal<Rest, Stack, Ops, Delimiters, Context, FixedFunctions, IdentityFunctions>
-              : Token extends ['symbol', '(']
-                ? ParseLoop<
-                    Rest,
-                    [],
-                    [],
-                    [['group', Stack, Ops, Context], ...Delimiters],
-                    Context,
-                    'operand',
-                    FixedFunctions,
-                    IdentityFunctions
-                  >
-                : Token extends ['symbol', '{']
-                  ? Rest extends [['symbol', '}'], ...infer AfterEmpty extends TypeTokens]
-                    ? ParseLoop<
-                        AfterEmpty,
-                        [...Stack, EmptyState],
-                        Ops,
-                        Delimiters,
-                        Context,
-                        'operator',
-                        FixedFunctions,
-                        IdentityFunctions
-                      >
-                    : OpaqueState
-                  : Token extends ['symbol', infer Unary extends '+' | '-']
-                    ? ParseLoop<
-                        Rest,
-                        Stack,
-                        [...Ops, ['unary', Unary, 12]],
-                        Delimiters,
-                        Context,
-                        'operand',
-                        FixedFunctions,
-                        IdentityFunctions
-                      >
-                    : Token extends ['symbol', ')']
-                      ? CloseEmptyCall<Rest, Stack, Ops, Delimiters, Context, FixedFunctions, IdentityFunctions>
+            : Token extends ['special', infer Special extends 'this' | 'index' | 'total']
+              ? ParseLoop<
+                  Rest,
+                  [...Stack, SpecialState<Special, Context>],
+                  Ops,
+                  Delimiters,
+                  Context,
+                  'operator',
+                  FixedFunctions,
+                  IdentityFunctions
+                >
+              : Token extends ['symbol', '%']
+                ? ParseExternal<Rest, Stack, Ops, Delimiters, Context, FixedFunctions, IdentityFunctions>
+                : Token extends ['symbol', '(']
+                  ? ParseLoop<
+                      Rest,
+                      [],
+                      [],
+                      [['group', Stack, Ops, Context], ...Delimiters],
+                      Context,
+                      'operand',
+                      FixedFunctions,
+                      IdentityFunctions
+                    >
+                  : Token extends ['symbol', '{']
+                    ? Rest extends [['symbol', '}'], ...infer AfterEmpty extends TypeTokens]
+                      ? ParseLoop<
+                          AfterEmpty,
+                          [...Stack, EmptyState],
+                          Ops,
+                          Delimiters,
+                          Context,
+                          'operator',
+                          FixedFunctions,
+                          IdentityFunctions
+                        >
                       : OpaqueState
+                    : Token extends ['symbol', infer Unary extends '+' | '-']
+                      ? ParseLoop<
+                          Rest,
+                          Stack,
+                          [...Ops, ['unary', Unary, PrefixBindingPower<Unary>]],
+                          Delimiters,
+                          Context,
+                          'operand',
+                          FixedFunctions,
+                          IdentityFunctions
+                        >
+                      : Token extends ['symbol', ')']
+                        ? CloseEmptyCall<Rest, Stack, Ops, Delimiters, Context, FixedFunctions, IdentityFunctions>
+                        : OpaqueState
     : OpaqueState
+
+type ParseNumberOperand<
+  NumberText extends string,
+  Tokens extends TypeTokens,
+  Stack extends Values,
+  Ops extends Operators,
+  Delimiters extends Frames,
+  Context extends InferenceState,
+  FixedFunctions extends string,
+  IdentityFunctions extends string,
+> = NumberText extends `${string}L`
+  ? ContinueOperand<
+      Tokens,
+      [...Stack, ['System.Long', true, never, false, 'long']],
+      Ops,
+      Delimiters,
+      Context,
+      FixedFunctions,
+      IdentityFunctions
+    >
+  : Tokens extends [['string', string], ...infer Rest extends TypeTokens]
+    ? ContinueOperand<
+        Rest,
+        [...Stack, ['System.Quantity', true, never, false, 'quantity']],
+        Ops,
+        Delimiters,
+        Context,
+        FixedFunctions,
+        IdentityFunctions
+      >
+    : Tokens extends [['name', infer Unit extends string], ...infer Rest extends TypeTokens]
+      ? Unit extends CompactCalendarUnit
+        ? ContinueOperand<
+            Rest,
+            [...Stack, ['System.Quantity', true, never, false, 'quantity']],
+            Ops,
+            Delimiters,
+            Context,
+            FixedFunctions,
+            IdentityFunctions
+          >
+        : ContinueNumber<NumberText, Tokens, Stack, Ops, Delimiters, Context, FixedFunctions, IdentityFunctions>
+      : ContinueNumber<NumberText, Tokens, Stack, Ops, Delimiters, Context, FixedFunctions, IdentityFunctions>
+
+type ContinueNumber<
+  NumberText extends string,
+  Tokens extends TypeTokens,
+  Stack extends Values,
+  Ops extends Operators,
+  Delimiters extends Frames,
+  Context extends InferenceState,
+  FixedFunctions extends string,
+  IdentityFunctions extends string,
+> = ContinueOperand<
+  Tokens,
+  [
+    ...Stack,
+    NumberText extends `${string}.${string}`
+      ? ['System.Decimal', true, never, false, 'decimal']
+      : ['System.Integer', true, never, false, 'integer'],
+  ],
+  Ops,
+  Delimiters,
+  Context,
+  FixedFunctions,
+  IdentityFunctions
+>
+
+type ContinueOperand<
+  Tokens extends TypeTokens,
+  Stack extends Values,
+  Ops extends Operators,
+  Delimiters extends Frames,
+  Context extends InferenceState,
+  FixedFunctions extends string,
+  IdentityFunctions extends string,
+> = ParseLoop<Tokens, Stack, Ops, Delimiters, Context, 'operator', FixedFunctions, IdentityFunctions>
 
 type ParseExternal<
   Tokens extends TypeTokens,
@@ -1068,8 +1374,8 @@ type FinishRoot<Stack extends Values, Ops extends Operators> = Ops extends [
     : OpaqueState
 
 type ReduceOne<Stack extends Values, Operator extends OperatorFrame> = Operator extends UnaryOperatorFrame
-  ? Stack extends [...infer Before extends Values, InferenceState]
-    ? [...Before, OpaqueState]
+  ? Stack extends [...infer Before extends Values, infer Operand extends InferenceState]
+    ? [...Before, ApplyUnary<Operand>]
     : OpaqueState
   : Operator extends ['binary', infer Name extends string, number]
     ? Stack extends [
@@ -1081,12 +1387,65 @@ type ReduceOne<Stack extends Values, Operator extends OperatorFrame> = Operator 
       : OpaqueState
     : OpaqueState
 
-type ApplyBinary<Name extends string, Left extends InferenceState, Right extends InferenceState> = Name extends '|'
-  ? UnionState<Left, Right>
-  : OpaqueState
+type ApplyUnary<Operand extends InferenceState> = [Operand[0]] extends [never]
+  ? Operand
+  : IsOpaqueState<Operand> extends true
+    ? OpaqueState
+    : IsUnknownState<Operand> extends true
+      ? UnknownState
+      : [Operand[0]] extends [NumericType | QuantityType]
+        ? Operand
+        : OpaqueState
+
+type ApplyBinary<
+  Name extends string,
+  Left extends InferenceState,
+  Right extends InferenceState,
+> = Name extends keyof TypeOperatorRules ? ApplyOperatorRule<TypeOperatorRules[Name], Name, Left, Right> : OpaqueState
+
+type ApplyOperatorRule<Rule, Name extends string, Left extends InferenceState, Right extends InferenceState> =
+  IsOpaqueState<Left> extends true
+    ? OpaqueState
+    : IsOpaqueState<Right> extends true
+      ? OpaqueState
+      : Rule extends readonly ['fixed', infer Type extends string, infer Single extends boolean]
+        ? [Canonical<Type>, Single, never, false, never]
+        : Rule extends readonly ['arithmetic']
+          ? ArithmeticState<Name, Left, Right>
+          : Rule extends readonly ['union']
+            ? UnionState<Left, Right>
+            : OpaqueState
+
+type ArithmeticState<
+  Operator extends string,
+  Left extends InferenceState,
+  Right extends InferenceState,
+> = Operator extends '*' | '/'
+  ? IsQuantityState<Left> extends true
+    ? ['System.Quantity', true, never, false, never]
+    : IsQuantityState<Right> extends true
+      ? ['System.Quantity', true, never, false, never]
+      : Operator extends '/'
+        ? ['System.Decimal', true, never, false, never]
+        : ArithmeticInput<Left, Right>
+  : ArithmeticInput<Left, Right>
+
+type ArithmeticInput<Left extends InferenceState, Right extends InferenceState> = [Left[0]] extends [never]
+  ? SetSingle<Left, true>
+  : IsUnknownState<Left> extends true
+    ? IsUnknownState<Right> extends true
+      ? UnknownState
+      : SetSingle<Right, true>
+    : SetSingle<Left, true>
+
+type IsQuantityState<State extends InferenceState> = [State[0]] extends [never]
+  ? false
+  : [State[0]] extends [QuantityType]
+    ? true
+    : false
 
 type ParseTypeOperator<
-  _Operator extends 'is' | 'as',
+  Operator extends 'is' | 'as',
   Tokens extends TypeTokens,
   Stack extends Values,
   Ops extends Operators,
@@ -1095,20 +1454,87 @@ type ParseTypeOperator<
   FixedFunctions extends string,
   IdentityFunctions extends string,
 > =
-  ConsumeTypeName<Tokens> extends [infer _TypeName extends string, infer Rest extends TypeTokens]
-    ? Stack extends [...infer Before extends Values, InferenceState]
-      ? ParseLoop<
-          Rest,
-          [...Before, OpaqueState],
-          Ops,
-          Delimiters,
-          Context,
-          'operator',
-          FixedFunctions,
-          IdentityFunctions
-        >
+  ConsumeTypeName<Tokens> extends [infer TypeName extends string, infer Rest extends TypeTokens]
+    ? NormalizeTarget<TypeName> extends infer Target
+      ? [Target] extends [never]
+        ? OpaqueState
+        : Target extends keyof R4TypeOf & string
+          ? ApplyTypeWithPrecedence<
+              Operator,
+              Target,
+              Rest,
+              Stack,
+              Ops,
+              Delimiters,
+              Context,
+              FixedFunctions,
+              IdentityFunctions
+            >
+          : OpaqueState
       : OpaqueState
     : OpaqueState
+
+type ApplyTypeWithPrecedence<
+  Operator extends 'is' | 'as',
+  Target extends keyof R4TypeOf & string,
+  Tokens extends TypeTokens,
+  Stack extends Values,
+  Ops extends Operators,
+  Delimiters extends Frames,
+  Context extends InferenceState,
+  FixedFunctions extends string,
+  IdentityFunctions extends string,
+> = Ops extends [...infer Remaining extends Operators, infer Top extends OperatorFrame]
+  ? GreaterThanOrEqual<OperatorBindingPower<Top>, ParseletBindingPower<Operator>> extends true
+    ? ReduceOne<Stack, Top> extends infer Reduced
+      ? Reduced extends Values
+        ? ApplyTypeWithPrecedence<
+            Operator,
+            Target,
+            Tokens,
+            Reduced,
+            Remaining,
+            Delimiters,
+            Context,
+            FixedFunctions,
+            IdentityFunctions
+          >
+        : OpaqueState
+      : OpaqueState
+    : ApplyTypeResult<Operator, Target, Tokens, Stack, Ops, Delimiters, Context, FixedFunctions, IdentityFunctions>
+  : ApplyTypeResult<Operator, Target, Tokens, Stack, Ops, Delimiters, Context, FixedFunctions, IdentityFunctions>
+
+type ApplyTypeResult<
+  Operator extends 'is' | 'as',
+  Target extends keyof R4TypeOf & string,
+  Tokens extends TypeTokens,
+  Stack extends Values,
+  Ops extends Operators,
+  Delimiters extends Frames,
+  Context extends InferenceState,
+  FixedFunctions extends string,
+  IdentityFunctions extends string,
+> = Stack extends [...infer Before extends Values, infer Operand extends InferenceState]
+  ? ParseLoop<
+      Tokens,
+      [...Before, ApplyTypeOperator<TypeTypeOperatorRules[Operator], Operand, Target>],
+      Ops,
+      Delimiters,
+      Context,
+      'operator',
+      FixedFunctions,
+      IdentityFunctions
+    >
+  : OpaqueState
+
+type ApplyTypeOperator<Rule, Operand extends InferenceState, Target extends string> =
+  IsOpaqueState<Operand> extends true
+    ? OpaqueState
+    : Rule extends readonly ['fixed', infer Type extends string, infer Single extends boolean]
+      ? [Canonical<Type>, Single, never, false, never]
+      : Rule extends readonly ['narrow']
+        ? Narrow<Operand, Target>
+        : OpaqueState
 
 type ConsumeTypeName<Tokens extends TypeTokens> = Tokens extends [
   ['name', infer First extends string],
@@ -1125,33 +1551,46 @@ type ConsumeTypeNameTail<Tokens extends TypeTokens, Acc extends string> = Tokens
   ? ConsumeTypeNameTail<Rest, `${Acc}.${Part}`>
   : [Acc, Tokens]
 
+type NormalizeTarget<Target extends string> = Target extends `FHIR.${infer Local}`
+  ? Local extends keyof R4TypeOf
+    ? Local
+    : never
+  : Target extends keyof R4TypeOf
+    ? Target
+    : `System.${Target}` extends keyof R4TypeOf
+      ? `System.${Target}`
+      : never
+
 type ApplyCall<
   Input extends InferenceState,
   Name extends string,
   Args extends InferenceState[],
   FixedFunctions extends string,
   IdentityFunctions extends string,
-> = Input[0] extends 'opaque'
-  ? OpaqueState
-  : Name extends 'select'
-    ? Args extends [infer Projection extends InferenceState, ...InferenceState[]]
-      ? SetSingle<Projection, BothSingle<Input[1], Projection[1]>>
-      : OpaqueState
-    : Name extends 'ofType' | 'as'
-      ? Args extends [infer Argument extends InferenceState, ...InferenceState[]]
-        ? Argument[4] extends keyof R4TypeOf & string
-          ? Narrow<Input, Argument[4]>
-          : OpaqueState
+> =
+  IsOpaqueState<Input> extends true
+    ? OpaqueState
+    : Name extends 'select'
+      ? Args extends [infer Projection extends InferenceState, ...InferenceState[]]
+        ? SetSingle<Projection, BothSingle<Input[1], Projection[1]>>
         : OpaqueState
-      : Name extends FixedFunctions
-        ? Name extends keyof TypeFunctionRules
-          ? ApplyBaselineRule<TypeFunctionRules[Name], Input>
+      : Name extends 'ofType' | 'as'
+        ? Args extends [infer Argument extends InferenceState, ...InferenceState[]]
+          ? [Argument[4]] extends [never]
+            ? OpaqueState
+            : Argument[4] extends keyof R4TypeOf & string
+              ? Narrow<Input, Argument[4]>
+              : OpaqueState
           : OpaqueState
-        : Name extends IdentityFunctions
+        : Name extends FixedFunctions
           ? Name extends keyof TypeFunctionRules
             ? ApplyBaselineRule<TypeFunctionRules[Name], Input>
             : OpaqueState
-          : OpaqueState
+          : Name extends IdentityFunctions
+            ? Name extends keyof TypeFunctionRules
+              ? ApplyBaselineRule<TypeFunctionRules[Name], Input>
+              : OpaqueState
+            : OpaqueState
 
 type ApplyBaselineRule<Rule, Input extends InferenceState> = Rule extends {
   readonly 0: 'fixed'
@@ -1180,23 +1619,25 @@ type InputState<Input extends string> =
       : UnknownState
     : UnknownState
 
-type Navigate<Input extends InferenceState, Element extends string> = Input[0] extends 'opaque'
-  ? OpaqueState
-  : Input[0] extends 'unknown'
-    ? UnknownState
-    : ElementInformation<Input[0], Element> extends infer Information
-      ? [Information] extends [never]
-        ? UnknownState
-        : Information extends { t: infer Types extends string; a: infer Array extends boolean }
-          ? [
-              Canonical<Types>,
-              Input[1] extends true ? (true extends Array ? false : true) : Input[1],
-              never,
-              false,
-              never,
-            ]
-          : OpaqueState
-      : OpaqueState
+type Navigate<Input extends InferenceState, Element extends string> = [Input[0]] extends [never]
+  ? EmptyState
+  : IsOpaqueState<Input> extends true
+    ? OpaqueState
+    : IsUnknownState<Input> extends true
+      ? UnknownState
+      : ElementInformation<Input[0], Element> extends infer Information
+        ? [Information] extends [never]
+          ? UnknownState
+          : Information extends { t: infer Types extends string; a: infer Array extends boolean }
+            ? [
+                Canonical<Types>,
+                Input[1] extends true ? (true extends Array ? false : true) : Input[1],
+                never,
+                false,
+                never,
+              ]
+            : OpaqueState
+        : OpaqueState
 
 type ElementInformation<Type extends string, Element extends string> = Type extends Type
   ? ElementInfo<Type, Element>
@@ -1221,42 +1662,86 @@ type ElementInfo<Type extends string, Element extends string> = Type extends key
 type Normalize<Type extends string> = Type extends `FHIR.${infer Local}` ? Local : Type
 type Canonical<Type extends string> = Type extends `FHIR.${infer Local}` ? Local : Type
 
-type Narrow<Input extends InferenceState, Target extends string> = Input[0] extends 'opaque'
-  ? OpaqueState
-  : Input[0] extends 'unknown'
-    ? UnknownState
-    : TypesOverlap<Input[0], Normalize<Target>> extends true
-      ? [Normalize<Target>, Input[1], never, false, never]
-      : OpaqueState
+type Narrow<Input extends InferenceState, Target extends string> = [Input[0]] extends [never]
+  ? EmptyState
+  : IsOpaqueState<Input> extends true
+    ? OpaqueState
+    : IsUnknownState<Input> extends true
+      ? UnknownState
+      : NarrowCandidates<Input[0], Normalize<Target>> extends infer Survivors extends string
+        ? [Survivors] extends [never]
+          ? OpaqueState
+          : [Survivors, true, never, false, never]
+        : OpaqueState
+
+type NarrowCandidates<Candidates extends string, Target extends string> = Candidates extends Candidates
+  ? IsSubtype<Candidates, Target> extends true
+    ? Candidates
+    : IsSubtype<Target, Candidates> extends true
+      ? Target
+      : never
+  : never
 
 type IsSubtype<Type extends string, Base extends string, Seen extends string = never> = Type extends Base
   ? true
-  : Type extends Seen
-    ? false
-    : Type extends keyof R4Bases
-      ? R4Bases[Type] extends string
-        ? IsSubtype<R4Bases[Type], Base, Seen | Type>
-        : false
+  : Base extends `System.${string}`
+    ? [PrimitiveSystem<Type>] extends [never]
+      ? IsModelSubtype<Type, Base, Seen>
+      : PrimitiveSystem<Type> extends Base
+        ? true
+        : IsModelSubtype<Type, Base, Seen>
+    : IsModelSubtype<Type, Base, Seen>
+
+type IsModelSubtype<Type extends string, Base extends string, Seen extends string> = Type extends Seen
+  ? false
+  : Type extends keyof R4Bases
+    ? R4Bases[Type] extends string
+      ? IsSubtype<R4Bases[Type], Base, Seen | Type>
       : false
+    : false
 
-type PairOverlaps<Left extends string, Right extends string> =
-  IsSubtype<Left, Right> extends true ? true : IsSubtype<Right, Left> extends true ? true : false
+type PrimitiveSystem<Type extends string> = Type extends 'boolean'
+  ? 'System.Boolean'
+  : Type extends 'integer' | 'positiveInt' | 'unsignedInt'
+    ? 'System.Integer'
+    : Type extends 'integer64'
+      ? 'System.Long'
+      : Type extends 'decimal'
+        ? 'System.Decimal'
+        : Type extends 'date'
+          ? 'System.Date'
+          : Type extends 'dateTime' | 'instant'
+            ? 'System.DateTime'
+            : Type extends 'time'
+              ? 'System.Time'
+              : Type extends
+                    | 'string'
+                    | 'code'
+                    | 'id'
+                    | 'markdown'
+                    | 'uri'
+                    | 'url'
+                    | 'canonical'
+                    | 'oid'
+                    | 'uuid'
+                    | 'base64Binary'
+                    | 'xhtml'
+                ? 'System.String'
+                : never
 
-type TypesOverlap<Left extends string, Right extends string> = true extends (
-  Left extends Left ? (Right extends Right ? PairOverlaps<Left, Right> : never) : never
-)
-  ? true
-  : false
-
-type UnionState<Left extends InferenceState, Right extends InferenceState> = Left[0] extends 'opaque'
-  ? OpaqueState
-  : Right[0] extends 'opaque'
-    ? OpaqueState
-    : Left[0] extends 'unknown'
-      ? UnknownState
-      : Right[0] extends 'unknown'
-        ? UnknownState
-        : [Left[0] | Right[0], false, never, false, never]
+type UnionState<Left extends InferenceState, Right extends InferenceState> = [Left[0]] extends [never]
+  ? Right
+  : [Right[0]] extends [never]
+    ? Left
+    : Left[0] extends 'opaque'
+      ? OpaqueState
+      : Right[0] extends 'opaque'
+        ? OpaqueState
+        : Left[0] extends 'unknown'
+          ? UnknownState
+          : Right[0] extends 'unknown'
+            ? UnknownState
+            : [Left[0] | Right[0], false, never, false, never]
 
 type SetSingle<State extends InferenceState, Single extends Cardinality> = [
   State[0],
@@ -1276,21 +1761,29 @@ type BothSingle<Left extends Cardinality, Right extends Cardinality> = Left exte
       ? Right
       : 'unknown'
 
-type PublicResult<State extends InferenceState> = State[0] extends 'opaque'
-  ? unknown[]
-  : State[0] extends 'unknown'
+type PublicResult<State extends InferenceState> = [State[0]] extends [never]
+  ? never[]
+  : State[0] extends 'opaque'
     ? unknown[]
-    : R4TypeOf[Extract<State[0], keyof R4TypeOf>][]
+    : State[0] extends 'unknown'
+      ? unknown[]
+      : R4TypeOf[Extract<State[0], keyof R4TypeOf>][]
 
-type LiteralState<Token extends LiteralToken> = Token[0] extends 'number'
-  ? ['unknown', 'unknown', never, false, 'number']
-  : UnknownState
+type LiteralState<Token extends LiteralToken> = Token[0] extends 'string'
+  ? ['System.String', true, never, false, Token[1]]
+  : Token[0] extends 'date'
+    ? ['System.Date', true, never, false, Token[1]]
+    : Token[0] extends 'dateTime'
+      ? ['System.DateTime', true, never, false, Token[1]]
+      : Token[0] extends 'time'
+        ? ['System.Time', true, never, false, Token[1]]
+        : UnknownState
 
 type IndexResult<Stack extends Values, Index extends InferenceState> = Stack extends [
   ...infer Before extends Values,
   infer Target extends InferenceState,
 ]
-  ? Index[4] extends 'number'
+  ? Index[4] extends 'integer'
     ? [...Before, Target]
     : [...Before, OpaqueState]
   : [OpaqueState]
@@ -1308,7 +1801,19 @@ type Last<Stack extends Values> = Stack extends [...Values, infer Value extends 
 
 type ParseletReducer<Token extends keyof TypeInfixParselets> = TypeInfixParselets[Token][5]
 type ParseletBindingPower<Token extends keyof TypeInfixParselets> = TypeInfixParselets[Token][2]
+type PrefixBindingPower<Token extends keyof TypePrefixParselets> = TypePrefixParselets[Token][2]
 type OperatorBindingPower<Operator extends OperatorFrame> = Operator[2]
+
+type NumericType =
+  | 'System.Integer'
+  | 'System.Long'
+  | 'System.Decimal'
+  | 'integer'
+  | 'positiveInt'
+  | 'unsignedInt'
+  | 'integer64'
+  | 'decimal'
+type QuantityType = 'System.Quantity' | 'Quantity'
 
 type GreaterThanOrEqual<
   Left extends number,
