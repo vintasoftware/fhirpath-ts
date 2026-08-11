@@ -906,81 +906,61 @@ type ParseOperand<
   ? OpaqueState
   : Tokens extends [infer Token extends TypeToken, ...infer Rest extends TypeTokens]
     ? Token extends ['name', infer Name extends string]
-      ? PrefixParseletMatches<'identifier', 'identifier', 'none', 'none', 'identifier'> extends true
-        ? Rest extends [['symbol', '('], ...infer AfterOpen extends TypeTokens]
-          ? StartCall<AfterOpen, Stack, Ops, Delimiters, Context, Context, Name>
-          : ParseLoop<Rest, [...Stack, NameState<Name, Context>], Ops, Delimiters, Context, 'operator'>
-        : OpaqueState
+      ? Rest extends [['symbol', '('], ...infer AfterOpen extends TypeTokens]
+        ? StartCall<AfterOpen, Stack, Ops, Delimiters, Context, Context, Name>
+        : ParseLoop<Rest, [...Stack, NameState<Name, Context>], Ops, Delimiters, Context, 'operator'>
       : Token extends ['keyword', infer Word extends string]
         ? Word extends 'true' | 'false'
-          ? PrefixParseletMatches<'literal', 'literal', 'none', 'none', 'literal'> extends true
+          ? ParseLoop<
+              Rest,
+              [...Stack, CopyEnvironment<['System.Boolean', never], Context>],
+              Ops,
+              Delimiters,
+              Context,
+              'operator'
+            >
+          : Word extends 'as' | 'contains' | 'in' | 'is'
+            ? Rest extends [['symbol', '('], ...infer AfterOpen extends TypeTokens]
+              ? StartCall<AfterOpen, Stack, Ops, Delimiters, Context, Context, Word>
+              : ParseLoop<Rest, [...Stack, NameState<Word, Context>], Ops, Delimiters, Context, 'operator'>
+            : OpaqueState
+        : Token extends ['number', infer Number extends string]
+          ? ParseNumberOperand<Number, Rest, Stack, Ops, Delimiters, Context>
+          : Token extends LiteralToken
             ? ParseLoop<
                 Rest,
-                [...Stack, CopyEnvironment<['System.Boolean', never], Context>],
+                [...Stack, CopyEnvironment<LiteralState<Token>, Context>],
                 Ops,
                 Delimiters,
                 Context,
                 'operator'
               >
-            : OpaqueState
-          : Word extends 'as' | 'contains' | 'in' | 'is'
-            ? PrefixParseletMatches<'identifier', 'identifier', 'none', 'none', 'identifier'> extends true
-              ? Rest extends [['symbol', '('], ...infer AfterOpen extends TypeTokens]
-                ? StartCall<AfterOpen, Stack, Ops, Delimiters, Context, Context, Word>
-                : ParseLoop<Rest, [...Stack, NameState<Word, Context>], Ops, Delimiters, Context, 'operator'>
-              : OpaqueState
-            : OpaqueState
-        : Token extends ['number', infer Number extends string]
-          ? PrefixParseletMatches<'literal', 'literal', 'none', 'none', 'literal'> extends true
-            ? ParseNumberOperand<Number, Rest, Stack, Ops, Delimiters, Context>
-            : OpaqueState
-          : Token extends LiteralToken
-            ? PrefixParseletMatches<'literal', 'literal', 'none', 'none', 'literal'> extends true
-              ? ParseLoop<
-                  Rest,
-                  [...Stack, CopyEnvironment<LiteralState<Token>, Context>],
-                  Ops,
-                  Delimiters,
-                  Context,
-                  'operator'
-                >
-              : OpaqueState
             : Token extends ['special', infer Special extends 'this' | 'index' | 'total']
-              ? PrefixParseletMatches<'variable', 'variable', 'none', 'none', 'identifier'> extends true
-                ? ParseLoop<Rest, [...Stack, SpecialState<Special, Context>], Ops, Delimiters, Context, 'operator'>
-                : OpaqueState
+              ? ParseLoop<Rest, [...Stack, SpecialState<Special, Context>], Ops, Delimiters, Context, 'operator'>
               : Token extends ['symbol', '%']
-                ? PrefixParseletMatches<'%', 'punct', 'none', 'external-name', 'external'> extends true
-                  ? ParseExternal<Rest, Stack, Ops, Delimiters, Context>
-                  : OpaqueState
+                ? ParseExternal<Rest, Stack, Ops, Delimiters, Context>
                 : Token extends ['symbol', '(']
-                  ? PrefixParseletMatches<'(', 'punct', 'none', 'group', 'group'> extends true
-                    ? ParseLoop<Rest, [], [], [['group', Stack, Ops, Context], ...Delimiters], Context, 'operand'>
-                    : OpaqueState
+                  ? ParseLoop<Rest, [], [], [['group', Stack, Ops, Context], ...Delimiters], Context, 'operand'>
                   : Token extends ['symbol', '{']
-                    ? PrefixParseletMatches<'{', 'punct', 'none', 'none', 'empty'> extends true
-                      ? Rest extends [['symbol', '}'], ...infer AfterEmpty extends TypeTokens]
-                        ? ParseLoop<
-                            AfterEmpty,
-                            [...Stack, CopyEnvironment<EmptyState, Context>],
-                            Ops,
-                            Delimiters,
-                            Context,
-                            'operator'
-                          >
-                        : OpaqueState
+                    ? Rest extends [['symbol', '}'], ...infer AfterEmpty extends TypeTokens]
+                      ? ParseLoop<
+                          AfterEmpty,
+                          [...Stack, CopyEnvironment<EmptyState, Context>],
+                          Ops,
+                          Delimiters,
+                          Context,
+                          'operator'
+                        >
                       : OpaqueState
                     : Token extends ['symbol', infer Unary extends '+' | '-']
-                      ? PrefixParseletMatches<Unary, 'operator', 'right', 'expression', 'unary'> extends true
-                        ? ParseLoop<
-                            Rest,
-                            Stack,
-                            [...Ops, ['unary', Unary, PrefixBindingPower<Unary>]],
-                            Delimiters,
-                            Context,
-                            'operand'
-                          >
-                        : OpaqueState
+                      ? ParseLoop<
+                          Rest,
+                          Stack,
+                          [...Ops, ['unary', Unary, PrefixBindingPower<Unary>]],
+                          Delimiters,
+                          Context,
+                          'operand'
+                        >
                       : Token extends ['symbol', ')']
                         ? CloseEmptyCall<Rest, Stack, Ops, Delimiters>
                         : OpaqueState
@@ -1082,33 +1062,18 @@ type ParseOperator<
     : OpaqueState
   : Tokens extends [infer Token extends TypeToken, ...infer Rest extends TypeTokens]
     ? Token extends ['symbol', '.']
-      ? InfixParseletMatches<'.', 'punct', 'infix', 'left', 'path', 'dot'> extends true
-        ? ParseLoop<Rest, Stack, Ops, Delimiters, Context, 'member'>
-        : OpaqueState
+      ? ParseLoop<Rest, Stack, Ops, Delimiters, Context, 'member'>
       : Token extends ['symbol', '[']
-        ? InfixParseletMatches<'[', 'punct', 'postfix', 'left', 'index', 'indexer'> extends true
-          ? Stack extends [...Values, InferenceState]
-            ? ParseLoop<Rest, [], [], [['index', Stack, Ops, Context], ...Delimiters], Context, 'operand'>
-            : OpaqueState
+        ? Stack extends [...Values, InferenceState]
+          ? ParseLoop<Rest, [], [], [['index', Stack, Ops, Context], ...Delimiters], Context, 'operand'>
           : OpaqueState
         : Token extends ['symbol', ']' | ')'] | ['symbol', ',']
           ? CloseDelimited<Token[1], Rest, Stack, Ops, Delimiters, Context>
-          : Token extends [infer TokenKind extends 'symbol' | 'keyword', infer Operator extends string]
+          : Token extends ['symbol' | 'keyword', infer Operator extends string]
             ? Operator extends 'is' | 'as'
-              ? InfixParseletMatches<Operator, 'keyword', 'infix', 'left', 'type-name', 'type'> extends true
-                ? ParseTypeOperator<Operator, Rest, Stack, Ops, Delimiters, Context>
-                : OpaqueState
+              ? ParseTypeOperator<Operator, Rest, Stack, Ops, Delimiters, Context>
               : Operator extends keyof CompactInfixParselets
-                ? InfixParseletMatches<
-                    Operator,
-                    TokenKind extends 'keyword' ? 'keyword' : 'operator',
-                    'infix',
-                    'left',
-                    'expression',
-                    'binary'
-                  > extends true
-                  ? PushBinary<Operator, ParseletBindingPower<Operator>, Rest, Stack, Ops, Delimiters, Context>
-                  : OpaqueState
+                ? PushBinary<Operator, ParseletBindingPower<Operator>, Rest, Stack, Ops, Delimiters, Context>
                 : OpaqueState
             : OpaqueState
     : OpaqueState
@@ -1121,21 +1086,18 @@ type StartCall<
   OuterContext extends InferenceState,
   Focus extends InferenceState,
   Name extends string,
-> =
-  InfixParseletMatches<'(', 'punct', 'postfix', 'left', 'arguments', 'call'> extends true
-    ? Name extends 'ofType' | 'as'
-      ? StartTypeFunctionCall<Tokens, OuterStack, OuterOps, Delimiters, OuterContext, Focus>
-      : Name extends 'defineVariable'
-        ? StartDefineVariableCall<Tokens, OuterStack, OuterOps, Delimiters, OuterContext, Focus>
-        : ParseLoop<
-            Tokens,
-            [],
-            [],
-            [['call', OuterStack, OuterOps, OuterContext, Focus, Name, []], ...Delimiters],
-            ArgumentContext<Name, 0, Focus, OuterContext>,
-            'operand'
-          >
-    : OpaqueState
+> = Name extends 'ofType' | 'as'
+  ? StartTypeFunctionCall<Tokens, OuterStack, OuterOps, Delimiters, OuterContext, Focus>
+  : Name extends 'defineVariable'
+    ? StartDefineVariableCall<Tokens, OuterStack, OuterOps, Delimiters, OuterContext, Focus>
+    : ParseLoop<
+        Tokens,
+        [],
+        [],
+        [['call', OuterStack, OuterOps, OuterContext, Focus, Name, []], ...Delimiters],
+        ArgumentContext<Name, 0, Focus, OuterContext>,
+        'operand'
+      >
 
 type StartTypeFunctionCall<
   Tokens extends TypeTokens,
@@ -2189,6 +2151,31 @@ type InfixParseletMatches<
 > = CompactInfixParselets[Token] extends readonly [TokenKind, Fixity, number, Associativity, Rhs, Reducer]
   ? true
   : false
+
+type Assert<Condition extends true> = Condition
+type PrefixParseletKey = 'identifier' | 'literal' | 'variable' | '+' | '-' | '(' | '{' | '%'
+type BinaryKeyword = 'implies' | 'or' | 'xor' | 'and' | 'in' | 'contains' | 'div' | 'mod'
+type BinarySymbol = '=' | '~' | '!=' | '!~' | '<' | '>' | '<=' | '>=' | '|' | '+' | '-' | '&' | '*' | '/'
+type InfixParseletKey = BinaryKeyword | BinarySymbol | 'is' | 'as' | '[' | '.' | '('
+
+/** Makes parser metadata drift a type error instead of widening an expression result. */
+export type ParseletMetadataAssertions = [
+  Assert<EqualTypes<keyof CompactPrefixParselets, PrefixParseletKey>>,
+  Assert<PrefixParseletMatches<'identifier', 'identifier', 'none', 'none', 'identifier'>>,
+  Assert<PrefixParseletMatches<'literal', 'literal', 'none', 'none', 'literal'>>,
+  Assert<PrefixParseletMatches<'variable', 'variable', 'none', 'none', 'identifier'>>,
+  Assert<PrefixParseletMatches<'+' | '-', 'operator', 'right', 'expression', 'unary'>>,
+  Assert<PrefixParseletMatches<'%', 'punct', 'none', 'external-name', 'external'>>,
+  Assert<PrefixParseletMatches<'(', 'punct', 'none', 'group', 'group'>>,
+  Assert<PrefixParseletMatches<'{', 'punct', 'none', 'none', 'empty'>>,
+  Assert<EqualTypes<keyof CompactInfixParselets, InfixParseletKey>>,
+  Assert<InfixParseletMatches<BinaryKeyword, 'keyword', 'infix', 'left', 'expression', 'binary'>>,
+  Assert<InfixParseletMatches<BinarySymbol, 'operator', 'infix', 'left', 'expression', 'binary'>>,
+  Assert<InfixParseletMatches<'is' | 'as', 'keyword', 'infix', 'left', 'type-name', 'type'>>,
+  Assert<InfixParseletMatches<'[', 'punct', 'postfix', 'left', 'index', 'indexer'>>,
+  Assert<InfixParseletMatches<'.', 'punct', 'infix', 'left', 'path', 'dot'>>,
+  Assert<InfixParseletMatches<'(', 'punct', 'postfix', 'left', 'arguments', 'call'>>,
+]
 
 type NumericType =
   | 'System.Integer'
