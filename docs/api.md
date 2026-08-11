@@ -211,6 +211,14 @@ name.
 Use `type` when an expression is outside TypeScript's inference subset. It does
 not perform a runtime check and cannot be set as an engine default.
 
+Literal option objects reject unknown keys so a misspelling such as
+`envTypez` fails at the call site. Reusable application options may extend
+`EvaluateOptions` or `EngineOptions`, and index-signature records remain
+assignable; values widened this way no longer retain literal declarations for
+result inference. The exported `Declaring<Options, Accepted>` type is the exact
+parameter shape used by the generic engine calls when a wrapper needs to
+preserve the same checks.
+
 ### Type context declarations
 
 Literal expressions can infer through host values when their FHIRPath types are

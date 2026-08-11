@@ -107,11 +107,21 @@ export interface EvaluateOptions {
   regex?: RegexEngine
 }
 
-/** Preserve literal option inference while rejecting keys outside the accepted option shape. */
+type CheckedOptionKeys<Options, Accepted> = string extends keyof Options
+  ? unknown
+  : keyof Accepted extends keyof Options
+    ? unknown
+    : Record<Exclude<keyof Options, keyof Accepted>, never>
+
+/**
+ * Keeps literal option declarations for inference and rejects unknown literal
+ * keys. Named extensions of the accepted options and index-signature records
+ * remain assignable.
+ */
 export type Declaring<Options extends object, Accepted extends EvaluateOptions = EvaluateOptions> = Accepted &
   Options &
   CheckedFhirpathOptionValues<Options> &
-  Record<Exclude<keyof Options, keyof Accepted>, never>
+  CheckedOptionKeys<Options, Accepted>
 
 /** Sentinel selecting built-in result inference instead of an explicit TResult. */
 export interface InferredExpressionResult {

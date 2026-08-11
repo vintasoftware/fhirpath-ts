@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 
-import { compile, type CustomFunction } from '../api/compile.ts'
-import { FhirPathEngine } from '../api/engine.ts'
+import { compile, type CustomFunction, type EvaluateOptions } from '../api/compile.ts'
+import { type EngineOptions, FhirPathEngine } from '../api/engine.ts'
 import type { Condition, DiagnosticReport, Patient } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
 import type { FhirpathResult, FhirpathTypeContext, FhirpathTypeContextOf, FhirpathTypeDeclaration } from './infer.ts'
@@ -217,5 +217,35 @@ describe('typed host context', () => {
       compiled.evaluate(undefined, typo)
     }
     void assertInvalidOptions
+  })
+
+  it('accepts named option extensions and index-signature records', () => {
+    interface AppOptions extends EvaluateOptions {
+      requestId: string
+    }
+    interface AppEngineOptions extends EngineOptions {
+      requestId: string
+    }
+
+    const engine = new FhirPathEngine()
+    const bound = engine.compile('Patient.id')
+    const compiled = compile('Patient.id')
+    const assertAcceptedOptions = (app: AppOptions, engineOptions: AppEngineOptions, wide: Record<string, unknown>) => {
+      void new FhirPathEngine(engineOptions)
+      void new FhirPathEngine(wide)
+      engine.evaluate('Patient.id', undefined, app)
+      engine.evaluate('Patient.id', undefined, wide)
+      engine.first('Patient.id', undefined, app)
+      engine.first('Patient.id', undefined, wide)
+      engine.project({ resourceType: 'Patient' }, { id: 'Patient.id' }, app)
+      engine.project({ resourceType: 'Patient' }, { id: 'Patient.id' }, wide)
+      bound.evaluate(undefined, app)
+      bound.evaluate(undefined, wide)
+      bound.first(undefined, app)
+      bound.first(undefined, wide)
+      compiled.evaluate(undefined, app)
+      compiled.evaluate(undefined, wide)
+    }
+    void assertAcceptedOptions
   })
 })
