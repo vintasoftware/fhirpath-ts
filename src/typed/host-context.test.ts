@@ -231,6 +231,7 @@ describe('typed host context', () => {
     const bound = engine.compile('Patient.id')
     const compiled = compile('Patient.id')
     const assertAcceptedOptions = (app: AppOptions, engineOptions: AppEngineOptions, wide: Record<string, unknown>) => {
+      void new FhirPathEngine(app)
       void new FhirPathEngine(engineOptions)
       void new FhirPathEngine(wide)
       engine.evaluate('Patient.id', undefined, app)
@@ -247,5 +248,18 @@ describe('typed host context', () => {
       compiled.evaluate(undefined, wide)
     }
     void assertAcceptedOptions
+  })
+
+  it('leaves widened option spreads open and lets satisfies check their construction', () => {
+    const engine = new FhirPathEngine()
+    const assertSpreadBehavior = (base: EvaluateOptions) => {
+      const open = { ...base, envTypez: { report: { type: 'DiagnosticReport' } } }
+      engine.evaluate('%report.status', undefined, open)
+
+      // @ts-expect-error satisfies checks the explicit typo even beside a widened spread
+      const checked = { ...base, envTypez: { report: { type: 'DiagnosticReport' } } } satisfies EvaluateOptions
+      void checked
+    }
+    void assertSpreadBehavior
   })
 })

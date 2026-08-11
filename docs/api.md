@@ -211,13 +211,27 @@ name.
 Use `type` when an expression is outside TypeScript's inference subset. It does
 not perform a runtime check and cannot be set as an engine default.
 
-Literal option objects reject unknown keys so a misspelling such as
+Fresh literal option objects reject unknown keys, so a misspelling such as
 `envTypez` fails at the call site. Reusable application options may extend
 `EvaluateOptions` or `EngineOptions`, and index-signature records remain
-assignable; values widened this way no longer retain literal declarations for
-result inference. The exported `Declaring<Options, Accepted>` type is the exact
-parameter shape used by the generic engine calls when a wrapper needs to
-preserve the same checks.
+assignable. These widened shapes opt out of exact-key checking and no longer
+retain literal declarations for result inference.
+
+A literal that spreads a value already typed as `EvaluateOptions` is also
+widened, so the call cannot distinguish its explicit keys from a reusable
+extension. Validate a composed object where it is built to catch an adjacent
+typo:
+
+```ts
+const options = {
+  ...baseOptions,
+  envTypez: { report: { type: 'DiagnosticReport' } },
+} satisfies EvaluateOptions // error: envTypez is not an option
+```
+
+Use `satisfies EngineOptions` instead for constructor-only fields. The exported
+`Declaring<Options, Accepted>` type is the parameter shape used by generic
+engine calls when a wrapper needs the same literal checks and widening rules.
 
 ### Type context declarations
 
@@ -279,7 +293,7 @@ types.
 | `EngineExpression` / `EngineInputRoot` | Describe accepted engine expressions and normalized input roots |
 | `EngineResult` | Compute the inferred result of an engine or bound-expression call |
 | `EngineProjectionContext` / `EngineProjection` | Compute projection declarations and row results |
-| `Declaring<Options, Accepted>` | Preserve literal option inference with exact literal-key checks |
+| `Declaring<Options, Accepted>` | Preserve literal option inference with fresh-literal key checks |
 
 ### `env` and `vars`
 

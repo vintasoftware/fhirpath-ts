@@ -109,7 +109,7 @@ export interface EvaluateOptions {
 
 type CheckedOptionKeys<Options, Accepted> = string extends keyof Options
   ? unknown
-  : keyof Accepted extends keyof Options
+  : keyof EvaluateOptions extends keyof Options
     ? unknown
     : Record<Exclude<keyof Options, keyof Accepted>, never>
 
