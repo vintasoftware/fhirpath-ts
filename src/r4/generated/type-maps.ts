@@ -20592,6 +20592,1556 @@ export interface R4Elements {
   }
 }
 
+/** Sparse Reference target map; `unknown` marks an unconstrained Reference element. */
+export interface R4ReferenceTargets {
+  Annotation: {
+    author: 'Practitioner' | 'Patient' | 'RelatedPerson' | 'Organization'
+  }
+  DataRequirement: {
+    subject: 'Group'
+  }
+  ElementDefinition: {
+    defaultValue: 'unknown'
+    fixed: 'unknown'
+    pattern: 'unknown'
+  }
+  'ElementDefinition.example': {
+    value: 'unknown'
+  }
+  Extension: {
+    value: 'unknown'
+  }
+  Identifier: {
+    assigner: 'Organization'
+  }
+  Meta: {
+    account: 'unknown'
+    accounts: 'unknown'
+    author: 'unknown'
+    compartment: 'unknown'
+    onBehalfOf: 'unknown'
+  }
+  Signature: {
+    onBehalfOf: 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Patient' | 'Device' | 'Organization'
+    who: 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Patient' | 'Device' | 'Organization'
+  }
+  TriggerDefinition: {
+    timing: 'Schedule'
+  }
+  UsageContext: {
+    value:
+      'PlanDefinition' | 'ResearchStudy' | 'InsurancePlan' | 'HealthcareService' | 'Group' | 'Location' | 'Organization'
+  }
+  Account: {
+    owner: 'Organization'
+    partOf: 'Account'
+    subject:
+      'Patient' | 'Device' | 'Practitioner' | 'PractitionerRole' | 'Location' | 'HealthcareService' | 'Organization'
+  }
+  'Account.coverage': {
+    coverage: 'Coverage'
+  }
+  'Account.guarantor': {
+    party: 'Patient' | 'RelatedPerson' | 'Organization'
+  }
+  ActivityDefinition: {
+    location: 'Location'
+    observationRequirement: 'ObservationDefinition'
+    observationResultRequirement: 'ObservationDefinition'
+    product: 'Medication' | 'Substance'
+    specimenRequirement: 'SpecimenDefinition'
+    subject: 'Group'
+  }
+  AdverseEvent: {
+    contributor: 'Practitioner' | 'PractitionerRole' | 'Device'
+    encounter: 'Encounter'
+    location: 'Location'
+    recorder: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson'
+    referenceDocument: 'DocumentReference'
+    resultingCondition: 'Condition'
+    study: 'ResearchStudy'
+    subject: 'Patient' | 'Group' | 'Practitioner' | 'RelatedPerson'
+    subjectMedicalHistory:
+      | 'Condition'
+      | 'Observation'
+      | 'AllergyIntolerance'
+      | 'FamilyMemberHistory'
+      | 'Immunization'
+      | 'Procedure'
+      | 'Media'
+      | 'DocumentReference'
+  }
+  'AdverseEvent.suspectEntity': {
+    instance:
+      | 'Immunization'
+      | 'Procedure'
+      | 'Substance'
+      | 'Medication'
+      | 'MedicationAdministration'
+      | 'MedicationStatement'
+      | 'Device'
+  }
+  'AdverseEvent.suspectEntity.causality': {
+    author: 'Practitioner' | 'PractitionerRole'
+  }
+  AllergyIntolerance: {
+    asserter: 'Patient' | 'RelatedPerson' | 'Practitioner' | 'PractitionerRole'
+    encounter: 'Encounter'
+    patient: 'Patient'
+    recorder: 'Practitioner' | 'PractitionerRole' | 'Patient' | 'RelatedPerson'
+  }
+  Appointment: {
+    basedOn: 'ServiceRequest'
+    reasonReference: 'Condition' | 'Procedure' | 'Observation' | 'ImmunizationRecommendation'
+    slot: 'Slot'
+    supportingInformation: 'unknown'
+  }
+  'Appointment.participant': {
+    actor:
+      'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Device' | 'HealthcareService' | 'Location'
+  }
+  AppointmentResponse: {
+    actor:
+      'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Device' | 'HealthcareService' | 'Location'
+    appointment: 'Appointment'
+  }
+  'AuditEvent.agent': {
+    location: 'Location'
+    who:
+      | 'PractitionerRole'
+      | 'Practitioner'
+      | 'Organization'
+      | 'Device'
+      | 'Patient'
+      | 'RelatedPerson'
+      | 'Resource'
+      | 'Resource'
+  }
+  'AuditEvent.entity': {
+    what: 'unknown'
+  }
+  'AuditEvent.source': {
+    observer:
+      | 'PractitionerRole'
+      | 'Practitioner'
+      | 'Organization'
+      | 'Device'
+      | 'Patient'
+      | 'RelatedPerson'
+      | 'Subscription'
+      | 'Resource'
+      | 'Resource'
+  }
+  Basic: {
+    author: 'Practitioner' | 'PractitionerRole' | 'Patient' | 'RelatedPerson' | 'Organization'
+    subject: 'unknown'
+  }
+  Binary: {
+    securityContext: 'unknown'
+  }
+  BiologicallyDerivedProduct: {
+    parent: 'BiologicallyDerivedProduct'
+    request: 'ServiceRequest'
+  }
+  'BiologicallyDerivedProduct.collection': {
+    collector: 'Practitioner' | 'PractitionerRole'
+    source: 'Patient' | 'Organization'
+  }
+  'BiologicallyDerivedProduct.processing': {
+    additive: 'Substance'
+  }
+  BodyStructure: {
+    patient: 'Patient'
+  }
+  'CapabilityStatement.implementation': {
+    custodian: 'Organization'
+  }
+  CarePlan: {
+    addresses: 'Condition'
+    author: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'Device' | 'RelatedPerson' | 'Organization' | 'CareTeam'
+    basedOn: 'CarePlan'
+    careTeam: 'CareTeam'
+    contributor:
+      'Patient' | 'Practitioner' | 'PractitionerRole' | 'Device' | 'RelatedPerson' | 'Organization' | 'CareTeam'
+    encounter: 'Encounter'
+    goal: 'Goal'
+    partOf: 'CarePlan'
+    replaces: 'CarePlan'
+    subject: 'Patient' | 'Group'
+    supportingInfo: 'unknown'
+  }
+  'CarePlan.activity': {
+    outcomeReference: 'unknown'
+    reference:
+      | 'Appointment'
+      | 'CommunicationRequest'
+      | 'DeviceRequest'
+      | 'MedicationRequest'
+      | 'NutritionOrder'
+      | 'Task'
+      | 'ServiceRequest'
+      | 'VisionPrescription'
+      | 'RequestGroup'
+  }
+  'CarePlan.activity.detail': {
+    goal: 'Goal'
+    location: 'Location'
+    performer:
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'Organization'
+      | 'RelatedPerson'
+      | 'Patient'
+      | 'CareTeam'
+      | 'HealthcareService'
+      | 'Device'
+    product: 'Medication' | 'Substance'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference'
+  }
+  CareTeam: {
+    encounter: 'Encounter'
+    managingOrganization: 'Organization'
+    reasonReference: 'Condition'
+    subject: 'Patient' | 'Group'
+  }
+  'CareTeam.participant': {
+    member: 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Patient' | 'Organization' | 'CareTeam'
+    onBehalfOf: 'Organization'
+  }
+  CatalogEntry: {
+    referencedItem:
+      | 'Medication'
+      | 'Device'
+      | 'Organization'
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'HealthcareService'
+      | 'ActivityDefinition'
+      | 'PlanDefinition'
+      | 'SpecimenDefinition'
+      | 'ObservationDefinition'
+      | 'Binary'
+  }
+  'CatalogEntry.relatedEntry': {
+    item: 'CatalogEntry'
+  }
+  ChargeItem: {
+    account: 'Account'
+    context: 'Encounter' | 'EpisodeOfCare'
+    costCenter: 'Organization'
+    enterer: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Patient' | 'Device' | 'RelatedPerson'
+    partOf: 'ChargeItem'
+    performingOrganization: 'Organization'
+    product: 'Device' | 'Medication' | 'Substance'
+    requestingOrganization: 'Organization'
+    service:
+      | 'DiagnosticReport'
+      | 'ImagingStudy'
+      | 'Immunization'
+      | 'MedicationAdministration'
+      | 'MedicationDispense'
+      | 'Observation'
+      | 'Procedure'
+      | 'SupplyDelivery'
+    subject: 'Patient' | 'Group'
+    supportingInformation: 'unknown'
+  }
+  'ChargeItem.performer': {
+    actor: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'CareTeam' | 'Patient' | 'Device' | 'RelatedPerson'
+  }
+  ChargeItemDefinition: {
+    instance: 'Medication' | 'Substance' | 'Device'
+  }
+  Claim: {
+    enterer: 'Practitioner' | 'PractitionerRole'
+    facility: 'Location'
+    insurer: 'Organization'
+    originalPrescription: 'DeviceRequest' | 'MedicationRequest' | 'VisionPrescription'
+    patient: 'Patient'
+    prescription: 'DeviceRequest' | 'MedicationRequest' | 'VisionPrescription'
+    provider: 'Practitioner' | 'PractitionerRole' | 'Organization'
+    referral: 'ServiceRequest'
+  }
+  'Claim.accident': {
+    location: 'Location'
+  }
+  'Claim.careTeam': {
+    provider: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'Claim.diagnosis': {
+    diagnosis: 'Condition'
+  }
+  'Claim.insurance': {
+    claimResponse: 'ClaimResponse'
+    coverage: 'Coverage'
+  }
+  'Claim.item': {
+    encounter: 'Encounter'
+    location: 'Location'
+    udi: 'Device'
+  }
+  'Claim.item.detail': {
+    udi: 'Device'
+  }
+  'Claim.item.detail.subDetail': {
+    udi: 'Device'
+  }
+  'Claim.payee': {
+    party: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Patient' | 'RelatedPerson'
+  }
+  'Claim.procedure': {
+    procedure: 'Procedure'
+    udi: 'Device'
+  }
+  'Claim.related': {
+    claim: 'Claim'
+  }
+  'Claim.supportingInfo': {
+    value: 'unknown'
+  }
+  ClaimResponse: {
+    communicationRequest: 'CommunicationRequest'
+    insurer: 'Organization'
+    patient: 'Patient'
+    request: 'Claim'
+    requestor: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'ClaimResponse.addItem': {
+    location: 'Location'
+    provider: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'ClaimResponse.insurance': {
+    claimResponse: 'ClaimResponse'
+    coverage: 'Coverage'
+  }
+  ClinicalImpression: {
+    assessor: 'Practitioner' | 'PractitionerRole'
+    encounter: 'Encounter'
+    previous: 'ClinicalImpression'
+    problem: 'Condition' | 'AllergyIntolerance'
+    prognosisReference: 'RiskAssessment'
+    subject: 'Patient' | 'Group'
+    supportingInfo: 'unknown'
+  }
+  'ClinicalImpression.finding': {
+    itemReference: 'Condition' | 'Observation' | 'Media'
+  }
+  'ClinicalImpression.investigation': {
+    item:
+      | 'Observation'
+      | 'QuestionnaireResponse'
+      | 'FamilyMemberHistory'
+      | 'DiagnosticReport'
+      | 'RiskAssessment'
+      | 'ImagingStudy'
+      | 'Media'
+  }
+  Communication: {
+    about: 'unknown'
+    basedOn: 'unknown'
+    encounter: 'Encounter'
+    inResponseTo: 'Communication'
+    partOf: 'unknown'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference'
+    recipient:
+      | 'Device'
+      | 'Organization'
+      | 'Patient'
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'RelatedPerson'
+      | 'Group'
+      | 'CareTeam'
+      | 'HealthcareService'
+    sender:
+      | 'Device'
+      | 'Organization'
+      | 'Patient'
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'RelatedPerson'
+      | 'HealthcareService'
+    subject: 'Patient' | 'Group'
+  }
+  'Communication.payload': {
+    content: 'unknown'
+  }
+  CommunicationRequest: {
+    about: 'unknown'
+    basedOn: 'unknown'
+    encounter: 'Encounter'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference'
+    recipient:
+      | 'Device'
+      | 'Organization'
+      | 'Patient'
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'RelatedPerson'
+      | 'Group'
+      | 'CareTeam'
+      | 'HealthcareService'
+    replaces: 'CommunicationRequest'
+    requester: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Patient' | 'RelatedPerson' | 'Device'
+    sender:
+      | 'Device'
+      | 'Organization'
+      | 'Patient'
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'RelatedPerson'
+      | 'HealthcareService'
+    subject: 'Patient' | 'Group'
+  }
+  'CommunicationRequest.payload': {
+    content: 'unknown'
+  }
+  Composition: {
+    author: 'Practitioner' | 'PractitionerRole' | 'Device' | 'Patient' | 'RelatedPerson' | 'Organization'
+    custodian: 'Organization'
+    encounter: 'Encounter'
+    subject: 'unknown'
+  }
+  'Composition.attester': {
+    party: 'Patient' | 'RelatedPerson' | 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'Composition.event': {
+    detail: 'unknown'
+  }
+  'Composition.relatesTo': {
+    target: 'Composition'
+  }
+  'Composition.section': {
+    author: 'Practitioner' | 'PractitionerRole' | 'Device' | 'Patient' | 'RelatedPerson' | 'Organization'
+    entry: 'unknown'
+    focus: 'unknown'
+  }
+  Condition: {
+    asserter: 'Practitioner' | 'PractitionerRole' | 'Patient' | 'RelatedPerson'
+    encounter: 'Encounter'
+    recorder: 'Practitioner' | 'PractitionerRole' | 'Patient' | 'RelatedPerson'
+    subject: 'Patient' | 'Group'
+  }
+  'Condition.evidence': {
+    detail: 'unknown'
+  }
+  'Condition.stage': {
+    assessment: 'ClinicalImpression' | 'DiagnosticReport' | 'Observation'
+  }
+  Consent: {
+    organization: 'Organization'
+    patient: 'Patient'
+    performer: 'Organization' | 'Patient' | 'Practitioner' | 'RelatedPerson' | 'PractitionerRole'
+    source: 'Consent' | 'DocumentReference' | 'Contract' | 'QuestionnaireResponse'
+  }
+  'Consent.provision.actor': {
+    reference:
+      | 'Device'
+      | 'Group'
+      | 'CareTeam'
+      | 'Organization'
+      | 'Patient'
+      | 'Practitioner'
+      | 'RelatedPerson'
+      | 'PractitionerRole'
+  }
+  'Consent.provision.data': {
+    reference: 'unknown'
+  }
+  'Consent.verification': {
+    verifiedWith: 'Patient' | 'RelatedPerson'
+  }
+  Contract: {
+    author: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'Organization'
+    authority: 'Organization'
+    domain: 'Location'
+    instantiatesCanonical: 'Contract'
+    legallyBinding: 'Composition' | 'DocumentReference' | 'QuestionnaireResponse' | 'Contract'
+    relevantHistory: 'Provenance'
+    site: 'Location'
+    subject: 'unknown'
+    supportingInfo: 'unknown'
+    topic: 'unknown'
+  }
+  'Contract.contentDefinition': {
+    publisher: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'Contract.friendly': {
+    content: 'Composition' | 'DocumentReference' | 'QuestionnaireResponse'
+  }
+  'Contract.legal': {
+    content: 'Composition' | 'DocumentReference' | 'QuestionnaireResponse'
+  }
+  'Contract.rule': {
+    content: 'DocumentReference'
+  }
+  'Contract.signer': {
+    party: 'Organization' | 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson'
+  }
+  'Contract.term': {
+    topic: 'unknown'
+  }
+  'Contract.term.action': {
+    context: 'Encounter' | 'EpisodeOfCare'
+    performer:
+      | 'RelatedPerson'
+      | 'Patient'
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'CareTeam'
+      | 'Device'
+      | 'Substance'
+      | 'Organization'
+      | 'Location'
+    reasonReference:
+      'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference' | 'Questionnaire' | 'QuestionnaireResponse'
+    requester: 'Patient' | 'RelatedPerson' | 'Practitioner' | 'PractitionerRole' | 'Device' | 'Group' | 'Organization'
+  }
+  'Contract.term.action.subject': {
+    reference: 'Patient' | 'RelatedPerson' | 'Practitioner' | 'PractitionerRole' | 'Device' | 'Group' | 'Organization'
+  }
+  'Contract.term.asset': {
+    typeReference: 'unknown'
+  }
+  'Contract.term.asset.context': {
+    reference: 'unknown'
+  }
+  'Contract.term.asset.valuedItem': {
+    entity: 'unknown'
+    recipient: 'Organization' | 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson'
+    responsible: 'Organization' | 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson'
+  }
+  'Contract.term.offer': {
+    topic: 'unknown'
+  }
+  'Contract.term.offer.answer': {
+    value: 'unknown'
+  }
+  'Contract.term.offer.party': {
+    reference: 'Patient' | 'RelatedPerson' | 'Practitioner' | 'PractitionerRole' | 'Device' | 'Group' | 'Organization'
+  }
+  Coverage: {
+    beneficiary: 'Patient'
+    contract: 'Contract'
+    payor: 'Organization' | 'Patient' | 'RelatedPerson'
+    policyHolder: 'Patient' | 'RelatedPerson' | 'Organization'
+    subscriber: 'Patient' | 'RelatedPerson'
+  }
+  CoverageEligibilityRequest: {
+    enterer: 'Practitioner' | 'PractitionerRole'
+    facility: 'Location'
+    insurer: 'Organization'
+    patient: 'Patient'
+    provider: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'CoverageEligibilityRequest.insurance': {
+    coverage: 'Coverage'
+  }
+  'CoverageEligibilityRequest.item': {
+    detail: 'unknown'
+    facility: 'Location' | 'Organization'
+    provider: 'Practitioner' | 'PractitionerRole'
+  }
+  'CoverageEligibilityRequest.item.diagnosis': {
+    diagnosis: 'Condition'
+  }
+  'CoverageEligibilityRequest.supportingInfo': {
+    information: 'unknown'
+  }
+  CoverageEligibilityResponse: {
+    insurer: 'Organization'
+    patient: 'Patient'
+    request: 'CoverageEligibilityRequest'
+    requestor: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'CoverageEligibilityResponse.insurance': {
+    coverage: 'Coverage'
+  }
+  'CoverageEligibilityResponse.insurance.item': {
+    provider: 'Practitioner' | 'PractitionerRole'
+  }
+  DetectedIssue: {
+    author: 'Practitioner' | 'PractitionerRole' | 'Device'
+    implicated: 'unknown'
+    patient: 'Patient'
+  }
+  'DetectedIssue.evidence': {
+    detail: 'unknown'
+  }
+  'DetectedIssue.mitigation': {
+    author: 'Practitioner' | 'PractitionerRole'
+  }
+  Device: {
+    definition: 'DeviceDefinition'
+    location: 'Location'
+    owner: 'Organization'
+    parent: 'Device'
+    patient: 'Patient'
+  }
+  DeviceDefinition: {
+    manufacturer: 'Organization'
+    owner: 'Organization'
+    parentDevice: 'DeviceDefinition'
+  }
+  DeviceMetric: {
+    parent: 'Device'
+    source: 'Device'
+  }
+  DeviceRequest: {
+    basedOn: 'unknown'
+    code: 'Device'
+    encounter: 'Encounter'
+    insurance: 'Coverage' | 'ClaimResponse'
+    performer:
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'Organization'
+      | 'CareTeam'
+      | 'HealthcareService'
+      | 'Patient'
+      | 'Device'
+      | 'RelatedPerson'
+    priorRequest: 'unknown'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference'
+    relevantHistory: 'Provenance'
+    requester: 'Device' | 'Practitioner' | 'PractitionerRole' | 'Organization'
+    subject: 'Patient' | 'Group' | 'Location' | 'Device'
+    supportingInfo: 'unknown'
+  }
+  DeviceUseStatement: {
+    basedOn: 'ServiceRequest'
+    derivedFrom:
+      'ServiceRequest' | 'Procedure' | 'Claim' | 'Observation' | 'QuestionnaireResponse' | 'DocumentReference'
+    device: 'Device'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference' | 'Media'
+    source: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson'
+    subject: 'Patient' | 'Group'
+  }
+  DiagnosticReport: {
+    basedOn: 'CarePlan' | 'ImmunizationRecommendation' | 'MedicationRequest' | 'NutritionOrder' | 'ServiceRequest'
+    encounter: 'Encounter'
+    imagingStudy: 'ImagingStudy'
+    performer: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'CareTeam'
+    result: 'Observation'
+    resultsInterpreter: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'CareTeam'
+    specimen: 'Specimen'
+    subject: 'Patient' | 'Group' | 'Device' | 'Location'
+  }
+  'DiagnosticReport.media': {
+    link: 'Media'
+  }
+  DocumentManifest: {
+    author: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Device' | 'Patient' | 'RelatedPerson'
+    content: 'unknown'
+    recipient: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Organization'
+    subject: 'Patient' | 'Practitioner' | 'Group' | 'Device'
+  }
+  'DocumentManifest.related': {
+    ref: 'unknown'
+  }
+  DocumentReference: {
+    authenticator: 'Practitioner' | 'PractitionerRole' | 'Organization'
+    author: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Device' | 'Patient' | 'RelatedPerson'
+    custodian: 'Organization'
+    subject: 'Patient' | 'Practitioner' | 'Group' | 'Device'
+  }
+  'DocumentReference.context': {
+    encounter: 'Encounter' | 'EpisodeOfCare'
+    related: 'unknown'
+    sourcePatientInfo: 'Patient'
+  }
+  'DocumentReference.relatesTo': {
+    target: 'DocumentReference'
+  }
+  EffectEvidenceSynthesis: {
+    exposure: 'EvidenceVariable'
+    exposureAlternative: 'EvidenceVariable'
+    outcome: 'EvidenceVariable'
+    population: 'EvidenceVariable'
+  }
+  'EffectEvidenceSynthesis.resultsByExposure': {
+    riskEvidenceSynthesis: 'RiskEvidenceSynthesis'
+  }
+  Encounter: {
+    account: 'Account'
+    appointment: 'Appointment'
+    basedOn: 'ServiceRequest'
+    episodeOfCare: 'EpisodeOfCare'
+    partOf: 'Encounter'
+    reasonReference: 'Condition' | 'Procedure' | 'Observation' | 'ImmunizationRecommendation'
+    serviceProvider: 'Organization'
+    subject: 'Patient' | 'Group'
+  }
+  'Encounter.diagnosis': {
+    condition: 'Condition' | 'Procedure'
+  }
+  'Encounter.hospitalization': {
+    destination: 'Location' | 'Organization'
+    origin: 'Location' | 'Organization'
+  }
+  'Encounter.location': {
+    location: 'Location'
+  }
+  'Encounter.participant': {
+    individual: 'Practitioner' | 'PractitionerRole' | 'RelatedPerson'
+  }
+  Endpoint: {
+    managingOrganization: 'Organization'
+  }
+  EnrollmentRequest: {
+    candidate: 'Patient'
+    coverage: 'Coverage'
+    insurer: 'Organization'
+    provider: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  EnrollmentResponse: {
+    organization: 'Organization'
+    request: 'EnrollmentRequest'
+    requestProvider: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  EpisodeOfCare: {
+    account: 'Account'
+    careManager: 'Practitioner' | 'PractitionerRole'
+    managingOrganization: 'Organization'
+    patient: 'Patient'
+    referralRequest: 'ServiceRequest'
+    team: 'CareTeam'
+  }
+  'EpisodeOfCare.diagnosis': {
+    condition: 'Condition'
+  }
+  EventDefinition: {
+    subject: 'Group'
+  }
+  Evidence: {
+    exposureBackground: 'EvidenceVariable'
+    exposureVariant: 'EvidenceVariable'
+    outcome: 'EvidenceVariable'
+  }
+  'EvidenceVariable.characteristic': {
+    definitionReference: 'EvidenceVariable' | 'Group' | 'Evidence'
+  }
+  'EvidenceVariable.characteristic.definitionByTypeAndValue': {
+    device: 'Device' | 'DeviceMetric'
+    value: 'unknown'
+  }
+  'EvidenceVariable.characteristic.timeFromEvent': {
+    event: 'unknown'
+  }
+  ExplanationOfBenefit: {
+    claim: 'Claim'
+    claimResponse: 'ClaimResponse'
+    enterer: 'Practitioner' | 'PractitionerRole'
+    facility: 'Location'
+    insurer: 'Organization'
+    originalPrescription: 'MedicationRequest'
+    patient: 'Patient'
+    prescription: 'MedicationRequest' | 'VisionPrescription'
+    provider: 'Practitioner' | 'PractitionerRole' | 'Organization'
+    referral: 'ServiceRequest'
+  }
+  'ExplanationOfBenefit.accident': {
+    location: 'Location'
+  }
+  'ExplanationOfBenefit.addItem': {
+    location: 'Location'
+    provider: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'ExplanationOfBenefit.careTeam': {
+    provider: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'ExplanationOfBenefit.diagnosis': {
+    diagnosis: 'Condition'
+  }
+  'ExplanationOfBenefit.insurance': {
+    coverage: 'Coverage'
+  }
+  'ExplanationOfBenefit.item': {
+    encounter: 'Encounter'
+    location: 'Location'
+    udi: 'Device'
+  }
+  'ExplanationOfBenefit.item.detail': {
+    udi: 'Device'
+  }
+  'ExplanationOfBenefit.item.detail.subDetail': {
+    udi: 'Device'
+  }
+  'ExplanationOfBenefit.payee': {
+    party: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Patient' | 'RelatedPerson'
+  }
+  'ExplanationOfBenefit.procedure': {
+    procedure: 'Procedure'
+    udi: 'Device'
+  }
+  'ExplanationOfBenefit.related': {
+    claim: 'Claim'
+  }
+  'ExplanationOfBenefit.supportingInfo': {
+    value: 'unknown'
+  }
+  FamilyMemberHistory: {
+    patient: 'Patient'
+    reasonReference:
+      | 'Condition'
+      | 'Observation'
+      | 'AllergyIntolerance'
+      | 'QuestionnaireResponse'
+      | 'DiagnosticReport'
+      | 'DocumentReference'
+  }
+  Flag: {
+    author: 'Device' | 'Organization' | 'Patient' | 'Practitioner' | 'PractitionerRole'
+    encounter: 'Encounter'
+    subject:
+      'Patient' | 'Location' | 'Group' | 'Organization' | 'Practitioner' | 'PlanDefinition' | 'Medication' | 'Procedure'
+  }
+  Goal: {
+    addresses:
+      'Condition' | 'Observation' | 'MedicationStatement' | 'NutritionOrder' | 'ServiceRequest' | 'RiskAssessment'
+    expressedBy: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson'
+    outcomeReference: 'Observation'
+    subject: 'Patient' | 'Group' | 'Organization'
+  }
+  Group: {
+    managingEntity: 'Organization' | 'RelatedPerson' | 'Practitioner' | 'PractitionerRole'
+  }
+  'Group.characteristic': {
+    value: 'unknown'
+  }
+  'Group.member': {
+    entity: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'Device' | 'Medication' | 'Substance' | 'Group'
+  }
+  GuidanceResponse: {
+    encounter: 'Encounter'
+    evaluationMessage: 'OperationOutcome'
+    outputParameters: 'Parameters'
+    performer: 'Device'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference'
+    result: 'CarePlan' | 'RequestGroup'
+    subject: 'Patient' | 'Group'
+  }
+  HealthcareService: {
+    coverageArea: 'Location'
+    endpoint: 'Endpoint'
+    location: 'Location'
+    offeredIn: 'HealthcareService'
+    providedBy: 'Organization'
+  }
+  ImagingStudy: {
+    basedOn: 'CarePlan' | 'ServiceRequest' | 'Appointment' | 'AppointmentResponse' | 'Task'
+    encounter: 'Encounter'
+    endpoint: 'Endpoint'
+    interpreter: 'Practitioner' | 'PractitionerRole'
+    location: 'Location'
+    procedureReference: 'Procedure'
+    reasonReference: 'Condition' | 'Observation' | 'Media' | 'DiagnosticReport' | 'DocumentReference'
+    referrer: 'Practitioner' | 'PractitionerRole'
+    subject: 'Patient' | 'Device' | 'Group'
+  }
+  'ImagingStudy.series': {
+    endpoint: 'Endpoint'
+    specimen: 'Specimen'
+  }
+  'ImagingStudy.series.performer': {
+    actor: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'CareTeam' | 'Patient' | 'Device' | 'RelatedPerson'
+  }
+  Immunization: {
+    encounter: 'Encounter'
+    location: 'Location'
+    manufacturer: 'Organization'
+    patient: 'Patient'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport'
+  }
+  'Immunization.performer': {
+    actor: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'Immunization.protocolApplied': {
+    authority: 'Organization'
+  }
+  'Immunization.reaction': {
+    detail: 'Observation'
+  }
+  ImmunizationEvaluation: {
+    authority: 'Organization'
+    immunizationEvent: 'Immunization'
+    patient: 'Patient'
+  }
+  ImmunizationRecommendation: {
+    authority: 'Organization'
+    patient: 'Patient'
+  }
+  'ImmunizationRecommendation.recommendation': {
+    supportingImmunization: 'Immunization' | 'ImmunizationEvaluation'
+    supportingPatientInformation: 'unknown'
+  }
+  'ImplementationGuide.definition.page': {
+    name: 'Binary'
+  }
+  'ImplementationGuide.definition.resource': {
+    reference: 'unknown'
+  }
+  'ImplementationGuide.manifest.resource': {
+    reference: 'unknown'
+  }
+  InsurancePlan: {
+    administeredBy: 'Organization'
+    coverageArea: 'Location'
+    endpoint: 'Endpoint'
+    network: 'Organization'
+    ownedBy: 'Organization'
+  }
+  'InsurancePlan.coverage': {
+    network: 'Organization'
+  }
+  'InsurancePlan.plan': {
+    coverageArea: 'Location'
+    network: 'Organization'
+  }
+  Invoice: {
+    account: 'Account'
+    issuer: 'Organization'
+    recipient: 'Organization' | 'Patient' | 'RelatedPerson'
+    subject: 'Patient' | 'Group'
+  }
+  'Invoice.lineItem': {
+    chargeItem: 'ChargeItem'
+  }
+  'Invoice.participant': {
+    actor: 'Practitioner' | 'Organization' | 'Patient' | 'PractitionerRole' | 'Device' | 'RelatedPerson'
+  }
+  Library: {
+    subject: 'Group'
+  }
+  Linkage: {
+    author: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'Linkage.item': {
+    resource: 'unknown'
+  }
+  List: {
+    encounter: 'Encounter'
+    source: 'Practitioner' | 'PractitionerRole' | 'Patient' | 'Device'
+    subject: 'Patient' | 'Group' | 'Device' | 'Location'
+  }
+  'List.entry': {
+    item: 'unknown'
+  }
+  Location: {
+    endpoint: 'Endpoint'
+    managingOrganization: 'Organization'
+    partOf: 'Location'
+  }
+  Measure: {
+    subject: 'Group'
+  }
+  MeasureReport: {
+    evaluatedResource: 'unknown'
+    reporter: 'Practitioner' | 'PractitionerRole' | 'Location' | 'Organization'
+    subject:
+      | 'Patient'
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'Location'
+      | 'Device'
+      | 'RelatedPerson'
+      | 'Organization'
+      | 'CareTeam'
+      | 'HealthcareService'
+      | 'Group'
+  }
+  'MeasureReport.group.population': {
+    subjectResults: 'List'
+  }
+  'MeasureReport.group.stratifier.stratum.population': {
+    subjectResults: 'List'
+  }
+  Media: {
+    basedOn: 'ServiceRequest' | 'CarePlan'
+    device: 'Device' | 'DeviceMetric'
+    encounter: 'Encounter'
+    operator: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'CareTeam' | 'Patient' | 'Device' | 'RelatedPerson'
+    partOf: 'unknown'
+    subject: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'Group' | 'Device' | 'Specimen' | 'Location'
+  }
+  Medication: {
+    manufacturer: 'Organization'
+  }
+  'Medication.ingredient': {
+    item: 'Substance' | 'Medication'
+  }
+  MedicationAdministration: {
+    context: 'Encounter' | 'EpisodeOfCare'
+    device: 'Device'
+    eventHistory: 'Provenance'
+    medication: 'Medication'
+    partOf: 'MedicationAdministration' | 'Procedure'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport'
+    request: 'MedicationRequest'
+    subject: 'Patient' | 'Group'
+    supportingInformation: 'unknown'
+  }
+  'MedicationAdministration.performer': {
+    actor: 'Practitioner' | 'PractitionerRole' | 'Patient' | 'RelatedPerson' | 'Device'
+  }
+  MedicationDispense: {
+    authorizingPrescription: 'MedicationRequest'
+    context: 'Encounter' | 'EpisodeOfCare'
+    destination: 'Location'
+    detectedIssue: 'DetectedIssue'
+    eventHistory: 'Provenance'
+    location: 'Location'
+    medication: 'Medication'
+    partOf: 'Procedure'
+    receiver: 'Patient' | 'Practitioner'
+    statusReason: 'DetectedIssue'
+    subject: 'Patient' | 'Group'
+    supportingInformation: 'unknown'
+  }
+  'MedicationDispense.performer': {
+    actor: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Patient' | 'Device' | 'RelatedPerson'
+  }
+  'MedicationDispense.substitution': {
+    responsibleParty: 'Practitioner' | 'PractitionerRole'
+  }
+  MedicationKnowledge: {
+    associatedMedication: 'Medication'
+    contraindication: 'DetectedIssue'
+    manufacturer: 'Organization'
+  }
+  'MedicationKnowledge.administrationGuidelines': {
+    indication: 'ObservationDefinition'
+  }
+  'MedicationKnowledge.ingredient': {
+    item: 'Substance'
+  }
+  'MedicationKnowledge.monograph': {
+    source: 'DocumentReference' | 'Media'
+  }
+  'MedicationKnowledge.regulatory': {
+    regulatoryAuthority: 'Organization'
+  }
+  'MedicationKnowledge.relatedMedicationKnowledge': {
+    reference: 'MedicationKnowledge'
+  }
+  MedicationRequest: {
+    basedOn: 'CarePlan' | 'MedicationRequest' | 'ServiceRequest' | 'ImmunizationRecommendation'
+    detectedIssue: 'DetectedIssue'
+    encounter: 'Encounter'
+    eventHistory: 'Provenance'
+    insurance: 'Coverage' | 'ClaimResponse'
+    medication: 'Medication'
+    performer:
+      'Practitioner' | 'PractitionerRole' | 'Organization' | 'Patient' | 'Device' | 'RelatedPerson' | 'CareTeam'
+    priorPrescription: 'MedicationRequest'
+    reasonReference: 'Condition' | 'Observation'
+    recorder: 'Practitioner' | 'PractitionerRole'
+    reported: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Organization'
+    requester: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Patient' | 'RelatedPerson' | 'Device'
+    subject: 'Patient' | 'Group'
+    supportingInformation: 'unknown'
+  }
+  'MedicationRequest.dispenseRequest': {
+    performer: 'Organization'
+  }
+  MedicationStatement: {
+    basedOn: 'MedicationRequest' | 'CarePlan' | 'ServiceRequest'
+    context: 'Encounter' | 'EpisodeOfCare'
+    derivedFrom: 'unknown'
+    informationSource: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Organization'
+    medication: 'Medication'
+    partOf: 'MedicationAdministration' | 'MedicationDispense' | 'MedicationStatement' | 'Procedure' | 'Observation'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport'
+    subject: 'Patient' | 'Group'
+  }
+  MedicinalProduct: {
+    attachedDocument: 'DocumentReference'
+    clinicalTrial: 'ResearchStudy'
+    contact: 'Organization' | 'PractitionerRole'
+    masterFile: 'DocumentReference'
+    packagedMedicinalProduct: 'MedicinalProductPackaged'
+    pharmaceuticalProduct: 'MedicinalProductPharmaceutical'
+  }
+  'MedicinalProduct.manufacturingBusinessOperation': {
+    manufacturer: 'Organization'
+    regulator: 'Organization'
+  }
+  'MedicinalProduct.specialDesignation': {
+    indication: 'MedicinalProductIndication'
+  }
+  MedicinalProductAuthorization: {
+    holder: 'Organization'
+    regulator: 'Organization'
+    subject: 'MedicinalProduct' | 'MedicinalProductPackaged'
+  }
+  MedicinalProductContraindication: {
+    subject: 'MedicinalProduct' | 'Medication'
+    therapeuticIndication: 'MedicinalProductIndication'
+  }
+  'MedicinalProductContraindication.otherTherapy': {
+    medication: 'MedicinalProduct' | 'Medication' | 'Substance' | 'SubstanceSpecification'
+  }
+  MedicinalProductIndication: {
+    subject: 'MedicinalProduct' | 'Medication'
+    undesirableEffect: 'MedicinalProductUndesirableEffect'
+  }
+  'MedicinalProductIndication.otherTherapy': {
+    medication: 'MedicinalProduct' | 'Medication' | 'Substance' | 'SubstanceSpecification'
+  }
+  MedicinalProductIngredient: {
+    manufacturer: 'Organization'
+  }
+  MedicinalProductInteraction: {
+    subject: 'MedicinalProduct' | 'Medication' | 'Substance'
+  }
+  'MedicinalProductInteraction.interactant': {
+    item: 'MedicinalProduct' | 'Medication' | 'Substance' | 'ObservationDefinition'
+  }
+  MedicinalProductManufactured: {
+    ingredient: 'MedicinalProductIngredient'
+    manufacturer: 'Organization'
+  }
+  MedicinalProductPackaged: {
+    manufacturer: 'Organization'
+    marketingAuthorization: 'MedicinalProductAuthorization'
+    subject: 'MedicinalProduct'
+  }
+  'MedicinalProductPackaged.packageItem': {
+    device: 'DeviceDefinition'
+    manufacturedItem: 'MedicinalProductManufactured'
+    manufacturer: 'Organization'
+  }
+  MedicinalProductPharmaceutical: {
+    device: 'DeviceDefinition'
+    ingredient: 'MedicinalProductIngredient'
+  }
+  MedicinalProductUndesirableEffect: {
+    subject: 'MedicinalProduct' | 'Medication'
+  }
+  MessageHeader: {
+    author: 'Practitioner' | 'PractitionerRole'
+    enterer: 'Practitioner' | 'PractitionerRole'
+    focus: 'unknown'
+    responsible: 'Practitioner' | 'PractitionerRole' | 'Organization'
+    sender: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'MessageHeader.destination': {
+    receiver: 'Practitioner' | 'PractitionerRole' | 'Organization'
+    target: 'Device'
+  }
+  'MessageHeader.response': {
+    details: 'OperationOutcome'
+  }
+  MolecularSequence: {
+    device: 'Device'
+    patient: 'Patient'
+    performer: 'Organization'
+    pointer: 'MolecularSequence'
+    specimen: 'Specimen'
+  }
+  'MolecularSequence.referenceSeq': {
+    referenceSeqPointer: 'MolecularSequence'
+  }
+  'MolecularSequence.variant': {
+    variantPointer: 'Observation'
+  }
+  NutritionOrder: {
+    allergyIntolerance: 'AllergyIntolerance'
+    encounter: 'Encounter'
+    orderer: 'Practitioner' | 'PractitionerRole'
+    patient: 'Patient'
+  }
+  Observation: {
+    basedOn:
+      | 'CarePlan'
+      | 'DeviceRequest'
+      | 'ImmunizationRecommendation'
+      | 'MedicationRequest'
+      | 'NutritionOrder'
+      | 'ServiceRequest'
+    derivedFrom:
+      'DocumentReference' | 'ImagingStudy' | 'Media' | 'QuestionnaireResponse' | 'Observation' | 'MolecularSequence'
+    device: 'Device' | 'DeviceMetric'
+    encounter: 'Encounter'
+    focus: 'unknown'
+    hasMember: 'Observation' | 'QuestionnaireResponse' | 'MolecularSequence'
+    partOf:
+      | 'MedicationAdministration'
+      | 'MedicationDispense'
+      | 'MedicationStatement'
+      | 'Procedure'
+      | 'Immunization'
+      | 'ImagingStudy'
+    performer: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'CareTeam' | 'Patient' | 'RelatedPerson'
+    specimen: 'Specimen'
+    subject: 'Patient' | 'Group' | 'Device' | 'Location'
+  }
+  ObservationDefinition: {
+    abnormalCodedValueSet: 'ValueSet'
+    criticalCodedValueSet: 'ValueSet'
+    normalCodedValueSet: 'ValueSet'
+    publisher: 'Practitioner' | 'PractitionerRole' | 'Organization'
+    validCodedValueSet: 'ValueSet'
+  }
+  Organization: {
+    endpoint: 'Endpoint'
+    partOf: 'Organization'
+  }
+  OrganizationAffiliation: {
+    endpoint: 'Endpoint'
+    healthcareService: 'HealthcareService'
+    location: 'Location'
+    network: 'Organization'
+    organization: 'Organization'
+    participatingOrganization: 'Organization'
+  }
+  'Parameters.parameter': {
+    value: 'unknown'
+  }
+  Patient: {
+    generalPractitioner: 'Organization' | 'Practitioner' | 'PractitionerRole'
+    managingOrganization: 'Organization'
+  }
+  'Patient.contact': {
+    organization: 'Organization'
+  }
+  'Patient.link': {
+    other: 'Patient' | 'RelatedPerson'
+  }
+  PaymentNotice: {
+    payee: 'Practitioner' | 'PractitionerRole' | 'Organization'
+    payment: 'PaymentReconciliation'
+    provider: 'Practitioner' | 'PractitionerRole' | 'Organization'
+    recipient: 'Organization'
+    request: 'unknown'
+    response: 'unknown'
+  }
+  PaymentReconciliation: {
+    paymentIssuer: 'Organization'
+    request: 'Task'
+    requestor: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'PaymentReconciliation.detail': {
+    payee: 'Practitioner' | 'PractitionerRole' | 'Organization'
+    request: 'unknown'
+    response: 'unknown'
+    responsible: 'PractitionerRole'
+    submitter: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  Person: {
+    managingOrganization: 'Organization'
+  }
+  'Person.link': {
+    target: 'Patient' | 'Practitioner' | 'RelatedPerson' | 'Person'
+  }
+  PlanDefinition: {
+    subject: 'Group'
+  }
+  'PlanDefinition.action': {
+    subject: 'Group'
+  }
+  'Practitioner.qualification': {
+    issuer: 'Organization'
+  }
+  PractitionerRole: {
+    endpoint: 'Endpoint'
+    healthcareService: 'HealthcareService'
+    location: 'Location'
+    organization: 'Organization'
+    practitioner: 'Practitioner'
+  }
+  Procedure: {
+    asserter: 'Patient' | 'RelatedPerson' | 'Practitioner' | 'PractitionerRole'
+    basedOn: 'CarePlan' | 'ServiceRequest'
+    complicationDetail: 'Condition'
+    encounter: 'Encounter'
+    location: 'Location'
+    partOf: 'Procedure' | 'Observation' | 'MedicationAdministration'
+    reasonReference: 'Condition' | 'Observation' | 'Procedure' | 'DiagnosticReport' | 'DocumentReference'
+    recorder: 'Patient' | 'RelatedPerson' | 'Practitioner' | 'PractitionerRole'
+    report: 'DiagnosticReport' | 'DocumentReference' | 'Composition'
+    subject: 'Patient' | 'Group'
+    usedReference: 'Device' | 'Medication' | 'Substance'
+  }
+  'Procedure.focalDevice': {
+    manipulated: 'Device'
+  }
+  'Procedure.performer': {
+    actor: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Patient' | 'RelatedPerson' | 'Device'
+    onBehalfOf: 'Organization'
+  }
+  Provenance: {
+    location: 'Location'
+    target: 'unknown'
+  }
+  'Provenance.agent': {
+    onBehalfOf: 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Patient' | 'Device' | 'Organization'
+    who: 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Patient' | 'Device' | 'Organization'
+  }
+  'Provenance.entity': {
+    what: 'unknown'
+  }
+  'Questionnaire.item.answerOption': {
+    value: 'unknown'
+  }
+  'Questionnaire.item.enableWhen': {
+    answer: 'unknown'
+  }
+  'Questionnaire.item.initial': {
+    value: 'unknown'
+  }
+  QuestionnaireResponse: {
+    author: 'Device' | 'Practitioner' | 'PractitionerRole' | 'Patient' | 'RelatedPerson' | 'Organization'
+    basedOn: 'CarePlan' | 'ServiceRequest'
+    encounter: 'Encounter'
+    partOf: 'Observation' | 'Procedure'
+    source: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson'
+    subject: 'unknown'
+  }
+  'QuestionnaireResponse.item.answer': {
+    value: 'unknown'
+  }
+  RelatedPerson: {
+    patient: 'Patient'
+  }
+  RequestGroup: {
+    author: 'Device' | 'Practitioner' | 'PractitionerRole'
+    basedOn: 'unknown'
+    encounter: 'Encounter'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference'
+    replaces: 'unknown'
+    subject: 'Patient' | 'Group'
+  }
+  'RequestGroup.action': {
+    participant: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Device'
+    resource: 'unknown'
+  }
+  ResearchDefinition: {
+    exposure: 'ResearchElementDefinition'
+    exposureAlternative: 'ResearchElementDefinition'
+    outcome: 'ResearchElementDefinition'
+    population: 'ResearchElementDefinition'
+    subject: 'Group'
+  }
+  ResearchElementDefinition: {
+    subject: 'Group'
+  }
+  ResearchStudy: {
+    enrollment: 'Group'
+    partOf: 'ResearchStudy'
+    principalInvestigator: 'Practitioner' | 'PractitionerRole'
+    protocol: 'PlanDefinition'
+    result: 'DiagnosticReport'
+    site: 'Location' | 'ResearchStudy' | 'Organization'
+    sponsor: 'Organization'
+  }
+  'ResearchStudy.associatedParty': {
+    party: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'ResearchStudy.comparisonGroup': {
+    intendedExposure: 'EvidenceVariable'
+    observedGroup: 'Group'
+  }
+  'ResearchStudy.outcomeMeasure': {
+    reference: 'EvidenceVariable'
+  }
+  'ResearchStudy.recruitment': {
+    actualGroup: 'Group'
+    eligibility: 'Group' | 'EvidenceVariable'
+  }
+  ResearchSubject: {
+    consent: 'Consent'
+    individual: 'Patient'
+    study: 'ResearchStudy'
+  }
+  RiskAssessment: {
+    basedOn: 'unknown'
+    basis: 'unknown'
+    condition: 'Condition'
+    encounter: 'Encounter'
+    parent: 'unknown'
+    performer: 'Practitioner' | 'PractitionerRole' | 'Device'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference'
+    subject: 'Patient' | 'Group'
+  }
+  RiskEvidenceSynthesis: {
+    exposure: 'EvidenceVariable'
+    outcome: 'EvidenceVariable'
+    population: 'EvidenceVariable'
+  }
+  Schedule: {
+    actor:
+      'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Device' | 'HealthcareService' | 'Location'
+  }
+  ServiceRequest: {
+    basedOn: 'CarePlan' | 'ServiceRequest' | 'MedicationRequest'
+    encounter: 'Encounter'
+    insurance: 'Coverage' | 'ClaimResponse'
+    locationReference: 'Location'
+    performer:
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'Organization'
+      | 'CareTeam'
+      | 'HealthcareService'
+      | 'Patient'
+      | 'Device'
+      | 'RelatedPerson'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference'
+    relevantHistory: 'Provenance'
+    replaces: 'ServiceRequest'
+    requester: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Patient' | 'RelatedPerson' | 'Device'
+    specimen: 'Specimen'
+    subject: 'Patient' | 'Group' | 'Location' | 'Device'
+    supportingInfo: 'unknown'
+  }
+  Slot: {
+    schedule: 'Schedule'
+  }
+  Specimen: {
+    parent: 'Specimen'
+    request: 'ServiceRequest'
+    subject: 'Patient' | 'Group' | 'Device' | 'Substance' | 'Location'
+  }
+  'Specimen.collection': {
+    collector: 'Practitioner' | 'PractitionerRole'
+  }
+  'Specimen.container': {
+    additive: 'Substance'
+  }
+  'Specimen.processing': {
+    additive: 'Substance'
+  }
+  'SpecimenDefinition.typeTested.container.additive': {
+    additive: 'Substance'
+  }
+  'StructureMap.group.rule.source': {
+    defaultValue: 'unknown'
+  }
+  SubscriptionStatus: {
+    subscription: 'Subscription'
+  }
+  'SubscriptionStatus.notificationEvent': {
+    additionalContext: 'unknown'
+    focus: 'unknown'
+  }
+  'Substance.ingredient': {
+    substance: 'Substance'
+  }
+  'SubstanceReferenceInformation.classification': {
+    source: 'DocumentReference'
+  }
+  'SubstanceReferenceInformation.gene': {
+    source: 'DocumentReference'
+  }
+  'SubstanceReferenceInformation.geneElement': {
+    source: 'DocumentReference'
+  }
+  'SubstanceReferenceInformation.target': {
+    source: 'DocumentReference'
+  }
+  SubstanceSpecification: {
+    nucleicAcid: 'SubstanceNucleicAcid'
+    polymer: 'SubstancePolymer'
+    protein: 'SubstanceProtein'
+    referenceInformation: 'SubstanceReferenceInformation'
+    source: 'DocumentReference'
+    sourceMaterial: 'SubstanceSourceMaterial'
+  }
+  'SubstanceSpecification.code': {
+    source: 'DocumentReference'
+  }
+  'SubstanceSpecification.name': {
+    source: 'DocumentReference'
+  }
+  'SubstanceSpecification.property': {
+    definingSubstance: 'SubstanceSpecification' | 'Substance'
+  }
+  'SubstanceSpecification.relationship': {
+    source: 'DocumentReference'
+    substance: 'SubstanceSpecification'
+  }
+  'SubstanceSpecification.structure': {
+    source: 'DocumentReference'
+  }
+  SupplyDelivery: {
+    basedOn: 'SupplyRequest'
+    destination: 'Location'
+    partOf: 'SupplyDelivery' | 'Contract'
+    patient: 'Patient'
+    receiver: 'Practitioner' | 'PractitionerRole'
+    supplier: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'SupplyDelivery.suppliedItem': {
+    item: 'Medication' | 'Substance' | 'Device'
+  }
+  SupplyRequest: {
+    deliverFrom: 'Organization' | 'Location'
+    deliverTo: 'Organization' | 'Location' | 'Patient'
+    item: 'Medication' | 'Substance' | 'Device'
+    reasonReference: 'Condition' | 'Observation' | 'DiagnosticReport' | 'DocumentReference'
+    requester: 'Practitioner' | 'PractitionerRole' | 'Organization' | 'Patient' | 'RelatedPerson' | 'Device'
+    supplier: 'Organization' | 'HealthcareService'
+  }
+  Task: {
+    basedOn: 'unknown'
+    encounter: 'Encounter'
+    focus: 'unknown'
+    for: 'unknown'
+    insurance: 'Coverage' | 'ClaimResponse'
+    location: 'Location'
+    owner:
+      | 'Practitioner'
+      | 'PractitionerRole'
+      | 'Organization'
+      | 'CareTeam'
+      | 'HealthcareService'
+      | 'Patient'
+      | 'Device'
+      | 'RelatedPerson'
+    partOf: 'Task'
+    reasonReference: 'unknown'
+    relevantHistory: 'Provenance'
+    requester: 'Device' | 'Organization' | 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson'
+  }
+  'Task.input': {
+    value: 'unknown'
+  }
+  'Task.output': {
+    value: 'unknown'
+  }
+  'Task.restriction': {
+    recipient: 'Patient' | 'Practitioner' | 'PractitionerRole' | 'RelatedPerson' | 'Group' | 'Organization'
+  }
+  TestReport: {
+    testScript: 'TestScript'
+  }
+  TestScript: {
+    profile: 'unknown'
+  }
+  'TestScript.fixture': {
+    resource: 'unknown'
+  }
+  VerificationResult: {
+    target: 'unknown'
+  }
+  'VerificationResult.attestation': {
+    onBehalfOf: 'Organization' | 'Practitioner' | 'PractitionerRole'
+    who: 'Practitioner' | 'PractitionerRole' | 'Organization'
+  }
+  'VerificationResult.primarySource': {
+    who: 'Organization' | 'Practitioner' | 'PractitionerRole'
+  }
+  'VerificationResult.validator': {
+    organization: 'Organization'
+  }
+  VisionPrescription: {
+    encounter: 'Encounter'
+    patient: 'Patient'
+    prescriber: 'Practitioner' | 'PractitionerRole'
+  }
+}
+
 /** Type-name to TS-type dispatch, primitives included. */
 export interface R4TypeOf {
   boolean: boolean

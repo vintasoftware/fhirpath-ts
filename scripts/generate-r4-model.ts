@@ -464,6 +464,19 @@ function emitTypeMaps(all: Record<string, GeneratedType>, resourceNames: string[
     lines.push('  }')
   }
   lines.push('}', '')
+  lines.push('/** Sparse Reference target map; `unknown` marks an unconstrained Reference element. */')
+  lines.push('export interface R4ReferenceTargets {')
+  for (const name of Object.keys(all)) {
+    const references = Object.entries((all[name] as GeneratedType).e).filter(([, info]) => info.t.includes('Reference'))
+    if (references.length === 0) continue
+    lines.push(`  '${name}': {`)
+    for (const [element, info] of references) {
+      const targets = info.r?.map(target => `'${normalizeTypeName(target, all)}'`).join(' | ') ?? "'unknown'"
+      lines.push(`    ${quoteKey(element)}: ${targets}`)
+    }
+    lines.push('  }')
+  }
+  lines.push('}', '')
   lines.push('/** Type-name to TS-type dispatch, primitives included. */')
   lines.push('export interface R4TypeOf {')
   for (const [primitive, ts] of Object.entries(PRIMITIVE_TS)) {

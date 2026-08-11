@@ -1,6 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { applyResultRule, FUNCTION_SIGNATURES } from '../analyzer/signatures.ts'
 import { compile } from '../api/compile.ts'
 import { column, defineDto } from '../api/dto.ts'
 import { fhirpath } from '../api/tagged.ts'
@@ -14,7 +13,7 @@ import type {
   SystemQuantity,
 } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
-import { type FhirpathInput, type FhirpathResult, FIXED_RETURNS, IDENTITY_RETURNS } from './infer.ts'
+import { type FhirpathInput, type FhirpathResult } from './infer.ts'
 
 const patient: Patient = {
   resourceType: 'Patient',
@@ -304,44 +303,6 @@ describe('fixed-return string, boolean, and numeric functions (batch 2)', () => 
   })
 })
 
-describe('the tables cannot drift from the analyzer', () => {
-  /** FIXED_RETURNS names R4TypeOf keys; the analyzer names System types. */
-  const SYSTEM_OF: Record<string, string> = {
-    boolean: 'System.Boolean',
-    integer: 'System.Integer',
-    decimal: 'System.Decimal',
-    string: 'System.String',
-    date: 'System.Date',
-    dateTime: 'System.DateTime',
-    time: 'System.Time',
-    'System.Quantity': 'System.Quantity',
-  }
-
-  it('every FIXED_RETURNS entry matches its FUNCTION_SIGNATURES result type', () => {
-    for (const [fn, r4Name] of Object.entries(FIXED_RETURNS)) {
-      const signature = FUNCTION_SIGNATURES[fn]
-      expect(signature, `${fn}() has no analyzer signature`).toBeDefined()
-      const result =
-        signature === undefined
-          ? undefined
-          : applyResultRule(signature.result, { types: ['FHIR.Patient'], single: undefined }, [])
-      expect(result?.types, `${fn}() disagrees with the analyzer`).toEqual([SYSTEM_OF[r4Name]])
-    }
-  })
-
-  it('every IDENTITY_RETURNS entry passes the input types through in the analyzer', () => {
-    for (const fn of IDENTITY_RETURNS) {
-      const signature = FUNCTION_SIGNATURES[fn]
-      expect(signature, `${fn}() has no analyzer signature`).toBeDefined()
-      const input = { types: ['FHIR.HumanName'], single: false }
-      const result = signature === undefined ? undefined : applyResultRule(signature.result, input, [undefined])
-      // Same reference: the signature passes the input's types through
-      // untouched, so the function is genuinely type-preserving.
-      expect(result?.types, `${fn}() does not preserve its input type`).toBe(input.types)
-    }
-  })
-})
-
 describe('a declared root types a relative expression', () => {
   it('infers against the root instead of degrading', () => {
     // fhirpath(expr, root) / compile(expr, root): the same inference a DTO column
@@ -581,10 +542,16 @@ describe('%var roots enter the broad state', () => {
 })
 
 describe('degradation to unknown[]', () => {
+  it('keeps one local binding precise and bounds additional definitions', () => {
+    expectTypeOf<
+      FhirpathResult<"Patient.name.first().defineVariable('n').select(given.select(%n.family))">
+    >().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"defineVariable('a').defineVariable('b')">>().toEqualTypeOf<unknown[]>()
+  })
+
   it('constructs outside the subset degrade instead of erroring', () => {
-    // power's result depends on its input (integer^integer vs decimal), so it
-    // stays out of FIXED_RETURNS and degrades; abs is type-preserving at
-    // runtime but the analyzer declares it unknown, so it stays out too.
+    // power's result depends on its input (integer^integer vs decimal), and abs
+    // is input-dependent too. Both have explicit unknown analyzer rules.
     expectTypeOf<FhirpathResult<'Patient.name.count().power(2)'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.name.count().abs()'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.descendants()'>>().toEqualTypeOf<unknown[]>()

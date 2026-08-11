@@ -2,15 +2,16 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeExpressionDetailed, type DeclaredVariable } from '../analyzer/analyze.ts'
 import { OPERATOR_RESULT_RULES, TYPE_OPERATOR_RESULT_RULES } from '../analyzer/operator-rules.ts'
+import { FUNCTION_SIGNATURES } from '../analyzer/signatures.ts'
 import { compile } from '../api/compile.ts'
 import { parse } from '../parser/parser.ts'
-import type { HumanName, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type { HumanName, Organization, Practitioner, PractitionerRole, R4TypeOf } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
 import { loadCorpus, runCorpusTest } from '../testing/fhirpathjs-harness.ts'
 import { loadOfficialSuite, runOfficialTest } from '../testing/official-harness.ts'
 import { INFERENCE_CAPABILITIES } from './capability-registry.ts'
 import { RESOLVED_INFERENCE_CAPABILITIES } from './generated/capabilities.ts'
-import type { FhirpathResult } from './infer.ts'
+import type { FhirpathResult, FhirpathResultIn } from './infer.ts'
 
 type ObservationValue = R4TypeOf[
   | 'Quantity'
@@ -111,14 +112,43 @@ describe('type-inference capability registry', () => {
     }
   })
 
+  it('has an exact capability for every built-in and scope form', () => {
+    const ids = new Set(Object.keys(INFERENCE_CAPABILITIES))
+    for (const name of Object.keys(FUNCTION_SIGNATURES)) expect(ids.has(`builtin.${name}`), name).toBe(true)
+    for (const scope of [
+      'this',
+      'index',
+      'total',
+      'nested-frame-restore',
+      'define-variable-input',
+      'define-variable-value',
+      'nested-binding-restore',
+      'multiple-definition-fallback',
+      'operator-fork',
+      'argument-fork',
+    ]) {
+      expect(ids.has(`scope.${scope}`), scope).toBe(true)
+    }
+    for (const variable of ['context-root', 'resource-root', 'root-resource', 'builtin-constant']) {
+      expect(ids.has(`variable.${variable}`), variable).toBe(true)
+    }
+    for (const reference of ['generated-targets', 'state-preservation']) {
+      expect(ids.has(`reference.${reference}`), reference).toBe(true)
+    }
+  })
+
   it('records analyzer agreement for model-backed baseline cases', () => {
     for (const [id, capability] of Object.entries(RESOLVED_INFERENCE_CAPABILITIES)) {
       const variables = 'context' in capability ? mutableVariables(capability.context.variables) : undefined
+      const inputType =
+        'input' in capability && typeof capability.input === 'string'
+          ? capability.input
+          : 'inputType' in capability && typeof capability.inputType === 'string'
+            ? capability.inputType
+            : undefined
       const result = analyzeExpressionDetailed(capability.expression, {
         model: r4Model,
-        ...('inputType' in capability && typeof capability.inputType === 'string'
-          ? { inputType: capability.inputType }
-          : {}),
+        ...(inputType !== undefined && { inputType }),
         ...(variables !== undefined && { variables }),
       }).result
       expect(result, id).toEqual(capability.analyzer)
@@ -250,6 +280,27 @@ describe('type-inference capability registry', () => {
     expectTypeOf<
       FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['syntax.trivia']['composition']>
     >().toEqualTypeOf<HumanName[]>()
+  })
+
+  it('keeps lambda frames, local variables, and Reference targets precise', () => {
+    expectTypeOf<FhirpathResult<'Patient.name.select($this.family)'>>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.select($index)'>>().toEqualTypeOf<number[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.aggregate($total.toString(), '')">>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.select(given.select($this.substring(1)) | family)'>>().toEqualTypeOf<
+      string[]
+    >()
+    expectTypeOf<FhirpathResult<"Patient.name.first().defineVariable('n').select(%n.family)">>().toEqualTypeOf<
+      string[]
+    >()
+    expectTypeOf<
+      FhirpathResult<"Patient.name.first().defineVariable('n').select(given.select(%n.family))">
+    >().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"defineVariable('a').defineVariable('b')">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient.defineVariable('left').active | %left">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResultIn<'%context.name.given', 'Patient'>>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<'Patient.generalPractitioner.where($this.exists())[0].resolve()'>>().toEqualTypeOf<
+      (Organization | Practitioner | PractitionerRole)[]
+    >()
   })
 })
 

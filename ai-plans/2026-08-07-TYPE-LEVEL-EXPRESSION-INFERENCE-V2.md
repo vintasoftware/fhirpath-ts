@@ -820,3 +820,31 @@ checked in under `benchmarks/`.
   the registry-derived full-language fixture raises it from 101,328/102,334 to
   195,061/197,268, still under 4% of the 5,000,000 ceiling. The worst registered
   case uses 12,892/13,085 instantiations, below the 100,000 per-case ceiling.
+
+### 2026-08-10 — Commit 4 calls, scope, and compiler-cache correction
+
+- Generated capabilities now cover all 114 built-ins plus `$this`, `$index`,
+  `$total`, nested lambda restoration, local bindings, built-in roots and
+  constants, operator/argument scope forks, and generated Reference targets.
+  Corpus precision rises from 1,766 to 2,078 cases, leaving 269 opaque and zero
+  conflicts. Every case precise after Commit 3 remains precise.
+- Rebuilding the five-field result tuple merely to retain a scope environment
+  made TypeScript 5.8 re-evaluate nested calls. The route projection in the
+  common fixture reached 1,656,674 instantiations. Keeping the tuple intact and
+  attaching the environment as an intersection reduced it to 28,183. Sources
+  without variables carry no environment marker, so ordinary inference keeps
+  the compiler's structural cache.
+- A second `defineVariable` switches only binding lookup to opaque while parsing
+  and generated result rules continue. This keeps the official 60-token,
+  255-source-step nested-binding case at 62,276/63,682 instantiations and still
+  infers its final `isDistinct()` result. Short independent argument branches
+  retain their previously precise fixed results.
+- The model-known shortcut accepts four general steps and up to two trailing
+  zero-argument calls. Generator assertions cap resource/element names at 33
+  characters and function names at 18, proving that the shortcut remains below
+  the independent 64-token and 256-source-step limits.
+- The completed common fixture uses 108,885/111,837 instantiations, +1.0%/+1.1%
+  from the completed Commit 3 fixture and within the existing ratchet. The
+  expanded registry-derived full fixture uses 545,084/552,570, and the worst
+  independent capability uses 62,276/63,682, below the 5,000,000 and 100,000
+  ceilings. These values become the next phase's checked baselines.

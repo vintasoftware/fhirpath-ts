@@ -2,7 +2,7 @@
 
 export interface CompactFunctionRules {
   abs: readonly ['unknown']
-  aggregate: readonly ['unknown']
+  aggregate: readonly ['argument', 0, 'argument']
   all: readonly ['fixed', 'System.Boolean', true]
   allFalse: readonly ['fixed', 'System.Boolean', true]
   allTrue: readonly ['fixed', 'System.Boolean', true]
@@ -116,6 +116,223 @@ export interface CompactFunctionRules {
   where: readonly ['input']
   yearOf: readonly ['fixed', 'System.Integer', true]
 }
+
+export interface CompactFunctionArguments {
+  abs: readonly []
+  aggregate: readonly ['expression', 'any']
+  all: readonly ['expression']
+  allFalse: readonly []
+  allTrue: readonly []
+  anyFalse: readonly []
+  anyTrue: readonly []
+  as: readonly ['type-name']
+  avg: readonly []
+  ceiling: readonly []
+  children: readonly []
+  coalesce: readonly ['expression']
+  combine: readonly ['any']
+  comparable: readonly ['Quantity']
+  conformsTo: readonly ['String']
+  contains: readonly ['String']
+  convertsToBoolean: readonly []
+  convertsToDate: readonly []
+  convertsToDateTime: readonly []
+  convertsToDecimal: readonly []
+  convertsToInteger: readonly []
+  convertsToLong: readonly []
+  convertsToQuantity: readonly ['String']
+  convertsToString: readonly []
+  convertsToTime: readonly []
+  count: readonly []
+  dateOf: readonly []
+  dayOf: readonly []
+  decode: readonly ['String']
+  defineVariable: readonly ['String', 'expression']
+  descendants: readonly []
+  distinct: readonly []
+  empty: readonly []
+  encode: readonly ['String']
+  endsWith: readonly ['String']
+  escape: readonly ['String']
+  exclude: readonly ['any']
+  exists: readonly ['expression']
+  exp: readonly []
+  extension: readonly ['String']
+  first: readonly []
+  floor: readonly []
+  getValue: readonly []
+  hasValue: readonly []
+  highBoundary: readonly ['Numeric']
+  hourOf: readonly []
+  htmlChecks: readonly []
+  iif: readonly ['condition', 'expression', 'expression']
+  indexOf: readonly ['String']
+  intersect: readonly ['any']
+  is: readonly ['type-name']
+  isDistinct: readonly []
+  join: readonly ['String']
+  last: readonly []
+  lastIndexOf: readonly ['String']
+  length: readonly []
+  ln: readonly []
+  log: readonly ['Numeric']
+  lowBoundary: readonly ['Numeric']
+  lower: readonly []
+  matches: readonly ['String']
+  matchesFull: readonly ['String']
+  max: readonly []
+  millisecondOf: readonly []
+  min: readonly []
+  minuteOf: readonly []
+  monthOf: readonly []
+  not: readonly []
+  now: readonly []
+  ofType: readonly ['type-name']
+  power: readonly ['Numeric']
+  precision: readonly []
+  repeat: readonly ['expression']
+  replace: readonly ['String', 'String']
+  replaceMatches: readonly ['String', 'String']
+  resolve: readonly []
+  round: readonly ['Numeric']
+  secondOf: readonly []
+  select: readonly ['expression']
+  single: readonly []
+  skip: readonly ['Numeric']
+  sort: readonly ['sort-key']
+  split: readonly ['String']
+  sqrt: readonly []
+  startsWith: readonly ['String']
+  subsetOf: readonly ['any']
+  substring: readonly ['Numeric', 'Numeric']
+  sum: readonly []
+  supersetOf: readonly ['any']
+  tail: readonly []
+  take: readonly ['Numeric']
+  timeOf: readonly []
+  timeOfDay: readonly []
+  timezoneOffsetOf: readonly []
+  toBoolean: readonly []
+  toChars: readonly []
+  toDate: readonly []
+  toDateTime: readonly []
+  today: readonly []
+  toDecimal: readonly []
+  toInteger: readonly []
+  toLong: readonly []
+  toQuantity: readonly ['String']
+  toString: readonly []
+  toTime: readonly []
+  trace: readonly ['String', 'expression']
+  trim: readonly []
+  truncate: readonly []
+  type: readonly []
+  unescape: readonly ['String']
+  union: readonly ['any']
+  upper: readonly []
+  where: readonly ['expression']
+  yearOf: readonly []
+}
+
+export type CompactLambdaArgument0Name =
+  'exists' | 'all' | 'where' | 'select' | 'repeat' | 'iif' | 'aggregate' | 'sort' | 'coalesce'
+export type CompactLambdaArgument1Name =
+  'exists' | 'all' | 'where' | 'select' | 'repeat' | 'iif' | 'trace' | 'sort' | 'defineVariable' | 'coalesce'
+export type CompactLambdaArgument2Name =
+  'exists' | 'all' | 'where' | 'select' | 'repeat' | 'iif' | 'trace' | 'sort' | 'defineVariable' | 'coalesce'
+
+export type CompactFastFunctionName =
+  | 'empty'
+  | 'exists'
+  | 'all'
+  | 'allTrue'
+  | 'anyTrue'
+  | 'allFalse'
+  | 'anyFalse'
+  | 'count'
+  | 'distinct'
+  | 'isDistinct'
+  | 'subsetOf'
+  | 'supersetOf'
+  | 'where'
+  | 'is'
+  | 'single'
+  | 'first'
+  | 'last'
+  | 'tail'
+  | 'skip'
+  | 'take'
+  | 'intersect'
+  | 'exclude'
+  | 'not'
+  | 'trace'
+  | 'hasValue'
+  | 'htmlChecks'
+  | 'comparable'
+  | 'conformsTo'
+  | 'length'
+  | 'indexOf'
+  | 'lastIndexOf'
+  | 'substring'
+  | 'startsWith'
+  | 'endsWith'
+  | 'contains'
+  | 'upper'
+  | 'lower'
+  | 'replace'
+  | 'matches'
+  | 'matchesFull'
+  | 'replaceMatches'
+  | 'toChars'
+  | 'trim'
+  | 'split'
+  | 'join'
+  | 'encode'
+  | 'decode'
+  | 'escape'
+  | 'unescape'
+  | 'ceiling'
+  | 'floor'
+  | 'truncate'
+  | 'round'
+  | 'exp'
+  | 'ln'
+  | 'sqrt'
+  | 'log'
+  | 'avg'
+  | 'sort'
+  | 'toBoolean'
+  | 'toInteger'
+  | 'toLong'
+  | 'toDecimal'
+  | 'toString'
+  | 'toDate'
+  | 'toDateTime'
+  | 'toTime'
+  | 'toQuantity'
+  | 'convertsToBoolean'
+  | 'convertsToInteger'
+  | 'convertsToLong'
+  | 'convertsToDecimal'
+  | 'convertsToString'
+  | 'convertsToDate'
+  | 'convertsToDateTime'
+  | 'convertsToTime'
+  | 'convertsToQuantity'
+  | 'now'
+  | 'today'
+  | 'timeOfDay'
+  | 'yearOf'
+  | 'monthOf'
+  | 'dayOf'
+  | 'hourOf'
+  | 'minuteOf'
+  | 'secondOf'
+  | 'millisecondOf'
+  | 'timezoneOffsetOf'
+  | 'dateOf'
+  | 'timeOf'
+  | 'precision'
 
 export interface CompactOperatorRules {
   '*': readonly ['arithmetic']

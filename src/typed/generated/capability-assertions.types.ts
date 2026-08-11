@@ -302,3 +302,889 @@ export type PrecedenceOrImpliesDegradation = Assert<
 export type PrecedenceOrImpliesComposition = Assert<
   Equal<FhirpathResultIn<'(true implies false or true).toString()', 'opaque'>, string[]>
 >
+export type ScopeThisPositive = Assert<Equal<FhirpathResultIn<'Patient.name.select($this.family)', 'opaque'>, string[]>>
+export type ScopeThisDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.select($this.nope)', 'opaque'>, unknown[]>
+>
+export type ScopeThisComposition = Assert<
+  Equal<FhirpathResultIn<'Patient.name.select($this.family).upper()', 'opaque'>, string[]>
+>
+export type ScopeIndexPositive = Assert<Equal<FhirpathResultIn<'Patient.name.select($index)', 'opaque'>, number[]>>
+export type ScopeIndexDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.select($index.nope)', 'opaque'>, unknown[]>
+>
+export type ScopeIndexComposition = Assert<
+  Equal<FhirpathResultIn<'Patient.name.select($index).first().toString()', 'opaque'>, string[]>
+>
+export type ScopeTotalPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.aggregate($total.toString(), '')", 'opaque'>, string[]>
+>
+export type ScopeTotalDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.aggregate($total.nope, {})', 'opaque'>, unknown[]>
+>
+export type ScopeTotalComposition = Assert<
+  Equal<FhirpathResultIn<"Patient.name.aggregate($total.toString(), '').upper()", 'opaque'>, string[]>
+>
+export type ScopeNestedFrameRestorePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.select(given.select($this.substring(1)) | family)', 'opaque'>, string[]>
+>
+export type ScopeNestedFrameRestoreDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.select(given.select($this.nope) | family)', 'opaque'>, unknown[]>
+>
+export type ScopeNestedFrameRestoreComposition = Assert<
+  Equal<FhirpathResultIn<'Patient.name.select(given.select($this.substring(1)) | family).first()', 'opaque'>, string[]>
+>
+export type ScopeDefineVariableInputPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.first().defineVariable('n').select(%n.family)", 'opaque'>, string[]>
+>
+export type ScopeDefineVariableInputDegradation = Assert<
+  Equal<FhirpathResultIn<"Patient.name.first().defineVariable('n').select(%missing)", 'opaque'>, unknown[]>
+>
+export type ScopeDefineVariableInputComposition = Assert<
+  Equal<FhirpathResultIn<"Patient.name.first().defineVariable('n').select(%n.family).upper()", 'opaque'>, string[]>
+>
+export type ScopeDefineVariableValuePositive = Assert<
+  Equal<FhirpathResultIn<"Patient.defineVariable('n', name.first()).select(%n.family)", 'opaque'>, string[]>
+>
+export type ScopeDefineVariableValueDegradation = Assert<
+  Equal<FhirpathResultIn<"Patient.defineVariable('n', name.first()).select(%missing)", 'opaque'>, unknown[]>
+>
+export type ScopeDefineVariableValueComposition = Assert<
+  Equal<FhirpathResultIn<"Patient.defineVariable('n', name.first()).select(%n.family).upper()", 'opaque'>, string[]>
+>
+export type ScopeNestedBindingRestorePositive = Assert<
+  Equal<
+    FhirpathResultIn<"Patient.name.first().defineVariable('n').select(given.select(%n.family))", 'opaque'>,
+    string[]
+  >
+>
+export type ScopeNestedBindingRestoreDegradation = Assert<
+  Equal<
+    FhirpathResultIn<"Patient.name.first().defineVariable('n').select(given.select(%missing))", 'opaque'>,
+    unknown[]
+  >
+>
+export type ScopeNestedBindingRestoreComposition = Assert<
+  Equal<
+    FhirpathResultIn<"Patient.name.first().defineVariable('n').select(given.select(%n.family)).first()", 'opaque'>,
+    string[]
+  >
+>
+export type ScopeMultipleDefinitionFallbackPositive = Assert<
+  Equal<
+    FhirpathResultIn<
+      "\n\t\t\tgroup.select(\n\t\t\t\tdefineVariable('grp')\n\t\t\t\t.element\n\t\t\t\t.select(\n\t\t\t\t\tdefineVariable('ele')\n\t\t\t\t\t.target\n\t\t\t\t\t.select(%grp.source & '|' & %ele.code & ' ' & relationship & ' ' & %grp.target & '|' & code)\n\t\t\t\t)\n\t\t\t)\n\t\t\t.trace('all')\n\t\t\t.isDistinct()\n\t\t",
+      'ConceptMap'
+    >,
+    boolean[]
+  >
+>
+export type ScopeMultipleDefinitionFallbackDegradation = Assert<
+  Equal<FhirpathResultIn<"defineVariable('a').select(%missing)", 'ConceptMap'>, unknown[]>
+>
+export type ScopeMultipleDefinitionFallbackComposition = Assert<
+  Equal<FhirpathResultIn<"defineVariable('a').defineVariable('b').count()", 'ConceptMap'>, number[]>
+>
+export type ScopeOperatorForkPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.defineVariable('left').active | %left", 'opaque'>, unknown[]>
+>
+export type ScopeOperatorForkDegradation = Assert<
+  Equal<FhirpathResultIn<"Patient.defineVariable('left').active | %missing", 'opaque'>, unknown[]>
+>
+export type ScopeOperatorForkComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.defineVariable('left').active | %left).count()", 'opaque'>, number[]>
+>
+export type ScopeArgumentForkPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.select(defineVariable('inner').active).select(%inner)", 'opaque'>, unknown[]>
+>
+export type ScopeArgumentForkDegradation = Assert<
+  Equal<FhirpathResultIn<"Patient.select(defineVariable('inner').active).select(%missing)", 'opaque'>, unknown[]>
+>
+export type ScopeArgumentForkComposition = Assert<
+  Equal<FhirpathResultIn<"Patient.select(defineVariable('inner').active).select(%inner).count()", 'opaque'>, number[]>
+>
+export type VariableContextRootPositive = Assert<Equal<FhirpathResultIn<'%context.name.given', 'Patient'>, string[]>>
+export type VariableContextRootDegradation = Assert<Equal<FhirpathResultIn<'%context.nope', 'Patient'>, unknown[]>>
+export type VariableContextRootComposition = Assert<
+  Equal<FhirpathResultIn<'%context.name.given.first()', 'Patient'>, string[]>
+>
+export type VariableResourceRootPositive = Assert<Equal<FhirpathResultIn<'%resource.name.family', 'Patient'>, string[]>>
+export type VariableResourceRootDegradation = Assert<Equal<FhirpathResultIn<'%resource.nope', 'Patient'>, unknown[]>>
+export type VariableResourceRootComposition = Assert<
+  Equal<FhirpathResultIn<'%resource.name.family.first()', 'Patient'>, string[]>
+>
+export type VariableRootResourcePositive = Assert<
+  Equal<FhirpathResultIn<'%rootResource.name.family', 'Patient'>, string[]>
+>
+export type VariableRootResourceDegradation = Assert<
+  Equal<FhirpathResultIn<'%rootResource.nope', 'Patient'>, unknown[]>
+>
+export type VariableRootResourceComposition = Assert<
+  Equal<FhirpathResultIn<'%rootResource.name.family.first()', 'Patient'>, string[]>
+>
+export type VariableBuiltinConstantPositive = Assert<Equal<FhirpathResultIn<'%loinc.upper()', 'opaque'>, string[]>>
+export type VariableBuiltinConstantDegradation = Assert<Equal<FhirpathResultIn<'%loinc.nope', 'opaque'>, unknown[]>>
+export type VariableBuiltinConstantComposition = Assert<
+  Equal<FhirpathResultIn<'%loinc.upper().length()', 'opaque'>, number[]>
+>
+export type ReferenceGeneratedTargetsPositive = Assert<
+  Equal<
+    FhirpathResultIn<'Patient.generalPractitioner.resolve()', 'opaque'>,
+    R4TypeOf['Organization' | 'Practitioner' | 'PractitionerRole'][]
+  >
+>
+export type ReferenceGeneratedTargetsDegradation = Assert<
+  Equal<FhirpathResultIn<'Bundle.entry.resource.resolve()', 'opaque'>, unknown[]>
+>
+export type ReferenceGeneratedTargetsComposition = Assert<
+  Equal<FhirpathResultIn<'Patient.generalPractitioner.resolve().ofType(Organization).name', 'opaque'>, string[]>
+>
+export type ReferenceStatePreservationPositive = Assert<
+  Equal<
+    FhirpathResultIn<'Patient.generalPractitioner.where($this.exists())[0].resolve()', 'opaque'>,
+    R4TypeOf['Organization' | 'Practitioner' | 'PractitionerRole'][]
+  >
+>
+export type ReferenceStatePreservationDegradation = Assert<
+  Equal<FhirpathResultIn<'Bundle.entry.resource.where($this.exists())[0].resolve()', 'opaque'>, unknown[]>
+>
+export type ReferenceStatePreservationComposition = Assert<
+  Equal<
+    FhirpathResultIn<
+      'Patient.generalPractitioner.where($this.exists())[0].resolve().ofType(Organization).name',
+      'opaque'
+    >,
+    string[]
+  >
+>
+export type BuiltinAbsPositive = Assert<Equal<FhirpathResultIn<'Patient.name.first().abs()', 'opaque'>, unknown[]>>
+export type BuiltinAbsDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinAbsComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().abs()).count()', 'opaque'>, number[]>
+>
+export type BuiltinAggregatePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.aggregate($total | $this, {})', 'opaque'>, unknown[]>
+>
+export type BuiltinAggregateDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinAggregateComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.aggregate($total | $this, {})).count()', 'opaque'>, number[]>
+>
+export type BuiltinAllPositive = Assert<Equal<FhirpathResultIn<'Patient.name.all($this)', 'opaque'>, boolean[]>>
+export type BuiltinAllDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinAllComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.all($this)).count()', 'opaque'>, number[]>
+>
+export type BuiltinAllFalsePositive = Assert<Equal<FhirpathResultIn<'true.allFalse()', 'opaque'>, boolean[]>>
+export type BuiltinAllFalseDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinAllFalseComposition = Assert<
+  Equal<FhirpathResultIn<'(true.allFalse()).count()', 'opaque'>, number[]>
+>
+export type BuiltinAllTruePositive = Assert<Equal<FhirpathResultIn<'true.allTrue()', 'opaque'>, boolean[]>>
+export type BuiltinAllTrueDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinAllTrueComposition = Assert<Equal<FhirpathResultIn<'(true.allTrue()).count()', 'opaque'>, number[]>>
+export type BuiltinAnyFalsePositive = Assert<Equal<FhirpathResultIn<'true.anyFalse()', 'opaque'>, boolean[]>>
+export type BuiltinAnyFalseDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinAnyFalseComposition = Assert<
+  Equal<FhirpathResultIn<'(true.anyFalse()).count()', 'opaque'>, number[]>
+>
+export type BuiltinAnyTruePositive = Assert<Equal<FhirpathResultIn<'true.anyTrue()', 'opaque'>, boolean[]>>
+export type BuiltinAnyTrueDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinAnyTrueComposition = Assert<Equal<FhirpathResultIn<'(true.anyTrue()).count()', 'opaque'>, number[]>>
+export type BuiltinAsPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.as(HumanName)', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinAsDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinAsComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.as(HumanName)).count()', 'opaque'>, number[]>
+>
+export type BuiltinAvgPositive = Assert<Equal<FhirpathResultIn<'2.avg()', 'opaque'>, number[]>>
+export type BuiltinAvgDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinAvgComposition = Assert<Equal<FhirpathResultIn<'(2.avg()).count()', 'opaque'>, number[]>>
+export type BuiltinCeilingPositive = Assert<Equal<FhirpathResultIn<'2.ceiling()', 'opaque'>, number[]>>
+export type BuiltinCeilingDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinCeilingComposition = Assert<Equal<FhirpathResultIn<'(2.ceiling()).count()', 'opaque'>, number[]>>
+export type BuiltinChildrenPositive = Assert<Equal<FhirpathResultIn<'Patient.name.children()', 'opaque'>, unknown[]>>
+export type BuiltinChildrenDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinChildrenComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.children()).count()', 'opaque'>, number[]>
+>
+export type BuiltinCoalescePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.coalesce(given, family)', 'opaque'>, string[]>
+>
+export type BuiltinCoalesceDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinCoalesceComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.coalesce(given, family)).count()', 'opaque'>, number[]>
+>
+export type BuiltinCombinePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.combine(Patient.name)', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinCombineDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinCombineComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.combine(Patient.name)).count()', 'opaque'>, number[]>
+>
+export type BuiltinComparablePositive = Assert<
+  Equal<FhirpathResultIn<"1 'mg'.comparable(1 'mg')", 'opaque'>, boolean[]>
+>
+export type BuiltinComparableDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinComparableComposition = Assert<
+  Equal<FhirpathResultIn<"(1 'mg'.comparable(1 'mg')).count()", 'opaque'>, number[]>
+>
+export type BuiltinConformsToPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.first().conformsTo('x')", 'opaque'>, boolean[]>
+>
+export type BuiltinConformsToDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinConformsToComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.first().conformsTo('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinContainsPositive = Assert<Equal<FhirpathResultIn<"'abc'.contains('x')", 'opaque'>, boolean[]>>
+export type BuiltinContainsDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinContainsComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.contains('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinConvertsToBooleanPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().convertsToBoolean()', 'opaque'>, boolean[]>
+>
+export type BuiltinConvertsToBooleanDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinConvertsToBooleanComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().convertsToBoolean()).count()', 'opaque'>, number[]>
+>
+export type BuiltinConvertsToDatePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().convertsToDate()', 'opaque'>, boolean[]>
+>
+export type BuiltinConvertsToDateDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinConvertsToDateComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().convertsToDate()).count()', 'opaque'>, number[]>
+>
+export type BuiltinConvertsToDateTimePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().convertsToDateTime()', 'opaque'>, boolean[]>
+>
+export type BuiltinConvertsToDateTimeDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinConvertsToDateTimeComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().convertsToDateTime()).count()', 'opaque'>, number[]>
+>
+export type BuiltinConvertsToDecimalPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().convertsToDecimal()', 'opaque'>, boolean[]>
+>
+export type BuiltinConvertsToDecimalDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinConvertsToDecimalComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().convertsToDecimal()).count()', 'opaque'>, number[]>
+>
+export type BuiltinConvertsToIntegerPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().convertsToInteger()', 'opaque'>, boolean[]>
+>
+export type BuiltinConvertsToIntegerDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinConvertsToIntegerComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().convertsToInteger()).count()', 'opaque'>, number[]>
+>
+export type BuiltinConvertsToLongPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().convertsToLong()', 'opaque'>, boolean[]>
+>
+export type BuiltinConvertsToLongDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinConvertsToLongComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().convertsToLong()).count()', 'opaque'>, number[]>
+>
+export type BuiltinConvertsToQuantityPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.first().convertsToQuantity('x')", 'opaque'>, boolean[]>
+>
+export type BuiltinConvertsToQuantityDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinConvertsToQuantityComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.first().convertsToQuantity('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinConvertsToStringPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().convertsToString()', 'opaque'>, boolean[]>
+>
+export type BuiltinConvertsToStringDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinConvertsToStringComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().convertsToString()).count()', 'opaque'>, number[]>
+>
+export type BuiltinConvertsToTimePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().convertsToTime()', 'opaque'>, boolean[]>
+>
+export type BuiltinConvertsToTimeDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinConvertsToTimeComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().convertsToTime()).count()', 'opaque'>, number[]>
+>
+export type BuiltinCountPositive = Assert<Equal<FhirpathResultIn<'Patient.name.count()', 'opaque'>, number[]>>
+export type BuiltinCountDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinCountComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.count()).count()', 'opaque'>, number[]>
+>
+export type BuiltinDateOfPositive = Assert<Equal<FhirpathResultIn<'@2020-01-01.dateOf()', 'opaque'>, string[]>>
+export type BuiltinDateOfDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinDateOfComposition = Assert<
+  Equal<FhirpathResultIn<'(@2020-01-01.dateOf()).count()', 'opaque'>, number[]>
+>
+export type BuiltinDayOfPositive = Assert<Equal<FhirpathResultIn<'@2020-01-01.dayOf()', 'opaque'>, number[]>>
+export type BuiltinDayOfDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinDayOfComposition = Assert<
+  Equal<FhirpathResultIn<'(@2020-01-01.dayOf()).count()', 'opaque'>, number[]>
+>
+export type BuiltinDecodePositive = Assert<Equal<FhirpathResultIn<"'abc'.decode('x')", 'opaque'>, string[]>>
+export type BuiltinDecodeDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinDecodeComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.decode('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinDefineVariablePositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.defineVariable('generatedVariable')", 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinDefineVariableDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinDefineVariableComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.defineVariable('generatedVariable')).count()", 'opaque'>, number[]>
+>
+export type BuiltinDescendantsPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.descendants()', 'opaque'>, unknown[]>
+>
+export type BuiltinDescendantsDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinDescendantsComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.descendants()).count()', 'opaque'>, number[]>
+>
+export type BuiltinDistinctPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.distinct()', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinDistinctDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinDistinctComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.distinct()).count()', 'opaque'>, number[]>
+>
+export type BuiltinEmptyPositive = Assert<Equal<FhirpathResultIn<'Patient.name.empty()', 'opaque'>, boolean[]>>
+export type BuiltinEmptyDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinEmptyComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.empty()).count()', 'opaque'>, number[]>
+>
+export type BuiltinEncodePositive = Assert<Equal<FhirpathResultIn<"'abc'.encode('x')", 'opaque'>, string[]>>
+export type BuiltinEncodeDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinEncodeComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.encode('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinEndsWithPositive = Assert<Equal<FhirpathResultIn<"'abc'.endsWith('x')", 'opaque'>, boolean[]>>
+export type BuiltinEndsWithDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinEndsWithComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.endsWith('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinEscapePositive = Assert<Equal<FhirpathResultIn<"'abc'.escape('x')", 'opaque'>, string[]>>
+export type BuiltinEscapeDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinEscapeComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.escape('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinExcludePositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.exclude('x')", 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinExcludeDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinExcludeComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.exclude('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinExistsPositive = Assert<Equal<FhirpathResultIn<'Patient.name.exists($this)', 'opaque'>, boolean[]>>
+export type BuiltinExistsDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinExistsComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.exists($this)).count()', 'opaque'>, number[]>
+>
+export type BuiltinExpPositive = Assert<Equal<FhirpathResultIn<'2.exp()', 'opaque'>, number[]>>
+export type BuiltinExpDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinExpComposition = Assert<Equal<FhirpathResultIn<'(2.exp()).count()', 'opaque'>, number[]>>
+export type BuiltinExtensionPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.extension('x')", 'opaque'>, unknown[]>
+>
+export type BuiltinExtensionDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinExtensionComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.extension('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinFirstPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first()', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinFirstDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinFirstComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first()).count()', 'opaque'>, number[]>
+>
+export type BuiltinFloorPositive = Assert<Equal<FhirpathResultIn<'2.floor()', 'opaque'>, number[]>>
+export type BuiltinFloorDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinFloorComposition = Assert<Equal<FhirpathResultIn<'(2.floor()).count()', 'opaque'>, number[]>>
+export type BuiltinGetValuePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().getValue()', 'opaque'>, unknown[]>
+>
+export type BuiltinGetValueDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinGetValueComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().getValue()).count()', 'opaque'>, number[]>
+>
+export type BuiltinHasValuePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().hasValue()', 'opaque'>, boolean[]>
+>
+export type BuiltinHasValueDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinHasValueComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().hasValue()).count()', 'opaque'>, number[]>
+>
+export type BuiltinHighBoundaryPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().highBoundary(1)', 'opaque'>, unknown[]>
+>
+export type BuiltinHighBoundaryDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinHighBoundaryComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().highBoundary(1)).count()', 'opaque'>, number[]>
+>
+export type BuiltinHourOfPositive = Assert<Equal<FhirpathResultIn<'@2020-01-01.hourOf()', 'opaque'>, number[]>>
+export type BuiltinHourOfDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinHourOfComposition = Assert<
+  Equal<FhirpathResultIn<'(@2020-01-01.hourOf()).count()', 'opaque'>, number[]>
+>
+export type BuiltinHtmlChecksPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().htmlChecks()', 'opaque'>, boolean[]>
+>
+export type BuiltinHtmlChecksDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinHtmlChecksComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().htmlChecks()).count()', 'opaque'>, number[]>
+>
+export type BuiltinIifPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.iif(true, given, family)', 'opaque'>, string[]>
+>
+export type BuiltinIifDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinIifComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.iif(true, given, family)).count()', 'opaque'>, number[]>
+>
+export type BuiltinIndexOfPositive = Assert<Equal<FhirpathResultIn<"'abc'.indexOf('x')", 'opaque'>, number[]>>
+export type BuiltinIndexOfDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinIndexOfComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.indexOf('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinIntersectPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.intersect('x')", 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinIntersectDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinIntersectComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.intersect('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinIsPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().is(HumanName)', 'opaque'>, boolean[]>
+>
+export type BuiltinIsDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinIsComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().is(HumanName)).count()', 'opaque'>, number[]>
+>
+export type BuiltinIsDistinctPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.isDistinct()', 'opaque'>, boolean[]>
+>
+export type BuiltinIsDistinctDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinIsDistinctComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.isDistinct()).count()', 'opaque'>, number[]>
+>
+export type BuiltinJoinPositive = Assert<Equal<FhirpathResultIn<"'abc'.join('x')", 'opaque'>, string[]>>
+export type BuiltinJoinDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinJoinComposition = Assert<Equal<FhirpathResultIn<"('abc'.join('x')).count()", 'opaque'>, number[]>>
+export type BuiltinLastPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.last()', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinLastDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinLastComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.last()).count()', 'opaque'>, number[]>
+>
+export type BuiltinLastIndexOfPositive = Assert<Equal<FhirpathResultIn<"'abc'.lastIndexOf('x')", 'opaque'>, number[]>>
+export type BuiltinLastIndexOfDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinLastIndexOfComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.lastIndexOf('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinLengthPositive = Assert<Equal<FhirpathResultIn<"'abc'.length()", 'opaque'>, number[]>>
+export type BuiltinLengthDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinLengthComposition = Assert<Equal<FhirpathResultIn<"('abc'.length()).count()", 'opaque'>, number[]>>
+export type BuiltinLnPositive = Assert<Equal<FhirpathResultIn<'2.ln()', 'opaque'>, number[]>>
+export type BuiltinLnDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinLnComposition = Assert<Equal<FhirpathResultIn<'(2.ln()).count()', 'opaque'>, number[]>>
+export type BuiltinLogPositive = Assert<Equal<FhirpathResultIn<'2.log(1)', 'opaque'>, number[]>>
+export type BuiltinLogDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinLogComposition = Assert<Equal<FhirpathResultIn<'(2.log(1)).count()', 'opaque'>, number[]>>
+export type BuiltinLowBoundaryPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().lowBoundary(1)', 'opaque'>, unknown[]>
+>
+export type BuiltinLowBoundaryDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinLowBoundaryComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().lowBoundary(1)).count()', 'opaque'>, number[]>
+>
+export type BuiltinLowerPositive = Assert<Equal<FhirpathResultIn<"'abc'.lower()", 'opaque'>, string[]>>
+export type BuiltinLowerDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinLowerComposition = Assert<Equal<FhirpathResultIn<"('abc'.lower()).count()", 'opaque'>, number[]>>
+export type BuiltinMatchesPositive = Assert<Equal<FhirpathResultIn<"'abc'.matches('x')", 'opaque'>, boolean[]>>
+export type BuiltinMatchesDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinMatchesComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.matches('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinMatchesFullPositive = Assert<Equal<FhirpathResultIn<"'abc'.matchesFull('x')", 'opaque'>, boolean[]>>
+export type BuiltinMatchesFullDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinMatchesFullComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.matchesFull('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinMaxPositive = Assert<Equal<FhirpathResultIn<'2.max()', 'opaque'>, unknown[]>>
+export type BuiltinMaxDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinMaxComposition = Assert<Equal<FhirpathResultIn<'(2.max()).count()', 'opaque'>, number[]>>
+export type BuiltinMillisecondOfPositive = Assert<
+  Equal<FhirpathResultIn<'@2020-01-01.millisecondOf()', 'opaque'>, number[]>
+>
+export type BuiltinMillisecondOfDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinMillisecondOfComposition = Assert<
+  Equal<FhirpathResultIn<'(@2020-01-01.millisecondOf()).count()', 'opaque'>, number[]>
+>
+export type BuiltinMinPositive = Assert<Equal<FhirpathResultIn<'2.min()', 'opaque'>, unknown[]>>
+export type BuiltinMinDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinMinComposition = Assert<Equal<FhirpathResultIn<'(2.min()).count()', 'opaque'>, number[]>>
+export type BuiltinMinuteOfPositive = Assert<Equal<FhirpathResultIn<'@2020-01-01.minuteOf()', 'opaque'>, number[]>>
+export type BuiltinMinuteOfDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinMinuteOfComposition = Assert<
+  Equal<FhirpathResultIn<'(@2020-01-01.minuteOf()).count()', 'opaque'>, number[]>
+>
+export type BuiltinMonthOfPositive = Assert<Equal<FhirpathResultIn<'@2020-01-01.monthOf()', 'opaque'>, number[]>>
+export type BuiltinMonthOfDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinMonthOfComposition = Assert<
+  Equal<FhirpathResultIn<'(@2020-01-01.monthOf()).count()', 'opaque'>, number[]>
+>
+export type BuiltinNotPositive = Assert<Equal<FhirpathResultIn<'Patient.name.first().not()', 'opaque'>, boolean[]>>
+export type BuiltinNotDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinNotComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().not()).count()', 'opaque'>, number[]>
+>
+export type BuiltinNowPositive = Assert<Equal<FhirpathResultIn<'Patient.name.now()', 'opaque'>, string[]>>
+export type BuiltinNowDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinNowComposition = Assert<Equal<FhirpathResultIn<'(Patient.name.now()).count()', 'opaque'>, number[]>>
+export type BuiltinOfTypePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.ofType(HumanName)', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinOfTypeDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinOfTypeComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.ofType(HumanName)).count()', 'opaque'>, number[]>
+>
+export type BuiltinPowerPositive = Assert<Equal<FhirpathResultIn<'2.power(1)', 'opaque'>, unknown[]>>
+export type BuiltinPowerDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinPowerComposition = Assert<Equal<FhirpathResultIn<'(2.power(1)).count()', 'opaque'>, number[]>>
+export type BuiltinPrecisionPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().precision()', 'opaque'>, number[]>
+>
+export type BuiltinPrecisionDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinPrecisionComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().precision()).count()', 'opaque'>, number[]>
+>
+export type BuiltinRepeatPositive = Assert<Equal<FhirpathResultIn<'Patient.name.repeat($this)', 'opaque'>, unknown[]>>
+export type BuiltinRepeatDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinRepeatComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.repeat($this)).count()', 'opaque'>, number[]>
+>
+export type BuiltinReplacePositive = Assert<Equal<FhirpathResultIn<"'abc'.replace('x', 'x')", 'opaque'>, string[]>>
+export type BuiltinReplaceDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinReplaceComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.replace('x', 'x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinReplaceMatchesPositive = Assert<
+  Equal<FhirpathResultIn<"'abc'.replaceMatches('x', 'x')", 'opaque'>, string[]>
+>
+export type BuiltinReplaceMatchesDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinReplaceMatchesComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.replaceMatches('x', 'x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinResolvePositive = Assert<
+  Equal<
+    FhirpathResultIn<'Patient.generalPractitioner.resolve()', 'opaque'>,
+    R4TypeOf['Organization' | 'Practitioner' | 'PractitionerRole'][]
+  >
+>
+export type BuiltinResolveDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinResolveComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.generalPractitioner.resolve()).count()', 'opaque'>, number[]>
+>
+export type BuiltinRoundPositive = Assert<Equal<FhirpathResultIn<'2.round(1)', 'opaque'>, number[]>>
+export type BuiltinRoundDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinRoundComposition = Assert<Equal<FhirpathResultIn<'(2.round(1)).count()', 'opaque'>, number[]>>
+export type BuiltinSecondOfPositive = Assert<Equal<FhirpathResultIn<'@2020-01-01.secondOf()', 'opaque'>, number[]>>
+export type BuiltinSecondOfDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinSecondOfComposition = Assert<
+  Equal<FhirpathResultIn<'(@2020-01-01.secondOf()).count()', 'opaque'>, number[]>
+>
+export type BuiltinSelectPositive = Assert<Equal<FhirpathResultIn<'Patient.name.select(given)', 'opaque'>, string[]>>
+export type BuiltinSelectDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinSelectComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.select(given)).count()', 'opaque'>, number[]>
+>
+export type BuiltinSinglePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.single()', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinSingleDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinSingleComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.single()).count()', 'opaque'>, number[]>
+>
+export type BuiltinSkipPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.skip(1)', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinSkipDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinSkipComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.skip(1)).count()', 'opaque'>, number[]>
+>
+export type BuiltinSortPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.sort($this)', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinSortDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinSortComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.sort($this)).count()', 'opaque'>, number[]>
+>
+export type BuiltinSplitPositive = Assert<Equal<FhirpathResultIn<"'abc'.split('x')", 'opaque'>, string[]>>
+export type BuiltinSplitDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinSplitComposition = Assert<Equal<FhirpathResultIn<"('abc'.split('x')).count()", 'opaque'>, number[]>>
+export type BuiltinSqrtPositive = Assert<Equal<FhirpathResultIn<'2.sqrt()', 'opaque'>, number[]>>
+export type BuiltinSqrtDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinSqrtComposition = Assert<Equal<FhirpathResultIn<'(2.sqrt()).count()', 'opaque'>, number[]>>
+export type BuiltinStartsWithPositive = Assert<Equal<FhirpathResultIn<"'abc'.startsWith('x')", 'opaque'>, boolean[]>>
+export type BuiltinStartsWithDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinStartsWithComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.startsWith('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinSubsetOfPositive = Assert<Equal<FhirpathResultIn<"Patient.name.subsetOf('x')", 'opaque'>, boolean[]>>
+export type BuiltinSubsetOfDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinSubsetOfComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.subsetOf('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinSubstringPositive = Assert<Equal<FhirpathResultIn<"'abc'.substring(1, 1)", 'opaque'>, string[]>>
+export type BuiltinSubstringDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinSubstringComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.substring(1, 1)).count()", 'opaque'>, number[]>
+>
+export type BuiltinSumPositive = Assert<Equal<FhirpathResultIn<'2.sum()', 'opaque'>, unknown[]>>
+export type BuiltinSumDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinSumComposition = Assert<Equal<FhirpathResultIn<'(2.sum()).count()', 'opaque'>, number[]>>
+export type BuiltinSupersetOfPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.supersetOf('x')", 'opaque'>, boolean[]>
+>
+export type BuiltinSupersetOfDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinSupersetOfComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.supersetOf('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinTailPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.tail()', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinTailDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinTailComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.tail()).count()', 'opaque'>, number[]>
+>
+export type BuiltinTakePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.take(1)', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinTakeDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinTakeComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.take(1)).count()', 'opaque'>, number[]>
+>
+export type BuiltinTimeOfPositive = Assert<Equal<FhirpathResultIn<'@2020-01-01.timeOf()', 'opaque'>, string[]>>
+export type BuiltinTimeOfDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinTimeOfComposition = Assert<
+  Equal<FhirpathResultIn<'(@2020-01-01.timeOf()).count()', 'opaque'>, number[]>
+>
+export type BuiltinTimeOfDayPositive = Assert<Equal<FhirpathResultIn<'Patient.name.timeOfDay()', 'opaque'>, string[]>>
+export type BuiltinTimeOfDayDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinTimeOfDayComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.timeOfDay()).count()', 'opaque'>, number[]>
+>
+export type BuiltinTimezoneOffsetOfPositive = Assert<
+  Equal<FhirpathResultIn<'@2020-01-01.timezoneOffsetOf()', 'opaque'>, number[]>
+>
+export type BuiltinTimezoneOffsetOfDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinTimezoneOffsetOfComposition = Assert<
+  Equal<FhirpathResultIn<'(@2020-01-01.timezoneOffsetOf()).count()', 'opaque'>, number[]>
+>
+export type BuiltinToBooleanPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().toBoolean()', 'opaque'>, boolean[]>
+>
+export type BuiltinToBooleanDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinToBooleanComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().toBoolean()).count()', 'opaque'>, number[]>
+>
+export type BuiltinToCharsPositive = Assert<Equal<FhirpathResultIn<"'abc'.toChars()", 'opaque'>, string[]>>
+export type BuiltinToCharsDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinToCharsComposition = Assert<Equal<FhirpathResultIn<"('abc'.toChars()).count()", 'opaque'>, number[]>>
+export type BuiltinToDatePositive = Assert<Equal<FhirpathResultIn<'Patient.name.first().toDate()', 'opaque'>, string[]>>
+export type BuiltinToDateDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinToDateComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().toDate()).count()', 'opaque'>, number[]>
+>
+export type BuiltinToDateTimePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().toDateTime()', 'opaque'>, string[]>
+>
+export type BuiltinToDateTimeDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinToDateTimeComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().toDateTime()).count()', 'opaque'>, number[]>
+>
+export type BuiltinTodayPositive = Assert<Equal<FhirpathResultIn<'Patient.name.today()', 'opaque'>, string[]>>
+export type BuiltinTodayDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinTodayComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.today()).count()', 'opaque'>, number[]>
+>
+export type BuiltinToDecimalPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().toDecimal()', 'opaque'>, number[]>
+>
+export type BuiltinToDecimalDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinToDecimalComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().toDecimal()).count()', 'opaque'>, number[]>
+>
+export type BuiltinToIntegerPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().toInteger()', 'opaque'>, number[]>
+>
+export type BuiltinToIntegerDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinToIntegerComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().toInteger()).count()', 'opaque'>, number[]>
+>
+export type BuiltinToLongPositive = Assert<Equal<FhirpathResultIn<'Patient.name.first().toLong()', 'opaque'>, bigint[]>>
+export type BuiltinToLongDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinToLongComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().toLong()).count()', 'opaque'>, number[]>
+>
+export type BuiltinToQuantityPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.first().toQuantity('x')", 'opaque'>, R4TypeOf['System.Quantity'][]>
+>
+export type BuiltinToQuantityDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinToQuantityComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.first().toQuantity('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinToStringPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.first().toString()', 'opaque'>, string[]>
+>
+export type BuiltinToStringDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinToStringComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().toString()).count()', 'opaque'>, number[]>
+>
+export type BuiltinToTimePositive = Assert<Equal<FhirpathResultIn<'Patient.name.first().toTime()', 'opaque'>, string[]>>
+export type BuiltinToTimeDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinToTimeComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.first().toTime()).count()', 'opaque'>, number[]>
+>
+export type BuiltinTracePositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.trace('x', $this)", 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinTraceDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinTraceComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.trace('x', $this)).count()", 'opaque'>, number[]>
+>
+export type BuiltinTrimPositive = Assert<Equal<FhirpathResultIn<"'abc'.trim()", 'opaque'>, string[]>>
+export type BuiltinTrimDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinTrimComposition = Assert<Equal<FhirpathResultIn<"('abc'.trim()).count()", 'opaque'>, number[]>>
+export type BuiltinTruncatePositive = Assert<Equal<FhirpathResultIn<'2.truncate()', 'opaque'>, number[]>>
+export type BuiltinTruncateDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinTruncateComposition = Assert<Equal<FhirpathResultIn<'(2.truncate()).count()', 'opaque'>, number[]>>
+export type BuiltinTypePositive = Assert<Equal<FhirpathResultIn<'Patient.name.type()', 'opaque'>, unknown[]>>
+export type BuiltinTypeDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinTypeComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.type()).count()', 'opaque'>, number[]>
+>
+export type BuiltinUnescapePositive = Assert<Equal<FhirpathResultIn<"'abc'.unescape('x')", 'opaque'>, string[]>>
+export type BuiltinUnescapeDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinUnescapeComposition = Assert<
+  Equal<FhirpathResultIn<"('abc'.unescape('x')).count()", 'opaque'>, number[]>
+>
+export type BuiltinUnionPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.union(Patient.name)', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinUnionDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinUnionComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.union(Patient.name)).count()', 'opaque'>, number[]>
+>
+export type BuiltinUpperPositive = Assert<Equal<FhirpathResultIn<"'abc'.upper()", 'opaque'>, string[]>>
+export type BuiltinUpperDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinUpperComposition = Assert<Equal<FhirpathResultIn<"('abc'.upper()).count()", 'opaque'>, number[]>>
+export type BuiltinWherePositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.where($this)', 'opaque'>, R4TypeOf['HumanName'][]>
+>
+export type BuiltinWhereDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinWhereComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.where($this)).count()', 'opaque'>, number[]>
+>
+export type BuiltinYearOfPositive = Assert<Equal<FhirpathResultIn<'@2020-01-01.yearOf()', 'opaque'>, number[]>>
+export type BuiltinYearOfDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinYearOfComposition = Assert<
+  Equal<FhirpathResultIn<'(@2020-01-01.yearOf()).count()', 'opaque'>, number[]>
+>

@@ -1,3 +1,5 @@
+import { BUILTIN_FUNCTION_CAPABILITIES } from './generated/function-capabilities.ts'
+
 export type CapabilityFamily =
   | 'path'
   | 'indexer'
@@ -12,6 +14,7 @@ export type CapabilityFamily =
   | 'syntax'
   | 'precedence'
   | 'variable'
+  | 'reference'
 
 export interface CapabilityEntry {
   family: CapabilityFamily
@@ -666,6 +669,197 @@ export const INFERENCE_CAPABILITIES = {
     degradation: 'true implies false or',
     composition: '(true implies false or true).toString()',
   },
+  'scope.this': {
+    family: 'function-lambda',
+    source: { expression: 'Patient.name.select($this.family)', corpusGap: 'focused lambda-frame type assertion' },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['FHIR.string'], single: false },
+    degradation: 'Patient.name.select($this.nope)',
+    composition: 'Patient.name.select($this.family).upper()',
+  },
+  'scope.index': {
+    family: 'function-lambda',
+    source: { expression: 'Patient.name.select($index)', corpusGap: 'focused lambda index assertion' },
+    expectedType: 'number[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['System.Integer'], single: false },
+    degradation: 'Patient.name.select($index.nope)',
+    composition: 'Patient.name.select($index).first().toString()',
+  },
+  'scope.total': {
+    family: 'function-lambda',
+    source: {
+      expression: "Patient.name.aggregate($total.toString(), '')",
+      corpusGap: 'focused aggregate accumulator-frame assertion',
+    },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['System.String'], single: true },
+    degradation: 'Patient.name.aggregate($total.nope, {})',
+    composition: "Patient.name.aggregate($total.toString(), '').upper()",
+  },
+  'scope.nested-frame-restore': {
+    family: 'function-lambda',
+    source: {
+      expression: 'Patient.name.select(given.select($this.substring(1)) | family)',
+      corpusGap: 'focused nested lambda-frame restoration assertion',
+    },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['System.String', 'FHIR.string'], single: false },
+    degradation: 'Patient.name.select(given.select($this.nope) | family)',
+    composition: 'Patient.name.select(given.select($this.substring(1)) | family).first()',
+  },
+  'scope.define-variable-input': {
+    family: 'variable',
+    source: {
+      expression: "Patient.name.first().defineVariable('n').select(%n.family)",
+      corpusGap: 'focused inferred defineVariable input binding',
+    },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['FHIR.string'], single: true },
+    degradation: "Patient.name.first().defineVariable('n').select(%missing)",
+    composition: "Patient.name.first().defineVariable('n').select(%n.family).upper()",
+  },
+  'scope.define-variable-value': {
+    family: 'variable',
+    source: {
+      expression: "Patient.defineVariable('n', name.first()).select(%n.family)",
+      corpusGap: 'focused inferred defineVariable expression binding',
+    },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['FHIR.string'], single: true },
+    degradation: "Patient.defineVariable('n', name.first()).select(%missing)",
+    composition: "Patient.defineVariable('n', name.first()).select(%n.family).upper()",
+  },
+  'scope.nested-binding-restore': {
+    family: 'variable',
+    source: {
+      expression: "Patient.name.first().defineVariable('n').select(given.select(%n.family))",
+      corpusGap: 'focused binding restoration through a nested lambda frame',
+    },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['FHIR.string'], single: false },
+    degradation: "Patient.name.first().defineVariable('n').select(given.select(%missing))",
+    composition: "Patient.name.first().defineVariable('n').select(given.select(%n.family)).first()",
+  },
+  'scope.multiple-definition-fallback': {
+    family: 'variable',
+    source: { corpusId: 'official:r5:defineVariable:dvConceptMapExample' },
+    expectedType: 'boolean[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: { types: ['System.Boolean'], single: true },
+    degradation: "defineVariable('a').select(%missing)",
+    composition: "defineVariable('a').defineVariable('b').count()",
+  },
+  'scope.operator-fork': {
+    family: 'variable',
+    source: {
+      expression: "Patient.defineVariable('left').active | %left",
+      corpusGap: 'focused branch-local operator scope assertion',
+    },
+    expectedType: 'unknown[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: { types: undefined, single: false },
+    degradation: "Patient.defineVariable('left').active | %missing",
+    composition: "(Patient.defineVariable('left').active | %left).count()",
+  },
+  'scope.argument-fork': {
+    family: 'variable',
+    source: {
+      expression: "Patient.select(defineVariable('inner').active).select(%inner)",
+      corpusGap: 'focused branch-local argument scope assertion',
+    },
+    expectedType: 'unknown[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: { types: undefined, single: undefined },
+    degradation: "Patient.select(defineVariable('inner').active).select(%missing)",
+    composition: "Patient.select(defineVariable('inner').active).select(%inner).count()",
+  },
+  'variable.context-root': {
+    family: 'variable',
+    source: { expression: '%context.name.given', corpusGap: 'typed built-in root variable assertion' },
+    input: 'Patient',
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['FHIR.string'], single: false },
+    degradation: '%context.nope',
+    composition: '%context.name.given.first()',
+  },
+  'variable.resource-root': {
+    family: 'variable',
+    source: { expression: '%resource.name.family', corpusGap: 'typed built-in resource variable assertion' },
+    input: 'Patient',
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['FHIR.string'], single: false },
+    degradation: '%resource.nope',
+    composition: '%resource.name.family.first()',
+  },
+  'variable.root-resource': {
+    family: 'variable',
+    source: { expression: '%rootResource.name.family', corpusGap: 'typed built-in rootResource assertion' },
+    input: 'Patient',
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['FHIR.string'], single: false },
+    degradation: '%rootResource.nope',
+    composition: '%rootResource.name.family.first()',
+  },
+  'variable.builtin-constant': {
+    family: 'variable',
+    source: { expression: '%loinc.upper()', corpusGap: 'typed built-in terminology constant assertion' },
+    expectedType: 'string[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: { types: ['System.String'], single: true },
+    degradation: '%loinc.nope',
+    composition: '%loinc.upper().length()',
+  },
+  'reference.generated-targets': {
+    family: 'reference',
+    source: {
+      expression: 'Patient.generalPractitioner.resolve()',
+      corpusGap: 'focused generated Reference target union assertion',
+    },
+    expectedType: "R4TypeOf['Organization' | 'Practitioner' | 'PractitionerRole'][]",
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['FHIR.Organization', 'FHIR.Practitioner', 'FHIR.PractitionerRole'], single: false },
+    degradation: 'Bundle.entry.resource.resolve()',
+    composition: 'Patient.generalPractitioner.resolve().ofType(Organization).name',
+  },
+  'reference.state-preservation': {
+    family: 'reference',
+    source: {
+      expression: 'Patient.generalPractitioner.where($this.exists())[0].resolve()',
+      corpusGap: 'focused Reference target propagation through filter and index',
+    },
+    expectedType: "R4TypeOf['Organization' | 'Practitioner' | 'PractitionerRole'][]",
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: { types: ['FHIR.Organization', 'FHIR.Practitioner', 'FHIR.PractitionerRole'], single: true },
+    degradation: 'Bundle.entry.resource.where($this.exists())[0].resolve()',
+    composition: 'Patient.generalPractitioner.where($this.exists())[0].resolve().ofType(Organization).name',
+  },
+  ...BUILTIN_FUNCTION_CAPABILITIES,
 } as const satisfies Record<string, CapabilityEntry>
 
 export type InferenceCapabilityId = keyof typeof INFERENCE_CAPABILITIES
