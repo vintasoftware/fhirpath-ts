@@ -129,7 +129,7 @@ describe('fixed-return conversion functions', () => {
     expectTypeOf(value).toEqualTypeOf<number[]>()
     expect(value).toEqual([80])
 
-    // A dot inside the UCUM argument reassembles via the one-level paren logic.
+    // Dots inside a UCUM string stay inside the function argument.
     expectTypeOf<FhirpathResult<"Observation.value.ofType(Quantity).toQuantity('kg.m/s2').value">>().toEqualTypeOf<
       number[]
     >()
