@@ -12,6 +12,7 @@ import type {
   CompactPrefixParselets,
   CompactTypeOperatorRules,
 } from './generated/metadata-compact.ts'
+import type { InferenceSourceStepLimit, InferenceTokenLimit } from './inference-limits.ts'
 
 type NameToken = ['name', string]
 type KeywordToken = ['keyword', string]
@@ -94,7 +95,7 @@ type Tokenize<Source extends string> = Scan<Source, [], []>
 
 type Scan<Source extends string, Tokens extends TypeTokens, Steps extends unknown[]> = Source extends ''
   ? Tokens
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends Whitespace
@@ -129,7 +130,7 @@ type ReadIdentifier<
   Steps extends unknown[],
 > = Source extends ''
   ? EmitFinal<Acc extends Keyword ? ['keyword', Acc] : ['name', Acc], Tokens>
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends IdentifierPart
@@ -144,7 +145,7 @@ type ReadNumber<
   Steps extends unknown[],
 > = Source extends ''
   ? EmitFinal<['number', Acc], Tokens>
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends Digit
@@ -167,7 +168,7 @@ type ReadFraction<
   Steps extends unknown[],
 > = Source extends ''
   ? EmitFinal<['number', Acc], Tokens>
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends Digit
@@ -184,7 +185,7 @@ type ReadQuoted<
   Steps extends unknown[],
 > = Source extends ''
   ? ScanFailure
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends Quote
@@ -208,7 +209,7 @@ type ReadEscape<
   Steps extends unknown[],
 > = Source extends ''
   ? ScanFailure
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends 'u'
@@ -230,7 +231,7 @@ type ReadUnicodeEscape<
   ? ReadQuoted<Source, `${Acc}${string}`, Quote, Kind extends 'name' ? 'unsafe' : Kind, Tokens, Steps>
   : Source extends ''
     ? ScanFailure
-    : Steps['length'] extends 256
+    : Steps['length'] extends InferenceSourceStepLimit
       ? ScanFailure
       : Source extends `${infer Character}${infer Rest}`
         ? Character extends HexDigit
@@ -254,7 +255,7 @@ type ReadTemporal<
   Tokens extends TypeTokens,
   Steps extends unknown[],
 > = Source extends `T${infer Rest}`
-  ? Steps['length'] extends 256
+  ? Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : ReadClock<Rest, 'T', Tokens, Step<Steps>, 'time'>
   : ReadFixedDigits<Source, '', Steps, [], 4> extends infer Year
@@ -270,7 +271,7 @@ type ReadDateAfterYear<
   Steps extends unknown[],
 > = Source extends `-${infer Rest}`
   ? HasTwoDigits<Rest> extends true
-    ? Steps['length'] extends 256
+    ? Steps['length'] extends InferenceSourceStepLimit
       ? ScanFailure
       : ReadFixedDigits<Rest, `${Value}-`, Step<Steps>, [], 2> extends infer Month
         ? Month extends [infer Tail extends string, infer NextValue extends string, infer NextSteps extends unknown[]]
@@ -287,7 +288,7 @@ type ReadDateAfterMonth<
   Steps extends unknown[],
 > = Source extends `-${infer Rest}`
   ? HasTwoDigits<Rest> extends true
-    ? Steps['length'] extends 256
+    ? Steps['length'] extends InferenceSourceStepLimit
       ? ScanFailure
       : ReadFixedDigits<Rest, `${Value}-`, Step<Steps>, [], 2> extends infer Day
         ? Day extends [infer Tail extends string, infer NextValue extends string, infer NextSteps extends unknown[]]
@@ -303,7 +304,7 @@ type FinishDate<
   Tokens extends TypeTokens,
   Steps extends unknown[],
 > = Source extends `T${infer Rest}`
-  ? Steps['length'] extends 256
+  ? Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Rest extends `${infer First}${string}`
       ? First extends Digit
@@ -333,7 +334,7 @@ type ReadClockAfterHour<
   Kind extends 'time' | 'dateTime',
 > = Source extends `:${infer Rest}`
   ? HasTwoDigits<Rest> extends true
-    ? Steps['length'] extends 256
+    ? Steps['length'] extends InferenceSourceStepLimit
       ? ScanFailure
       : ReadFixedDigits<Rest, `${Value}:`, Step<Steps>, [], 2> extends infer Minute
         ? Minute extends [infer Tail extends string, infer NextValue extends string, infer NextSteps extends unknown[]]
@@ -351,7 +352,7 @@ type ReadClockAfterMinute<
   Kind extends 'time' | 'dateTime',
 > = Source extends `:${infer Rest}`
   ? HasTwoDigits<Rest> extends true
-    ? Steps['length'] extends 256
+    ? Steps['length'] extends InferenceSourceStepLimit
       ? ScanFailure
       : ReadFixedDigits<Rest, `${Value}:`, Step<Steps>, [], 2> extends infer Second
         ? Second extends [infer Tail extends string, infer NextValue extends string, infer NextSteps extends unknown[]]
@@ -370,7 +371,7 @@ type ReadClockFraction<
 > = Source extends `.${infer Rest}`
   ? Rest extends `${infer First}${string}`
     ? First extends Digit
-      ? Steps['length'] extends 256
+      ? Steps['length'] extends InferenceSourceStepLimit
         ? ScanFailure
         : ReadFractionDigits<Rest, `${Value}.`, Tokens, Step<Steps>, Kind>
       : FinishClock<Source, Value, Tokens, Steps, Kind>
@@ -385,7 +386,7 @@ type ReadFractionDigits<
   Kind extends 'time' | 'dateTime',
 > = Source extends `${infer Character}${infer Rest}`
   ? Character extends Digit
-    ? Steps['length'] extends 256
+    ? Steps['length'] extends InferenceSourceStepLimit
       ? ScanFailure
       : ReadFractionDigits<Rest, `${Value}${Character}`, Tokens, Step<Steps>, Kind>
     : FinishClock<Source, Value, Tokens, Steps, Kind>
@@ -400,7 +401,7 @@ type FinishClock<
 > = Kind extends 'time'
   ? EmitTemporal<Source, ['time', Value], Tokens, Steps>
   : Source extends `Z${infer Rest}`
-    ? Steps['length'] extends 256
+    ? Steps['length'] extends InferenceSourceStepLimit
       ? ScanFailure
       : EmitTemporal<Rest, ['dateTime', `${Value}Z`], Tokens, Step<Steps>>
     : Source extends `${infer Sign}${infer Rest}`
@@ -425,7 +426,7 @@ type ReadFixedDigits<
   ? [Source, Value, Steps]
   : Source extends `${infer Character}${infer Rest}`
     ? Character extends Digit
-      ? Steps['length'] extends 256
+      ? Steps['length'] extends InferenceSourceStepLimit
         ? ScanFailure
         : ReadFixedDigits<Rest, `${Value}${Character}`, Step<Steps>, [...Seen, 0], Count>
       : ScanFailure
@@ -470,7 +471,7 @@ type ConsumeCharacters<
 > = Seen['length'] extends Count
   ? [Source, Steps]
   : Source extends `${infer _Character}${infer Rest}`
-    ? Steps['length'] extends 256
+    ? Steps['length'] extends InferenceSourceStepLimit
       ? ScanFailure
       : ConsumeCharacters<Rest, Step<Steps>, [...Seen, 0], Count>
     : ScanFailure
@@ -489,7 +490,7 @@ type ReadSpecial<
   Steps extends unknown[],
 > = Source extends ''
   ? EmitSpecial<Acc, '', Tokens, Steps>
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends IdentifierPart
@@ -510,7 +511,7 @@ type EmitSpecial<
 
 type ScanAfterSlash<Source extends string, Tokens extends TypeTokens, Steps extends unknown[]> = Source extends ''
   ? EmitFinal<['symbol', '/'], Tokens>
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends '/'
@@ -522,7 +523,7 @@ type ScanAfterSlash<Source extends string, Tokens extends TypeTokens, Steps exte
 
 type SkipLineComment<Source extends string, Tokens extends TypeTokens, Steps extends unknown[]> = Source extends ''
   ? Tokens
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends '\n'
@@ -532,7 +533,7 @@ type SkipLineComment<Source extends string, Tokens extends TypeTokens, Steps ext
 
 type SkipBlockComment<Source extends string, Tokens extends TypeTokens, Steps extends unknown[]> = Source extends ''
   ? ScanFailure
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends '*'
@@ -546,7 +547,7 @@ type SkipBlockCommentAfterStar<
   Steps extends unknown[],
 > = Source extends ''
   ? ScanFailure
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends '/'
@@ -558,7 +559,7 @@ type SkipBlockCommentAfterStar<
 
 type ScanAfterBang<Source extends string, Tokens extends TypeTokens, Steps extends unknown[]> = Source extends ''
   ? ScanFailure
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends '=' | '~'
@@ -573,7 +574,7 @@ type ScanComparison<
   Steps extends unknown[],
 > = Source extends ''
   ? EmitFinal<['symbol', Operator], Tokens>
-  : Steps['length'] extends 256
+  : Steps['length'] extends InferenceSourceStepLimit
     ? ScanFailure
     : Source extends `${infer Character}${infer Rest}`
       ? Character extends '='
@@ -586,9 +587,9 @@ type EmitAndScan<
   Token extends TypeToken,
   Tokens extends TypeTokens,
   Steps extends unknown[],
-> = Tokens['length'] extends 64 ? ScanFailure : Scan<Source, [...Tokens, Token], Steps>
+> = Tokens['length'] extends InferenceTokenLimit ? ScanFailure : Scan<Source, [...Tokens, Token], Steps>
 
-type EmitFinal<Token extends TypeToken, Tokens extends TypeTokens> = Tokens['length'] extends 64
+type EmitFinal<Token extends TypeToken, Tokens extends TypeTokens> = Tokens['length'] extends InferenceTokenLimit
   ? ScanFailure
   : [...Tokens, Token]
 
@@ -822,7 +823,7 @@ type FastArgumentShape<Argument extends string> = Argument extends `'${infer Lef
 type PlainStringContent<Content extends string> = Content extends `${string}'${string}` ? false : true
 
 type IdentifierText<Text extends string> =
-  ShortText<Text, 64> extends true
+  ShortText<Text, InferenceTokenLimit> extends true
     ? Text extends `${infer Character}${infer Rest}`
       ? Character extends Letter
         ? IdentifierTail<Rest>

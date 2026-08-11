@@ -10,6 +10,7 @@ import { tokenize } from '../src/lexer/lexer.ts'
 import type { AstNode } from '../src/parser/ast.ts'
 import { parse } from '../src/parser/parser.ts'
 import { r4Model } from '../src/r4/index.ts'
+import { INFERENCE_SOURCE_STEP_LIMIT, INFERENCE_TOKEN_LIMIT } from '../src/typed/inference-limits.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
 import { type InventoryCase, loadInferenceInventory } from './inference-corpus.ts'
 
@@ -43,7 +44,7 @@ for (const item of distinct.values()) {
     continue
   }
   const families = familiesOf(ast)
-  if (tokens > 64 || item.expression.length > 256) {
+  if (tokens > INFERENCE_TOKEN_LIMIT || item.expression.length > INFERENCE_SOURCE_STEP_LIMIT) {
     classified.push({ id: item.id, status: 'budget', families: [...families, 'budget'] })
     continue
   }

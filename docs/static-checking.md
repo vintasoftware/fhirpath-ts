@@ -30,6 +30,10 @@ Inference covers common paths and functions, including:
 An expression outside this subset becomes `unknown[]`. It does not become a
 TypeScript error. Use the analyzer for the full language.
 
+The type-level scanner accepts at most 64 emitted tokens and 256 visited source
+characters. Crossing either limit returns `unknown[]`; runtime evaluation and
+the analyzer still accept the full expression.
+
 Tagged templates are also `unknown[]` because TypeScript does not preserve their
 literal types. Use `fhirpath('...')` or `compile('...')` for inference.
 

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { RESOLVED_INFERENCE_CAPABILITIES } from '../src/typed/generated/capabilities.ts'
 import { INFERENCE_CORPUS_AUDIT } from '../src/typed/generated/corpus-audit.ts'
+import { INFERENCE_SOURCE_STEP_LIMIT, INFERENCE_TOKEN_LIMIT } from '../src/typed/inference-limits.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
 
 const lines = [
@@ -21,14 +22,20 @@ for (const capability of Object.values(RESOLVED_INFERENCE_CAPABILITIES)) {
   )
 }
 const longest = INFERENCE_CORPUS_AUDIT.longestWithinBudgetCase
+const tokenOverflow = INFERENCE_TOKEN_LIMIT + 1
+const sourceOverflow = INFERENCE_SOURCE_STEP_LIMIT + 1
+const sourceBoundary = (limit: number): string => {
+  const repeated = `\${Repeat<${limit - 2}>}`
+  return `export type Source${limit}Boundary = FhirpathResultIn<\`'${repeated}'\`, 'opaque'>`
+}
 lines.push(
   `export type LongestCorpusCase = FhirpathResultIn<${JSON.stringify(longest.expression)}, ${JSON.stringify('inputType' in longest ? longest.inputType : 'opaque')}>`,
   "type Words<Count extends number, Seen extends unknown[] = [], Result extends string = ''> = Seen['length'] extends Count ? Result : Words<Count, [...Seen, 0], Result extends '' ? 'x' : `${Result} x`>",
   "type Repeat<Count extends number, Seen extends unknown[] = [], Result extends string = ''> = Seen['length'] extends Count ? Result : Repeat<Count, [...Seen, 0], `${Result}x`>",
-  "export type Token64Boundary = FhirpathResultIn<Words<64>, 'opaque'>",
-  "export type Token65Boundary = FhirpathResultIn<Words<65>, 'opaque'>",
-  "export type Source256Boundary = FhirpathResultIn<`'${Repeat<254>}'`, 'opaque'>",
-  "export type Source257Boundary = FhirpathResultIn<`'${Repeat<255>}'`, 'opaque'>"
+  `export type Token${INFERENCE_TOKEN_LIMIT}Boundary = FhirpathResultIn<Words<${INFERENCE_TOKEN_LIMIT}>, 'opaque'>`,
+  `export type Token${tokenOverflow}Boundary = FhirpathResultIn<Words<${tokenOverflow}>, 'opaque'>`,
+  sourceBoundary(INFERENCE_SOURCE_STEP_LIMIT),
+  sourceBoundary(sourceOverflow)
 )
 const generated = await formatGeneratedTypeScript(`${lines.join('\n')}\n`)
 const output = new URL('../src/typed/generated/full-language-perf.types.ts', import.meta.url)

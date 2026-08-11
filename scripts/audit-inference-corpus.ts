@@ -5,6 +5,7 @@ import { FUNCTION_SIGNATURES } from '../src/analyzer/signatures.ts'
 import { tokenize } from '../src/lexer/lexer.ts'
 import type { AstNode } from '../src/parser/ast.ts'
 import { parse } from '../src/parser/parser.ts'
+import { INFERENCE_SOURCE_STEP_LIMIT, INFERENCE_TOKEN_LIMIT } from '../src/typed/inference-limits.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
 import { type InventoryCase, loadInferenceInventory } from './inference-corpus.ts'
 
@@ -82,8 +83,12 @@ for (const item of byExpression.values()) {
   }
 }
 
-const withinBudget = accepted.filter(item => item.tokens <= 64 && item.sourceSteps <= 256)
-const overBudget = accepted.filter(item => item.tokens > 64 || item.sourceSteps > 256)
+const withinBudget = accepted.filter(
+  item => item.tokens <= INFERENCE_TOKEN_LIMIT && item.sourceSteps <= INFERENCE_SOURCE_STEP_LIMIT
+)
+const overBudget = accepted.filter(
+  item => item.tokens > INFERENCE_TOKEN_LIMIT || item.sourceSteps > INFERENCE_SOURCE_STEP_LIMIT
+)
 const longestWithinBudgetCase = [...withinBudget].sort(
   (left, right) => right.sourceSteps - left.sourceSteps || left.item.id.localeCompare(right.item.id)
 )[0]

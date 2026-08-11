@@ -286,6 +286,7 @@ Type inference stays conservative. Malformed, over-budget, dynamically widened,
 or deliberately opaque expressions become `unknown[]` instead of producing an
 incorrect type. Host values and custom functions can add static declarations;
 see [type context declarations](docs/api.md#type-context-declarations).
+The type-level scanner budget is 64 tokens and 256 visited source characters.
 
 Static checking has three layers:
 
