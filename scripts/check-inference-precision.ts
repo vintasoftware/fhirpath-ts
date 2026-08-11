@@ -140,6 +140,9 @@ const generated =
 
 export const INFERENCE_PRECISION_REPORT = ${JSON.stringify(report, null, 2)} as const
 `)
+// Source generators write by default and use --check for CI drift detection.
+// This report is a reviewed ratchet, so checking is the default and --update
+// is the explicit operation that accepts a new baseline.
 if (process.argv.includes('--update')) {
   writeFileSync(output, generated)
   console.log(`wrote ${fileURLToPath(output)}`)

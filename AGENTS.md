@@ -194,6 +194,9 @@ pnpm check:package
 `scripts/type-perf-budget.json` sets the type-instantiation budget. Explain any
 budget increase in the same change.
 
+Generated sources write by default and use `--check` for drift detection.
+Baseline ratchets check by default and use `--update` only to accept reviewed measurements.
+
 The demo has its own typecheck. Files under `demo/src/monaco/*.d.ts` are
 generated; run `npm run generate:dts` in `demo/` after a public API change.
 

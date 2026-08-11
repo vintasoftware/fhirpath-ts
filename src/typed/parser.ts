@@ -1923,6 +1923,12 @@ type FastInputState<Input extends string> =
       : UnknownState
     : UnknownState
 
+/**
+ * Keep environment-free navigation on one reusable instantiation before
+ * attaching host context. The API performance fixture guards this split
+ * because carrying the environment through the core raises project-wide type
+ * cost at every call site.
+ */
 type Navigate<Input extends InferenceState, Element extends string> =
   Input extends EnvironmentCarrier<infer Environment extends InferenceEnvironment>
     ? NavigateCore<[Input[0], Input[1]], Element> & EnvironmentCarrier<Environment>
