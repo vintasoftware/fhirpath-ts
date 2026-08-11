@@ -26,7 +26,6 @@ import type {
   FhirpathTypeContextOf,
   FhirpathTypeDeclarations,
   FhirTypeName,
-  MergeFhirpathTypeContexts,
 } from '../typed/infer.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
@@ -114,6 +113,21 @@ export type Declaring<Options extends object, Accepted extends EvaluateOptions =
   CheckedFhirpathOptionValues<Options> &
   Record<Exclude<keyof Options, keyof Accepted>, never>
 
+/** Sentinel selecting built-in result inference instead of an explicit TResult. */
+export interface InferredExpressionResult {
+  readonly __inferredExpressionResult: unique symbol
+}
+
+/** The result of a compiled expression after applying its per-call static declarations. */
+export type CompiledExpressionResult<
+  Expr extends string,
+  TResult extends unknown[] | InferredExpressionResult,
+  Root extends string,
+  Options,
+> = TResult extends InferredExpressionResult
+  ? FhirpathResultForContext<Expr, Root, FhirpathTypeContextOf<Options>>
+  : Extract<TResult, unknown[]>
+
 /**
  * A parsed expression, reusable across inputs. Create via `compile()` or the
  * `fhirpath` tag: literal expressions carry inferred result and input types for
@@ -123,26 +137,11 @@ export type Declaring<Options extends object, Accepted extends EvaluateOptions =
  * e.g. with `@medplum/fhirtypes` types, for full type-level fidelity with
  * another FHIR type package: `compile<'Patient.name', Patient, HumanName[]>(...)`.
  */
-export interface InferredExpressionResult {
-  readonly __inferredExpressionResult: unique symbol
-}
-
-type CompiledResult<
-  Expr extends string,
-  TResult extends unknown[] | InferredExpressionResult,
-  Root extends string,
-  Context extends object,
-  Options,
-> = TResult extends InferredExpressionResult
-  ? FhirpathResultForContext<Expr, Root, MergeFhirpathTypeContexts<Context, FhirpathTypeContextOf<Options>>>
-  : Extract<TResult, unknown[]>
-
 export class CompiledExpression<
   Expr extends string = string,
   TInput = FhirpathInput<Expr>,
   TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
   Root extends string = 'opaque',
-  Context extends object = EmptyFhirpathTypeContext,
 > {
   readonly source: Expr
   readonly ast: AstNode
@@ -156,8 +155,8 @@ export class CompiledExpression<
   evaluate<const Options extends object = EmptyFhirpathTypeContext>(
     input?: TInput,
     options?: Declaring<Options>
-  ): CompiledResult<Expr, TResult, Root, Context, Options> {
-    return this.evaluateTyped(input, options).map(unwrap) as CompiledResult<Expr, TResult, Root, Context, Options>
+  ): CompiledExpressionResult<Expr, TResult, Root, Options> {
+    return this.evaluateTyped(input, options).map(unwrap) as CompiledExpressionResult<Expr, TResult, Root, Options>
   }
 
   /** Evaluate keeping the internal typed representation (types, Decimal, Temporal). */
@@ -194,9 +193,9 @@ export function compile(expression: string): CompiledExpression {
   return new CompiledExpression(expression)
 }
 
-/** An expression as text or already compiled, with any literal type. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts any literal-typed CompiledExpression
-export type AnyExpression = string | CompiledExpression<any>
+/** An expression as text or already compiled, with any literal, input, result, and root types. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts every CompiledExpression specialization
+export type AnyExpression = string | CompiledExpression<any, any, any, any>
 
 /** A pre-resolved `vars` value; Array.isArray alone cannot exclude readonly arrays for the checker. */
 function isResolvedCollection<T>(value: T | readonly TypedValue[]): value is readonly TypedValue[] {

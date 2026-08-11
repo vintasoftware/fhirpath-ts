@@ -38,12 +38,9 @@ export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | re
 /** Per-call options that declare a result type when inference returns `unknown`. Runtime code ignores `type`. */
 export type TypedEvaluateOptions<T extends keyof R4TypeOf> = EvaluateOptions & { type: T }
 
-type CompiledForEngine<Expr extends string> = CompiledExpression<Expr, FhirpathInput<Expr>, unknown[]>
-
-type EngineTypeContext<Defaults, Options> = MergeFhirpathTypeContexts<
-  FhirpathTypeContextOf<Defaults>,
-  FhirpathTypeContextOf<Options>
->
+/** Literal text or a compatible compiled expression accepted by engine evaluation methods. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- engine methods infer their own input and result
+export type EngineExpression<Expr extends string> = Expr | CompiledExpression<Expr, any, any, any>
 
 /**
  * evaluate() reaches this shape through normalizeInput(), while project()
@@ -51,26 +48,32 @@ type EngineTypeContext<Defaults, Options> = MergeFhirpathTypeContexts<
  * expands to heterogeneous entries, so it stays opaque; an array keeps each
  * item raw, including a Bundle deliberately wrapped as `[bundle]`.
  */
-type NormalizedInputRoot<Input> = Input extends readonly (infer Item)[]
+export type EngineInputRoot<Input> = Input extends readonly (infer Item)[]
   ? FhirpathRootOf<Item>
   : Input extends { readonly resourceType: 'Bundle' }
     ? 'opaque'
     : FhirpathRootOf<Input>
 
-type EngineResult<Expr extends string, Input, Defaults, Options> = FhirpathResultForContext<
+/** The inferred result returned by an engine or bound expression call. */
+export type EngineResult<Expr extends string, Input, Defaults, Options> = FhirpathResultForContext<
   Expr,
-  NormalizedInputRoot<Input>,
-  EngineTypeContext<Defaults, Options>
+  EngineInputRoot<Input>,
+  MergeFhirpathTypeContexts<FhirpathTypeContextOf<Defaults>, FhirpathTypeContextOf<Options>>
 >
 
-type ProjectionTypeContext<Defaults, Options> = MergeFhirpathTypeContexts<
-  EngineTypeContext<Defaults, Options>,
-  {
-    env: {
-      rowIndex: { type: 'System.Integer' }
-      rowTotal: { type: 'System.Integer' }
+/** The inferred row returned by project(), including its built-in row variables. */
+export type EngineProjection<Columns extends ProjectionColumns, Input, Defaults, Options> = Projection<
+  Columns,
+  EngineInputRoot<Input>,
+  MergeFhirpathTypeContexts<
+    MergeFhirpathTypeContexts<FhirpathTypeContextOf<Defaults>, FhirpathTypeContextOf<Options>>,
+    {
+      env: {
+        rowIndex: { type: 'System.Integer' }
+        rowTotal: { type: 'System.Integer' }
+      }
     }
-  }
+  >
 >
 
 /** Engines created during the current recording session. */
@@ -145,7 +148,7 @@ export class FhirPathEngine<const Defaults extends EngineOptions = EmptyFhirpath
 
   /** Compile (LRU-cached by expression text) and evaluate in one call; typed like `compile().evaluate()`. */
   evaluate<const Expr extends string, T extends keyof R4TypeOf>(
-    expression: Expr | CompiledForEngine<Expr>,
+    expression: EngineExpression<Expr>,
     input: EngineInput<Expr> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T][]
@@ -154,7 +157,7 @@ export class FhirPathEngine<const Defaults extends EngineOptions = EmptyFhirpath
     const Input extends EngineInput<Expr> | undefined = undefined,
     const Options extends object = EmptyFhirpathTypeContext,
   >(
-    expression: Expr | CompiledForEngine<Expr>,
+    expression: EngineExpression<Expr>,
     input?: Input,
     options?: Declaring<Options>
   ): EngineResult<Expr, Input, Defaults, Options>
@@ -178,7 +181,7 @@ export class FhirPathEngine<const Defaults extends EngineOptions = EmptyFhirpath
 
   /** The first result, or undefined when the expression comes up empty. */
   first<const Expr extends string, T extends keyof R4TypeOf>(
-    expression: Expr | CompiledForEngine<Expr>,
+    expression: EngineExpression<Expr>,
     input: EngineInput<Expr> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T] | undefined
@@ -187,7 +190,7 @@ export class FhirPathEngine<const Defaults extends EngineOptions = EmptyFhirpath
     const Input extends EngineInput<Expr> | undefined = undefined,
     const Options extends object = EmptyFhirpathTypeContext,
   >(
-    expression: Expr | CompiledForEngine<Expr>,
+    expression: EngineExpression<Expr>,
     input?: Input,
     options?: Declaring<Options>
   ): EngineResult<Expr, Input, Defaults, Options>[number] | undefined
@@ -236,20 +239,12 @@ export class FhirPathEngine<const Defaults extends EngineOptions = EmptyFhirpath
     const Input extends readonly unknown[] | BundleLike,
     const Columns extends ProjectionColumns,
     const Options extends object = EmptyFhirpathTypeContext,
-  >(
-    input: Input,
-    columns: Columns,
-    options?: Declaring<Options>
-  ): Projection<Columns, NormalizedInputRoot<Input>, ProjectionTypeContext<Defaults, Options>>[]
+  >(input: Input, columns: Columns, options?: Declaring<Options>): EngineProjection<Columns, Input, Defaults, Options>[]
   project<
     const Input,
     const Columns extends ProjectionColumns,
     const Options extends object = EmptyFhirpathTypeContext,
-  >(
-    input: Input,
-    columns: Columns,
-    options?: Declaring<Options>
-  ): Projection<Columns, NormalizedInputRoot<Input>, ProjectionTypeContext<Defaults, Options>>
+  >(input: Input, columns: Columns, options?: Declaring<Options>): EngineProjection<Columns, Input, Defaults, Options>
   project(input: unknown, columns: ProjectionColumns | DtoClass, options?: EvaluateOptions): unknown {
     if (typeof columns === 'function') {
       assertInputMatchesDto(input, columns)
@@ -351,7 +346,7 @@ export class BoundExpression<Expr extends string = string, Defaults extends Engi
     this.expression = expression
   }
 
-  get source(): string {
+  get source(): Expr {
     return this.expression.source
   }
 
