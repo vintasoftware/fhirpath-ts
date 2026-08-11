@@ -2,7 +2,7 @@
 
 export interface CompactFunctionRules {
   abs: readonly ['unknown']
-  aggregate: readonly ['argument', 0, 'argument']
+  aggregate: readonly ['union', 0 | 1, 'all']
   all: readonly ['fixed', 'System.Boolean', true]
   allFalse: readonly ['fixed', 'System.Boolean', true]
   allTrue: readonly ['fixed', 'System.Boolean', true]

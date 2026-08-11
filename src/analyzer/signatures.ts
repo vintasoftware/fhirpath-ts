@@ -260,9 +260,9 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   sqrt: MATH_FN,
   log: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: DECIMAL },
   power: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: UNKNOWN },
-  // The accumulator after each iteration is exactly the aggregator expression's
-  // state; an empty input may yield no value, which does not change its element type.
-  aggregate: { args: ['expression', 'any'], result: { kind: 'argument', index: 0, cardinality: 'argument' } },
+  // Each iteration replaces the accumulator with the aggregator result. An
+  // empty input returns init, when supplied, so both arguments can contribute.
+  aggregate: { args: ['expression', 'any'], result: { kind: 'union', sources: [0, 1], single: 'all' } },
   sum: { input: { kind: 'Numeric' }, result: UNKNOWN },
   min: { input: { kind: 'Numeric' }, result: UNKNOWN },
   max: { input: { kind: 'Numeric' }, result: UNKNOWN },

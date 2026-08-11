@@ -193,6 +193,9 @@ describe('type-inference capability registry', () => {
     expectTypeOf<FhirpathResult<'Patient.name.select($this.family)'>>().toEqualTypeOf<string[]>()
     expectTypeOf<FhirpathResult<'Patient.name.select($index)'>>().toEqualTypeOf<number[]>()
     expectTypeOf<FhirpathResult<"Patient.name.aggregate($total.toString(), '')">>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.aggregate($this.given.first(), 0)'>>().toEqualTypeOf<
+      (string | number)[]
+    >()
     expectTypeOf<FhirpathResult<'Patient.name.select(given.select($this.substring(1)) | family)'>>().toEqualTypeOf<
       string[]
     >()
