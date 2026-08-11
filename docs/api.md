@@ -262,6 +262,25 @@ per-call declaration winning. A `BoundExpression` returned by
 uses declarations supplied when it is evaluated. An explicit column or call
 `type` remains the escape hatch for an opaque expression.
 
+### Inference type exports
+
+These package-root types support wrappers and compile-time assertions. Most
+applications only need `FhirpathResult`, `FhirpathResultIn`, and the declaration
+types.
+
+| Type | Purpose |
+| --- | --- |
+| `FhirpathResult<Expr, Context>` | Infer a literal expression without an input root |
+| `FhirpathResultIn<Expr, Input, Context>` | Infer a literal expression against a named input type |
+| `FhirpathTypeDeclaration` / `FhirpathTypeDeclarations` | Declare host value types, collection shape, and Reference targets |
+| `FhirpathTypeContext` / `FhirpathFunctionDeclaration` | Describe standalone env, var, and function declarations |
+| `EmptyFhirpathTypeContext` | Empty default for context-aware generic wrappers |
+| `CompiledExpressionResult` / `InferredExpressionResult` | Select and compute a compiled expression's inferred result |
+| `EngineExpression` / `EngineInputRoot` | Describe accepted engine expressions and normalized input roots |
+| `EngineResult` | Compute the inferred result of an engine or bound-expression call |
+| `EngineProjectionContext` / `EngineProjection` | Compute projection declarations and row results |
+| `Declaring<Options, Accepted>` | Preserve literal option inference with exact literal-key checks |
+
 ### `env` and `vars`
 
 Both accept keys with or without `%`. Both merge by name between engine defaults

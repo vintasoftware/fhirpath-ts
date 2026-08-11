@@ -6,6 +6,7 @@ export type {
   CustomFunction,
   Declaring,
   EvaluateOptions,
+  InferredExpressionResult,
   OverloadedCustomFunction,
   SingleCustomFunction,
 } from './api/compile.ts'
