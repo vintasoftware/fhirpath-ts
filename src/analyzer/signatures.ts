@@ -163,7 +163,7 @@ const MATH_FN = {
  * What the analyzer knows about each function. Functions missing here still get
  * arity checks from the runtime registry; their results become unknown.
  */
-export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = {
+const FUNCTION_SIGNATURE_DEFINITIONS = {
   empty: { result: BOOLEAN },
   exists: { args: ['expression'], result: BOOLEAN },
   all: { args: ['expression'], result: BOOLEAN },
@@ -314,4 +314,7 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   // first non-empty argument, hence the union of all of them.
   coalesce: { args: ['expression'], result: { kind: 'arguments-union' } },
   type: { result: UNKNOWN },
-}
+} as const satisfies Readonly<Record<string, FunctionSignature>>
+
+export type FunctionSignatureName = keyof typeof FUNCTION_SIGNATURE_DEFINITIONS
+export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = FUNCTION_SIGNATURE_DEFINITIONS
