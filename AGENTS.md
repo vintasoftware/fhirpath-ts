@@ -184,8 +184,11 @@ pnpm typecheck
 pnpm test
 pnpm lint
 pnpm check:fhirpath
+pnpm check:inference
 pnpm check:type-perf
 pnpm coverage
+pnpm build
+pnpm check:package
 ```
 
 `scripts/type-perf-budget.json` sets the type-instantiation budget. Explain any

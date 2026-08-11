@@ -45,6 +45,7 @@ jobs:
         run: pnpm typecheck
 
       - name: Type-inference generated data and soundness
+        if: matrix.node-version == 24
         run: pnpm check:inference
 
       # The other half of the analyzer story: `fhirpath-check` imports the
@@ -59,6 +60,7 @@ jobs:
       # fail here against scripts/type-perf-budget.json instead of landing
       # silently. `pnpm check:type-perf --update` re-baselines deliberately.
       - name: Type-inference perf budget
+        if: matrix.node-version == 24
         run: pnpm check:type-perf
 
       # Coverage thresholds (vitest.config.ts) only guarantee anything if CI
