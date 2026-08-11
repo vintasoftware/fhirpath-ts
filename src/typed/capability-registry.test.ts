@@ -5,7 +5,7 @@ import { OPERATOR_RESULT_RULES, TYPE_OPERATOR_RESULT_RULES } from '../analyzer/o
 import { FUNCTION_SIGNATURES } from '../analyzer/signatures.ts'
 import { compile } from '../api/compile.ts'
 import { parse } from '../parser/parser.ts'
-import type { HumanName, Organization, Practitioner, PractitionerRole, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type { Organization, Practitioner, PractitionerRole } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
 import { loadCorpus, runCorpusTest } from '../testing/fhirpathjs-harness.ts'
 import { loadOfficialSuite, runOfficialTest } from '../testing/official-harness.ts'
@@ -13,19 +13,6 @@ import { INFERENCE_CAPABILITIES } from './capability-registry.ts'
 import { RESOLVED_INFERENCE_CAPABILITIES } from './generated/capabilities.ts'
 import type {} from './generated/capability-assertions.types.ts'
 import type { FhirpathResult, FhirpathResultIn } from './infer.ts'
-
-type ObservationValue = R4TypeOf[
-  | 'Quantity'
-  | 'CodeableConcept'
-  | 'string'
-  | 'boolean'
-  | 'integer'
-  | 'Range'
-  | 'Ratio'
-  | 'SampledData'
-  | 'time'
-  | 'dateTime'
-  | 'Period']
 
 const patient = {
   resourceType: 'Patient',
@@ -200,105 +187,6 @@ describe('type-inference capability registry', () => {
       }
       expect(runManualCapability(id, capability.expression), id).toBeUndefined()
     }
-  })
-
-  it('pins the exact public result types of the baseline registry', () => {
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['path.resource-root']['expression']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['path.indexer']['expression']>
-    >().toEqualTypeOf<HumanName[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['path.choice-stem']['expression']>
-    >().toEqualTypeOf<ObservationValue[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['group.navigation']['expression']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['union.navigation']['expression']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['function.fixed']['expression']>
-    >().toEqualTypeOf<number[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['function.input']['expression']>
-    >().toEqualTypeOf<HumanName[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['function.select']['expression']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['variable.opaque-fixed']['expression']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['syntax.trivia']['expression']>
-    >().toEqualTypeOf<HumanName[]>()
-  })
-
-  it('pins opaque degradation for every baseline capability', () => {
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['path.resource-root']['degradation']>
-    >().toEqualTypeOf<unknown[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['path.indexer']['degradation']>
-    >().toEqualTypeOf<unknown[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['path.choice-stem']['degradation']>
-    >().toEqualTypeOf<unknown[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['group.navigation']['degradation']>
-    >().toEqualTypeOf<unknown[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['union.navigation']['degradation']>
-    >().toEqualTypeOf<unknown[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['function.fixed']['degradation']>
-    >().toEqualTypeOf<unknown[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['function.input']['degradation']>
-    >().toEqualTypeOf<unknown[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['function.select']['degradation']>
-    >().toEqualTypeOf<unknown[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['variable.opaque-fixed']['degradation']>
-    >().toEqualTypeOf<unknown[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['syntax.trivia']['degradation']>
-    >().toEqualTypeOf<unknown[]>()
-  })
-
-  it('pins downstream composition for every baseline capability', () => {
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['path.resource-root']['composition']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['path.indexer']['composition']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['path.choice-stem']['composition']>
-    >().toEqualTypeOf<number[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['group.navigation']['composition']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['union.navigation']['composition']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['function.fixed']['composition']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['function.input']['composition']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['function.select']['composition']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['variable.opaque-fixed']['composition']>
-    >().toEqualTypeOf<string[]>()
-    expectTypeOf<
-      FhirpathResult<(typeof RESOLVED_INFERENCE_CAPABILITIES)['syntax.trivia']['composition']>
-    >().toEqualTypeOf<HumanName[]>()
   })
 
   it('keeps lambda frames, local variables, and Reference targets precise', () => {
