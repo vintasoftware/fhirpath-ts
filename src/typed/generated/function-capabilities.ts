@@ -116,7 +116,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   'builtin.as': {
     family: 'function-fixed',
     source: {
-      expression: 'Patient.name.as(HumanName)',
+      expression: 'Patient.name.first().as(HumanName)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'R4TypeOf["HumanName"][]',
@@ -124,10 +124,10 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     runtime: false,
     analyzer: {
       types: ['FHIR.HumanName'],
-      single: false,
+      single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.as(HumanName)).count()',
+    composition: '(Patient.name.first().as(HumanName)).count()',
   },
   'builtin.avg': {
     family: 'function-fixed',

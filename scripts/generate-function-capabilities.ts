@@ -31,7 +31,13 @@ const entries = Object.fromEntries(
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([name, signature]) => {
       const expression = functionExpression(name, signature)
-      const analyzer = analyzeExpressionDetailed(expression, { model: r4Model }).result
+      const analysis = analyzeExpressionDetailed(expression, { model: r4Model })
+      const errors = analysis.diagnostics.filter(diagnostic => diagnostic.severity === 'error')
+      if (errors.length > 0) {
+        const details = errors.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join('; ')
+        throw new Error(`invalid capability expression for ${name}: ${expression} (${details})`)
+      }
+      const analyzer = analysis.result
       return [
         `builtin.${name}`,
         {
@@ -87,8 +93,9 @@ function functionExpression(name: string, signature: FunctionSignature): string 
     case 'resolve':
       return 'Patient.generalPractitioner.resolve()'
     case 'ofType':
-    case 'as':
       return `Patient.name.${name}(HumanName)`
+    case 'as':
+      return 'Patient.name.first().as(HumanName)'
     case 'select':
       return 'Patient.name.select(given)'
     case 'iif':

@@ -779,13 +779,13 @@ export type BuiltinAnyTrueFastSlowParity = Assert<FastSlowInferenceParity<'true.
 export type BuiltinAnyTruePositive = Assert<Equal<FhirpathResultIn<'true.anyTrue()', 'opaque'>, boolean[]>>
 export type BuiltinAnyTrueDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
 export type BuiltinAnyTrueComposition = Assert<Equal<FhirpathResultIn<'(true.anyTrue()).count()', 'opaque'>, number[]>>
-export type BuiltinAsFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.as(HumanName)', 'opaque'>>
+export type BuiltinAsFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.first().as(HumanName)', 'opaque'>>
 export type BuiltinAsPositive = Assert<
-  Equal<FhirpathResultIn<'Patient.name.as(HumanName)', 'opaque'>, R4TypeOf['HumanName'][]>
+  Equal<FhirpathResultIn<'Patient.name.first().as(HumanName)', 'opaque'>, R4TypeOf['HumanName'][]>
 >
 export type BuiltinAsDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
 export type BuiltinAsComposition = Assert<
-  Equal<FhirpathResultIn<'(Patient.name.as(HumanName)).count()', 'opaque'>, number[]>
+  Equal<FhirpathResultIn<'(Patient.name.first().as(HumanName)).count()', 'opaque'>, number[]>
 >
 export type BuiltinAvgFastSlowParity = Assert<FastSlowInferenceParity<'2.avg()', 'opaque'>>
 export type BuiltinAvgPositive = Assert<Equal<FhirpathResultIn<'2.avg()', 'opaque'>, number[]>>
