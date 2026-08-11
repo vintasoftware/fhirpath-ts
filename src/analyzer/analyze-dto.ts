@@ -1,6 +1,7 @@
 import { columnResultType } from '../api/column-signature.ts'
 import { type ColumnSpec, type DtoClass, dtoDefinition } from '../api/dto.ts'
 import type { ModelProvider } from '../model/provider.ts'
+import type { FhirpathTypeDeclaration, FhirpathTypeDeclarations } from '../typed/infer.ts'
 import { valueKindOfTypeName } from '../values/type-compat.ts'
 import {
   analyzeExpressionDetailed,
@@ -20,7 +21,14 @@ export interface DtoDiagnostic extends AnalyzerDiagnostic {
 
 /** Engine context read by the analyzer without importing the engine implementation. */
 export interface AnalyzedContext {
-  readonly defaults: { model?: ModelProvider; functions?: Record<string, DeclaredFunction>; env?: object }
+  readonly defaults: {
+    model?: ModelProvider
+    functions?: Record<string, DeclaredFunction>
+    env?: object
+    envTypes?: FhirpathTypeDeclarations
+    vars?: object
+    varTypes?: FhirpathTypeDeclarations
+  }
 }
 
 /** A context that also knows which DTOs it registered, which is what a sweep needs. */
@@ -46,22 +54,41 @@ function contextOf(options: AnalyzeDtoOptions | undefined): AnalyzeOptions {
   if (engine === undefined) {
     return caller
   }
-  const { model, functions, env } = engine.defaults
+  const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
   return {
     ...(model !== undefined && { model }),
     ...caller,
     functions: { ...functions, ...caller.functions },
-    variables: { ...envVariables(env), ...caller.variables },
+    variables: {
+      ...declaredVariables(env, envTypes),
+      ...declaredVariables(vars, varTypes),
+      ...caller.variables,
+    },
   }
 }
 
 /** An engine's env names, declared as variables the expressions may read. */
-function envVariables(env: object | undefined): Record<string, DeclaredVariable> {
+function declaredVariables(
+  values: object | undefined,
+  declarations: FhirpathTypeDeclarations | undefined
+): Record<string, DeclaredVariable> {
   const variables: Record<string, DeclaredVariable> = {}
-  for (const name of Object.keys(env ?? {})) {
-    variables[bare(name)] = {}
+  for (const name of new Set([...Object.keys(values ?? {}), ...Object.keys(declarations ?? {})])) {
+    const declaration = declarations?.[name] ?? declarations?.[`%${bare(name)}`]
+    variables[bare(name)] = declaration === undefined ? {} : analyzerVariable(declaration)
   }
   return variables
+}
+
+function analyzerVariable(declaration: FhirpathTypeDeclaration): DeclaredVariable {
+  const types = typeof declaration.type === 'string' ? [declaration.type] : [...declaration.type]
+  return {
+    types,
+    single: declaration.collection === true ? false : true,
+    ...(declaration.targets !== undefined && {
+      targets: typeof declaration.targets === 'string' ? [declaration.targets] : [...declaration.targets],
+    }),
+  }
 }
 
 /**

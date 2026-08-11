@@ -1595,6 +1595,219 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     composition: 'Patient.generalPractitioner.where($this.exists())[0].resolve().ofType(Organization).name',
     expression: 'Patient.generalPractitioner.where($this.exists())[0].resolve()',
   },
+  'host-context.environment': {
+    family: 'host-context',
+    source: {
+      expression: '%report.status',
+      corpusGap: 'host declaration route assertion',
+    },
+    typeContext: {
+      env: {
+        report: {
+          type: 'DiagnosticReport',
+        },
+      },
+    },
+    context: {
+      variables: {
+        report: {
+          types: ['DiagnosticReport'],
+          single: true,
+        },
+      },
+    },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: {
+      types: ['FHIR.code'],
+      single: true,
+    },
+    degradation: '%report.nope',
+    composition: '%report.status.first()',
+    expression: '%report.status',
+  },
+  'host-context.variable': {
+    family: 'host-context',
+    source: {
+      expression: '%subject.name.given',
+      corpusGap: 'pre-resolved var declaration route assertion',
+    },
+    typeContext: {
+      vars: {
+        subject: {
+          type: 'Patient',
+        },
+      },
+    },
+    context: {
+      variables: {
+        subject: {
+          types: ['Patient'],
+          single: true,
+        },
+      },
+    },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: {
+      types: ['FHIR.string'],
+      single: false,
+    },
+    degradation: '%subject.nope',
+    composition: '%subject.name.given.first()',
+    expression: '%subject.name.given',
+  },
+  'host-context.function-signature': {
+    family: 'host-context',
+    source: {
+      expression: 'Patient.statusText()',
+      corpusGap: 'custom signature route assertion',
+    },
+    typeContext: {
+      functions: {
+        statusText: {
+          expression: "'fallback'",
+          signature: {
+            result: {
+              types: ['string'],
+              single: true,
+            },
+          },
+        },
+      },
+    },
+    context: {
+      functions: {
+        statusText: {
+          expression: "'fallback'",
+          signature: {
+            result: {
+              types: ['string'],
+              single: true,
+            },
+          },
+        },
+      },
+    },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: {
+      types: ['FHIR.string'],
+      single: true,
+    },
+    degradation: 'Patient.missingFunction()',
+    composition: 'Patient.statusText().upper()',
+    expression: 'Patient.statusText()',
+  },
+  'host-context.function-body': {
+    family: 'host-context',
+    source: {
+      expression: 'Condition.code.displayText()',
+      corpusGap: 'literal function-body route assertion',
+    },
+    typeContext: {
+      functions: {
+        displayText: {
+          expression: '(text | coding.display).first()',
+        },
+      },
+    },
+    context: {
+      functions: {
+        displayText: {
+          expression: '(text | coding.display).first()',
+        },
+      },
+    },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: {
+      types: ['FHIR.string'],
+      single: true,
+    },
+    degradation: 'Condition.code.displayText().nope',
+    composition: 'Condition.code.displayText().upper()',
+    expression: 'Condition.code.displayText()',
+  },
+  'host-context.function-local-overlay': {
+    family: 'host-context',
+    source: {
+      expression: 'Condition.code.labelled()',
+      corpusGap: 'function-local envTypes route assertion',
+    },
+    typeContext: {
+      functions: {
+        labelled: {
+          expression: '%prefix & text',
+          envTypes: {
+            prefix: {
+              type: 'string',
+            },
+          },
+        },
+      },
+    },
+    context: {
+      functions: {
+        labelled: {
+          expression: '%prefix & text',
+          envTypes: {
+            prefix: {
+              type: 'string',
+            },
+          },
+        },
+      },
+    },
+    expectedType: 'string[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: {
+      types: ['System.String'],
+      single: true,
+    },
+    degradation: 'Condition.code.labelled().nope',
+    composition: 'Condition.code.labelled().length()',
+    expression: 'Condition.code.labelled()',
+  },
+  'host-context.reference-targets': {
+    family: 'host-context',
+    source: {
+      expression: '%subject.resolve().name.given',
+      corpusGap: 'declared Reference target route assertion',
+    },
+    typeContext: {
+      env: {
+        subject: {
+          type: 'Reference',
+          targets: 'Practitioner',
+        },
+      },
+    },
+    context: {
+      variables: {
+        subject: {
+          types: ['Reference'],
+          single: true,
+          targets: ['Practitioner'],
+        },
+      },
+    },
+    expectedType: 'string[]',
+    compositionType: 'string[]',
+    runtime: false,
+    analyzer: {
+      types: ['FHIR.string'],
+      single: false,
+    },
+    degradation: '%subject.resolve().nope',
+    composition: '%subject.resolve().name.given.first()',
+    expression: '%subject.resolve().name.given',
+  },
   'builtin.abs': {
     family: 'function-fixed',
     source: {

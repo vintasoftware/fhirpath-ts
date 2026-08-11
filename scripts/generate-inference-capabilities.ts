@@ -55,10 +55,11 @@ ${Object.entries(resolved)
       .map(part => `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`)
       .join('')
     const input = 'input' in capability ? capability.input : 'inputType' in capability ? capability.inputType : 'opaque'
+    const context = 'typeContext' in capability ? `, ${JSON.stringify(capability.typeContext)}` : ''
     return [
-      `export type ${name}Positive = Assert<Equal<FhirpathResultIn<${JSON.stringify(capability.expression)}, ${JSON.stringify(input)}>, ${capability.expectedType}>>`,
-      `export type ${name}Degradation = Assert<Equal<FhirpathResultIn<${JSON.stringify(capability.degradation)}, ${JSON.stringify(input)}>, unknown[]>>`,
-      `export type ${name}Composition = Assert<Equal<FhirpathResultIn<${JSON.stringify(capability.composition)}, ${JSON.stringify(input)}>, ${capability.compositionType}>>`,
+      `export type ${name}Positive = Assert<Equal<FhirpathResultIn<${JSON.stringify(capability.expression)}, ${JSON.stringify(input)}${context}>, ${capability.expectedType}>>`,
+      `export type ${name}Degradation = Assert<Equal<FhirpathResultIn<${JSON.stringify(capability.degradation)}, ${JSON.stringify(input)}${context}>, unknown[]>>`,
+      `export type ${name}Composition = Assert<Equal<FhirpathResultIn<${JSON.stringify(capability.composition)}, ${JSON.stringify(input)}${context}>, ${capability.compositionType}>>`,
     ]
   })
   .join('\n')}

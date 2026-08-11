@@ -457,6 +457,159 @@ export type ReferenceStatePreservationComposition = Assert<
     string[]
   >
 >
+export type HostContextEnvironmentPositive = Assert<
+  Equal<FhirpathResultIn<'%report.status', 'opaque', { env: { report: { type: 'DiagnosticReport' } } }>, string[]>
+>
+export type HostContextEnvironmentDegradation = Assert<
+  Equal<FhirpathResultIn<'%report.nope', 'opaque', { env: { report: { type: 'DiagnosticReport' } } }>, unknown[]>
+>
+export type HostContextEnvironmentComposition = Assert<
+  Equal<
+    FhirpathResultIn<'%report.status.first()', 'opaque', { env: { report: { type: 'DiagnosticReport' } } }>,
+    string[]
+  >
+>
+export type HostContextVariablePositive = Assert<
+  Equal<FhirpathResultIn<'%subject.name.given', 'opaque', { vars: { subject: { type: 'Patient' } } }>, string[]>
+>
+export type HostContextVariableDegradation = Assert<
+  Equal<FhirpathResultIn<'%subject.nope', 'opaque', { vars: { subject: { type: 'Patient' } } }>, unknown[]>
+>
+export type HostContextVariableComposition = Assert<
+  Equal<FhirpathResultIn<'%subject.name.given.first()', 'opaque', { vars: { subject: { type: 'Patient' } } }>, string[]>
+>
+export type HostContextFunctionSignaturePositive = Assert<
+  Equal<
+    FhirpathResultIn<
+      'Patient.statusText()',
+      'opaque',
+      {
+        functions: {
+          statusText: { expression: "'fallback'"; signature: { result: { types: ['string']; single: true } } }
+        }
+      }
+    >,
+    string[]
+  >
+>
+export type HostContextFunctionSignatureDegradation = Assert<
+  Equal<
+    FhirpathResultIn<
+      'Patient.missingFunction()',
+      'opaque',
+      {
+        functions: {
+          statusText: { expression: "'fallback'"; signature: { result: { types: ['string']; single: true } } }
+        }
+      }
+    >,
+    unknown[]
+  >
+>
+export type HostContextFunctionSignatureComposition = Assert<
+  Equal<
+    FhirpathResultIn<
+      'Patient.statusText().upper()',
+      'opaque',
+      {
+        functions: {
+          statusText: { expression: "'fallback'"; signature: { result: { types: ['string']; single: true } } }
+        }
+      }
+    >,
+    string[]
+  >
+>
+export type HostContextFunctionBodyPositive = Assert<
+  Equal<
+    FhirpathResultIn<
+      'Condition.code.displayText()',
+      'opaque',
+      { functions: { displayText: { expression: '(text | coding.display).first()' } } }
+    >,
+    string[]
+  >
+>
+export type HostContextFunctionBodyDegradation = Assert<
+  Equal<
+    FhirpathResultIn<
+      'Condition.code.displayText().nope',
+      'opaque',
+      { functions: { displayText: { expression: '(text | coding.display).first()' } } }
+    >,
+    unknown[]
+  >
+>
+export type HostContextFunctionBodyComposition = Assert<
+  Equal<
+    FhirpathResultIn<
+      'Condition.code.displayText().upper()',
+      'opaque',
+      { functions: { displayText: { expression: '(text | coding.display).first()' } } }
+    >,
+    string[]
+  >
+>
+export type HostContextFunctionLocalOverlayPositive = Assert<
+  Equal<
+    FhirpathResultIn<
+      'Condition.code.labelled()',
+      'opaque',
+      { functions: { labelled: { expression: '%prefix & text'; envTypes: { prefix: { type: 'string' } } } } }
+    >,
+    string[]
+  >
+>
+export type HostContextFunctionLocalOverlayDegradation = Assert<
+  Equal<
+    FhirpathResultIn<
+      'Condition.code.labelled().nope',
+      'opaque',
+      { functions: { labelled: { expression: '%prefix & text'; envTypes: { prefix: { type: 'string' } } } } }
+    >,
+    unknown[]
+  >
+>
+export type HostContextFunctionLocalOverlayComposition = Assert<
+  Equal<
+    FhirpathResultIn<
+      'Condition.code.labelled().length()',
+      'opaque',
+      { functions: { labelled: { expression: '%prefix & text'; envTypes: { prefix: { type: 'string' } } } } }
+    >,
+    number[]
+  >
+>
+export type HostContextReferenceTargetsPositive = Assert<
+  Equal<
+    FhirpathResultIn<
+      '%subject.resolve().name.given',
+      'opaque',
+      { env: { subject: { type: 'Reference'; targets: 'Practitioner' } } }
+    >,
+    string[]
+  >
+>
+export type HostContextReferenceTargetsDegradation = Assert<
+  Equal<
+    FhirpathResultIn<
+      '%subject.resolve().nope',
+      'opaque',
+      { env: { subject: { type: 'Reference'; targets: 'Practitioner' } } }
+    >,
+    unknown[]
+  >
+>
+export type HostContextReferenceTargetsComposition = Assert<
+  Equal<
+    FhirpathResultIn<
+      '%subject.resolve().name.given.first()',
+      'opaque',
+      { env: { subject: { type: 'Reference'; targets: 'Practitioner' } } }
+    >,
+    string[]
+  >
+>
 export type BuiltinAbsPositive = Assert<Equal<FhirpathResultIn<'Patient.name.first().abs()', 'opaque'>, unknown[]>>
 export type BuiltinAbsDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
 export type BuiltinAbsComposition = Assert<

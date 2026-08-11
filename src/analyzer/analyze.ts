@@ -37,17 +37,30 @@ export interface DeclaredVariable {
   types?: string[]
   /** True when the variable always holds at most one item. */
   single?: boolean
+  /** Canonical resource types a declared Reference may resolve to. */
+  targets?: string[]
 }
 
 /** A host function declaration. Arity resolves the call; an optional signature checks it. */
 export type SingleDeclaredFunction =
-  | { minArity?: number; maxArity?: number; expression?: never; signature?: CustomFunctionSignature }
+  | {
+      minArity?: number
+      maxArity?: number
+      expression?: never
+      signature?: CustomFunctionSignature
+      criteria?: never
+      envTypes?: never
+    }
   | {
       /** The body of an expression-defined CustomFunction; its presence pins the arity to 0. */
       expression: unknown
       minArity?: never
       maxArity?: never
       signature?: CustomFunctionSignature
+      criteria?: boolean
+      envTypes?: Readonly<
+        Record<string, { type: string | readonly string[]; collection?: boolean; targets?: string | readonly string[] }>
+      >
     }
 
 /** Same-name functions selected by the call focus. Unknown focus keeps only their shared claims. */
@@ -218,7 +231,8 @@ class Analyzer {
   private readonly frames: StaticState[] = []
   /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
-  private readonly declaredVariables: ReadonlyMap<string, DeclaredVariable>
+  private readonly declaredVariables: Map<string, DeclaredVariable>
+  private readonly activeExpressionFunctions = new Set<string>()
 
   constructor(options: AnalyzeOptions | undefined) {
     this.model = options?.model
@@ -314,7 +328,11 @@ class Analyzer {
     }
     const declared = this.declaredVariables.get(node.name)
     if (declared !== undefined) {
-      return { types: declared.types?.map(type => this.canonicalize(type)), single: declared.single }
+      return {
+        types: declared.types?.map(type => this.canonicalize(type)),
+        single: declared.single,
+        ...(declared.targets !== undefined && { targets: declared.targets.map(type => this.canonicalize(type)) }),
+      }
     }
     switch (node.name) {
       case 'context':
@@ -530,7 +548,11 @@ class Analyzer {
     const signature = registered !== undefined ? FUNCTION_SIGNATURES[node.name] : this.toSignature(custom?.signature)
     if (!signature) {
       this.walkUncheckedArguments(node, input, scope)
-      return UNKNOWN
+      if (custom?.expression === undefined) {
+        return UNKNOWN
+      }
+      const body = this.walkExpressionFunction(node.name, custom, input)
+      return custom.criteria === true ? { types: ['System.Boolean'], single: true } : body
     }
     this.checkCallInput(node, signature, input)
     const { argStates, typeTarget } = this.walkArguments(node, signature, input, scope)
@@ -543,7 +565,53 @@ class Analyzer {
     if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
       return { types: this.narrowTypes(input, typeTarget, node.span), single: input.single }
     }
+    if (custom?.expression !== undefined) {
+      if (custom.criteria === true) {
+        return { types: ['System.Boolean'], single: true }
+      }
+      if (custom.signature?.result === undefined) {
+        return this.walkExpressionFunction(node.name, custom, input)
+      }
+    }
     return applyResultRule(signature.result, input, argStates)
+  }
+
+  /** Infer a literal expression-function body under its call focus and temporary local environment declarations. */
+  private walkExpressionFunction(name: string, declaration: ResolvedDeclaration, input: StaticState): StaticState {
+    const source = declaration.expression
+    if (source === undefined || this.activeExpressionFunctions.has(name)) {
+      return UNKNOWN
+    }
+    let ast: AstNode
+    try {
+      ast = parse(source)
+    } catch {
+      return UNKNOWN
+    }
+    const previous = new Map<string, DeclaredVariable | undefined>()
+    for (const [declaredName, variable] of Object.entries(declaration.variables ?? {})) {
+      const bare = declaredName.startsWith('%') ? declaredName.slice(1) : declaredName
+      previous.set(bare, this.declaredVariables.get(bare))
+      this.declaredVariables.set(bare, variable)
+    }
+    const diagnosticCount = this.diagnostics.length
+    this.activeExpressionFunctions.add(name)
+    this.frames.push(input)
+    try {
+      const result = this.walk(ast, input, emptyScope())
+      this.diagnostics.length = diagnosticCount
+      return result
+    } finally {
+      this.frames.pop()
+      this.activeExpressionFunctions.delete(name)
+      for (const [declaredName, variable] of previous) {
+        if (variable === undefined) {
+          this.declaredVariables.delete(declaredName)
+        } else {
+          this.declaredVariables.set(declaredName, variable)
+        }
+      }
+    }
   }
 
   /**
@@ -1006,15 +1074,57 @@ interface ResolvedDeclaration {
   minArity?: number
   maxArity?: number
   signature?: CustomFunctionSignature
+  expression?: string
+  criteria?: boolean
+  variables?: Readonly<Record<string, DeclaredVariable>>
 }
 
 function resolvedDeclaration(declared: SingleDeclaredFunction): ResolvedDeclaration {
   if (declared.expression === undefined) {
-    return declared
+    return {
+      ...(declared.minArity !== undefined && { minArity: declared.minArity }),
+      ...(declared.maxArity !== undefined && { maxArity: declared.maxArity }),
+      ...(declared.signature !== undefined && { signature: declared.signature }),
+    }
   }
   // An expression-defined function takes no arguments, which is how the runtime
   // calls it (`evaluateHostFunction`).
-  return { minArity: 0, maxArity: 0, ...(declared.signature !== undefined && { signature: declared.signature }) }
+  const expression = expressionSource(declared.expression)
+  return {
+    minArity: 0,
+    maxArity: 0,
+    ...(declared.signature !== undefined && { signature: declared.signature }),
+    ...(expression !== undefined && { expression }),
+    ...(declared.criteria !== undefined && { criteria: declared.criteria }),
+    ...(declared.envTypes !== undefined && { variables: declaredTypeVariables(declared.envTypes) }),
+  }
+}
+
+function expressionSource(expression: unknown): string | undefined {
+  if (typeof expression === 'string') {
+    return expression
+  }
+  const source = (expression as { source?: unknown } | undefined)?.source
+  return typeof source === 'string' ? source : undefined
+}
+
+function declaredTypeVariables(
+  declarations: Readonly<
+    Record<string, { type: string | readonly string[]; collection?: boolean; targets?: string | readonly string[] }>
+  >
+): Readonly<Record<string, DeclaredVariable>> {
+  return Object.fromEntries(
+    Object.entries(declarations).map(([name, declaration]) => [
+      name.startsWith('%') ? name.slice(1) : name,
+      {
+        types: typeof declaration.type === 'string' ? [declaration.type] : [...declaration.type],
+        single: declaration.collection === true ? false : true,
+        ...(declaration.targets !== undefined && {
+          targets: typeof declaration.targets === 'string' ? [declaration.targets] : [...declaration.targets],
+        }),
+      },
+    ])
+  )
 }
 
 /**

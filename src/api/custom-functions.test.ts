@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { analyzeExpression } from '../analyzer/analyze.ts'
+import { analyzeExpression, analyzeExpressionDetailed } from '../analyzer/analyze.ts'
 import { compile, type CustomFunction, evaluate } from '../index.ts'
 import { r4Model } from '../r4/index.ts'
 
@@ -231,6 +231,23 @@ describe('custom functions in the analyzer', () => {
     expect(codes("maritalStatus.displayText('x')")).toEqual(['wrong-arity'])
     // The declared String result feeds later checks.
     expect(codes('maritalStatus.displayText().length()')).toEqual([])
+  })
+
+  it('infers an undeclared expression body under the call focus and its local type overlay', () => {
+    const functions = {
+      displayText: { expression: '(text | coding.display.first() | coding.first().code).first()' },
+      labelled: {
+        expression: '%prefix & text',
+        envTypes: { prefix: { type: 'string' } },
+      },
+      holds: { expression: 'nothing.here', criteria: true },
+    } as const satisfies Record<string, CustomFunction>
+    const analyze = (expression: string) =>
+      analyzeExpressionDetailed(expression, { model: r4Model, inputType: 'Condition', functions }).result
+
+    expect(analyze('code.displayText()')).toEqual({ types: ['FHIR.string', 'FHIR.code'], single: true })
+    expect(analyze('code.labelled()')).toEqual({ types: ['System.String'], single: true })
+    expect(analyze('code.holds()')).toEqual({ types: ['System.Boolean'], single: true })
   })
 })
 

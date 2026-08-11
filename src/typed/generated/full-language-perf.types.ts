@@ -182,234 +182,298 @@ export type Composition077 = FhirpathResultIn<
   'Patient.generalPractitioner.where($this.exists())[0].resolve().ofType(Organization).name',
   'opaque'
 >
-export type Capability078 = FhirpathResultIn<'Patient.name.first().abs()', 'opaque'>
-export type Composition078 = FhirpathResultIn<'(Patient.name.first().abs()).count()', 'opaque'>
-export type Capability079 = FhirpathResultIn<'Patient.name.aggregate($total | $this, {})', 'opaque'>
-export type Composition079 = FhirpathResultIn<'(Patient.name.aggregate($total | $this, {})).count()', 'opaque'>
-export type Capability080 = FhirpathResultIn<'Patient.name.all($this)', 'opaque'>
-export type Composition080 = FhirpathResultIn<'(Patient.name.all($this)).count()', 'opaque'>
-export type Capability081 = FhirpathResultIn<'true.allFalse()', 'opaque'>
-export type Composition081 = FhirpathResultIn<'(true.allFalse()).count()', 'opaque'>
-export type Capability082 = FhirpathResultIn<'true.allTrue()', 'opaque'>
-export type Composition082 = FhirpathResultIn<'(true.allTrue()).count()', 'opaque'>
-export type Capability083 = FhirpathResultIn<'true.anyFalse()', 'opaque'>
-export type Composition083 = FhirpathResultIn<'(true.anyFalse()).count()', 'opaque'>
-export type Capability084 = FhirpathResultIn<'true.anyTrue()', 'opaque'>
-export type Composition084 = FhirpathResultIn<'(true.anyTrue()).count()', 'opaque'>
-export type Capability085 = FhirpathResultIn<'Patient.name.as(HumanName)', 'opaque'>
-export type Composition085 = FhirpathResultIn<'(Patient.name.as(HumanName)).count()', 'opaque'>
-export type Capability086 = FhirpathResultIn<'2.avg()', 'opaque'>
-export type Composition086 = FhirpathResultIn<'(2.avg()).count()', 'opaque'>
-export type Capability087 = FhirpathResultIn<'2.ceiling()', 'opaque'>
-export type Composition087 = FhirpathResultIn<'(2.ceiling()).count()', 'opaque'>
-export type Capability088 = FhirpathResultIn<'Patient.name.children()', 'opaque'>
-export type Composition088 = FhirpathResultIn<'(Patient.name.children()).count()', 'opaque'>
-export type Capability089 = FhirpathResultIn<'Patient.name.coalesce(given, family)', 'opaque'>
-export type Composition089 = FhirpathResultIn<'(Patient.name.coalesce(given, family)).count()', 'opaque'>
-export type Capability090 = FhirpathResultIn<'Patient.name.combine(Patient.name)', 'opaque'>
-export type Composition090 = FhirpathResultIn<'(Patient.name.combine(Patient.name)).count()', 'opaque'>
-export type Capability091 = FhirpathResultIn<"1 'mg'.comparable(1 'mg')", 'opaque'>
-export type Composition091 = FhirpathResultIn<"(1 'mg'.comparable(1 'mg')).count()", 'opaque'>
-export type Capability092 = FhirpathResultIn<"Patient.name.first().conformsTo('x')", 'opaque'>
-export type Composition092 = FhirpathResultIn<"(Patient.name.first().conformsTo('x')).count()", 'opaque'>
-export type Capability093 = FhirpathResultIn<"'abc'.contains('x')", 'opaque'>
-export type Composition093 = FhirpathResultIn<"('abc'.contains('x')).count()", 'opaque'>
-export type Capability094 = FhirpathResultIn<'Patient.name.first().convertsToBoolean()', 'opaque'>
-export type Composition094 = FhirpathResultIn<'(Patient.name.first().convertsToBoolean()).count()', 'opaque'>
-export type Capability095 = FhirpathResultIn<'Patient.name.first().convertsToDate()', 'opaque'>
-export type Composition095 = FhirpathResultIn<'(Patient.name.first().convertsToDate()).count()', 'opaque'>
-export type Capability096 = FhirpathResultIn<'Patient.name.first().convertsToDateTime()', 'opaque'>
-export type Composition096 = FhirpathResultIn<'(Patient.name.first().convertsToDateTime()).count()', 'opaque'>
-export type Capability097 = FhirpathResultIn<'Patient.name.first().convertsToDecimal()', 'opaque'>
-export type Composition097 = FhirpathResultIn<'(Patient.name.first().convertsToDecimal()).count()', 'opaque'>
-export type Capability098 = FhirpathResultIn<'Patient.name.first().convertsToInteger()', 'opaque'>
-export type Composition098 = FhirpathResultIn<'(Patient.name.first().convertsToInteger()).count()', 'opaque'>
-export type Capability099 = FhirpathResultIn<'Patient.name.first().convertsToLong()', 'opaque'>
-export type Composition099 = FhirpathResultIn<'(Patient.name.first().convertsToLong()).count()', 'opaque'>
-export type Capability100 = FhirpathResultIn<"Patient.name.first().convertsToQuantity('x')", 'opaque'>
-export type Composition100 = FhirpathResultIn<"(Patient.name.first().convertsToQuantity('x')).count()", 'opaque'>
-export type Capability101 = FhirpathResultIn<'Patient.name.first().convertsToString()', 'opaque'>
-export type Composition101 = FhirpathResultIn<'(Patient.name.first().convertsToString()).count()', 'opaque'>
-export type Capability102 = FhirpathResultIn<'Patient.name.first().convertsToTime()', 'opaque'>
-export type Composition102 = FhirpathResultIn<'(Patient.name.first().convertsToTime()).count()', 'opaque'>
-export type Capability103 = FhirpathResultIn<'Patient.name.count()', 'opaque'>
-export type Composition103 = FhirpathResultIn<'(Patient.name.count()).count()', 'opaque'>
-export type Capability104 = FhirpathResultIn<'@2020-01-01.dateOf()', 'opaque'>
-export type Composition104 = FhirpathResultIn<'(@2020-01-01.dateOf()).count()', 'opaque'>
-export type Capability105 = FhirpathResultIn<'@2020-01-01.dayOf()', 'opaque'>
-export type Composition105 = FhirpathResultIn<'(@2020-01-01.dayOf()).count()', 'opaque'>
-export type Capability106 = FhirpathResultIn<"'abc'.decode('x')", 'opaque'>
-export type Composition106 = FhirpathResultIn<"('abc'.decode('x')).count()", 'opaque'>
-export type Capability107 = FhirpathResultIn<"Patient.name.defineVariable('generatedVariable')", 'opaque'>
-export type Composition107 = FhirpathResultIn<"(Patient.name.defineVariable('generatedVariable')).count()", 'opaque'>
-export type Capability108 = FhirpathResultIn<'Patient.name.descendants()', 'opaque'>
-export type Composition108 = FhirpathResultIn<'(Patient.name.descendants()).count()', 'opaque'>
-export type Capability109 = FhirpathResultIn<'Patient.name.distinct()', 'opaque'>
-export type Composition109 = FhirpathResultIn<'(Patient.name.distinct()).count()', 'opaque'>
-export type Capability110 = FhirpathResultIn<'Patient.name.empty()', 'opaque'>
-export type Composition110 = FhirpathResultIn<'(Patient.name.empty()).count()', 'opaque'>
-export type Capability111 = FhirpathResultIn<"'abc'.encode('x')", 'opaque'>
-export type Composition111 = FhirpathResultIn<"('abc'.encode('x')).count()", 'opaque'>
-export type Capability112 = FhirpathResultIn<"'abc'.endsWith('x')", 'opaque'>
-export type Composition112 = FhirpathResultIn<"('abc'.endsWith('x')).count()", 'opaque'>
-export type Capability113 = FhirpathResultIn<"'abc'.escape('x')", 'opaque'>
-export type Composition113 = FhirpathResultIn<"('abc'.escape('x')).count()", 'opaque'>
-export type Capability114 = FhirpathResultIn<"Patient.name.exclude('x')", 'opaque'>
-export type Composition114 = FhirpathResultIn<"(Patient.name.exclude('x')).count()", 'opaque'>
-export type Capability115 = FhirpathResultIn<'Patient.name.exists($this)', 'opaque'>
-export type Composition115 = FhirpathResultIn<'(Patient.name.exists($this)).count()', 'opaque'>
-export type Capability116 = FhirpathResultIn<'2.exp()', 'opaque'>
-export type Composition116 = FhirpathResultIn<'(2.exp()).count()', 'opaque'>
-export type Capability117 = FhirpathResultIn<"Patient.name.extension('x')", 'opaque'>
-export type Composition117 = FhirpathResultIn<"(Patient.name.extension('x')).count()", 'opaque'>
-export type Capability118 = FhirpathResultIn<'Patient.name.first()', 'opaque'>
-export type Composition118 = FhirpathResultIn<'(Patient.name.first()).count()', 'opaque'>
-export type Capability119 = FhirpathResultIn<'2.floor()', 'opaque'>
-export type Composition119 = FhirpathResultIn<'(2.floor()).count()', 'opaque'>
-export type Capability120 = FhirpathResultIn<'Patient.name.first().getValue()', 'opaque'>
-export type Composition120 = FhirpathResultIn<'(Patient.name.first().getValue()).count()', 'opaque'>
-export type Capability121 = FhirpathResultIn<'Patient.name.first().hasValue()', 'opaque'>
-export type Composition121 = FhirpathResultIn<'(Patient.name.first().hasValue()).count()', 'opaque'>
-export type Capability122 = FhirpathResultIn<'Patient.name.first().highBoundary(1)', 'opaque'>
-export type Composition122 = FhirpathResultIn<'(Patient.name.first().highBoundary(1)).count()', 'opaque'>
-export type Capability123 = FhirpathResultIn<'@2020-01-01.hourOf()', 'opaque'>
-export type Composition123 = FhirpathResultIn<'(@2020-01-01.hourOf()).count()', 'opaque'>
-export type Capability124 = FhirpathResultIn<'Patient.name.first().htmlChecks()', 'opaque'>
-export type Composition124 = FhirpathResultIn<'(Patient.name.first().htmlChecks()).count()', 'opaque'>
-export type Capability125 = FhirpathResultIn<'Patient.name.iif(true, given, family)', 'opaque'>
-export type Composition125 = FhirpathResultIn<'(Patient.name.iif(true, given, family)).count()', 'opaque'>
-export type Capability126 = FhirpathResultIn<"'abc'.indexOf('x')", 'opaque'>
-export type Composition126 = FhirpathResultIn<"('abc'.indexOf('x')).count()", 'opaque'>
-export type Capability127 = FhirpathResultIn<"Patient.name.intersect('x')", 'opaque'>
-export type Composition127 = FhirpathResultIn<"(Patient.name.intersect('x')).count()", 'opaque'>
-export type Capability128 = FhirpathResultIn<'Patient.name.first().is(HumanName)', 'opaque'>
-export type Composition128 = FhirpathResultIn<'(Patient.name.first().is(HumanName)).count()', 'opaque'>
-export type Capability129 = FhirpathResultIn<'Patient.name.isDistinct()', 'opaque'>
-export type Composition129 = FhirpathResultIn<'(Patient.name.isDistinct()).count()', 'opaque'>
-export type Capability130 = FhirpathResultIn<"'abc'.join('x')", 'opaque'>
-export type Composition130 = FhirpathResultIn<"('abc'.join('x')).count()", 'opaque'>
-export type Capability131 = FhirpathResultIn<'Patient.name.last()', 'opaque'>
-export type Composition131 = FhirpathResultIn<'(Patient.name.last()).count()', 'opaque'>
-export type Capability132 = FhirpathResultIn<"'abc'.lastIndexOf('x')", 'opaque'>
-export type Composition132 = FhirpathResultIn<"('abc'.lastIndexOf('x')).count()", 'opaque'>
-export type Capability133 = FhirpathResultIn<"'abc'.length()", 'opaque'>
-export type Composition133 = FhirpathResultIn<"('abc'.length()).count()", 'opaque'>
-export type Capability134 = FhirpathResultIn<'2.ln()', 'opaque'>
-export type Composition134 = FhirpathResultIn<'(2.ln()).count()', 'opaque'>
-export type Capability135 = FhirpathResultIn<'2.log(1)', 'opaque'>
-export type Composition135 = FhirpathResultIn<'(2.log(1)).count()', 'opaque'>
-export type Capability136 = FhirpathResultIn<'Patient.name.first().lowBoundary(1)', 'opaque'>
-export type Composition136 = FhirpathResultIn<'(Patient.name.first().lowBoundary(1)).count()', 'opaque'>
-export type Capability137 = FhirpathResultIn<"'abc'.lower()", 'opaque'>
-export type Composition137 = FhirpathResultIn<"('abc'.lower()).count()", 'opaque'>
-export type Capability138 = FhirpathResultIn<"'abc'.matches('x')", 'opaque'>
-export type Composition138 = FhirpathResultIn<"('abc'.matches('x')).count()", 'opaque'>
-export type Capability139 = FhirpathResultIn<"'abc'.matchesFull('x')", 'opaque'>
-export type Composition139 = FhirpathResultIn<"('abc'.matchesFull('x')).count()", 'opaque'>
-export type Capability140 = FhirpathResultIn<'2.max()', 'opaque'>
-export type Composition140 = FhirpathResultIn<'(2.max()).count()', 'opaque'>
-export type Capability141 = FhirpathResultIn<'@2020-01-01.millisecondOf()', 'opaque'>
-export type Composition141 = FhirpathResultIn<'(@2020-01-01.millisecondOf()).count()', 'opaque'>
-export type Capability142 = FhirpathResultIn<'2.min()', 'opaque'>
-export type Composition142 = FhirpathResultIn<'(2.min()).count()', 'opaque'>
-export type Capability143 = FhirpathResultIn<'@2020-01-01.minuteOf()', 'opaque'>
-export type Composition143 = FhirpathResultIn<'(@2020-01-01.minuteOf()).count()', 'opaque'>
-export type Capability144 = FhirpathResultIn<'@2020-01-01.monthOf()', 'opaque'>
-export type Composition144 = FhirpathResultIn<'(@2020-01-01.monthOf()).count()', 'opaque'>
-export type Capability145 = FhirpathResultIn<'Patient.name.first().not()', 'opaque'>
-export type Composition145 = FhirpathResultIn<'(Patient.name.first().not()).count()', 'opaque'>
-export type Capability146 = FhirpathResultIn<'Patient.name.now()', 'opaque'>
-export type Composition146 = FhirpathResultIn<'(Patient.name.now()).count()', 'opaque'>
-export type Capability147 = FhirpathResultIn<'Patient.name.ofType(HumanName)', 'opaque'>
-export type Composition147 = FhirpathResultIn<'(Patient.name.ofType(HumanName)).count()', 'opaque'>
-export type Capability148 = FhirpathResultIn<'2.power(1)', 'opaque'>
-export type Composition148 = FhirpathResultIn<'(2.power(1)).count()', 'opaque'>
-export type Capability149 = FhirpathResultIn<'Patient.name.first().precision()', 'opaque'>
-export type Composition149 = FhirpathResultIn<'(Patient.name.first().precision()).count()', 'opaque'>
-export type Capability150 = FhirpathResultIn<'Patient.name.repeat($this)', 'opaque'>
-export type Composition150 = FhirpathResultIn<'(Patient.name.repeat($this)).count()', 'opaque'>
-export type Capability151 = FhirpathResultIn<"'abc'.replace('x', 'x')", 'opaque'>
-export type Composition151 = FhirpathResultIn<"('abc'.replace('x', 'x')).count()", 'opaque'>
-export type Capability152 = FhirpathResultIn<"'abc'.replaceMatches('x', 'x')", 'opaque'>
-export type Composition152 = FhirpathResultIn<"('abc'.replaceMatches('x', 'x')).count()", 'opaque'>
-export type Capability153 = FhirpathResultIn<'Patient.generalPractitioner.resolve()', 'opaque'>
-export type Composition153 = FhirpathResultIn<'(Patient.generalPractitioner.resolve()).count()', 'opaque'>
-export type Capability154 = FhirpathResultIn<'2.round(1)', 'opaque'>
-export type Composition154 = FhirpathResultIn<'(2.round(1)).count()', 'opaque'>
-export type Capability155 = FhirpathResultIn<'@2020-01-01.secondOf()', 'opaque'>
-export type Composition155 = FhirpathResultIn<'(@2020-01-01.secondOf()).count()', 'opaque'>
-export type Capability156 = FhirpathResultIn<'Patient.name.select(given)', 'opaque'>
-export type Composition156 = FhirpathResultIn<'(Patient.name.select(given)).count()', 'opaque'>
-export type Capability157 = FhirpathResultIn<'Patient.name.single()', 'opaque'>
-export type Composition157 = FhirpathResultIn<'(Patient.name.single()).count()', 'opaque'>
-export type Capability158 = FhirpathResultIn<'Patient.name.skip(1)', 'opaque'>
-export type Composition158 = FhirpathResultIn<'(Patient.name.skip(1)).count()', 'opaque'>
-export type Capability159 = FhirpathResultIn<'Patient.name.sort($this)', 'opaque'>
-export type Composition159 = FhirpathResultIn<'(Patient.name.sort($this)).count()', 'opaque'>
-export type Capability160 = FhirpathResultIn<"'abc'.split('x')", 'opaque'>
-export type Composition160 = FhirpathResultIn<"('abc'.split('x')).count()", 'opaque'>
-export type Capability161 = FhirpathResultIn<'2.sqrt()', 'opaque'>
-export type Composition161 = FhirpathResultIn<'(2.sqrt()).count()', 'opaque'>
-export type Capability162 = FhirpathResultIn<"'abc'.startsWith('x')", 'opaque'>
-export type Composition162 = FhirpathResultIn<"('abc'.startsWith('x')).count()", 'opaque'>
-export type Capability163 = FhirpathResultIn<"Patient.name.subsetOf('x')", 'opaque'>
-export type Composition163 = FhirpathResultIn<"(Patient.name.subsetOf('x')).count()", 'opaque'>
-export type Capability164 = FhirpathResultIn<"'abc'.substring(1, 1)", 'opaque'>
-export type Composition164 = FhirpathResultIn<"('abc'.substring(1, 1)).count()", 'opaque'>
-export type Capability165 = FhirpathResultIn<'2.sum()', 'opaque'>
-export type Composition165 = FhirpathResultIn<'(2.sum()).count()', 'opaque'>
-export type Capability166 = FhirpathResultIn<"Patient.name.supersetOf('x')", 'opaque'>
-export type Composition166 = FhirpathResultIn<"(Patient.name.supersetOf('x')).count()", 'opaque'>
-export type Capability167 = FhirpathResultIn<'Patient.name.tail()', 'opaque'>
-export type Composition167 = FhirpathResultIn<'(Patient.name.tail()).count()', 'opaque'>
-export type Capability168 = FhirpathResultIn<'Patient.name.take(1)', 'opaque'>
-export type Composition168 = FhirpathResultIn<'(Patient.name.take(1)).count()', 'opaque'>
-export type Capability169 = FhirpathResultIn<'@2020-01-01.timeOf()', 'opaque'>
-export type Composition169 = FhirpathResultIn<'(@2020-01-01.timeOf()).count()', 'opaque'>
-export type Capability170 = FhirpathResultIn<'Patient.name.timeOfDay()', 'opaque'>
-export type Composition170 = FhirpathResultIn<'(Patient.name.timeOfDay()).count()', 'opaque'>
-export type Capability171 = FhirpathResultIn<'@2020-01-01.timezoneOffsetOf()', 'opaque'>
-export type Composition171 = FhirpathResultIn<'(@2020-01-01.timezoneOffsetOf()).count()', 'opaque'>
-export type Capability172 = FhirpathResultIn<'Patient.name.first().toBoolean()', 'opaque'>
-export type Composition172 = FhirpathResultIn<'(Patient.name.first().toBoolean()).count()', 'opaque'>
-export type Capability173 = FhirpathResultIn<"'abc'.toChars()", 'opaque'>
-export type Composition173 = FhirpathResultIn<"('abc'.toChars()).count()", 'opaque'>
-export type Capability174 = FhirpathResultIn<'Patient.name.first().toDate()', 'opaque'>
-export type Composition174 = FhirpathResultIn<'(Patient.name.first().toDate()).count()', 'opaque'>
-export type Capability175 = FhirpathResultIn<'Patient.name.first().toDateTime()', 'opaque'>
-export type Composition175 = FhirpathResultIn<'(Patient.name.first().toDateTime()).count()', 'opaque'>
-export type Capability176 = FhirpathResultIn<'Patient.name.today()', 'opaque'>
-export type Composition176 = FhirpathResultIn<'(Patient.name.today()).count()', 'opaque'>
-export type Capability177 = FhirpathResultIn<'Patient.name.first().toDecimal()', 'opaque'>
-export type Composition177 = FhirpathResultIn<'(Patient.name.first().toDecimal()).count()', 'opaque'>
-export type Capability178 = FhirpathResultIn<'Patient.name.first().toInteger()', 'opaque'>
-export type Composition178 = FhirpathResultIn<'(Patient.name.first().toInteger()).count()', 'opaque'>
-export type Capability179 = FhirpathResultIn<'Patient.name.first().toLong()', 'opaque'>
-export type Composition179 = FhirpathResultIn<'(Patient.name.first().toLong()).count()', 'opaque'>
-export type Capability180 = FhirpathResultIn<"Patient.name.first().toQuantity('x')", 'opaque'>
-export type Composition180 = FhirpathResultIn<"(Patient.name.first().toQuantity('x')).count()", 'opaque'>
-export type Capability181 = FhirpathResultIn<'Patient.name.first().toString()', 'opaque'>
-export type Composition181 = FhirpathResultIn<'(Patient.name.first().toString()).count()', 'opaque'>
-export type Capability182 = FhirpathResultIn<'Patient.name.first().toTime()', 'opaque'>
-export type Composition182 = FhirpathResultIn<'(Patient.name.first().toTime()).count()', 'opaque'>
-export type Capability183 = FhirpathResultIn<"Patient.name.trace('x', $this)", 'opaque'>
-export type Composition183 = FhirpathResultIn<"(Patient.name.trace('x', $this)).count()", 'opaque'>
-export type Capability184 = FhirpathResultIn<"'abc'.trim()", 'opaque'>
-export type Composition184 = FhirpathResultIn<"('abc'.trim()).count()", 'opaque'>
-export type Capability185 = FhirpathResultIn<'2.truncate()', 'opaque'>
-export type Composition185 = FhirpathResultIn<'(2.truncate()).count()', 'opaque'>
-export type Capability186 = FhirpathResultIn<'Patient.name.type()', 'opaque'>
-export type Composition186 = FhirpathResultIn<'(Patient.name.type()).count()', 'opaque'>
-export type Capability187 = FhirpathResultIn<"'abc'.unescape('x')", 'opaque'>
-export type Composition187 = FhirpathResultIn<"('abc'.unescape('x')).count()", 'opaque'>
-export type Capability188 = FhirpathResultIn<'Patient.name.union(Patient.name)', 'opaque'>
-export type Composition188 = FhirpathResultIn<'(Patient.name.union(Patient.name)).count()', 'opaque'>
-export type Capability189 = FhirpathResultIn<"'abc'.upper()", 'opaque'>
-export type Composition189 = FhirpathResultIn<"('abc'.upper()).count()", 'opaque'>
-export type Capability190 = FhirpathResultIn<'Patient.name.where($this)', 'opaque'>
-export type Composition190 = FhirpathResultIn<'(Patient.name.where($this)).count()', 'opaque'>
-export type Capability191 = FhirpathResultIn<'@2020-01-01.yearOf()', 'opaque'>
-export type Composition191 = FhirpathResultIn<'(@2020-01-01.yearOf()).count()', 'opaque'>
+export type Capability078 = FhirpathResultIn<
+  '%report.status',
+  'opaque',
+  { env: { report: { type: 'DiagnosticReport' } } }
+>
+export type Composition078 = FhirpathResultIn<
+  '%report.status.first()',
+  'opaque',
+  { env: { report: { type: 'DiagnosticReport' } } }
+>
+export type Capability079 = FhirpathResultIn<
+  '%subject.name.given',
+  'opaque',
+  { vars: { subject: { type: 'Patient' } } }
+>
+export type Composition079 = FhirpathResultIn<
+  '%subject.name.given.first()',
+  'opaque',
+  { vars: { subject: { type: 'Patient' } } }
+>
+export type Capability080 = FhirpathResultIn<
+  'Patient.statusText()',
+  'opaque',
+  {
+    functions: { statusText: { expression: "'fallback'"; signature: { result: { types: ['string']; single: true } } } }
+  }
+>
+export type Composition080 = FhirpathResultIn<
+  'Patient.statusText().upper()',
+  'opaque',
+  {
+    functions: { statusText: { expression: "'fallback'"; signature: { result: { types: ['string']; single: true } } } }
+  }
+>
+export type Capability081 = FhirpathResultIn<
+  'Condition.code.displayText()',
+  'opaque',
+  { functions: { displayText: { expression: '(text | coding.display).first()' } } }
+>
+export type Composition081 = FhirpathResultIn<
+  'Condition.code.displayText().upper()',
+  'opaque',
+  { functions: { displayText: { expression: '(text | coding.display).first()' } } }
+>
+export type Capability082 = FhirpathResultIn<
+  'Condition.code.labelled()',
+  'opaque',
+  { functions: { labelled: { expression: '%prefix & text'; envTypes: { prefix: { type: 'string' } } } } }
+>
+export type Composition082 = FhirpathResultIn<
+  'Condition.code.labelled().length()',
+  'opaque',
+  { functions: { labelled: { expression: '%prefix & text'; envTypes: { prefix: { type: 'string' } } } } }
+>
+export type Capability083 = FhirpathResultIn<
+  '%subject.resolve().name.given',
+  'opaque',
+  { env: { subject: { type: 'Reference'; targets: 'Practitioner' } } }
+>
+export type Composition083 = FhirpathResultIn<
+  '%subject.resolve().name.given.first()',
+  'opaque',
+  { env: { subject: { type: 'Reference'; targets: 'Practitioner' } } }
+>
+export type Capability084 = FhirpathResultIn<'Patient.name.first().abs()', 'opaque'>
+export type Composition084 = FhirpathResultIn<'(Patient.name.first().abs()).count()', 'opaque'>
+export type Capability085 = FhirpathResultIn<'Patient.name.aggregate($total | $this, {})', 'opaque'>
+export type Composition085 = FhirpathResultIn<'(Patient.name.aggregate($total | $this, {})).count()', 'opaque'>
+export type Capability086 = FhirpathResultIn<'Patient.name.all($this)', 'opaque'>
+export type Composition086 = FhirpathResultIn<'(Patient.name.all($this)).count()', 'opaque'>
+export type Capability087 = FhirpathResultIn<'true.allFalse()', 'opaque'>
+export type Composition087 = FhirpathResultIn<'(true.allFalse()).count()', 'opaque'>
+export type Capability088 = FhirpathResultIn<'true.allTrue()', 'opaque'>
+export type Composition088 = FhirpathResultIn<'(true.allTrue()).count()', 'opaque'>
+export type Capability089 = FhirpathResultIn<'true.anyFalse()', 'opaque'>
+export type Composition089 = FhirpathResultIn<'(true.anyFalse()).count()', 'opaque'>
+export type Capability090 = FhirpathResultIn<'true.anyTrue()', 'opaque'>
+export type Composition090 = FhirpathResultIn<'(true.anyTrue()).count()', 'opaque'>
+export type Capability091 = FhirpathResultIn<'Patient.name.as(HumanName)', 'opaque'>
+export type Composition091 = FhirpathResultIn<'(Patient.name.as(HumanName)).count()', 'opaque'>
+export type Capability092 = FhirpathResultIn<'2.avg()', 'opaque'>
+export type Composition092 = FhirpathResultIn<'(2.avg()).count()', 'opaque'>
+export type Capability093 = FhirpathResultIn<'2.ceiling()', 'opaque'>
+export type Composition093 = FhirpathResultIn<'(2.ceiling()).count()', 'opaque'>
+export type Capability094 = FhirpathResultIn<'Patient.name.children()', 'opaque'>
+export type Composition094 = FhirpathResultIn<'(Patient.name.children()).count()', 'opaque'>
+export type Capability095 = FhirpathResultIn<'Patient.name.coalesce(given, family)', 'opaque'>
+export type Composition095 = FhirpathResultIn<'(Patient.name.coalesce(given, family)).count()', 'opaque'>
+export type Capability096 = FhirpathResultIn<'Patient.name.combine(Patient.name)', 'opaque'>
+export type Composition096 = FhirpathResultIn<'(Patient.name.combine(Patient.name)).count()', 'opaque'>
+export type Capability097 = FhirpathResultIn<"1 'mg'.comparable(1 'mg')", 'opaque'>
+export type Composition097 = FhirpathResultIn<"(1 'mg'.comparable(1 'mg')).count()", 'opaque'>
+export type Capability098 = FhirpathResultIn<"Patient.name.first().conformsTo('x')", 'opaque'>
+export type Composition098 = FhirpathResultIn<"(Patient.name.first().conformsTo('x')).count()", 'opaque'>
+export type Capability099 = FhirpathResultIn<"'abc'.contains('x')", 'opaque'>
+export type Composition099 = FhirpathResultIn<"('abc'.contains('x')).count()", 'opaque'>
+export type Capability100 = FhirpathResultIn<'Patient.name.first().convertsToBoolean()', 'opaque'>
+export type Composition100 = FhirpathResultIn<'(Patient.name.first().convertsToBoolean()).count()', 'opaque'>
+export type Capability101 = FhirpathResultIn<'Patient.name.first().convertsToDate()', 'opaque'>
+export type Composition101 = FhirpathResultIn<'(Patient.name.first().convertsToDate()).count()', 'opaque'>
+export type Capability102 = FhirpathResultIn<'Patient.name.first().convertsToDateTime()', 'opaque'>
+export type Composition102 = FhirpathResultIn<'(Patient.name.first().convertsToDateTime()).count()', 'opaque'>
+export type Capability103 = FhirpathResultIn<'Patient.name.first().convertsToDecimal()', 'opaque'>
+export type Composition103 = FhirpathResultIn<'(Patient.name.first().convertsToDecimal()).count()', 'opaque'>
+export type Capability104 = FhirpathResultIn<'Patient.name.first().convertsToInteger()', 'opaque'>
+export type Composition104 = FhirpathResultIn<'(Patient.name.first().convertsToInteger()).count()', 'opaque'>
+export type Capability105 = FhirpathResultIn<'Patient.name.first().convertsToLong()', 'opaque'>
+export type Composition105 = FhirpathResultIn<'(Patient.name.first().convertsToLong()).count()', 'opaque'>
+export type Capability106 = FhirpathResultIn<"Patient.name.first().convertsToQuantity('x')", 'opaque'>
+export type Composition106 = FhirpathResultIn<"(Patient.name.first().convertsToQuantity('x')).count()", 'opaque'>
+export type Capability107 = FhirpathResultIn<'Patient.name.first().convertsToString()', 'opaque'>
+export type Composition107 = FhirpathResultIn<'(Patient.name.first().convertsToString()).count()', 'opaque'>
+export type Capability108 = FhirpathResultIn<'Patient.name.first().convertsToTime()', 'opaque'>
+export type Composition108 = FhirpathResultIn<'(Patient.name.first().convertsToTime()).count()', 'opaque'>
+export type Capability109 = FhirpathResultIn<'Patient.name.count()', 'opaque'>
+export type Composition109 = FhirpathResultIn<'(Patient.name.count()).count()', 'opaque'>
+export type Capability110 = FhirpathResultIn<'@2020-01-01.dateOf()', 'opaque'>
+export type Composition110 = FhirpathResultIn<'(@2020-01-01.dateOf()).count()', 'opaque'>
+export type Capability111 = FhirpathResultIn<'@2020-01-01.dayOf()', 'opaque'>
+export type Composition111 = FhirpathResultIn<'(@2020-01-01.dayOf()).count()', 'opaque'>
+export type Capability112 = FhirpathResultIn<"'abc'.decode('x')", 'opaque'>
+export type Composition112 = FhirpathResultIn<"('abc'.decode('x')).count()", 'opaque'>
+export type Capability113 = FhirpathResultIn<"Patient.name.defineVariable('generatedVariable')", 'opaque'>
+export type Composition113 = FhirpathResultIn<"(Patient.name.defineVariable('generatedVariable')).count()", 'opaque'>
+export type Capability114 = FhirpathResultIn<'Patient.name.descendants()', 'opaque'>
+export type Composition114 = FhirpathResultIn<'(Patient.name.descendants()).count()', 'opaque'>
+export type Capability115 = FhirpathResultIn<'Patient.name.distinct()', 'opaque'>
+export type Composition115 = FhirpathResultIn<'(Patient.name.distinct()).count()', 'opaque'>
+export type Capability116 = FhirpathResultIn<'Patient.name.empty()', 'opaque'>
+export type Composition116 = FhirpathResultIn<'(Patient.name.empty()).count()', 'opaque'>
+export type Capability117 = FhirpathResultIn<"'abc'.encode('x')", 'opaque'>
+export type Composition117 = FhirpathResultIn<"('abc'.encode('x')).count()", 'opaque'>
+export type Capability118 = FhirpathResultIn<"'abc'.endsWith('x')", 'opaque'>
+export type Composition118 = FhirpathResultIn<"('abc'.endsWith('x')).count()", 'opaque'>
+export type Capability119 = FhirpathResultIn<"'abc'.escape('x')", 'opaque'>
+export type Composition119 = FhirpathResultIn<"('abc'.escape('x')).count()", 'opaque'>
+export type Capability120 = FhirpathResultIn<"Patient.name.exclude('x')", 'opaque'>
+export type Composition120 = FhirpathResultIn<"(Patient.name.exclude('x')).count()", 'opaque'>
+export type Capability121 = FhirpathResultIn<'Patient.name.exists($this)', 'opaque'>
+export type Composition121 = FhirpathResultIn<'(Patient.name.exists($this)).count()', 'opaque'>
+export type Capability122 = FhirpathResultIn<'2.exp()', 'opaque'>
+export type Composition122 = FhirpathResultIn<'(2.exp()).count()', 'opaque'>
+export type Capability123 = FhirpathResultIn<"Patient.name.extension('x')", 'opaque'>
+export type Composition123 = FhirpathResultIn<"(Patient.name.extension('x')).count()", 'opaque'>
+export type Capability124 = FhirpathResultIn<'Patient.name.first()', 'opaque'>
+export type Composition124 = FhirpathResultIn<'(Patient.name.first()).count()', 'opaque'>
+export type Capability125 = FhirpathResultIn<'2.floor()', 'opaque'>
+export type Composition125 = FhirpathResultIn<'(2.floor()).count()', 'opaque'>
+export type Capability126 = FhirpathResultIn<'Patient.name.first().getValue()', 'opaque'>
+export type Composition126 = FhirpathResultIn<'(Patient.name.first().getValue()).count()', 'opaque'>
+export type Capability127 = FhirpathResultIn<'Patient.name.first().hasValue()', 'opaque'>
+export type Composition127 = FhirpathResultIn<'(Patient.name.first().hasValue()).count()', 'opaque'>
+export type Capability128 = FhirpathResultIn<'Patient.name.first().highBoundary(1)', 'opaque'>
+export type Composition128 = FhirpathResultIn<'(Patient.name.first().highBoundary(1)).count()', 'opaque'>
+export type Capability129 = FhirpathResultIn<'@2020-01-01.hourOf()', 'opaque'>
+export type Composition129 = FhirpathResultIn<'(@2020-01-01.hourOf()).count()', 'opaque'>
+export type Capability130 = FhirpathResultIn<'Patient.name.first().htmlChecks()', 'opaque'>
+export type Composition130 = FhirpathResultIn<'(Patient.name.first().htmlChecks()).count()', 'opaque'>
+export type Capability131 = FhirpathResultIn<'Patient.name.iif(true, given, family)', 'opaque'>
+export type Composition131 = FhirpathResultIn<'(Patient.name.iif(true, given, family)).count()', 'opaque'>
+export type Capability132 = FhirpathResultIn<"'abc'.indexOf('x')", 'opaque'>
+export type Composition132 = FhirpathResultIn<"('abc'.indexOf('x')).count()", 'opaque'>
+export type Capability133 = FhirpathResultIn<"Patient.name.intersect('x')", 'opaque'>
+export type Composition133 = FhirpathResultIn<"(Patient.name.intersect('x')).count()", 'opaque'>
+export type Capability134 = FhirpathResultIn<'Patient.name.first().is(HumanName)', 'opaque'>
+export type Composition134 = FhirpathResultIn<'(Patient.name.first().is(HumanName)).count()', 'opaque'>
+export type Capability135 = FhirpathResultIn<'Patient.name.isDistinct()', 'opaque'>
+export type Composition135 = FhirpathResultIn<'(Patient.name.isDistinct()).count()', 'opaque'>
+export type Capability136 = FhirpathResultIn<"'abc'.join('x')", 'opaque'>
+export type Composition136 = FhirpathResultIn<"('abc'.join('x')).count()", 'opaque'>
+export type Capability137 = FhirpathResultIn<'Patient.name.last()', 'opaque'>
+export type Composition137 = FhirpathResultIn<'(Patient.name.last()).count()', 'opaque'>
+export type Capability138 = FhirpathResultIn<"'abc'.lastIndexOf('x')", 'opaque'>
+export type Composition138 = FhirpathResultIn<"('abc'.lastIndexOf('x')).count()", 'opaque'>
+export type Capability139 = FhirpathResultIn<"'abc'.length()", 'opaque'>
+export type Composition139 = FhirpathResultIn<"('abc'.length()).count()", 'opaque'>
+export type Capability140 = FhirpathResultIn<'2.ln()', 'opaque'>
+export type Composition140 = FhirpathResultIn<'(2.ln()).count()', 'opaque'>
+export type Capability141 = FhirpathResultIn<'2.log(1)', 'opaque'>
+export type Composition141 = FhirpathResultIn<'(2.log(1)).count()', 'opaque'>
+export type Capability142 = FhirpathResultIn<'Patient.name.first().lowBoundary(1)', 'opaque'>
+export type Composition142 = FhirpathResultIn<'(Patient.name.first().lowBoundary(1)).count()', 'opaque'>
+export type Capability143 = FhirpathResultIn<"'abc'.lower()", 'opaque'>
+export type Composition143 = FhirpathResultIn<"('abc'.lower()).count()", 'opaque'>
+export type Capability144 = FhirpathResultIn<"'abc'.matches('x')", 'opaque'>
+export type Composition144 = FhirpathResultIn<"('abc'.matches('x')).count()", 'opaque'>
+export type Capability145 = FhirpathResultIn<"'abc'.matchesFull('x')", 'opaque'>
+export type Composition145 = FhirpathResultIn<"('abc'.matchesFull('x')).count()", 'opaque'>
+export type Capability146 = FhirpathResultIn<'2.max()', 'opaque'>
+export type Composition146 = FhirpathResultIn<'(2.max()).count()', 'opaque'>
+export type Capability147 = FhirpathResultIn<'@2020-01-01.millisecondOf()', 'opaque'>
+export type Composition147 = FhirpathResultIn<'(@2020-01-01.millisecondOf()).count()', 'opaque'>
+export type Capability148 = FhirpathResultIn<'2.min()', 'opaque'>
+export type Composition148 = FhirpathResultIn<'(2.min()).count()', 'opaque'>
+export type Capability149 = FhirpathResultIn<'@2020-01-01.minuteOf()', 'opaque'>
+export type Composition149 = FhirpathResultIn<'(@2020-01-01.minuteOf()).count()', 'opaque'>
+export type Capability150 = FhirpathResultIn<'@2020-01-01.monthOf()', 'opaque'>
+export type Composition150 = FhirpathResultIn<'(@2020-01-01.monthOf()).count()', 'opaque'>
+export type Capability151 = FhirpathResultIn<'Patient.name.first().not()', 'opaque'>
+export type Composition151 = FhirpathResultIn<'(Patient.name.first().not()).count()', 'opaque'>
+export type Capability152 = FhirpathResultIn<'Patient.name.now()', 'opaque'>
+export type Composition152 = FhirpathResultIn<'(Patient.name.now()).count()', 'opaque'>
+export type Capability153 = FhirpathResultIn<'Patient.name.ofType(HumanName)', 'opaque'>
+export type Composition153 = FhirpathResultIn<'(Patient.name.ofType(HumanName)).count()', 'opaque'>
+export type Capability154 = FhirpathResultIn<'2.power(1)', 'opaque'>
+export type Composition154 = FhirpathResultIn<'(2.power(1)).count()', 'opaque'>
+export type Capability155 = FhirpathResultIn<'Patient.name.first().precision()', 'opaque'>
+export type Composition155 = FhirpathResultIn<'(Patient.name.first().precision()).count()', 'opaque'>
+export type Capability156 = FhirpathResultIn<'Patient.name.repeat($this)', 'opaque'>
+export type Composition156 = FhirpathResultIn<'(Patient.name.repeat($this)).count()', 'opaque'>
+export type Capability157 = FhirpathResultIn<"'abc'.replace('x', 'x')", 'opaque'>
+export type Composition157 = FhirpathResultIn<"('abc'.replace('x', 'x')).count()", 'opaque'>
+export type Capability158 = FhirpathResultIn<"'abc'.replaceMatches('x', 'x')", 'opaque'>
+export type Composition158 = FhirpathResultIn<"('abc'.replaceMatches('x', 'x')).count()", 'opaque'>
+export type Capability159 = FhirpathResultIn<'Patient.generalPractitioner.resolve()', 'opaque'>
+export type Composition159 = FhirpathResultIn<'(Patient.generalPractitioner.resolve()).count()', 'opaque'>
+export type Capability160 = FhirpathResultIn<'2.round(1)', 'opaque'>
+export type Composition160 = FhirpathResultIn<'(2.round(1)).count()', 'opaque'>
+export type Capability161 = FhirpathResultIn<'@2020-01-01.secondOf()', 'opaque'>
+export type Composition161 = FhirpathResultIn<'(@2020-01-01.secondOf()).count()', 'opaque'>
+export type Capability162 = FhirpathResultIn<'Patient.name.select(given)', 'opaque'>
+export type Composition162 = FhirpathResultIn<'(Patient.name.select(given)).count()', 'opaque'>
+export type Capability163 = FhirpathResultIn<'Patient.name.single()', 'opaque'>
+export type Composition163 = FhirpathResultIn<'(Patient.name.single()).count()', 'opaque'>
+export type Capability164 = FhirpathResultIn<'Patient.name.skip(1)', 'opaque'>
+export type Composition164 = FhirpathResultIn<'(Patient.name.skip(1)).count()', 'opaque'>
+export type Capability165 = FhirpathResultIn<'Patient.name.sort($this)', 'opaque'>
+export type Composition165 = FhirpathResultIn<'(Patient.name.sort($this)).count()', 'opaque'>
+export type Capability166 = FhirpathResultIn<"'abc'.split('x')", 'opaque'>
+export type Composition166 = FhirpathResultIn<"('abc'.split('x')).count()", 'opaque'>
+export type Capability167 = FhirpathResultIn<'2.sqrt()', 'opaque'>
+export type Composition167 = FhirpathResultIn<'(2.sqrt()).count()', 'opaque'>
+export type Capability168 = FhirpathResultIn<"'abc'.startsWith('x')", 'opaque'>
+export type Composition168 = FhirpathResultIn<"('abc'.startsWith('x')).count()", 'opaque'>
+export type Capability169 = FhirpathResultIn<"Patient.name.subsetOf('x')", 'opaque'>
+export type Composition169 = FhirpathResultIn<"(Patient.name.subsetOf('x')).count()", 'opaque'>
+export type Capability170 = FhirpathResultIn<"'abc'.substring(1, 1)", 'opaque'>
+export type Composition170 = FhirpathResultIn<"('abc'.substring(1, 1)).count()", 'opaque'>
+export type Capability171 = FhirpathResultIn<'2.sum()', 'opaque'>
+export type Composition171 = FhirpathResultIn<'(2.sum()).count()', 'opaque'>
+export type Capability172 = FhirpathResultIn<"Patient.name.supersetOf('x')", 'opaque'>
+export type Composition172 = FhirpathResultIn<"(Patient.name.supersetOf('x')).count()", 'opaque'>
+export type Capability173 = FhirpathResultIn<'Patient.name.tail()', 'opaque'>
+export type Composition173 = FhirpathResultIn<'(Patient.name.tail()).count()', 'opaque'>
+export type Capability174 = FhirpathResultIn<'Patient.name.take(1)', 'opaque'>
+export type Composition174 = FhirpathResultIn<'(Patient.name.take(1)).count()', 'opaque'>
+export type Capability175 = FhirpathResultIn<'@2020-01-01.timeOf()', 'opaque'>
+export type Composition175 = FhirpathResultIn<'(@2020-01-01.timeOf()).count()', 'opaque'>
+export type Capability176 = FhirpathResultIn<'Patient.name.timeOfDay()', 'opaque'>
+export type Composition176 = FhirpathResultIn<'(Patient.name.timeOfDay()).count()', 'opaque'>
+export type Capability177 = FhirpathResultIn<'@2020-01-01.timezoneOffsetOf()', 'opaque'>
+export type Composition177 = FhirpathResultIn<'(@2020-01-01.timezoneOffsetOf()).count()', 'opaque'>
+export type Capability178 = FhirpathResultIn<'Patient.name.first().toBoolean()', 'opaque'>
+export type Composition178 = FhirpathResultIn<'(Patient.name.first().toBoolean()).count()', 'opaque'>
+export type Capability179 = FhirpathResultIn<"'abc'.toChars()", 'opaque'>
+export type Composition179 = FhirpathResultIn<"('abc'.toChars()).count()", 'opaque'>
+export type Capability180 = FhirpathResultIn<'Patient.name.first().toDate()', 'opaque'>
+export type Composition180 = FhirpathResultIn<'(Patient.name.first().toDate()).count()', 'opaque'>
+export type Capability181 = FhirpathResultIn<'Patient.name.first().toDateTime()', 'opaque'>
+export type Composition181 = FhirpathResultIn<'(Patient.name.first().toDateTime()).count()', 'opaque'>
+export type Capability182 = FhirpathResultIn<'Patient.name.today()', 'opaque'>
+export type Composition182 = FhirpathResultIn<'(Patient.name.today()).count()', 'opaque'>
+export type Capability183 = FhirpathResultIn<'Patient.name.first().toDecimal()', 'opaque'>
+export type Composition183 = FhirpathResultIn<'(Patient.name.first().toDecimal()).count()', 'opaque'>
+export type Capability184 = FhirpathResultIn<'Patient.name.first().toInteger()', 'opaque'>
+export type Composition184 = FhirpathResultIn<'(Patient.name.first().toInteger()).count()', 'opaque'>
+export type Capability185 = FhirpathResultIn<'Patient.name.first().toLong()', 'opaque'>
+export type Composition185 = FhirpathResultIn<'(Patient.name.first().toLong()).count()', 'opaque'>
+export type Capability186 = FhirpathResultIn<"Patient.name.first().toQuantity('x')", 'opaque'>
+export type Composition186 = FhirpathResultIn<"(Patient.name.first().toQuantity('x')).count()", 'opaque'>
+export type Capability187 = FhirpathResultIn<'Patient.name.first().toString()', 'opaque'>
+export type Composition187 = FhirpathResultIn<'(Patient.name.first().toString()).count()', 'opaque'>
+export type Capability188 = FhirpathResultIn<'Patient.name.first().toTime()', 'opaque'>
+export type Composition188 = FhirpathResultIn<'(Patient.name.first().toTime()).count()', 'opaque'>
+export type Capability189 = FhirpathResultIn<"Patient.name.trace('x', $this)", 'opaque'>
+export type Composition189 = FhirpathResultIn<"(Patient.name.trace('x', $this)).count()", 'opaque'>
+export type Capability190 = FhirpathResultIn<"'abc'.trim()", 'opaque'>
+export type Composition190 = FhirpathResultIn<"('abc'.trim()).count()", 'opaque'>
+export type Capability191 = FhirpathResultIn<'2.truncate()', 'opaque'>
+export type Composition191 = FhirpathResultIn<'(2.truncate()).count()', 'opaque'>
+export type Capability192 = FhirpathResultIn<'Patient.name.type()', 'opaque'>
+export type Composition192 = FhirpathResultIn<'(Patient.name.type()).count()', 'opaque'>
+export type Capability193 = FhirpathResultIn<"'abc'.unescape('x')", 'opaque'>
+export type Composition193 = FhirpathResultIn<"('abc'.unescape('x')).count()", 'opaque'>
+export type Capability194 = FhirpathResultIn<'Patient.name.union(Patient.name)', 'opaque'>
+export type Composition194 = FhirpathResultIn<'(Patient.name.union(Patient.name)).count()', 'opaque'>
+export type Capability195 = FhirpathResultIn<"'abc'.upper()", 'opaque'>
+export type Composition195 = FhirpathResultIn<"('abc'.upper()).count()", 'opaque'>
+export type Capability196 = FhirpathResultIn<'Patient.name.where($this)', 'opaque'>
+export type Composition196 = FhirpathResultIn<'(Patient.name.where($this)).count()', 'opaque'>
+export type Capability197 = FhirpathResultIn<'@2020-01-01.yearOf()', 'opaque'>
+export type Composition197 = FhirpathResultIn<'(@2020-01-01.yearOf()).count()', 'opaque'>
 export type LongestCorpusCase = FhirpathResultIn<
   "\n\t\t\tgroup.select(\n\t\t\t\tdefineVariable('grp')\n\t\t\t\t.element\n\t\t\t\t.select(\n\t\t\t\t\tdefineVariable('ele')\n\t\t\t\t\t.target\n\t\t\t\t\t.select(%grp.source & '|' & %ele.code & ' ' & relationship & ' ' & %grp.target & '|' & code)\n\t\t\t\t)\n\t\t\t)\n\t\t\t.trace('all')\n\t\t\t.isDistinct()\n\t\t",
   'ConceptMap'

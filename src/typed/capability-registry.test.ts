@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { analyzeExpressionDetailed, type DeclaredVariable } from '../analyzer/analyze.ts'
+import { analyzeExpressionDetailed, type DeclaredFunction, type DeclaredVariable } from '../analyzer/analyze.ts'
 import { OPERATOR_RESULT_RULES, TYPE_OPERATOR_RESULT_RULES } from '../analyzer/operator-rules.ts'
 import { FUNCTION_SIGNATURES } from '../analyzer/signatures.ts'
 import { compile } from '../api/compile.ts'
@@ -135,11 +135,28 @@ describe('type-inference capability registry', () => {
     for (const reference of ['generated-targets', 'state-preservation']) {
       expect(ids.has(`reference.${reference}`), reference).toBe(true)
     }
+    for (const route of [
+      'environment',
+      'variable',
+      'function-signature',
+      'function-body',
+      'function-local-overlay',
+      'reference-targets',
+    ]) {
+      expect(ids.has(`host-context.${route}`), route).toBe(true)
+    }
   })
 
   it('records analyzer agreement for model-backed baseline cases', () => {
     for (const [id, capability] of Object.entries(RESOLVED_INFERENCE_CAPABILITIES)) {
-      const variables = 'context' in capability ? mutableVariables(capability.context.variables) : undefined
+      const variables =
+        'context' in capability && 'variables' in capability.context
+          ? mutableVariables(capability.context.variables)
+          : undefined
+      const declaredFunctions =
+        'context' in capability && 'functions' in capability.context
+          ? mutableFunctions(capability.context.functions as Readonly<Record<string, DeclaredFunction>>)
+          : undefined
       const inputType =
         'input' in capability && typeof capability.input === 'string'
           ? capability.input
@@ -150,6 +167,7 @@ describe('type-inference capability registry', () => {
         model: r4Model,
         ...(inputType !== undefined && { inputType }),
         ...(variables !== undefined && { variables }),
+        ...(declaredFunctions !== undefined && { functions: declaredFunctions }),
       }).result
       expect(result, id).toEqual(capability.analyzer)
     }
@@ -340,7 +358,8 @@ function runManualCapability(id: string, expression: string): string | undefined
 }
 
 function mutableVariables(
-  variables: Readonly<Record<string, { types?: readonly string[]; single?: boolean }>> | undefined
+  variables:
+    Readonly<Record<string, { types?: readonly string[]; single?: boolean; targets?: readonly string[] }>> | undefined
 ): Record<string, DeclaredVariable> | undefined {
   if (variables === undefined) return undefined
   return Object.fromEntries(
@@ -349,7 +368,14 @@ function mutableVariables(
       {
         ...(declaration.types !== undefined && { types: [...declaration.types] }),
         ...(declaration.single !== undefined && { single: declaration.single }),
+        ...(declaration.targets !== undefined && { targets: [...declaration.targets] }),
       },
     ])
   )
+}
+
+function mutableFunctions(
+  functions: Readonly<Record<string, DeclaredFunction>> | undefined
+): Record<string, DeclaredFunction> | undefined {
+  return functions === undefined ? undefined : { ...functions }
 }

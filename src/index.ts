@@ -23,7 +23,17 @@ export type { ElementInfo, ModelProvider } from './model/provider.ts'
 export type { AstNode } from './parser/ast.ts'
 export { parse } from './parser/parser.ts'
 export { printExpression } from './parser/printer.ts'
-export type { FhirpathInput, FhirpathResult, FhirpathResultIn, FhirTypeName } from './typed/infer.ts'
+export type {
+  EmptyFhirpathTypeContext,
+  FhirpathFunctionDeclaration,
+  FhirpathInput,
+  FhirpathResult,
+  FhirpathResultIn,
+  FhirpathTypeContext,
+  FhirpathTypeDeclaration,
+  FhirpathTypeDeclarations,
+  FhirTypeName,
+} from './typed/infer.ts'
 export { Temporal } from './values/datetime.ts'
 export { Decimal } from './values/decimal.ts'
 export type { ValueKind } from './values/type-compat.ts'

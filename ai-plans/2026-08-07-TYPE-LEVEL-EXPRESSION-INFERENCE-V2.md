@@ -848,3 +848,32 @@ checked in under `benchmarks/`.
   expanded registry-derived full fixture uses 545,084/552,570, and the worst
   independent capability uses 62,276/63,682, below the 5,000,000 and 100,000
   ceilings. These values become the next phase's checked baselines.
+
+### 2026-08-10 — Commit 5 typed host context and expanded budgets
+
+- `FhirpathTypeDeclaration` and `FhirpathTypeContext` now carry normalized env,
+  var, function, cardinality, and Reference-target declarations. Engine defaults,
+  per-call options, compiled and bound expressions, projections, literal vars,
+  custom-function signatures and bodies, overloads, and function-local
+  `envTypes` all feed the same type-level context. A declaration beside its
+  literal runtime value also checks the value type and singleton cardinality.
+  An expression var may consume env values and explicitly declared vars; another
+  expression var is not assumed available because TypeScript object types do not
+  preserve the runtime record's declaration order. This makes forward references
+  opaque instead of assigning them a type they cannot evaluate with.
+- The analyzer now infers literal expression-defined function bodies under the
+  call focus and temporary local declarations. This closes the soundness gap
+  that would otherwise let the type layer claim more than the analyzer. Native
+  functions without result declarations and ambiguous expression overloads
+  remain unknown.
+- The old 134-expression common fixture measures 111,897/115,080
+  instantiations, +2.8%/+2.9% from Commit 4 and within the existing 5% ratchet.
+  Seven new host-context cases deliberately expand that fixture to 141 cases and
+  126,978/132,613 instantiations. Six generated host-context registry entries
+  expand the full fixture to 580,798/607,991. The checked baselines move to
+  those expanded totals; the 5,000,000 full-language and 100,000 per-case
+  ceilings do not change.
+- Corpus precision remains 2,078 precise, 269 opaque, and zero conflicts because
+  the reference corpus supplies no host declarations. Runtime absence and error
+  behavior is unchanged: ordinary navigation misses stay empty, while invalid
+  function calls keep their specification errors.

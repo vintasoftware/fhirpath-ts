@@ -14,9 +14,10 @@ let index = 0
 for (const capability of Object.values(RESOLVED_INFERENCE_CAPABILITIES)) {
   index += 1
   const input = 'input' in capability ? capability.input : 'inputType' in capability ? capability.inputType : 'opaque'
+  const context = 'typeContext' in capability ? `, ${JSON.stringify(capability.typeContext)}` : ''
   lines.push(
-    `export type Capability${String(index).padStart(3, '0')} = FhirpathResultIn<${JSON.stringify(capability.expression)}, ${JSON.stringify(input)}>`,
-    `export type Composition${String(index).padStart(3, '0')} = FhirpathResultIn<${JSON.stringify(capability.composition)}, ${JSON.stringify(input)}>`
+    `export type Capability${String(index).padStart(3, '0')} = FhirpathResultIn<${JSON.stringify(capability.expression)}, ${JSON.stringify(input)}${context}>`,
+    `export type Composition${String(index).padStart(3, '0')} = FhirpathResultIn<${JSON.stringify(capability.composition)}, ${JSON.stringify(input)}${context}>`
   )
 }
 const longest = INFERENCE_CORPUS_AUDIT.longestWithinBudgetCase

@@ -1,7 +1,7 @@
 import { FhirPathError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { FhirpathInput, FhirpathResult, FhirpathResultIn, FhirTypeName } from '../typed/infer.ts'
-import { CompiledExpression } from './compile.ts'
+import type { FhirpathInput, FhirTypeName } from '../typed/infer.ts'
+import { CompiledExpression, type InferredExpressionResult } from './compile.ts'
 
 /**
  * Compiles a FHIRPath expression. The call form infers supported literal
@@ -13,12 +13,12 @@ import { CompiledExpression } from './compile.ts'
 export function fhirpath<
   const Expr extends string,
   const Root extends FhirTypeName,
-  TResult extends unknown[] = FhirpathResultIn<Expr, Root>,
->(expression: Expr, inputType: Root): CompiledExpression<Expr, R4TypeOf[Root], TResult>
+  TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
+>(expression: Expr, inputType: Root): CompiledExpression<Expr, R4TypeOf[Root], TResult, Root>
 export function fhirpath<
   const Expr extends string,
   TInput = FhirpathInput<Expr>,
-  TResult extends unknown[] = FhirpathResult<Expr>,
+  TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
 >(expression: Expr): CompiledExpression<Expr, TInput, TResult>
 export function fhirpath(strings: TemplateStringsArray, ...substitutions: never[]): CompiledExpression
 export function fhirpath(input: string | TemplateStringsArray, ...rest: unknown[]): CompiledExpression {

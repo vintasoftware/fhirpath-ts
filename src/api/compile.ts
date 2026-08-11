@@ -18,7 +18,16 @@ import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { printExpression } from '../parser/printer.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { FhirpathInput, FhirpathResult, FhirpathResultIn, FhirTypeName } from '../typed/infer.ts'
+import type {
+  CheckedFhirpathOptionValues,
+  EmptyFhirpathTypeContext,
+  FhirpathInput,
+  FhirpathResultIn,
+  FhirpathTypeContextOf,
+  FhirpathTypeDeclarations,
+  FhirTypeName,
+  MergeFhirpathTypeContexts,
+} from '../typed/infer.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
 
@@ -36,12 +45,15 @@ export type SingleCustomFunction =
       criteria?: never
       /** Only an expression body reads `%name`; a native `fn` gets plain values. */
       env?: never
+      envTypes?: never
     })
   | {
       expression: AnyExpression
       signature?: CustomFunctionSignature
       /** Environment values available only while this expression body runs. */
       env?: Record<string, unknown>
+      /** Static declarations for values in this function-local environment. */
+      envTypes?: FhirpathTypeDeclarations
       /** Return one criteria Boolean. An empty body result becomes `false`. */
       criteria?: boolean
       fn?: never
@@ -57,6 +69,7 @@ export interface OverloadedCustomFunction {
   signature?: never
   criteria?: never
   env?: never
+  envTypes?: never
   minArity?: never
   maxArity?: never
 }
@@ -66,12 +79,16 @@ export type CustomFunction = SingleCustomFunction | OverloadedCustomFunction
 export interface EvaluateOptions {
   /** Environment variables (`%name`), keyed with or without the leading `%`. */
   env?: Record<string, unknown>
+  /** Static types for environment variables; declarations never create runtime values. */
+  envTypes?: FhirpathTypeDeclarations
   /**
    * FHIRPath bindings evaluated against the input in declaration order. They
    * keep FHIRPath types and may use `%context`, `env`, and earlier variables.
    * During projection they run once per row. A `TypedValue[]` binds directly.
    */
   vars?: Record<string, AnyExpression | readonly TypedValue[]>
+  /** Static types for pre-resolved vars, or explicit overrides for expression vars. */
+  varTypes?: FhirpathTypeDeclarations
   model?: ModelProvider
   /** Clock for `now()`, `today()`, and `timeOfDay()`. Defaults to the current time. */
   now?: Date
@@ -100,10 +117,26 @@ export interface EvaluateOptions {
  * e.g. with `@medplum/fhirtypes` types, for full type-level fidelity with
  * another FHIR type package: `compile<'Patient.name', Patient, HumanName[]>(...)`.
  */
+export interface InferredExpressionResult {
+  readonly __inferredExpressionResult: unique symbol
+}
+
+type CompiledResult<
+  Expr extends string,
+  TResult extends unknown[] | InferredExpressionResult,
+  Root extends string,
+  Context extends object,
+  Options,
+> = TResult extends InferredExpressionResult
+  ? FhirpathResultIn<Expr, Root, MergeFhirpathTypeContexts<Context, FhirpathTypeContextOf<Options>>>
+  : Extract<TResult, unknown[]>
+
 export class CompiledExpression<
   Expr extends string = string,
   TInput = FhirpathInput<Expr>,
-  TResult extends unknown[] = FhirpathResult<Expr>,
+  TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
+  Root extends string = 'opaque',
+  Context extends object = EmptyFhirpathTypeContext,
 > {
   readonly source: string
   readonly ast: AstNode
@@ -114,8 +147,11 @@ export class CompiledExpression<
   }
 
   /** Evaluate and unwrap results to plain JS values. */
-  evaluate(input?: TInput, options?: EvaluateOptions): TResult {
-    return this.evaluateTyped(input, options).map(unwrap) as TResult
+  evaluate<const Options extends EvaluateOptions = EmptyFhirpathTypeContext>(
+    input?: TInput,
+    options?: EvaluateOptions & Options & CheckedFhirpathOptionValues<Options>
+  ): CompiledResult<Expr, TResult, Root, Context, Options> {
+    return this.evaluateTyped(input, options).map(unwrap) as CompiledResult<Expr, TResult, Root, Context, Options>
   }
 
   /** Evaluate keeping the internal typed representation (types, Decimal, Temporal). */
@@ -139,12 +175,12 @@ export class CompiledExpression<
 export function compile<
   const Expr extends string,
   const Root extends FhirTypeName,
-  TResult extends unknown[] = FhirpathResultIn<Expr, Root>,
->(expression: Expr, inputType: Root): CompiledExpression<Expr, R4TypeOf[Root], TResult>
+  TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
+>(expression: Expr, inputType: Root): CompiledExpression<Expr, R4TypeOf[Root], TResult, Root>
 export function compile<
   const Expr extends string,
   TInput = FhirpathInput<Expr>,
-  TResult extends unknown[] = FhirpathResult<Expr>,
+  TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
 >(expression: Expr): CompiledExpression<Expr, TInput, TResult>
 export function compile(expression: string): CompiledExpression {
   // A declared input type is a compile-time and check-time declaration (see

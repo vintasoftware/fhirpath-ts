@@ -1,6 +1,14 @@
 import { mergeEnvKeys } from '../engine/context.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { FhirpathInput, FhirpathResult } from '../typed/infer.ts'
+import type {
+  CheckedFhirpathOptionValues,
+  EmptyFhirpathTypeContext,
+  FhirpathInput,
+  FhirpathResultIn,
+  FhirpathRootOf,
+  FhirpathTypeContextOf,
+  MergeFhirpathTypeContexts,
+} from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { type BundleLike, isBundle, normalizeInput, toSubjects } from './bundle.ts'
@@ -31,6 +39,39 @@ export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | re
 export type TypedEvaluateOptions<T extends keyof R4TypeOf> = EvaluateOptions & { type: T }
 
 type CompiledForEngine<Expr extends string> = CompiledExpression<Expr, FhirpathInput<Expr>, unknown[]>
+
+type EngineTypeContext<Defaults, Options> = MergeFhirpathTypeContexts<
+  FhirpathTypeContextOf<Defaults>,
+  FhirpathTypeContextOf<Options>
+>
+
+type EngineRoot<Input> = Input extends readonly (infer Item)[]
+  ? FhirpathRootOf<Item>
+  : Input extends { readonly resourceType: 'Bundle' }
+    ? 'opaque'
+    : FhirpathRootOf<Input>
+
+type EngineResult<Expr extends string, Input, Defaults, Options> = FhirpathResultIn<
+  Expr,
+  EngineRoot<Input>,
+  EngineTypeContext<Defaults, Options>
+>
+
+type ProjectionRoot<Input> = Input extends { readonly resourceType: 'Bundle' }
+  ? 'opaque'
+  : Input extends readonly (infer Item)[]
+    ? ProjectionRoot<Item>
+    : FhirpathRootOf<Input>
+
+type ProjectionTypeContext<Defaults, Options> = MergeFhirpathTypeContexts<
+  EngineTypeContext<Defaults, Options>,
+  {
+    env: {
+      rowIndex: { type: 'System.Integer' }
+      rowTotal: { type: 'System.Integer' }
+    }
+  }
+>
 
 /** Engines created during the current recording session. */
 let session: FhirPathEngine[] | undefined
@@ -83,7 +124,7 @@ export interface EngineOptions extends EvaluateOptions {
  * replace defaults, while `env`, `vars`, and `functions` merge by name. Keep an
  * engine for reuse because its parse cache is private to that instance.
  */
-export class FhirPathEngine {
+export class FhirPathEngine<const Defaults extends EngineOptions = EmptyFhirpathTypeContext> {
   /** The per-call options bound at construction; engine-only settings are not part of them. */
   readonly defaults: EvaluateOptions
   /**
@@ -94,10 +135,18 @@ export class FhirPathEngine {
   readonly dtos: readonly DtoClass[]
   private readonly compileCached: Compiler
 
-  constructor({ cacheSize, resourceDtos, ...defaults }: EngineOptions = {}) {
+  constructor(
+    options: EngineOptions &
+      Defaults &
+      CheckedFhirpathOptionValues<Defaults> &
+      Record<Exclude<keyof Defaults, keyof EngineOptions>, never> = {} as Defaults &
+      CheckedFhirpathOptionValues<Defaults> &
+      Record<Exclude<keyof Defaults, keyof EngineOptions>, never>
+  ) {
+    const { cacheSize, resourceDtos, ...defaults } = options
     this.compileCached = createCachedCompiler(cacheSize)
     this.dtos = resourceDtos ?? []
-    this.defaults = this.precompiled(withDtos(defaults, this.dtos, this.compileCached))
+    this.defaults = this.precompiled(withDtos(defaults as EvaluateOptions, this.dtos, this.compileCached))
     recordEngine(this)
   }
 
@@ -107,11 +156,15 @@ export class FhirPathEngine {
     input: EngineInput<Expr> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T][]
-  evaluate<const Expr extends string>(
+  evaluate<
+    const Expr extends string,
+    const Input extends EngineInput<Expr> | undefined = undefined,
+    const Options extends EvaluateOptions = EmptyFhirpathTypeContext,
+  >(
     expression: Expr | CompiledForEngine<Expr>,
-    input?: EngineInput<Expr>,
-    options?: EvaluateOptions
-  ): FhirpathResult<Expr>
+    input?: Input,
+    options?: EvaluateOptions & Options & CheckedFhirpathOptionValues<Options>
+  ): EngineResult<Expr, Input, Defaults, Options>
   evaluate(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown[] {
     const compiled = this.compileCached(expression)
     const merged = this.merged(options)
@@ -126,7 +179,7 @@ export class FhirPathEngine {
   }
 
   /** Parse once for reuse, with this engine's defaults bound. Does not touch the parse cache. */
-  compile<const Expr extends string>(expression: Expr): BoundExpression<Expr> {
+  compile<const Expr extends string>(expression: Expr): BoundExpression<Expr, Defaults> {
     return new BoundExpression(this, new CompiledExpression(expression))
   }
 
@@ -136,11 +189,15 @@ export class FhirPathEngine {
     input: EngineInput<Expr> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T] | undefined
-  first<const Expr extends string>(
+  first<
+    const Expr extends string,
+    const Input extends EngineInput<Expr> | undefined = undefined,
+    const Options extends EvaluateOptions = EmptyFhirpathTypeContext,
+  >(
     expression: Expr | CompiledForEngine<Expr>,
-    input?: EngineInput<Expr>,
-    options?: EvaluateOptions
-  ): FhirpathResult<Expr>[number] | undefined
+    input?: Input,
+    options?: EvaluateOptions & Options & CheckedFhirpathOptionValues<Options>
+  ): EngineResult<Expr, Input, Defaults, Options>[number] | undefined
   first(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown {
     return this.evaluate(expression, input, options)[0]
   }
@@ -182,16 +239,24 @@ export class FhirPathEngine {
     options?: EvaluateOptions
   ): InstanceType<C>[]
   project<C extends DtoClass>(input: unknown, dto: C, options?: EvaluateOptions): InstanceType<C>
-  project<const Columns extends ProjectionColumns>(
-    input: readonly unknown[] | BundleLike,
+  project<
+    const Input extends readonly unknown[] | BundleLike,
+    const Columns extends ProjectionColumns,
+    const Options extends EvaluateOptions = EmptyFhirpathTypeContext,
+  >(
+    input: Input,
     columns: Columns,
-    options?: EvaluateOptions
-  ): Projection<Columns>[]
-  project<const Columns extends ProjectionColumns>(
-    input: unknown,
+    options?: EvaluateOptions & Options & CheckedFhirpathOptionValues<Options>
+  ): Projection<Columns, ProjectionRoot<Input>, ProjectionTypeContext<Defaults, Options>>[]
+  project<
+    const Input,
+    const Columns extends ProjectionColumns,
+    const Options extends EvaluateOptions = EmptyFhirpathTypeContext,
+  >(
+    input: Input,
     columns: Columns,
-    options?: EvaluateOptions
-  ): Projection<Columns>
+    options?: EvaluateOptions & Options & CheckedFhirpathOptionValues<Options>
+  ): Projection<Columns, ProjectionRoot<Input>, ProjectionTypeContext<Defaults, Options>>
   project(input: unknown, columns: ProjectionColumns | DtoClass, options?: EvaluateOptions): unknown {
     if (typeof columns === 'function') {
       assertInputMatchesDto(input, columns)
@@ -240,6 +305,12 @@ export class FhirPathEngine {
     if (this.defaults.vars && precompiled.vars) {
       merged.vars = mergeEnvKeys(this.defaults.vars, precompiled.vars)
     }
+    if (this.defaults.envTypes && precompiled.envTypes) {
+      merged.envTypes = mergeEnvKeys(this.defaults.envTypes, precompiled.envTypes)
+    }
+    if (this.defaults.varTypes && precompiled.varTypes) {
+      merged.varTypes = mergeEnvKeys(this.defaults.varTypes, precompiled.varTypes)
+    }
     if (this.defaults.functions && precompiled.functions) {
       merged.functions = { ...this.defaults.functions, ...precompiled.functions }
     }
@@ -284,11 +355,11 @@ export class FhirPathEngine {
 }
 
 /** A compiled expression carrying an engine's defaults, so `evaluate(input)` needs nothing else. */
-export class BoundExpression<Expr extends string = string> {
+export class BoundExpression<Expr extends string = string, Defaults extends EngineOptions = EmptyFhirpathTypeContext> {
   readonly expression: CompiledExpression<Expr>
-  private readonly engine: FhirPathEngine
+  private readonly engine: FhirPathEngine<Defaults>
 
-  constructor(engine: FhirPathEngine, expression: CompiledExpression<Expr>) {
+  constructor(engine: FhirPathEngine<Defaults>, expression: CompiledExpression<Expr>) {
     this.engine = engine
     this.expression = expression
   }
@@ -301,7 +372,13 @@ export class BoundExpression<Expr extends string = string> {
     input: EngineInput<Expr> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T][]
-  evaluate(input?: EngineInput<Expr>, options?: EvaluateOptions): FhirpathResult<Expr>
+  evaluate<
+    const Input extends EngineInput<Expr> | undefined = undefined,
+    const Options extends EvaluateOptions = EmptyFhirpathTypeContext,
+  >(
+    input?: Input,
+    options?: EvaluateOptions & Options & CheckedFhirpathOptionValues<Options>
+  ): EngineResult<Expr, Input, Defaults, Options>
   evaluate(input?: EngineInput<Expr>, options?: EvaluateOptions): unknown {
     return this.engine.evaluate(this.expression, input, options)
   }
@@ -314,7 +391,13 @@ export class BoundExpression<Expr extends string = string> {
     input: EngineInput<Expr> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T] | undefined
-  first(input?: EngineInput<Expr>, options?: EvaluateOptions): FhirpathResult<Expr>[number] | undefined
+  first<
+    const Input extends EngineInput<Expr> | undefined = undefined,
+    const Options extends EvaluateOptions = EmptyFhirpathTypeContext,
+  >(
+    input?: Input,
+    options?: EvaluateOptions & Options & CheckedFhirpathOptionValues<Options>
+  ): EngineResult<Expr, Input, Defaults, Options>[number] | undefined
   first(input?: EngineInput<Expr>, options?: EvaluateOptions): unknown {
     return this.engine.first(this.expression, input, options)
   }

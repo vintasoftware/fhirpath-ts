@@ -2,7 +2,7 @@ import { type EvaluationContext, forkVariables } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { FhirpathResultIn } from '../typed/infer.ts'
+import type { EmptyFhirpathTypeContext, FhirpathResultIn } from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
@@ -38,7 +38,9 @@ type ColumnPath<Column> = Column extends string
     : never
 
 /** Infers the values after the selected conversion, or from the path when no conversion is set. */
-type ColumnValues<Column, Root extends string> = Column extends { as: (value: never) => infer R }
+type ColumnValues<Column, Root extends string, Context extends object> = Column extends {
+  as: (value: never) => infer R
+}
   ? R[]
   : Column extends { as: 'Date' }
     ? Date[]
@@ -52,25 +54,30 @@ type ColumnValues<Column, Root extends string> = Column extends { as: (value: ne
           ? V[]
           : Column extends { type: infer T extends keyof R4TypeOf }
             ? R4TypeOf[T][]
-            : FhirpathResultIn<ColumnPath<Column>, Root>
+            : FhirpathResultIn<ColumnPath<Column>, Root, Context>
 
 /** A column's output type. A default replaces `undefined`; a collection returns every value. */
 export type ColumnResult<
   Column extends string | { path: string } | { test: string },
   Root extends string = 'opaque',
+  Context extends object = EmptyFhirpathTypeContext,
 > = Column extends {
   test: string
 }
   ? boolean
   : Column extends { collection: true }
-    ? ColumnValues<Column, Root>
+    ? ColumnValues<Column, Root, Context>
     : Column extends { default: infer D }
-      ? ColumnValues<Column, Root>[number] | D
-      : ColumnValues<Column, Root>[number] | undefined
+      ? ColumnValues<Column, Root, Context>[number] | D
+      : ColumnValues<Column, Root, Context>[number] | undefined
 
 /** The row shape `project()` produces: each column's type inferred from its expression. */
-export type Projection<Columns extends ProjectionColumns, Root extends string = 'opaque'> = {
-  -readonly [K in keyof Columns]: ColumnResult<Columns[K], Root>
+export type Projection<
+  Columns extends ProjectionColumns,
+  Root extends string = 'opaque',
+  Context extends object = EmptyFhirpathTypeContext,
+> = {
+  -readonly [K in keyof Columns]: ColumnResult<Columns[K], Root, Context>
 }
 
 /** The `as: 'Date'` coercion; a value that is not a parseable date string becomes empty. */
