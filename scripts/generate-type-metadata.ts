@@ -1,6 +1,3 @@
-import { readFileSync, writeFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-
 import {
   OPERATOR_RESULT_RULES,
   type OperatorResultRule,
@@ -12,6 +9,7 @@ import { INFIX_PARSELETS, PREFIX_PARSELETS } from '../src/parser/precedence.ts'
 import { R4_RESOURCES } from '../src/r4/generated/resources-data.ts'
 import { R4_DATA_TYPES } from '../src/r4/generated/types-data.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
+import { writeOrCheckGenerated } from './generated-file.ts'
 
 const compactOutputUrl = new URL('../src/typed/generated/metadata-compact.ts', import.meta.url)
 const MAX_FAST_RESOURCE_ROOT_LENGTH = 33
@@ -173,13 +171,7 @@ function compactOperatorRuleType(rule: OperatorResultRule): string {
 }
 
 const compactNext = await formatGeneratedTypeScript(compactGeneratedSource())
-if (process.argv.includes('--check')) {
-  const path = fileURLToPath(compactOutputUrl)
-  if (readFileSync(path, 'utf8') !== compactNext) {
-    console.error(`${path} is stale; run pnpm generate:type-metadata`)
-    process.exitCode = 1
-  }
-} else {
-  writeFileSync(compactOutputUrl, compactNext)
-  console.log(`wrote ${fileURLToPath(compactOutputUrl)}`)
-}
+writeOrCheckGenerated(compactOutputUrl, compactNext, {
+  check: process.argv.includes('--check'),
+  regenerate: 'pnpm generate:type-metadata',
+})

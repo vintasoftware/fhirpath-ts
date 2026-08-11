@@ -1,30 +1,9 @@
-import { readFileSync, writeFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-
 import { analyzeExpressionDetailed } from '../src/analyzer/analyze.ts'
 import { type ArgSpec, FUNCTION_SIGNATURES, type FunctionSignature } from '../src/analyzer/signatures.ts'
 import { r4Model } from '../src/r4/index.ts'
+import { FHIR_PRIMITIVE_TO_TYPESCRIPT, FHIRPATH_SYSTEM_TO_TYPESCRIPT } from './fhir-type-maps.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
-
-const PRIMITIVE_TYPES: Readonly<Record<string, string>> = {
-  'System.Boolean': 'boolean',
-  'System.Integer': 'number',
-  'System.Long': 'bigint',
-  'System.Decimal': 'number',
-  'System.String': 'string',
-  'System.Date': 'string',
-  'System.DateTime': 'string',
-  'System.Time': 'string',
-  boolean: 'boolean',
-  integer: 'number',
-  integer64: 'bigint',
-  decimal: 'number',
-  string: 'string',
-  date: 'string',
-  dateTime: 'string',
-  instant: 'string',
-  time: 'string',
-}
+import { writeOrCheckGenerated } from './generated-file.ts'
 
 const entries = Object.fromEntries(
   Object.entries(FUNCTION_SIGNATURES)
@@ -67,15 +46,10 @@ const generated =
 export const BUILTIN_FUNCTION_CAPABILITIES = ${renderedEntries} as const
 `)
 const output = new URL('../src/typed/generated/function-capabilities.ts', import.meta.url)
-if (process.argv.includes('--check')) {
-  if (readFileSync(output, 'utf8') !== generated) {
-    console.error(`${fileURLToPath(output)} is stale; run pnpm generate:function-capabilities`)
-    process.exit(1)
-  }
-} else {
-  writeFileSync(output, generated)
-  console.log(`wrote ${fileURLToPath(output)}`)
-}
+writeOrCheckGenerated(output, generated, {
+  check: process.argv.includes('--check'),
+  regenerate: 'pnpm generate:function-capabilities',
+})
 
 function familyOf(signature: FunctionSignature): 'function-fixed' | 'function-input' | 'function-lambda' {
   if (
@@ -163,13 +137,16 @@ function argumentFor(argument: ArgSpec): string {
 function publicType(types: string[] | undefined): string {
   if (types === undefined) return 'unknown[]'
   if (types.length === 0) return 'never[]'
-  const members = [
-    ...new Set(types.map(type => type.replace(/^FHIR\./, '')).map(type => PRIMITIVE_TYPES[type] ?? type)),
-  ]
+  const members = [...new Set(types.map(type => type.replace(/^FHIR\./, '')))]
+  const valueTypes = members.map(
+    member => FHIR_PRIMITIVE_TO_TYPESCRIPT[member] ?? FHIRPATH_SYSTEM_TO_TYPESCRIPT[member] ?? member
+  )
   if (
-    members.every(member => member === 'boolean' || member === 'number' || member === 'bigint' || member === 'string')
+    valueTypes.every(
+      member => member === 'boolean' || member === 'number' || member === 'bigint' || member === 'string'
+    )
   ) {
-    return `(${members.join(' | ')})[]`.replace(/^\(([^|()]+)\)\[\]$/, '$1[]')
+    return `(${valueTypes.join(' | ')})[]`.replace(/^\(([^|()]+)\)\[\]$/, '$1[]')
   }
   return `R4TypeOf[${members.map(member => JSON.stringify(member)).join(' | ')}][]`
 }

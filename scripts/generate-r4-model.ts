@@ -5,13 +5,14 @@
  * Run from packages/fhirpath: node scripts/generate-r4-model.ts
  * Output is deterministic (sorted keys), so diffs stay reviewable.
  */
-import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { readJson } from '@medplum/definitions'
 
 import type { GeneratedElement, GeneratedType } from '../src/r4/model-data.ts'
+import { FHIR_PRIMITIVE_TO_TYPESCRIPT, FHIRPATH_SYSTEM_TO_TYPESCRIPT } from './fhir-type-maps.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
+import { writeOrCheckGenerated } from './generated-file.ts'
 
 const GENERATED_DIR = resolve(import.meta.dirname, '../src/r4/generated')
 const CHECK = process.argv.includes('--check')
@@ -324,43 +325,6 @@ export const ${constName}: Readonly<Record<string, GeneratedType>> = ${body}
   writeGenerated(path, await formatGeneratedTypeScript(content), `${Object.keys(data).length} types`)
 }
 
-/** Maps FHIR primitive names to the TypeScript values returned after `unwrap()`. */
-const PRIMITIVE_TS: Readonly<Record<string, string>> = {
-  boolean: 'boolean',
-  integer: 'number',
-  positiveInt: 'number',
-  unsignedInt: 'number',
-  integer64: 'bigint',
-  decimal: 'number',
-  date: 'string',
-  dateTime: 'string',
-  instant: 'string',
-  time: 'string',
-  string: 'string',
-  code: 'string',
-  id: 'string',
-  markdown: 'string',
-  uri: 'string',
-  url: 'string',
-  canonical: 'string',
-  oid: 'string',
-  uuid: 'string',
-  base64Binary: 'string',
-  xhtml: 'string',
-}
-
-const SYSTEM_TS: Readonly<Record<string, string>> = {
-  'System.String': 'string',
-  'System.Boolean': 'boolean',
-  'System.Integer': 'number',
-  'System.Long': 'bigint',
-  'System.Decimal': 'number',
-  'System.Date': 'string',
-  'System.DateTime': 'string',
-  'System.Time': 'string',
-  'System.Quantity': 'SystemQuantity',
-}
-
 /** `Patient.contact` → `PatientContact`; plain names stay as they are. */
 function interfaceName(typeName: string): string {
   return typeName
@@ -370,11 +334,11 @@ function interfaceName(typeName: string): string {
 }
 
 function tsTypeOf(elementTypeName: string, all: Record<string, GeneratedType>): string {
-  const primitive = PRIMITIVE_TS[elementTypeName]
+  const primitive = FHIR_PRIMITIVE_TO_TYPESCRIPT[elementTypeName]
   if (primitive !== undefined) {
     return primitive
   }
-  const system = SYSTEM_TS[elementTypeName]
+  const system = FHIRPATH_SYSTEM_TO_TYPESCRIPT[elementTypeName]
   if (system !== undefined) {
     return system
   }
@@ -417,11 +381,11 @@ async function emitTypeMaps(
     '}',
     '',
   ]
-  const names = Object.keys(all).filter(name => PRIMITIVE_TS[name] === undefined)
+  const names = Object.keys(all).filter(name => FHIR_PRIMITIVE_TO_TYPESCRIPT[name] === undefined)
   for (const name of names) {
     const definition = all[name] as GeneratedType
     const base =
-      definition.b !== undefined && all[definition.b] && PRIMITIVE_TS[definition.b] === undefined
+      definition.b !== undefined && all[definition.b] && FHIR_PRIMITIVE_TO_TYPESCRIPT[definition.b] === undefined
         ? interfaceName(definition.b)
         : undefined
     const heritage = base !== undefined && base !== interfaceName(name) ? ` extends ${interfaceName(base)}` : ''
@@ -488,16 +452,16 @@ async function emitTypeMaps(
   lines.push('}', '')
   lines.push('/** Type-name to TS-type dispatch, primitives included. */')
   lines.push('export interface R4TypeOf {')
-  for (const [primitive, ts] of Object.entries(PRIMITIVE_TS)) {
+  for (const [primitive, ts] of Object.entries(FHIR_PRIMITIVE_TO_TYPESCRIPT)) {
     lines.push(`  ${quoteKey(primitive)}: ${ts}`)
   }
-  for (const [system, ts] of Object.entries(SYSTEM_TS)) {
+  for (const [system, ts] of Object.entries(FHIRPATH_SYSTEM_TO_TYPESCRIPT)) {
     lines.push(`  '${system}': ${ts}`)
   }
   lines.push('  Resource: FhirResource')
   lines.push('  DomainResource: FhirResource')
   for (const name of Object.keys(all)) {
-    if (PRIMITIVE_TS[name] !== undefined || name === 'Resource' || name === 'DomainResource') {
+    if (FHIR_PRIMITIVE_TO_TYPESCRIPT[name] !== undefined || name === 'Resource' || name === 'DomainResource') {
       continue
     }
     lines.push(`  '${name}': ${interfaceName(name)}`)
@@ -523,22 +487,14 @@ async function emitTypeMaps(
 }
 
 function writeGenerated(path: string, content: string, summary: string): void {
-  if (CHECK) {
-    if (readFileSync(path, 'utf8') !== content) {
-      console.error(`${path} is stale; run pnpm generate:r4`)
-      process.exitCode = 1
-    }
-    return
-  }
-  writeFileSync(path, content)
-  console.log(`wrote ${path} (${summary})`)
+  writeOrCheckGenerated(path, content, { check: CHECK, regenerate: 'pnpm generate:r4', summary })
 }
 
 /** Element-type names normalize so R4TypeOf can dispatch them directly. */
 function normalizeTypeName(elementTypeName: string, all: Record<string, GeneratedType>): string {
   if (
-    PRIMITIVE_TS[elementTypeName] !== undefined ||
-    SYSTEM_TS[elementTypeName] !== undefined ||
+    FHIR_PRIMITIVE_TO_TYPESCRIPT[elementTypeName] !== undefined ||
+    FHIRPATH_SYSTEM_TO_TYPESCRIPT[elementTypeName] !== undefined ||
     elementTypeName === 'Resource' ||
     elementTypeName === 'DomainResource' ||
     all[elementTypeName]

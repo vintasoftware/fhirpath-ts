@@ -1,8 +1,6 @@
-import { readFileSync, writeFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-
 import { INFERENCE_CAPABILITIES } from '../src/typed/capability-registry.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
+import { writeOrCheckGenerated } from './generated-file.ts'
 import { loadInferenceInventory } from './inference-corpus.ts'
 
 const corpus = new Map(loadInferenceInventory().map(item => [item.id, item]))
@@ -67,21 +65,14 @@ ${Object.entries(resolved)
   .join('\n')}
 `)
 const assertionsOutput = new URL('../src/typed/generated/capability-assertions.types.ts', import.meta.url)
-if (process.argv.includes('--check')) {
-  for (const [url, expected] of [
-    [output, source],
-    [assertionsOutput, assertions],
-  ] as const) {
-    if (readFileSync(url, 'utf8') !== expected) {
-      console.error(`${fileURLToPath(url)} is stale; run pnpm generate:inference-capabilities`)
-      process.exitCode = 1
-    }
-  }
-} else {
-  writeFileSync(output, source)
-  writeFileSync(assertionsOutput, assertions)
-  console.log(`wrote ${fileURLToPath(output)}`)
-  console.log(`wrote ${fileURLToPath(assertionsOutput)}`)
+for (const [path, content] of [
+  [output, source],
+  [assertionsOutput, assertions],
+] as const) {
+  writeOrCheckGenerated(path, content, {
+    check: process.argv.includes('--check'),
+    regenerate: 'pnpm generate:inference-capabilities',
+  })
 }
 
 function stringifyWithUndefined(value: unknown): string {

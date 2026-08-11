@@ -13,6 +13,7 @@ import { r4Model } from '../src/r4/index.ts'
 import { INFERENCE_SOURCE_STEP_LIMIT, INFERENCE_TOKEN_LIMIT } from '../src/typed/inference-limits.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
 import { type InventoryCase, loadInferenceInventory } from './inference-corpus.ts'
+import { walkAst } from './walk-ast.ts'
 
 type Status = 'precise' | 'opaque' | 'conflict'
 
@@ -183,7 +184,7 @@ function normalizeTypeName(type: string): string {
 
 function familiesOf(root: AstNode): string[] {
   const families = new Set<string>()
-  const walk = (node: AstNode): void => {
+  walkAst(root, node => {
     switch (node.kind) {
       case 'null':
       case 'boolean':
@@ -194,46 +195,30 @@ function familiesOf(root: AstNode): string[] {
       case 'time':
       case 'quantity':
         families.add('literals')
-        return
+        break
       case 'identifier':
         families.add('paths')
-        return
+        break
       case 'external':
       case 'special':
         families.add('variables')
-        return
+        break
       case 'dot':
-        families.add('paths')
-        walk(node.left)
-        walk(node.right)
-        return
       case 'indexer':
         families.add('paths')
-        walk(node.target)
-        walk(node.index)
-        return
+        break
       case 'call':
         families.add(node.name === 'resolve' ? 'resolve' : 'functions')
         if (['where', 'select', 'all', 'repeat', 'aggregate', 'sort', 'iif'].includes(node.name))
           families.add('lambdas')
         if (node.name === 'defineVariable') families.add('variables')
-        for (const argument of node.args) walk(argument)
-        return
+        break
       case 'unary':
-        families.add('operators')
-        walk(node.operand)
-        return
       case 'binary':
-        families.add('operators')
-        walk(node.left)
-        walk(node.right)
-        return
       case 'typeOp':
         families.add('operators')
-        walk(node.operand)
-        return
+        break
     }
-  }
-  walk(root)
+  })
   return [...families].sort()
 }
