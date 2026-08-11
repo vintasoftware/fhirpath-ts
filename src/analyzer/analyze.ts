@@ -7,10 +7,10 @@ import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
-import { unsatisfiedInput, type ValueKind, valueKindOfTypeName } from '../values/type-compat.ts'
+import { commonValueKind, unsatisfiedInput, type ValueKind } from '../values/type-compat.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
 import { type AnalyzerVariable, analyzerVariablesFromDeclarations } from './declarations.ts'
-import { applyOperatorResultRule, TYPE_OPERATOR_RESULT_RULES } from './operator-rules.ts'
+import { applyOperatorResultRule, applyTypeOperatorResultRule } from './operator-rules.ts'
 import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
   applyResultRule,
@@ -970,14 +970,9 @@ class Analyzer {
     const operand = this.walk(node.operand, input, scope)
     this.requireSingle(operand, node.operand.span, `'${node.operator}' expects a single item operand`)
     const resolved = this.checkTypeName(node.type.parts, node.type.span)
-    if (node.operator === 'is') {
-      const rule = TYPE_OPERATOR_RESULT_RULES.is
-      return { types: [...rule.types], single: rule.single }
-    }
-    if (resolved === undefined) {
-      return UNKNOWN
-    }
-    return { types: this.narrowTypes(operand, resolved, node.span), single: true }
+    const narrowed =
+      node.operator === 'as' && resolved !== undefined ? this.narrowTypes(operand, resolved, node.span) : undefined
+    return applyTypeOperatorResultRule(node.operator, narrowed)
   }
 
   private checkArithmetic(operator: string, left: StaticState, right: StaticState, span: SourceSpan): void {
@@ -985,8 +980,8 @@ class Analyzer {
       this.report('singleton-required', `Operator '${operator}' expects single-item operands${NARROW_HINT}`, span)
       return
     }
-    const leftKind = kindOf(left)
-    const rightKind = kindOf(right)
+    const leftKind = commonValueKind(left.types)
+    const rightKind = commonValueKind(right.types)
     if (leftKind === undefined || rightKind === undefined || leftKind === 'Complex' || rightKind === 'Complex') {
       return
     }
@@ -1005,8 +1000,8 @@ class Analyzer {
   }
 
   private checkComparable(left: StaticState, right: StaticState, span: SourceSpan): void {
-    const leftKind = kindOf(left)
-    const rightKind = kindOf(right)
+    const leftKind = commonValueKind(left.types)
+    const rightKind = commonValueKind(right.types)
     if (leftKind === undefined || rightKind === undefined) {
       return
     }
@@ -1016,8 +1011,8 @@ class Analyzer {
   }
 
   private checkEquality(left: StaticState, right: StaticState, span: SourceSpan): void {
-    const leftKind = kindOf(left)
-    const rightKind = kindOf(right)
+    const leftKind = commonValueKind(left.types)
+    const rightKind = commonValueKind(right.types)
     if (leftKind === undefined || rightKind === undefined || leftKind === 'Complex' || rightKind === 'Complex') {
       return
     }
@@ -1027,7 +1022,7 @@ class Analyzer {
   }
 
   private requireKind(state: StaticState, kind: ValueKind, span: SourceSpan, message: string): void {
-    const actual = kindOf(state)
+    const actual = commonValueKind(state.types)
     if (actual === undefined) {
       return
     }
@@ -1165,23 +1160,6 @@ function mergedResult(candidates: readonly ResolvedDeclaration[]): { types?: str
     ...(union.types !== undefined && { types: union.types }),
     ...(union.single !== undefined && { single: union.single }),
   }
-}
-
-/** The behavior kind shared by every candidate type, or undefined when mixed/unknown. */
-function kindOf(state: StaticState): ValueKind | undefined {
-  if (state.types === undefined || state.types.length === 0) {
-    return undefined
-  }
-  let kind: ValueKind | undefined
-  for (const type of state.types) {
-    const typeKind = valueKindOfTypeName(type)
-    if (kind === undefined) {
-      kind = typeKind
-    } else if (kind !== typeKind) {
-      return undefined
-    }
-  }
-  return kind
 }
 
 function typeSpecifierParts(node: AstNode): string[] | undefined {

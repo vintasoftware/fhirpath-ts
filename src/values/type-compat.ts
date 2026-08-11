@@ -27,6 +27,22 @@ export function valueKindOfTypeName(canonical: string): ValueKind {
   }
 }
 
+/** The behavior kind shared by every known candidate type. */
+export function commonValueKind(types: readonly string[] | undefined): ValueKind | undefined {
+  if (types === undefined || types.length === 0) {
+    return undefined
+  }
+  let found: ValueKind | undefined
+  for (const type of types) {
+    const next = valueKindOfTypeName(type)
+    if (found !== undefined && found !== next) {
+      return undefined
+    }
+    found = next
+  }
+  return found
+}
+
 /**
  * Resolves a focus type through its full name, then its local name. Unknown names
  * return undefined so callers can skip claims the model cannot support.
