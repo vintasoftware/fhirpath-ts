@@ -19,6 +19,7 @@ export type {
   EngineInputRoot,
   EngineOptions,
   EngineProjection,
+  EngineProjectionContext,
   EngineResult,
   TypedEvaluateOptions,
 } from './api/engine.ts'

@@ -61,19 +61,22 @@ export type EngineResult<Expr extends string, Input, Defaults, Options> = Fhirpa
   MergeFhirpathTypeContexts<FhirpathTypeContextOf<Defaults>, FhirpathTypeContextOf<Options>>
 >
 
+/** The merged static declarations visible while project() evaluates a row. */
+export type EngineProjectionContext<Defaults, Options> = MergeFhirpathTypeContexts<
+  MergeFhirpathTypeContexts<FhirpathTypeContextOf<Defaults>, FhirpathTypeContextOf<Options>>,
+  {
+    env: {
+      rowIndex: { type: 'System.Integer' }
+      rowTotal: { type: 'System.Integer' }
+    }
+  }
+>
+
 /** The inferred row returned by project(), including its built-in row variables. */
 export type EngineProjection<Columns extends ProjectionColumns, Input, Defaults, Options> = Projection<
   Columns,
   EngineInputRoot<Input>,
-  MergeFhirpathTypeContexts<
-    MergeFhirpathTypeContexts<FhirpathTypeContextOf<Defaults>, FhirpathTypeContextOf<Options>>,
-    {
-      env: {
-        rowIndex: { type: 'System.Integer' }
-        rowTotal: { type: 'System.Integer' }
-      }
-    }
-  >
+  EngineProjectionContext<Defaults, Options>
 >
 
 /** Engines created during the current recording session. */
