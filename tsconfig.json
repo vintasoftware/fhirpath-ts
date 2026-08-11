@@ -41,8 +41,8 @@
     "**/dist",
     "**/build",
     "scripts/package-check-fixtures/**",
-    "src/typed/api-perf-fixture.types.ts",
-    "src/typed/perf-fixture.types.ts",
+    "src/typed/verification/api-perf-fixture.types.ts",
+    "src/typed/verification/perf-fixture.types.ts",
     "src/typed/generated/full-language-perf.types.ts"
   ]
 }

@@ -38,12 +38,5 @@
   // `dogfood` is in the root config's `include` for typechecking; it is not part
   // of the package.
   "include": ["src/**/*.ts", "src/**/*.mjs"],
-  "exclude": [
-    "**/*.test.ts",
-    "src/testing/**",
-    "src/typed/api-perf-fixture.types.ts",
-    "src/typed/capability-registry.ts",
-    "src/typed/perf-fixture.types.ts",
-    "src/typed/generated"
-  ]
+  "exclude": ["**/*.test.ts", "src/testing/**", "src/typed/verification", "src/typed/generated"]
 }

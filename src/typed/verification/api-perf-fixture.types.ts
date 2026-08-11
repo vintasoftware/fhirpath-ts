@@ -1,6 +1,6 @@
-import { column, criteria, defineDto } from '../api/dto.ts'
-import { FhirPathEngine } from '../api/engine.ts'
-import type { Observation } from '../r4/generated/type-maps.ts'
+import { column, criteria, defineDto } from '../../api/dto.ts'
+import { FhirPathEngine } from '../../api/engine.ts'
+import type { Observation } from '../../r4/generated/type-maps.ts'
 
 class ObservationSummary extends defineDto('Observation') {
   @column('status')

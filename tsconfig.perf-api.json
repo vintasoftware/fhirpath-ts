@@ -2,6 +2,6 @@
 // DTO decorators, engine declarations, per-call declarations, and project().
 {
   "extends": "./tsconfig.json",
-  "include": ["src/typed/api-perf-fixture.types.ts"],
+  "include": ["src/typed/verification/api-perf-fixture.types.ts"],
   "exclude": []
 }

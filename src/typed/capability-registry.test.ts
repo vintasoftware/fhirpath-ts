@@ -9,10 +9,10 @@ import type { Organization, Practitioner, PractitionerRole } from '../r4/generat
 import { r4Model } from '../r4/index.ts'
 import { loadCorpus, runCorpusTest } from '../testing/fhirpathjs-harness.ts'
 import { loadOfficialSuite, runOfficialTest } from '../testing/official-harness.ts'
-import { INFERENCE_CAPABILITIES } from './capability-registry.ts'
 import { RESOLVED_INFERENCE_CAPABILITIES } from './generated/capabilities.ts'
 import type {} from './generated/capability-assertions.types.ts'
 import type { FhirpathResult, FhirpathResultIn } from './infer.ts'
+import { INFERENCE_CAPABILITIES } from './verification/capability-registry.ts'
 
 const patient = {
   resourceType: 'Patient',

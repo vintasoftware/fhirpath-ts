@@ -1,4 +1,4 @@
-import { INFERENCE_CAPABILITIES } from '../src/typed/capability-registry.ts'
+import { INFERENCE_CAPABILITIES } from '../src/typed/verification/capability-registry.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
 import { writeOrCheckGenerated } from './generated-file.ts'
 import { loadInferenceInventory } from './inference-corpus.ts'

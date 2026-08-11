@@ -1,4 +1,4 @@
-import { BUILTIN_FUNCTION_CAPABILITIES } from './generated/function-capabilities.ts'
+import { BUILTIN_FUNCTION_CAPABILITIES } from '../generated/function-capabilities.ts'
 
 export type CapabilityFamily =
   | 'path'

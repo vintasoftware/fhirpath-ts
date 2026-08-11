@@ -148,13 +148,8 @@ try {
   assertString(filename, 'pnpm pack did not report a tarball filename')
   assert(Array.isArray(files), 'pnpm pack did not report the packed files')
   const packedPaths = new Set(files.flatMap(file => (typeof file.path === 'string' ? [file.path] : [])))
-  const verificationArtifacts = [
-    'typed/api-perf-fixture.types.',
-    'typed/capability-registry.',
-    'typed/perf-fixture.types.',
-  ]
-  const leakedArtifacts = [...packedPaths].filter(path =>
-    verificationArtifacts.some(artifact => path.includes(artifact))
+  const leakedArtifacts = [...packedPaths].filter(
+    path => path.startsWith('src/typed/verification/') || path.startsWith('dist/typed/verification/')
   )
   assert.deepEqual(leakedArtifacts, [], `verification artifacts leaked into the package: ${leakedArtifacts.join(', ')}`)
   const generatedArtifacts = [...packedPaths].filter(
