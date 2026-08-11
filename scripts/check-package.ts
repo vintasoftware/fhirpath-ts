@@ -21,6 +21,10 @@ interface PackageManifest {
   publishConfig?: { exports?: Record<string, unknown> }
 }
 
+function assertString(value: unknown, message: string): asserts value is string {
+  assert.equal(typeof value, 'string', message)
+}
+
 const root = fileURLToPath(new URL('..', import.meta.url))
 const fixturesDirectory = join(root, 'scripts', 'package-check-fixtures')
 const rawArguments = process.argv.slice(2)
@@ -52,7 +56,7 @@ function packageBin(packageName: string, command: string): string {
   const packageDirectory = join(root, 'node_modules', packageName)
   const { bin } = readJson<PackageManifest>(join(packageDirectory, 'package.json'))
   const relativePath = typeof bin === 'string' ? bin : bin?.[command]
-  assert.equal(typeof relativePath, 'string', `${packageName} does not declare the ${command} bin`)
+  assertString(relativePath, `${packageName} does not declare the ${command} bin`)
   return resolve(packageDirectory, relativePath)
 }
 
@@ -70,8 +74,8 @@ function runTool(name: ToolName, args: string[], cwd = root, environment: NodeJS
 }
 
 function packWithPnpm(args: string[]): string {
-  const executable = process.env.npm_execpath
-  assert.equal(typeof executable, 'string', 'run this check through pnpm')
+  const executable = process.env['npm_execpath']
+  assertString(executable, 'run this check through pnpm')
   const isJavaScript = /\.(?:cjs|mjs|js)$/i.test(executable)
   const command = isJavaScript ? process.execPath : executable
   const commandArguments = isJavaScript ? [executable, ...args] : args
@@ -141,7 +145,7 @@ try {
     filename?: unknown
     files?: { path?: unknown }[]
   }
-  assert.equal(typeof filename, 'string', 'pnpm pack did not report a tarball filename')
+  assertString(filename, 'pnpm pack did not report a tarball filename')
   assert(Array.isArray(files), 'pnpm pack did not report the packed files')
   const packedPaths = new Set(files.flatMap(file => (typeof file.path === 'string' ? [file.path] : [])))
   const verificationArtifacts = [

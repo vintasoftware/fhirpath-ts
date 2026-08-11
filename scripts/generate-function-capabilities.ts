@@ -153,6 +153,8 @@ function argumentFor(argument: ArgSpec): string {
       return "1 'mg'"
     case 'Temporal':
       return '@2020-01-01'
+    case 'Complex':
+      return 'Patient.name.first()'
     case 'any':
       return "'x'"
   }
