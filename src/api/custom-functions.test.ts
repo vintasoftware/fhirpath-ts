@@ -250,6 +250,16 @@ describe('custom functions in the analyzer', () => {
     expect(analyze('code.holds()')).toEqual({ types: ['System.Boolean'], single: true })
   })
 
+  it('collects element dependencies from a criteria body', () => {
+    const functions = {
+      isNamed: { expression: 'name.given.exists()', criteria: true },
+    } as const satisfies Record<string, CustomFunction>
+    const details = analyzeExpressionDetailed('Patient.isNamed()', { model: r4Model, functions })
+
+    expect(details.result).toEqual({ types: ['System.Boolean'], single: true })
+    expect(details.elementDependencies).toEqual(['Patient.name', 'HumanName.given'])
+  })
+
   it('reuses a compiled body AST and preserves caller variables over a local environment', () => {
     const compiled = compile('%prefix')
     Object.defineProperty(compiled, 'source', { value: 'not valid (' })
