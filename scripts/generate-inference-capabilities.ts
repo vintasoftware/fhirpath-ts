@@ -41,6 +41,7 @@ const assertions =
 
 import type { HumanName, R4TypeOf, SystemQuantity } from '../../r4/generated/type-maps.ts'
 import type { FhirpathResultIn } from '../infer.ts'
+import type { FastSlowInferenceParity } from '../parser.ts'
 
 type Equal<Left, Right> = (<Type>() => Type extends Left ? 1 : 2) extends <Type>() => Type extends Right ? 1 : 2
   ? true
@@ -57,6 +58,7 @@ ${Object.entries(resolved)
     const input = 'input' in capability ? capability.input : 'inputType' in capability ? capability.inputType : 'opaque'
     const context = 'typeContext' in capability ? `, ${JSON.stringify(capability.typeContext)}` : ''
     return [
+      `export type ${name}FastSlowParity = Assert<FastSlowInferenceParity<${JSON.stringify(capability.expression)}, ${JSON.stringify(input)}>>`,
       `export type ${name}Positive = Assert<Equal<FhirpathResultIn<${JSON.stringify(capability.expression)}, ${JSON.stringify(input)}${context}>, ${capability.expectedType}>>`,
       `export type ${name}Degradation = Assert<Equal<FhirpathResultIn<${JSON.stringify(capability.degradation)}, ${JSON.stringify(input)}${context}>, unknown[]>>`,
       `export type ${name}Composition = Assert<Equal<FhirpathResultIn<${JSON.stringify(capability.composition)}, ${JSON.stringify(input)}${context}>, ${capability.compositionType}>>`,

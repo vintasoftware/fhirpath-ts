@@ -721,10 +721,8 @@ type InferParsed<
 
 /**
  * Model-known chains use a bounded shortcut. Four unrestricted steps may be
- * followed by two zero-argument calls. Generated name-length assertions keep
- * every accepted source below both scanner caps. Anything with general argument
- * syntax, operators, trivia, or unknown names takes the tokenizer and stack
- * parser above.
+ * followed by two zero-argument calls. Anything with general argument syntax,
+ * operators, trivia, or unknown names takes the tokenizer and stack parser.
  */
 type FastExpression<Expression extends string, Input extends string> = Expression extends `${infer Root}.${infer Rest}`
   ? Root extends keyof R4Resources & string
@@ -779,118 +777,40 @@ type FastStep<Segment extends string, State extends CoreState> = Segment extends
     : FastMiss
   : Segment extends `${infer Name}()`
     ? Name extends FastFunctionName
-      ? FastCallResult<FastApplyCall<State, Name, []>>
+      ? FastCallResult<ApplyCall<State, Name, []>>
       : FastMiss
     : Segment extends `${infer Name}(${infer Argument})`
       ? Name extends 'ofType' | 'as'
         ? Argument extends keyof R4TypeOf & string
           ? ShortText<Argument, 32> extends true
-            ? FastCallResult<FastApplyCall<State, Name, [['unknown', 'unknown', never, false, Argument]]>>
+            ? FastCallResult<ApplyCall<State, Name, [['unknown', 'unknown', never, false, Argument]]>>
             : FastMiss
           : FastMiss
         : Name extends 'select'
           ? IdentifierText<Argument> extends true
-            ? FastNavigate<FastSetSingle<State, true>, Argument> extends infer Projection
+            ? FastNavigate<SetSingle<State, true>, Argument> extends infer Projection
               ? Projection extends CoreState
-                ? FastCallResult<FastApplyCall<State, Name, [Projection]>>
+                ? FastCallResult<ApplyCall<State, Name, [Projection]>>
                 : FastMiss
               : FastMiss
             : FastMiss
           : Name extends FastFunctionName
             ? FastArgumentShape<Argument> extends true
               ? ShortSafeArgument<Argument> extends true
-                ? FastCallResult<FastApplyCall<State, Name, [UnknownCore]>>
+                ? FastCallResult<ApplyCall<State, Name, [UnknownCore]>>
                 : FastMiss
               : FastMiss
             : FastMiss
       : FastNavigate<State, Segment>
 
 type FastNavigate<State extends CoreState, Name extends string> =
-  FastNavigateState<State, Name> extends infer Result
+  Navigate<State, Name> extends infer Result
     ? Result extends CoreState
       ? Result[0] extends 'unknown' | 'opaque'
         ? FastMiss
         : Result
       : FastMiss
     : FastMiss
-
-type FastNavigateState<Input extends CoreState, Element extends string> = [Input[0]] extends [never]
-  ? EmptyCore
-  : Input[0] extends 'opaque'
-    ? OpaqueCore
-    : Input[0] extends 'unknown'
-      ? UnknownCore
-      : ElementInformation<Input[0], Element> extends infer Information
-        ? [Information] extends [never]
-          ? UnknownCore
-          : Information extends { t: infer Types extends string; a: infer Array extends boolean }
-            ? [
-                Canonical<Types>,
-                Input[1] extends true ? (true extends Array ? false : true) : Input[1],
-                never,
-                false,
-                never,
-              ]
-            : OpaqueCore
-        : OpaqueCore
-
-type FastApplyCall<Input extends CoreState, Name extends string, Args extends CoreState[]> = Input[0] extends 'opaque'
-  ? OpaqueCore
-  : Name extends 'select'
-    ? Args extends [infer Projection extends CoreState, ...CoreState[]]
-      ? FastSetSingle<Projection, BothSingle<Input[1], Projection[1]>>
-      : OpaqueCore
-    : Name extends 'ofType' | 'as'
-      ? Args extends [infer Argument extends CoreState, ...CoreState[]]
-        ? NormalizeTarget<Argument[4]> extends infer Target
-          ? [Target] extends [never]
-            ? OpaqueCore
-            : Target extends keyof R4TypeOf & string
-              ? FastNarrow<Input, Target>
-              : OpaqueCore
-          : OpaqueCore
-        : OpaqueCore
-      : Name extends keyof TypeFunctionRules
-        ? FastApplyResultRule<TypeFunctionRules[Name], Input>
-        : OpaqueCore
-
-type FastApplyResultRule<Rule, Input extends CoreState> = Rule extends readonly [
-  'fixed',
-  infer Type extends string,
-  infer Single extends Cardinality,
-]
-  ? [Canonical<Type>, Single, never, false, never]
-  : Rule extends readonly ['input']
-    ? Input
-    : Rule extends readonly ['input-item']
-      ? FastSetSingle<Input, true>
-      : Rule extends readonly ['reference-targets']
-        ? [Input[2]] extends [never]
-          ? UnknownCore
-          : [Input[2], Input[1], never, false, never]
-        : Rule extends readonly ['unknown']
-          ? UnknownCore
-          : OpaqueCore
-
-type FastNarrow<Input extends CoreState, Target extends string> = [Input[0]] extends [never]
-  ? EmptyCore
-  : Input[0] extends 'opaque'
-    ? OpaqueCore
-    : Input[0] extends 'unknown'
-      ? UnknownCore
-      : NarrowCandidates<Input[0], Normalize<Target>> extends infer Survivors extends string
-        ? [Survivors] extends [never]
-          ? OpaqueCore
-          : [Survivors, true, never, false, never]
-        : OpaqueCore
-
-type FastSetSingle<State extends CoreState, Single extends Cardinality> = [
-  State[0],
-  Single,
-  State[2],
-  State[3],
-  State[4],
-]
 
 type FastCallResult<State extends CoreState> = State[0] extends 'unknown' | 'opaque' ? FastMiss : State
 
@@ -910,11 +830,14 @@ type FastArgumentShape<Argument extends string> = Argument extends `'${infer Lef
 
 type PlainStringContent<Content extends string> = Content extends `${string}'${string}` ? false : true
 
-type IdentifierText<Text extends string> = Text extends `${infer Character}${infer Rest}`
-  ? Character extends Letter
-    ? IdentifierTail<Rest>
+type IdentifierText<Text extends string> =
+  ShortText<Text, 64> extends true
+    ? Text extends `${infer Character}${infer Rest}`
+      ? Character extends Letter
+        ? IdentifierTail<Rest>
+        : false
+      : false
     : false
-  : false
 
 type IdentifierTail<Text extends string> = Text extends ''
   ? true
@@ -953,6 +876,21 @@ type ShortText<Text extends string, Limit extends number, Seen extends unknown[]
 /** Exposed only for compile-time tokenizer boundary and parity tests. */
 export type TokenizationStatus<Expression extends string> =
   Tokenize<Expression> extends TypeTokens ? Tokenize<Expression>['length'] : 'opaque'
+
+/** Exposed only for generated compile-time parity checks. */
+export type FastSlowInferenceParity<Expression extends string, Input extends string> =
+  FastExpression<Expression, Input> extends infer Fast
+    ? Fast extends CoreState
+      ? EqualTypes<PublicResult<Fast>, InferSlowExpression<Expression, Input, EmptyHostContext>>
+      : true
+    : true
+
+type EqualTypes<Left, Right> =
+  (<Type>() => Type extends Left ? 1 : 2) extends <Type>() => Type extends Right ? 1 : 2
+    ? (<Type>() => Type extends Right ? 1 : 2) extends <Type>() => Type extends Left ? 1 : 2
+      ? true
+      : false
+    : false
 
 type ParseLoop<
   Tokens extends TypeTokens,
