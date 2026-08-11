@@ -31,6 +31,7 @@ import { r4Model } from 'fhirpath-ts/r4'
 const fp = new FhirPathEngine({
   model: r4Model,
   env: { system: 'http://loinc.org' },
+  envTypes: { system: { type: 'string' } },
 })
 ```
 
@@ -197,7 +198,9 @@ name.
 | --- | --- |
 | `model` | A `ModelProvider`; use `r4Model` for FHIR R4 |
 | `env` | Plain host values available as `%name` |
+| `envTypes` | Static FHIRPath declarations for `env` values |
 | `vars` | FHIRPath bindings evaluated against the input |
+| `varTypes` | Static declarations or explicit overrides for `vars` |
 | `now` | Clock for `now()`, `today()`, and `timeOfDay()` |
 | `trace` | Sink for `trace()` calls |
 | `functions` | Host or expression-defined functions |
@@ -207,6 +210,49 @@ name.
 
 Use `type` when an expression is outside TypeScript's inference subset. It does
 not perform a runtime check and cannot be set as an engine default.
+
+### Type context declarations
+
+Literal expressions can infer through host values when their FHIRPath types are
+declared. `envTypes` describes plain values in `env`; `varTypes` describes
+pre-resolved variables or overrides the inferred result of a `vars` expression.
+The declarations do not create values and are not runtime validation.
+
+```ts
+import type { EvaluateOptions } from 'fhirpath-ts'
+
+const options = {
+  env: { report },
+  envTypes: { report: { type: 'DiagnosticReport' } },
+} as const satisfies EvaluateOptions
+
+const statuses = r4.evaluate('%report.status', undefined, options) // string[]
+```
+
+Each `FhirpathTypeDeclaration` has these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `type` | One R4/FHIRPath type name, or an array of possible type names |
+| `collection` | Omit for at most one item; set `true` when many items are possible |
+| `targets` | Resource targets for a declared `Reference`, used by `resolve()` |
+
+Use `as const satisfies EvaluateOptions` when options are stored in a variable.
+It checks the shape without widening the type-name literals. A literal `env`
+value beside its declaration is also checked for compatible type and singleton
+cardinality. Data that is dynamic or deliberately widened stays `unknown[]`.
+
+`FhirpathTypeContext` is the standalone form used by `FhirpathResult` and
+`FhirpathResultIn`. Its fields are named `env`, `vars`, and `functions`; engine
+and per-call options expose the first two as `envTypes` and `varTypes` so static
+declarations stay separate from runtime values. Names may include or omit their
+leading `%`.
+
+Engine defaults and per-call declarations merge by normalized name, with the
+per-call declaration winning. A `BoundExpression` returned by
+`engine.compile()` keeps the engine declarations. A plain `CompiledExpression`
+uses declarations supplied when it is evaluated. An explicit column or call
+`type` remains the escape hatch for an opaque expression.
 
 ### `env` and `vars`
 
@@ -229,6 +275,13 @@ fp.project(observations, columns, {
 Variables are evaluated in declaration order, so a later variable may use an
 earlier one. A variable cannot replace an environment value, including built-in
 values such as `%loinc`.
+
+TypeScript does not retain object-property declaration order. Type inference can
+therefore use `envTypes`, the input, and explicit `varTypes` while reading a
+literal variable body, but it does not assume that another expression variable
+was evaluated first. Declare that dependency in `varTypes` when it is needed for
+a result type. Runtime evaluation and the analyzer still honor declaration
+order.
 
 During projection, variables are evaluated once per row. `%context`,
 `%rowIndex`, and `%rowTotal` are in scope. Every column reads the same bindings.
@@ -279,8 +332,9 @@ const functions = {
 Arguments are evaluated before `fn` is called. Plain JavaScript values cross the
 function boundary. Built-in names cannot be replaced.
 
-Without a signature, the analyzer treats the result as unknown and resumes
-checking after a later `as()` or `ofType()` narrows it.
+The native signature's result supplies both analyzer and TypeScript inference.
+Without it, the result is unknown and checking resumes after a later `as()` or
+`ofType()` narrows it.
 
 ### Expression-defined functions
 
@@ -296,7 +350,6 @@ const functions = {
     expression: compile('(text | coding.display.first() | coding.first().code).first()', 'CodeableConcept'),
     signature: {
       input: { types: ['CodeableConcept'] },
-      result: { types: ['System.String'], single: true },
     },
   },
 } satisfies Record<string, CustomFunction>
@@ -304,7 +357,10 @@ const functions = {
 
 The body receives the call focus. `%context` and environment values remain the
 caller's. Results keep FHIRPath type information. Direct or indirect recursion is
-an error.
+an error. A literal body supplies its result type to callers. Add a signature
+result for a widened body, or use the manual call `type` escape hatch when the
+function is intentionally opaque. Function-local `env` values can be paired with
+`envTypes` in the same declaration.
 
 Set `criteria: true` when the function should always return one boolean using
 the same rules as `test()`:
@@ -323,6 +379,11 @@ const functions = {
 `signature.input.types` limits the focus types that may call a function. The
 runtime and analyzer report a mismatch only when the model can prove that no
 input type fits. Empty or unknown focus types remain allowed.
+
+An overloaded function carries the declarations of each overload. A statically
+known focus selects the first compatible declaration, matching runtime dispatch.
+If the focus cannot distinguish the overloads safely, TypeScript keeps the
+result opaque.
 
 ## DTOs
 
@@ -386,6 +447,11 @@ fp.first('Condition.code.displayText()', condition)
 Registration publishes every column under its field name. Each function accepts
 the DTO's `fhirType`. A model is required so the engine can reject calls on an
 incompatible focus.
+
+Decorator metadata is collected at runtime and is not enumerable by TypeScript.
+A call known only through `resourceDtos` therefore remains `unknown[]` in the
+type layer; use a column or call `type` when needed. The loaded analyzer still
+checks the registered DTO function completely.
 
 Names are scoped by input type. A CodeableConcept DTO and a Coding DTO may both
 declare `displayText`. The call focus selects the matching declaration.
@@ -506,6 +572,39 @@ r4.evaluate('Bundle.type', [searchset])
 A search Bundle may include resources of several types through `_include` and
 `_revinclude`. Filter before projecting a DTO. To keep only search matches, read
 entries where `search.mode = 'match'`.
+
+## What throws errors and what doesn't?
+
+FHIRPath uses an empty collection for absence, so ordinary path navigation is
+lenient at runtime:
+
+| Example | Result | Reason |
+| --- | --- | --- |
+| `r4.evaluate('Encounter.id', patient)` | `[]` | The root type does not match the input. |
+| `r4.evaluate('Patient.telecom.value', patient)` | `[]` | The element is absent from this resource. |
+| `r4.evaluate('Patient.name.givenn', patient)` | `[]` | An unknown path segment, including a misspelling, navigates to empty. |
+| `r4.evaluate('Patient.name[99]', patient)` | `[]` | The index is outside the collection. |
+
+The application helpers convert an empty result: `first()` returns `undefined`,
+`test()` returns `false`, and `filter()` drops that input.
+
+Engine-generated failures use these exported `FhirPathError` subclasses:
+
+| Error | Example | Why it throws |
+| --- | --- | --- |
+| `FhirPathSyntaxError` | `r4.evaluate('Patient..name', patient)` | Parsing fails because the expression does not match the grammar. |
+| `FhirPathTypeError` | `r4.evaluate('frobnicate()', patient)` | The function is unknown. Wrong argument types or counts and undefined `%variables` also throw this error. |
+| `FhirPathTypeError` | `r4.evaluate('Observation.valueQuantity', observation)` | Choice elements must use their FHIRPath stem (`Observation.value`), not their JSON key. This is the unknown-path case that throws. |
+| `FhirPathRuntimeError` | `r4.evaluate('(1 | 2).single()')` | The operation requires at most one item, but the data contains two. |
+| `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. Bare search Bundle paths can also throw when their root is ambiguous. |
+
+This follows FHIRPath's
+[empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/N1/#singleton-evaluation-of-collections).
+Caller-supplied callbacks, including
+custom functions, conversions, regular expression engines, and trace sinks, may
+throw their own errors; the engine does not swallow them. Use
+[static checking](static-checking.md) to catch wrong paths and other expression
+errors before runtime.
 
 ## Parse caching
 

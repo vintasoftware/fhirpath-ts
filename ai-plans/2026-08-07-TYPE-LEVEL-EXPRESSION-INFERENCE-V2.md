@@ -877,3 +877,40 @@ checked in under `benchmarks/`.
   the reference corpus supplies no host declarations. Runtime absence and error
   behavior is unchanged: ordinary navigation misses stay empty, while invalid
   function calls keep their specification errors.
+
+### 2026-08-10 — Commit 6 final ratchet, documentation, and runtime benchmark
+
+- The final generated precision report remains at 2,078 precise, 269 opaque,
+  and zero conflicts. The final TypeScript 5.9.3 budgets are 126,978 common,
+  580,798 full-language, and 64,745 worst-case instantiations; TypeScript 5.8.3
+  uses 132,613, 607,991, and 66,385. No final-phase budget increase was needed.
+- Public documentation now covers `FhirpathTypeDeclaration`, engine and per-call
+  `envTypes`/`varTypes`, standalone contexts, merge rules, literal preservation,
+  custom function body inference, and the manual opaque escape hatches. Recipes
+  remove redundant annotations for row variables, operators, quantities,
+  expression functions, and declared vars. Runtime error documentation keeps
+  ordinary missing navigation lenient while retaining specification errors for
+  unknown or invalid functions, undefined variables, singleton violations, and
+  FHIR choice JSON keys.
+- Regenerated the demo's ignored Monaco declarations. The editor-sample test,
+  demo typecheck, and production build pass with the inferred row-index sample.
+- Repeated the cross-engine harness five times on the same machine and toolchain
+  as the baseline. Every run retained the same 809-case common accepted set.
+  Values below are the median across runs of each run's aggregate mean, median,
+  and p95:
+
+| Engine | Metric | Median aggregate mean | Median | p95 |
+| --- | --- | ---: | ---: | ---: |
+| fhirpath-ts (R4 model) | Evaluation | 6.52 µs | 1.90 µs | 8.38 µs |
+| fhirpath-ts (R4 model) | Parse | 1.16 µs | 1.01 µs | 2.18 µs |
+| fhirpath-ts (no model) | Evaluation | 3.34 µs | 1.73 µs | 5.74 µs |
+| fhirpath-ts (no model) | Parse | 1.15 µs | 997 ns | 2.15 µs |
+| fhirpath-rs (octofhir 0.4.50) | Evaluation | 3.92 µs | 752 ns | 14.12 µs |
+| fhirpath-rs (octofhir 0.4.50) | Parse | 6.20 µs | 5.30 µs | 12.35 µs |
+
+The largest fhirpath-ts change in any reported median-of-runs statistic is the
+model-free parse p95 at 2.3% faster, well below the 15% investigation threshold;
+no reported statistic regressed. The model-aware evaluation mean is 0.9% faster
+and its median is 1.0% faster.
+Raw final JSON is retained outside the worktree under
+`/tmp/fhirpath-type-inference-benchmarks/final-pr-head/`.

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 import ts from 'typescript'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
 import { column, criteria, defineDto, FhirPathEngine } from '../index.ts'
@@ -60,9 +60,7 @@ describe('README usage recipes', () => {
       code: { coding: [{ code: 'I10', display: 'Hypertension' }] },
     }
     expect(
-      r4.first('Condition.code.select(text | coding.display.first() | coding.first().code).first()', condition, {
-        type: 'string',
-      })
+      r4.first('Condition.code.select(text | coding.display.first() | coding.first().code).first()', condition)
     ).toBe('Hypertension')
 
     const patient: Patient = {
@@ -76,8 +74,7 @@ describe('README usage recipes', () => {
     expect(
       r4.first(
         "(Patient.name.where(use = 'official') | Patient.name).first().select(iif(given.exists(), given.first().combine(family).join(' '), (text | family).first()))",
-        patient,
-        { type: 'string' }
+        patient
       )
     ).toBe('Mary Miller')
     expect(r4.evaluate('Patient.name.given', patient)).toEqual(['Molly', 'Mary', 'Ann'])
@@ -90,7 +87,9 @@ describe('README usage recipes', () => {
       model: r4Model,
       functions: { displayText: { expression: '(text | coding.display.first() | coding.first().code).first()' } },
     })
-    expect(fp.first('Condition.code.displayText()', condition, { type: 'string' })).toBe('Hypertension')
+    const display = fp.first('Condition.code.displayText()', condition)
+    expectTypeOf(display).toEqualTypeOf<string | undefined>()
+    expect(display).toBe('Hypertension')
   })
 
   it('filter and sort a worklist', () => {
@@ -124,9 +123,7 @@ describe('README usage recipes', () => {
     }
     const codeless = { ...weight, valueQuantity: { value: 176, unit: 'lbs' } }
     expect(r4.filter([weight, codeless], "value.ofType(Quantity).convertsToQuantity('kg')")).toEqual([weight])
-    expect(
-      r4.first("Observation.value.ofType(Quantity).toQuantity('kg').value", weight, { type: 'decimal' })
-    ).toBeCloseTo(79.83, 2)
+    expect(r4.first("Observation.value.ofType(Quantity).toQuantity('kg').value", weight)).toBeCloseTo(79.83, 2)
   })
 
   it('view rows straight from project()', () => {
@@ -144,10 +141,9 @@ describe('README usage recipes', () => {
       { resourceType: 'MedicationRequest', status: 'stopped', intent: 'order', subject: { reference: 'Patient/p1' } },
     ]
     const cards = r4.project(requests, {
-      id: { path: '(MedicationRequest.id | %rowIndex.toString()).first()', type: 'string', default: '' },
+      id: { path: '(MedicationRequest.id | %rowIndex.toString()).first()', default: '' },
       name: {
         path: '(MedicationRequest.medication.ofType(CodeableConcept).select(text | coding.display.first()) | MedicationRequest.medication.ofType(Reference).display).first()',
-        type: 'string',
         default: 'Medication',
       },
       sig: { path: 'MedicationRequest.dosageInstruction.first().text', default: '' },
@@ -256,13 +252,17 @@ describe('README usage recipes', () => {
       {
         resultDate: {
           path: '(%report.effective.ofType(dateTime) | %report.issued).first()',
-          type: 'string',
           default: null,
         },
         hasResult: { test: '%report.exists()' },
       },
-      { env: { reports }, vars: { report: '%reports.where(orderId = %context.id).report' } }
+      {
+        env: { reports },
+        vars: { report: '%reports.where(orderId = %context.id).report' },
+        varTypes: { report: { type: 'DiagnosticReport' } },
+      }
     )
+    expectTypeOf(rows).toEqualTypeOf<{ resultDate: string | null; hasResult: boolean }[]>()
     expect(rows).toEqual([
       { resultDate: '2026-01-06', hasResult: true },
       { resultDate: null, hasResult: false },

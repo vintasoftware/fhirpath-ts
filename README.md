@@ -38,8 +38,12 @@ engine when you need different defaults:
 import { FhirPathEngine } from 'fhirpath-ts'
 import { r4Model } from 'fhirpath-ts/r4'
 
-const fp = new FhirPathEngine({ model: r4Model, env: { threshold: 5 } })
-fp.evaluate('%threshold + 1') // [6]
+const fp = new FhirPathEngine({
+  model: r4Model,
+  env: { threshold: 5 },
+  envTypes: { threshold: { type: 'integer' } },
+})
+fp.evaluate('%threshold + 1') // number[]; [6]
 ```
 
 See [API reference](docs/api.md) for all entry points, options, custom functions,
@@ -201,12 +205,15 @@ r4.project(
   {
     resultDate: {
       path: '(%report.effective.ofType(dateTime) | %report.issued).first()',
-      type: 'string',
       default: null,
     },
     hasResult: { test: '%report.exists()' },
   },
-  { env: { reports }, vars: { report: '%reports.where(orderId = %context.id).report' } },
+  {
+    env: { reports },
+    vars: { report: '%reports.where(orderId = %context.id).report' },
+    varTypes: { report: { type: 'DiagnosticReport' } },
+  },
 )
 ```
 
@@ -253,7 +260,10 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
 - Unknown elements evaluate to an empty collection, as they do in other
   engines. Use [static checking](#static-checking) to catch misspellings before runtime.
 - Use choice stems such as `Observation.value`, not JSON keys such as
-  `valueQuantity`. The analyzer reports the latter as an error.
+  `valueQuantity`. The analyzer and runtime report the latter as an error.
+- Function names and arguments are strict: an unknown function, wrong arity or
+  type, or undefined `%variable` is an error. See the
+  [runtime error table](docs/api.md#what-throws-errors-and-what-doesnt).
 - A bare search Bundle is treated as its entry resources for application helpers.
   Start an expression at `Bundle` to address the Bundle itself, or wrap it in an
   array to force one-resource treatment.
@@ -272,8 +282,10 @@ const given = r4.compile('Patient.name.given')
 given.evaluate(patient) // string[]; the input must be a Patient
 ```
 
-Type inference stays conservative. Expressions outside its supported subset
-become `unknown[]` instead of producing an incorrect type.
+Type inference stays conservative. Malformed, over-budget, dynamically widened,
+or deliberately opaque expressions become `unknown[]` instead of producing an
+incorrect type. Host values and custom functions can add static declarations;
+see [type context declarations](docs/api.md#type-context-declarations).
 
 Static checking has three layers:
 
