@@ -116,6 +116,41 @@ describe('fhirpath-check CLI', () => {
     expect(result.output).toContain('analyzed 2 DTO(s) from 1 module(s) against 1 engine(s)')
   })
 
+  it('merges static declarations and vars from every engine for an unregistered DTO', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-merged-context-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'shared.dto.ts'),
+      [
+        "import { column, defineDto, FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        '',
+        "new FhirPathEngine({ model: r4Model, envTypes: { report: { type: 'DiagnosticReport' } } })",
+        'new FhirPathEngine({',
+        '  model: r4Model,',
+        "  vars: { subject: '{}', loose: '{}' },",
+        "  varTypes: { subject: { type: 'Patient' } },",
+        '})',
+        '',
+        "export class SharedRow extends defineDto('Observation') {",
+        "  @column('%report.status.first().length()', { type: 'integer' })",
+        '  statusLength!: number | undefined',
+        '',
+        "  @column('%subject.name.given')",
+        '  given!: string[]',
+        '',
+        "  @column('%loose')",
+        '  loose!: unknown',
+        '}',
+      ].join('\n')
+    )
+
+    const result = run([], directory)
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('analyzed 1 DTO(s) from 1 module(s) against 2 engine(s)')
+  })
+
   it('reports a registered column called on a focus its own fhirType rules out', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-input-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })
