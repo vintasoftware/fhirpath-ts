@@ -82,6 +82,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid('Patient.name.given'),
       valid("(status in ('entered-in-error' | 'draft')).not()"),
       valid('Patient.name.given', 'Patient.name.given', 'Patient.name.given', 'Patient.name.given'),
+      valid(),
       valid('%report.status'),
       valid('%threshold + 1'),
       valid('birthDate <= today()'),
