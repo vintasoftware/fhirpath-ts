@@ -249,6 +249,24 @@ describe('custom functions in the analyzer', () => {
     expect(analyze('code.labelled()')).toEqual({ types: ['System.String'], single: true })
     expect(analyze('code.holds()')).toEqual({ types: ['System.Boolean'], single: true })
   })
+
+  it('reuses a compiled body AST and preserves caller variables over a local environment', () => {
+    const compiled = compile('%prefix')
+    Object.defineProperty(compiled, 'source', { value: 'not valid (' })
+    const functions = {
+      readPrefix: {
+        expression: compiled,
+        envTypes: { prefix: { type: 'integer' } },
+      },
+    } as const satisfies Record<string, CustomFunction>
+    const result = analyzeExpressionDetailed("defineVariable('prefix', 'caller').readPrefix()", {
+      model: r4Model,
+      inputType: 'Patient',
+      functions,
+    }).result
+
+    expect(result).toEqual({ types: ['System.String'], single: true })
+  })
 })
 
 describe('criteria: the criteria rule on the function', () => {

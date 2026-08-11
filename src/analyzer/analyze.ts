@@ -231,7 +231,7 @@ class Analyzer {
   private readonly frames: StaticState[] = []
   /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
-  private readonly declaredVariables: Map<string, DeclaredVariable>
+  private readonly declaredVariables: ReadonlyMap<string, DeclaredVariable>
   private readonly activeExpressionFunctions = new Set<string>()
 
   constructor(options: AnalyzeOptions | undefined) {
@@ -328,11 +328,7 @@ class Analyzer {
     }
     const declared = this.declaredVariables.get(node.name)
     if (declared !== undefined) {
-      return {
-        types: declared.types?.map(type => this.canonicalize(type)),
-        single: declared.single,
-        ...(declared.targets !== undefined && { targets: declared.targets.map(type => this.canonicalize(type)) }),
-      }
+      return this.declaredVariableState(declared)
     }
     switch (node.name) {
       case 'context':
@@ -548,11 +544,7 @@ class Analyzer {
     const signature = registered !== undefined ? FUNCTION_SIGNATURES[node.name] : this.toSignature(custom?.signature)
     if (!signature) {
       this.walkUncheckedArguments(node, input, scope)
-      if (custom?.expression === undefined) {
-        return UNKNOWN
-      }
-      const body = this.walkExpressionFunction(node.name, custom, input)
-      return custom.criteria === true ? { types: ['System.Boolean'], single: true } : body
+      return this.expressionFunctionResult(node.name, custom, input, scope) ?? UNKNOWN
     }
     this.checkCallInput(node, signature, input)
     const { argStates, typeTarget } = this.walkArguments(node, signature, input, scope)
@@ -565,52 +557,78 @@ class Analyzer {
     if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
       return { types: this.narrowTypes(input, typeTarget, node.span), single: input.single }
     }
-    if (custom?.expression !== undefined) {
-      if (custom.criteria === true) {
-        return { types: ['System.Boolean'], single: true }
-      }
-      if (custom.signature?.result === undefined) {
-        return this.walkExpressionFunction(node.name, custom, input)
-      }
+    const expressionResult = this.expressionFunctionResult(node.name, custom, input, scope)
+    if (expressionResult !== undefined) {
+      return expressionResult
     }
     return applyResultRule(signature.result, input, argStates)
   }
 
+  /** Apply the expression-body and criteria rules in one place for signed and unsigned declarations. */
+  private expressionFunctionResult(
+    name: string,
+    declaration: ResolvedDeclaration | undefined,
+    input: StaticState,
+    scope: VariableScope
+  ): StaticState | undefined {
+    if (declaration?.expression === undefined) {
+      return undefined
+    }
+    if (declaration.criteria === true) {
+      this.walkExpressionFunction(name, declaration, input, scope)
+      return { types: ['System.Boolean'], single: true }
+    }
+    return declaration.signature?.result === undefined
+      ? this.walkExpressionFunction(name, declaration, input, scope)
+      : undefined
+  }
+
   /** Infer a literal expression-function body under its call focus and temporary local environment declarations. */
-  private walkExpressionFunction(name: string, declaration: ResolvedDeclaration, input: StaticState): StaticState {
-    const source = declaration.expression
-    if (source === undefined || this.activeExpressionFunctions.has(name)) {
+  private walkExpressionFunction(
+    name: string,
+    declaration: ResolvedDeclaration,
+    input: StaticState,
+    callerScope: VariableScope
+  ): StaticState {
+    const expression = declaration.expression
+    if (expression === undefined || this.activeExpressionFunctions.has(name)) {
       return UNKNOWN
     }
-    let ast: AstNode
-    try {
-      ast = parse(source)
-    } catch {
-      return UNKNOWN
+    let ast = expression.ast
+    if (ast === undefined) {
+      try {
+        ast = parse(expression.source)
+      } catch {
+        return UNKNOWN
+      }
     }
-    const previous = new Map<string, DeclaredVariable | undefined>()
+    const functionScope = forkScope(callerScope)
     for (const [declaredName, variable] of Object.entries(declaration.variables ?? {})) {
       const bare = declaredName.startsWith('%') ? declaredName.slice(1) : declaredName
-      previous.set(bare, this.declaredVariables.get(bare))
-      this.declaredVariables.set(bare, variable)
+      // defineVariable() values have priority over environment overlays at runtime.
+      if (!functionScope.vars.has(bare)) {
+        functionScope.vars.set(bare, this.declaredVariableState(variable))
+      }
     }
     const diagnosticCount = this.diagnostics.length
     this.activeExpressionFunctions.add(name)
     this.frames.push(input)
     try {
-      const result = this.walk(ast, input, emptyScope())
-      this.diagnostics.length = diagnosticCount
-      return result
+      return this.walk(ast, input, functionScope)
     } finally {
+      // Body spans index another source string, so callers cannot display these diagnostics correctly.
+      this.diagnostics.length = diagnosticCount
       this.frames.pop()
       this.activeExpressionFunctions.delete(name)
-      for (const [declaredName, variable] of previous) {
-        if (variable === undefined) {
-          this.declaredVariables.delete(declaredName)
-        } else {
-          this.declaredVariables.set(declaredName, variable)
-        }
-      }
+    }
+  }
+
+  /** Convert one declared environment value into the same state used for scoped variables. */
+  private declaredVariableState(declared: DeclaredVariable): StaticState {
+    return {
+      types: declared.types?.map(type => this.canonicalize(type)),
+      single: declared.single,
+      ...(declared.targets !== undefined && { targets: declared.targets.map(type => this.canonicalize(type)) }),
     }
   }
 
@@ -1074,7 +1092,7 @@ interface ResolvedDeclaration {
   minArity?: number
   maxArity?: number
   signature?: CustomFunctionSignature
-  expression?: string
+  expression?: { source: string; ast?: AstNode }
   criteria?: boolean
   variables?: Readonly<Record<string, DeclaredVariable>>
 }
@@ -1089,7 +1107,7 @@ function resolvedDeclaration(declared: SingleDeclaredFunction): ResolvedDeclarat
   }
   // An expression-defined function takes no arguments, which is how the runtime
   // calls it (`evaluateHostFunction`).
-  const expression = expressionSource(declared.expression)
+  const expression = resolvedExpression(declared.expression)
   return {
     minArity: 0,
     maxArity: 0,
@@ -1100,12 +1118,18 @@ function resolvedDeclaration(declared: SingleDeclaredFunction): ResolvedDeclarat
   }
 }
 
-function expressionSource(expression: unknown): string | undefined {
+function resolvedExpression(expression: unknown): { source: string; ast?: AstNode } | undefined {
   if (typeof expression === 'string') {
-    return expression
+    return { source: expression }
   }
-  const source = (expression as { source?: unknown } | undefined)?.source
-  return typeof source === 'string' ? source : undefined
+  const compiled = expression as { source?: unknown; ast?: unknown } | undefined
+  if (typeof compiled?.source !== 'string') {
+    return undefined
+  }
+  return {
+    source: compiled.source,
+    ...(compiled.ast !== undefined && { ast: compiled.ast as AstNode }),
+  }
 }
 
 function declaredTypeVariables(
