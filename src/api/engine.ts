@@ -298,12 +298,6 @@ export class FhirPathEngine<const Defaults extends EngineOptions = EmptyFhirpath
     if (this.defaults.vars && precompiled.vars) {
       merged.vars = mergeEnvKeys(this.defaults.vars, precompiled.vars)
     }
-    if (this.defaults.envTypes && precompiled.envTypes) {
-      merged.envTypes = mergeEnvKeys(this.defaults.envTypes, precompiled.envTypes)
-    }
-    if (this.defaults.varTypes && precompiled.varTypes) {
-      merged.varTypes = mergeEnvKeys(this.defaults.varTypes, precompiled.varTypes)
-    }
     if (this.defaults.functions && precompiled.functions) {
       merged.functions = { ...this.defaults.functions, ...precompiled.functions }
     }
