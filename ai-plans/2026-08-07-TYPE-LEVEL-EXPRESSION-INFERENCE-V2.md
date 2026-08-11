@@ -879,12 +879,12 @@ checked in under `benchmarks/`.
   behavior is unchanged: ordinary navigation misses stay empty, while invalid
   function calls keep their specification errors.
 
-### 2026-08-10 — Commit 6 final ratchet, documentation, and runtime benchmark
+### 2026-08-10 — Commit 6 delivery ratchet, documentation, and runtime benchmark
 
-- The final generated precision report remains at 2,078 precise, 269 opaque,
-  and zero conflicts. The final TypeScript 5.9.3 budgets are 126,978 common,
+- At the Commit 6 boundary, the generated precision report remained at 2,078
+  precise, 269 opaque, and zero conflicts. TypeScript 5.9.3 used 126,978 common,
   580,798 full-language, and 64,745 worst-case instantiations; TypeScript 5.8.3
-  uses 132,613, 607,991, and 66,385. No final-phase budget increase was needed.
+  used 132,613, 607,991, and 66,385.
 - Public documentation now covers `FhirpathTypeDeclaration`, engine and per-call
   `envTypes`/`varTypes`, standalone contexts, merge rules, literal preservation,
   custom function body inference, and the manual opaque escape hatches. Recipes
@@ -915,3 +915,21 @@ no reported statistic regressed. The model-aware evaluation mean is 0.9% faster
 and its median is 1.0% faster.
 Raw final JSON is retained outside the worktree under
 `/tmp/fhirpath-type-inference-benchmarks/final-pr-head/`.
+
+### 2026-08-11 — review corrections and final type budgets
+
+- The ordinary project check exposed an API cost that the expression-only lanes
+  did not measure: 4,589,595 instantiations for the project and 3,275,434 for
+  `src/api/dto.test.ts`. Factoring environment-free navigation into a cacheable
+  core reduced those measurements to 1,687,759 and 380,355 respectively. A new
+  API fixture covers DTO decorators, engine defaults, per-call declarations,
+  and `project()` so this regression class now has its own ratchet.
+- The final TypeScript 5.9.3 baselines are 121,504 common-path, 573,282
+  full-language, and 182,299 API-surface instantiations. TypeScript 5.8.3 uses
+  126,256, 592,734, and 203,249. The worst registered cases use 60,152 and
+  61,125 instantiations. Every relative baseline matches the final measurement,
+  so the only slack is the declared 5% tolerance.
+- Generated verification directories are excluded as a unit from source and
+  build payloads. Literal integer/string cases no longer duplicate unary-plus
+  and escape-syntax cases. The precision report remains 2,078 precise, 269
+  opaque, and zero conflicts.
