@@ -924,10 +924,10 @@ Raw final JSON is retained outside the worktree under
   core reduced those measurements to 1,687,759 and 380,355 respectively. A new
   API fixture covers DTO decorators, engine defaults, per-call declarations,
   and `project()` so this regression class now has its own ratchet.
-- The final TypeScript 5.9.3 baselines are 121,504 common-path, 573,282
-  full-language, and 182,299 API-surface instantiations. TypeScript 5.8.3 uses
-  126,256, 592,734, and 203,249. The worst registered cases use 60,152 and
-  61,125 instantiations. Every relative baseline matches the final measurement,
+- The final TypeScript 5.9.3 baselines are 121,465 common-path, 573,207
+  full-language, and 182,237 API-surface instantiations. TypeScript 5.8.3 uses
+  126,217, 592,659, and 203,187. The worst registered cases use 60,128 and
+  61,101 instantiations. Every relative baseline matches the final measurement,
   so the only slack is the declared 5% tolerance.
 - Generated verification directories are excluded as a unit from source and
   build payloads. Literal integer/string cases no longer duplicate unary-plus

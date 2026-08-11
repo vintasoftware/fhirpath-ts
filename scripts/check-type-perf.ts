@@ -60,7 +60,7 @@ for (const [compilerPackage, compilerBudget] of Object.entries(budget.compilers)
   const commonSummary = `${compilerPackage} common path: ${commonPath} instantiations (baseline ${compilerBudget.commonPath}, ${signed(commonDelta)}%, limit ${commonLimit})`
   const fullSummary = `${compilerPackage} full language: ${fullLanguage} instantiations (baseline ${compilerBudget.fullLanguage}, ${signed(fullDelta)}%, limit ${fullLimit})`
   const apiSummary = `${compilerPackage} API surface: ${apiSurface} instantiations (baseline ${compilerBudget.apiSurface}, ${signed(apiDelta)}%, limit ${apiLimit})`
-  const caseSummary = `${compilerPackage} worst registered case: ${worstCase.instantiations} instantiations (ceiling ${budget.perCaseLimit}) — ${worstCase.expression}`
+  const caseSummary = `${compilerPackage} worst registered case: ${worstCase.instantiations} instantiations (ceiling ${budget.perCaseLimit}) — ${JSON.stringify(worstCase.expression)}`
 
   if (process.argv.includes('--update')) {
     console.log(`${commonSummary} — baseline updated`)
