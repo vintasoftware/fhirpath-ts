@@ -271,6 +271,10 @@ describe('FhirPathEngine.project', () => {
       { id: 'other', born: '1994-06-01' },
     ])
 
+    const fromWrappedBundle = r4.project([searchset], { bundleType: 'type' })
+    expectTypeOf(fromWrappedBundle).toEqualTypeOf<{ bundleType: string | undefined }[]>()
+    expect(fromWrappedBundle).toEqual([{ bundleType: 'searchset' }])
+
     // The Bundle overload resolves to concrete typed rows, not just the alias:
     const fromBundle = r4.project(searchset, {
       id: 'Patient.id',

@@ -45,7 +45,13 @@ type EngineTypeContext<Defaults, Options> = MergeFhirpathTypeContexts<
   FhirpathTypeContextOf<Options>
 >
 
-type EngineRoot<Input> = Input extends readonly (infer Item)[]
+/**
+ * evaluate() reaches this shape through normalizeInput(), while project()
+ * reaches it through toSubjects(). A bare Bundle is expression-dependent or
+ * expands to heterogeneous entries, so it stays opaque; an array keeps each
+ * item raw, including a Bundle deliberately wrapped as `[bundle]`.
+ */
+type NormalizedInputRoot<Input> = Input extends readonly (infer Item)[]
   ? FhirpathRootOf<Item>
   : Input extends { readonly resourceType: 'Bundle' }
     ? 'opaque'
@@ -53,15 +59,9 @@ type EngineRoot<Input> = Input extends readonly (infer Item)[]
 
 type EngineResult<Expr extends string, Input, Defaults, Options> = FhirpathResultForContext<
   Expr,
-  EngineRoot<Input>,
+  NormalizedInputRoot<Input>,
   EngineTypeContext<Defaults, Options>
 >
-
-type ProjectionRoot<Input> = Input extends { readonly resourceType: 'Bundle' }
-  ? 'opaque'
-  : Input extends readonly (infer Item)[]
-    ? ProjectionRoot<Item>
-    : FhirpathRootOf<Input>
 
 type ProjectionTypeContext<Defaults, Options> = MergeFhirpathTypeContexts<
   EngineTypeContext<Defaults, Options>,
@@ -240,7 +240,7 @@ export class FhirPathEngine<const Defaults extends EngineOptions = EmptyFhirpath
     input: Input,
     columns: Columns,
     options?: Declaring<Options>
-  ): Projection<Columns, ProjectionRoot<Input>, ProjectionTypeContext<Defaults, Options>>[]
+  ): Projection<Columns, NormalizedInputRoot<Input>, ProjectionTypeContext<Defaults, Options>>[]
   project<
     const Input,
     const Columns extends ProjectionColumns,
@@ -249,7 +249,7 @@ export class FhirPathEngine<const Defaults extends EngineOptions = EmptyFhirpath
     input: Input,
     columns: Columns,
     options?: Declaring<Options>
-  ): Projection<Columns, ProjectionRoot<Input>, ProjectionTypeContext<Defaults, Options>>
+  ): Projection<Columns, NormalizedInputRoot<Input>, ProjectionTypeContext<Defaults, Options>>
   project(input: unknown, columns: ProjectionColumns | DtoClass, options?: EvaluateOptions): unknown {
     if (typeof columns === 'function') {
       assertInputMatchesDto(input, columns)
