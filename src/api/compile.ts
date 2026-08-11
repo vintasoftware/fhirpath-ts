@@ -144,7 +144,7 @@ export class CompiledExpression<
   Root extends string = 'opaque',
   Context extends object = EmptyFhirpathTypeContext,
 > {
-  readonly source: string
+  readonly source: Expr
   readonly ast: AstNode
 
   constructor(source: Expr) {

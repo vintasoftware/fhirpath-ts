@@ -35,7 +35,7 @@ export type FhirpathFunctionDeclaration =
         readonly args?: readonly string[]
         readonly result?: { readonly types?: readonly string[]; readonly single?: boolean }
       }
-      readonly expression?: unknown
+      readonly expression?: string | { readonly source: string }
       readonly criteria?: boolean
       readonly envTypes?: FhirpathTypeDeclarations
     }

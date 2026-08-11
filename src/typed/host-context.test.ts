@@ -2,7 +2,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 
 import { compile, type CustomFunction } from '../api/compile.ts'
 import { FhirPathEngine } from '../api/engine.ts'
-import type { DiagnosticReport, Patient } from '../r4/generated/type-maps.ts'
+import type { Condition, DiagnosticReport, Patient } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
 import type { FhirpathResult, FhirpathTypeContext, FhirpathTypeContextOf, FhirpathTypeDeclaration } from './infer.ts'
 
@@ -138,6 +138,21 @@ describe('typed host context', () => {
     expectTypeOf(refined).toEqualTypeOf<string[]>()
     expectTypeOf(explicitResult).toEqualTypeOf<number[]>()
     expectTypeOf(bound.evaluate()).toEqualTypeOf<string[]>()
+  })
+
+  it('infers the literal source of a compiled expression-function body', () => {
+    const functions = {
+      displayText: {
+        expression: compile('(text | coding.display.first() | coding.first().code).first()', 'CodeableConcept'),
+        signature: { input: { types: ['CodeableConcept'] } },
+      },
+    } satisfies Record<string, CustomFunction>
+    type Context = FhirpathTypeContextOf<{ functions: typeof functions }>
+    expectTypeOf<FhirpathResult<'Condition.code.displayText()', Context>>().toEqualTypeOf<string[]>()
+    const condition: Condition = { resourceType: 'Condition', code: { text: 'Hypertension' } }
+    const result = new FhirPathEngine({ model: r4Model, functions }).evaluate('Condition.code.displayText()', condition)
+
+    expectTypeOf(result).toEqualTypeOf<string[]>()
   })
 
   it('injects resource roots and projection row variables', () => {
