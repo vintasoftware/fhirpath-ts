@@ -11,5 +11,12 @@
     }
   },
   "fullLanguageLimit": 5000000,
-  "perCaseLimit": 100000
+  "perCaseLimit": 100000,
+  "perCaseCapabilities": [
+    { "id": "scope.nested-frame-restore", "member": "composition" },
+    { "id": "scope.nested-binding-restore", "member": "composition" },
+    { "id": "scope.multiple-definition-fallback", "member": "expression" },
+    { "id": "scope.operator-fork", "member": "composition" },
+    { "id": "scope.argument-fork", "member": "composition" }
+  ]
 }

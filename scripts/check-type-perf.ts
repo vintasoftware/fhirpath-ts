@@ -11,13 +11,14 @@ interface PerfBudget {
   compilers: Record<string, { commonPath: number; fullLanguage: number }>
   fullLanguageLimit: number
   perCaseLimit: number
+  perCaseCapabilities: { id: string; member: 'expression' | 'composition' }[]
 }
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const budgetPath = new URL('./type-perf-budget.json', import.meta.url)
 const budget = JSON.parse(readFileSync(budgetPath, 'utf8')) as PerfBudget
 
-const expensiveCases = [
+const longestCases = [
   ...new Set(
     Object.values(RESOLVED_INFERENCE_CAPABILITIES).flatMap(capability => [
       capability.expression,
@@ -27,6 +28,14 @@ const expensiveCases = [
 ]
   .sort((a, b) => b.length - a.length || a.localeCompare(b))
   .slice(0, 5)
+const pinnedCases = budget.perCaseCapabilities.map(({ id, member }) => {
+  const capability = RESOLVED_INFERENCE_CAPABILITIES[id as keyof typeof RESOLVED_INFERENCE_CAPABILITIES]
+  if (capability === undefined) {
+    throw new Error(`Unknown per-case performance capability: ${id}`)
+  }
+  return capability[member]
+})
+const expensiveCases = [...new Set([...pinnedCases, ...longestCases])]
 
 let failed = false
 const measurements: PerfBudget['compilers'] = {}
