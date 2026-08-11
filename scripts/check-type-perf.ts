@@ -8,7 +8,7 @@ import { RESOLVED_INFERENCE_CAPABILITIES } from '../src/typed/generated/capabili
 
 interface PerfBudget {
   tolerancePct: number
-  compilers: Record<string, { commonPath: number; fullLanguage: number }>
+  compilers: Record<string, { commonPath: number; fullLanguage: number; apiSurface: number }>
   fullLanguageLimit: number
   perCaseLimit: number
   perCaseCapabilities: { id: string; member: 'expression' | 'composition' }[]
@@ -42,30 +42,36 @@ const measurements: PerfBudget['compilers'] = {}
 for (const [compilerPackage, compilerBudget] of Object.entries(budget.compilers)) {
   const commonPath = measureProject(compilerPackage, 'tsconfig.perf.json')
   const fullLanguage = measureProject(compilerPackage, 'tsconfig.perf-full.json')
+  const apiSurface = measureProject(compilerPackage, 'tsconfig.perf-api.json')
   const perCase = expensiveCases.map(expression => ({
     expression,
     instantiations: measureExpression(compilerPackage, expression),
   }))
   const worstCase = perCase.reduce((best, current) => (current.instantiations > best.instantiations ? current : best))
-  measurements[compilerPackage] = { commonPath, fullLanguage }
+  measurements[compilerPackage] = { commonPath, fullLanguage, apiSurface }
 
   const commonLimit = Math.round(compilerBudget.commonPath * (1 + budget.tolerancePct / 100))
   const fullRelativeLimit = Math.round(compilerBudget.fullLanguage * (1 + budget.tolerancePct / 100))
+  const apiLimit = Math.round(compilerBudget.apiSurface * (1 + budget.tolerancePct / 100))
   const fullLimit = Math.min(fullRelativeLimit, budget.fullLanguageLimit)
   const commonDelta = ((commonPath - compilerBudget.commonPath) / compilerBudget.commonPath) * 100
   const fullDelta = ((fullLanguage - compilerBudget.fullLanguage) / compilerBudget.fullLanguage) * 100
+  const apiDelta = ((apiSurface - compilerBudget.apiSurface) / compilerBudget.apiSurface) * 100
   const commonSummary = `${compilerPackage} common path: ${commonPath} instantiations (baseline ${compilerBudget.commonPath}, ${signed(commonDelta)}%, limit ${commonLimit})`
   const fullSummary = `${compilerPackage} full language: ${fullLanguage} instantiations (baseline ${compilerBudget.fullLanguage}, ${signed(fullDelta)}%, limit ${fullLimit})`
+  const apiSummary = `${compilerPackage} API surface: ${apiSurface} instantiations (baseline ${compilerBudget.apiSurface}, ${signed(apiDelta)}%, limit ${apiLimit})`
   const caseSummary = `${compilerPackage} worst registered case: ${worstCase.instantiations} instantiations (ceiling ${budget.perCaseLimit}) — ${worstCase.expression}`
 
   if (process.argv.includes('--update')) {
     console.log(`${commonSummary} — baseline updated`)
     console.log(`${fullSummary} — baseline updated`)
+    console.log(`${apiSummary} — baseline updated`)
     continue
   }
 
   failed = report(commonPath <= commonLimit, commonSummary) || failed
   failed = report(fullLanguage <= fullLimit, fullSummary) || failed
+  failed = report(apiSurface <= apiLimit, apiSummary) || failed
   failed = report(worstCase.instantiations <= budget.perCaseLimit, caseSummary) || failed
 }
 

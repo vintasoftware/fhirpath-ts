@@ -41,6 +41,7 @@
   "exclude": [
     "**/*.test.ts",
     "src/testing/**",
+    "src/typed/api-perf-fixture.types.ts",
     "src/typed/capability-registry.ts",
     "src/typed/perf-fixture.types.ts",
     "src/typed/generated/capabilities.ts",

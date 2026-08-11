@@ -1963,19 +1963,24 @@ type FastInputState<Input extends string> =
     : UnknownState
 
 type Navigate<Input extends InferenceState, Element extends string> =
+  Input extends EnvironmentCarrier<infer Environment extends InferenceEnvironment>
+    ? NavigateCore<[Input[0], Input[1]], Element> & EnvironmentCarrier<Environment>
+    : NavigateCore<Input, Element>
+
+type NavigateCore<Input extends InferenceState, Element extends string> =
   StateKind<Input> extends 'empty'
-    ? CopyEnvironment<EmptyState, Input>
+    ? EmptyState
     : IsOpaqueState<Input> extends true
-      ? CopyEnvironment<OpaqueState, Input>
+      ? OpaqueState
       : IsUnknownState<Input> extends true
-        ? CopyEnvironment<UnknownState, Input>
+        ? UnknownState
         : ElementInformation<Input[0], Element> extends infer Information
           ? [Information] extends [never]
-            ? CopyEnvironment<UnknownState, Input>
+            ? UnknownState
             : Information extends { t: infer Types extends string }
-              ? CopyEnvironment<[LocalTypeName<Types>, ReferenceTargets<Input[0], Element, Types>], Input>
-              : CopyEnvironment<OpaqueState, Input>
-          : CopyEnvironment<OpaqueState, Input>
+              ? [LocalTypeName<Types>, ReferenceTargets<Input[0], Element, Types>]
+              : OpaqueState
+          : OpaqueState
 
 type ReferenceTargets<
   InputTypes extends string,
