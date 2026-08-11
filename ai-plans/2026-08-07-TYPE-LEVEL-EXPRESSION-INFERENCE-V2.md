@@ -840,9 +840,10 @@ checked in under `benchmarks/`.
   infers its final `isDistinct()` result. Short independent argument branches
   retain their previously precise fixed results.
 - The model-known shortcut accepts four general steps and up to two trailing
-  zero-argument calls. Generator assertions cap resource/element names at 33
-  characters and function names at 18, proving that the shortcut remains below
-  the independent 64-token and 256-source-step limits.
+  zero-argument calls. Its identifier scan uses the same source-length bound as
+  the full parser, generated assertions compare fast and full parsing for every
+  registered capability, and an explicit overlong identifier degrades to
+  `unknown[]` without reaching TypeScript's recursion limit.
 - The completed common fixture uses 108,885/111,837 instantiations, +1.0%/+1.1%
   from the completed Commit 3 fixture and within the existing ratchet. The
   expanded registry-derived full fixture uses 545,084/552,570, and the worst
