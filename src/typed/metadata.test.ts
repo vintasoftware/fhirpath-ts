@@ -10,7 +10,7 @@ import type {
   CompactOperatorRules,
   CompactPrefixParselets,
   CompactTypeOperatorRules,
-} from './generated/metadata-compact.ts'
+} from './metadata-compact.ts'
 
 describe('generated type-inference metadata', () => {
   it('matches every analyzer function result rule', () => {

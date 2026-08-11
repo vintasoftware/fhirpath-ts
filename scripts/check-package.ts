@@ -149,22 +149,24 @@ try {
   assert(Array.isArray(files), 'pnpm pack did not report the packed files')
   const packedPaths = new Set(files.flatMap(file => (typeof file.path === 'string' ? [file.path] : [])))
   const verificationArtifacts = [
+    'typed/api-perf-fixture.types.',
     'typed/capability-registry.',
     'typed/perf-fixture.types.',
-    'typed/generated/capabilities.',
-    'typed/generated/capability-assertions.types.',
-    'typed/generated/corpus-audit.',
-    'typed/generated/full-language-perf.types.',
-    'typed/generated/function-capabilities.',
-    'typed/generated/metadata.',
-    'typed/generated/precision-report.',
   ]
   const leakedArtifacts = [...packedPaths].filter(path =>
     verificationArtifacts.some(artifact => path.includes(artifact))
   )
   assert.deepEqual(leakedArtifacts, [], `verification artifacts leaked into the package: ${leakedArtifacts.join(', ')}`)
-  assert(packedPaths.has('src/typed/generated/metadata-compact.ts'), 'the source type metadata is missing')
-  assert(packedPaths.has('dist/typed/generated/metadata-compact.d.ts'), 'the built type metadata is missing')
+  const generatedArtifacts = [...packedPaths].filter(
+    path => path.startsWith('src/typed/generated/') || path.startsWith('dist/typed/generated/')
+  )
+  assert.deepEqual(
+    generatedArtifacts,
+    [],
+    `generated verification artifacts leaked into the package: ${generatedArtifacts.join(', ')}`
+  )
+  assert(packedPaths.has('src/typed/metadata-compact.ts'), 'the source type metadata is missing')
+  assert(packedPaths.has('dist/typed/metadata-compact.d.ts'), 'the built type metadata is missing')
   const tarball = resolve(packDirectory, filename)
 
   runTool('publint', ['run', tarball, '--strict', '--pack=false'])

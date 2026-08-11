@@ -11,7 +11,7 @@ import { R4_DATA_TYPES } from '../src/r4/generated/types-data.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
 import { writeOrCheckGenerated } from './generated-file.ts'
 
-const compactOutputUrl = new URL('../src/typed/generated/metadata-compact.ts', import.meta.url)
+const compactOutputUrl = new URL('../src/typed/metadata-compact.ts', import.meta.url)
 const MAX_FAST_RESOURCE_ROOT_LENGTH = 33
 const MAX_FAST_ELEMENT_NAME_LENGTH = 33
 const MAX_FAST_FUNCTION_NAME_LENGTH = 18

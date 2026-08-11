@@ -44,11 +44,6 @@
     "src/typed/api-perf-fixture.types.ts",
     "src/typed/capability-registry.ts",
     "src/typed/perf-fixture.types.ts",
-    "src/typed/generated/capabilities.ts",
-    "src/typed/generated/capability-assertions.types.ts",
-    "src/typed/generated/corpus-audit.ts",
-    "src/typed/generated/full-language-perf.types.ts",
-    "src/typed/generated/function-capabilities.ts",
-    "src/typed/generated/precision-report.ts"
+    "src/typed/generated"
   ]
 }

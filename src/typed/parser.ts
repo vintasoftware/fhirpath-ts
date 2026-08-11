@@ -1,5 +1,6 @@
 import type { R4Bases, R4Elements, R4ReferenceTargets, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { EmptyContextMap, LookupContextMap, MergeContextMaps } from './context-maps.ts'
+import type { InferenceSourceStepLimit, InferenceTokenLimit } from './inference-limits.ts'
 import type {
   CompactCalendarUnit,
   CompactFastFunctionName,
@@ -11,8 +12,7 @@ import type {
   CompactOperatorRules,
   CompactPrefixParselets,
   CompactTypeOperatorRules,
-} from './generated/metadata-compact.ts'
-import type { InferenceSourceStepLimit, InferenceTokenLimit } from './inference-limits.ts'
+} from './metadata-compact.ts'
 
 type NameToken = ['name', string]
 type KeywordToken = ['keyword', string]
