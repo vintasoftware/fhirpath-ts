@@ -11,6 +11,7 @@ import { loadCorpus, runCorpusTest } from '../testing/fhirpathjs-harness.ts'
 import { loadOfficialSuite, runOfficialTest } from '../testing/official-harness.ts'
 import { INFERENCE_CAPABILITIES } from './capability-registry.ts'
 import { RESOLVED_INFERENCE_CAPABILITIES } from './generated/capabilities.ts'
+import type {} from './generated/capability-assertions.types.ts'
 import type { FhirpathResult, FhirpathResultIn } from './infer.ts'
 
 type ObservationValue = R4TypeOf[

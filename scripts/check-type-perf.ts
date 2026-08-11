@@ -41,10 +41,12 @@ for (const [compilerPackage, compilerBudget] of Object.entries(budget.compilers)
   measurements[compilerPackage] = { commonPath, fullLanguage }
 
   const commonLimit = Math.round(compilerBudget.commonPath * (1 + budget.tolerancePct / 100))
+  const fullRelativeLimit = Math.round(compilerBudget.fullLanguage * (1 + budget.tolerancePct / 100))
+  const fullLimit = Math.min(fullRelativeLimit, budget.fullLanguageLimit)
   const commonDelta = ((commonPath - compilerBudget.commonPath) / compilerBudget.commonPath) * 100
   const fullDelta = ((fullLanguage - compilerBudget.fullLanguage) / compilerBudget.fullLanguage) * 100
   const commonSummary = `${compilerPackage} common path: ${commonPath} instantiations (baseline ${compilerBudget.commonPath}, ${signed(commonDelta)}%, limit ${commonLimit})`
-  const fullSummary = `${compilerPackage} full language: ${fullLanguage} instantiations (baseline ${compilerBudget.fullLanguage}, ${signed(fullDelta)}%, ceiling ${budget.fullLanguageLimit})`
+  const fullSummary = `${compilerPackage} full language: ${fullLanguage} instantiations (baseline ${compilerBudget.fullLanguage}, ${signed(fullDelta)}%, limit ${fullLimit})`
   const caseSummary = `${compilerPackage} worst registered case: ${worstCase.instantiations} instantiations (ceiling ${budget.perCaseLimit}) — ${worstCase.expression}`
 
   if (process.argv.includes('--update')) {
@@ -54,7 +56,7 @@ for (const [compilerPackage, compilerBudget] of Object.entries(budget.compilers)
   }
 
   failed = report(commonPath <= commonLimit, commonSummary) || failed
-  failed = report(fullLanguage <= budget.fullLanguageLimit, fullSummary) || failed
+  failed = report(fullLanguage <= fullLimit, fullSummary) || failed
   failed = report(worstCase.instantiations <= budget.perCaseLimit, caseSummary) || failed
 }
 

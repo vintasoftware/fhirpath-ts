@@ -115,6 +115,7 @@
     "lint:fix": "eslint --fix . && prettier --write .",
     "format": "prettier --write .",
     "generate:r4": "node scripts/generate-r4-model.ts",
+    "check:r4": "node scripts/generate-r4-model.ts --check",
     "generate:type-metadata": "node scripts/generate-type-metadata.ts",
     "check:type-metadata": "node scripts/generate-type-metadata.ts --check",
     "generate:function-capabilities": "node scripts/generate-function-capabilities.ts",
@@ -126,7 +127,7 @@
     "check:inference-precision": "node scripts/check-inference-precision.ts",
     "generate:inference-perf": "node scripts/generate-inference-perf.ts",
     "check:inference-perf-fixture": "node scripts/generate-inference-perf.ts --check",
-    "check:inference": "node scripts/generate-type-metadata.ts --check && node scripts/generate-function-capabilities.ts --check && node scripts/audit-inference-corpus.ts --check && node scripts/generate-inference-capabilities.ts --check && node scripts/generate-inference-perf.ts --check && node scripts/check-inference-precision.ts",
+    "check:inference": "node scripts/generate-r4-model.ts --check && node scripts/generate-type-metadata.ts --check && node scripts/generate-function-capabilities.ts --check && node scripts/audit-inference-corpus.ts --check && node scripts/generate-inference-capabilities.ts --check && node scripts/generate-inference-perf.ts --check && node scripts/check-inference-precision.ts",
     "check:fhirpath": "node src/cli/fhirpath-check.ts",
     "prepack": "pnpm run build",
     "prepare": "husky"

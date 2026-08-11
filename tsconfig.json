@@ -35,5 +35,12 @@
     "exactOptionalPropertyTypes": true
   },
   "include": ["src/**/*.ts", "dogfood/**/*.ts"],
-  "exclude": ["node_modules", "**/node_modules", "**/dist", "**/build"]
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "src/typed/perf-fixture.types.ts",
+    "src/typed/generated/full-language-perf.types.ts"
+  ]
 }
