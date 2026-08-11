@@ -108,7 +108,7 @@ const results = prepared.map(entry => ({
 }))
 const conflicts = results.filter(result => result.status === 'conflict').map(result => result.id)
 if (conflicts.length > 0) {
-  throw new Error(`type-level inference is narrower than the analyzer for: ${conflicts.join(', ')}`)
+  throw new Error(`type-level inference disagrees with the analyzer for: ${conflicts.join(', ')}`)
 }
 
 const families = new Map<string, { total: number; precise: number; opaque: number; conflict: number }>()

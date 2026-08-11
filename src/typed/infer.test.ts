@@ -214,7 +214,6 @@ describe('fixed-return string, boolean, and numeric functions (batch 2)', () => 
     expectTypeOf(trimmed).toEqualTypeOf<string[]>()
     expect(trimmed).toEqual(['Chalmers'])
 
-    // Comma-separated arguments pass the CleanArg check.
     const initial = compile('Patient.name.given.first().substring(0, 1)').evaluate(patient, options)
     expectTypeOf(initial).toEqualTypeOf<string[]>()
     expect(initial).toEqual(['P'])
@@ -348,7 +347,7 @@ describe('operators after calls and indexers keep their runtime result', () => {
     >().toEqualTypeOf<boolean[]>()
   })
 
-  it('comma-separated arguments cannot hide a glued operator either', () => {
+  it('comma-separated arguments and following operators parse independently', () => {
     // Runtime: [false] / [true] — comparisons, not strings; both must degrade.
     expectTypeOf<FhirpathResult<"Patient.name.given.first().replace('a', 'b') = ('x')">>().toEqualTypeOf<boolean[]>()
     expectTypeOf<FhirpathResult<"Patient.name.given.first().substring(0, 1) = ('P')">>().toEqualTypeOf<boolean[]>()
@@ -359,9 +358,9 @@ describe('operators after calls and indexers keep their runtime result', () => {
     expectTypeOf<FhirpathResult<'Patient.name.family[0] = given[0]'>>().toEqualTypeOf<boolean[]>()
   })
 
-  it('a paren inside a string literal does not confuse the segment close', () => {
-    // The `).`-scan strips string literals before checking balance, so a
-    // literal paren neither ends the segment early nor degrades it.
+  it('a parenthesis inside a string literal does not close the call', () => {
+    // Quoted parentheses remain literal content while following calls and
+    // navigation parse normally.
     const length = compile("Patient.name.given.join('(').length()").evaluate(patient, options)
     expectTypeOf(length).toEqualTypeOf<number[]>()
     expect(length).toEqual([15])
@@ -370,7 +369,7 @@ describe('operators after calls and indexers keep their runtime result', () => {
     expectTypeOf(filtered).toEqualTypeOf<string[]>()
     expect(filtered).toEqual([])
 
-    // A literal paren with no trailing segments is still precise.
+    // The call is also precise without following navigation.
     expectTypeOf<FhirpathResult<"Patient.name.given.join('(')">>().toEqualTypeOf<string[]>()
   })
 
@@ -380,7 +379,7 @@ describe('operators after calls and indexers keep their runtime result', () => {
     expectTypeOf<FhirpathResult<'Patient.name.where(`div`.exists())'>>().toEqualTypeOf<HumanName[]>()
   })
 
-  it('where() conditions with sane parentheses keep their precision', () => {
+  it('where() conditions with nested calls keep following navigation precise', () => {
     const withCall = compile("Patient.name.where(given.first() = 'Peter')").evaluate(patient, options)
     expectTypeOf(withCall).toEqualTypeOf<HumanName[]>()
     expect(withCall).toHaveLength(1)
@@ -389,8 +388,7 @@ describe('operators after calls and indexers keep their runtime result', () => {
     expectTypeOf(twoClauses).toEqualTypeOf<HumanName[]>()
     expect(twoClauses).toHaveLength(2)
 
-    // A call inside the condition plus trailing segments: the `).`-scan finds
-    // the close that completes the argument, not the first `).` it sees.
+    // The condition's call closes before the following navigation begins.
     const nestedCondition = compile('Patient.name.where(a.exists()).given').evaluate(patient, options)
     expectTypeOf(nestedCondition).toEqualTypeOf<string[]>()
     expect(nestedCondition).toEqual([])
@@ -400,24 +398,21 @@ describe('operators after calls and indexers keep their runtime result', () => {
     expect(afterSelect).toEqual([2])
   })
 
-  it('select() stays sound without an argument guard, and keeps nested precision', () => {
-    // select's argument is re-parsed rather than CleanArg-guarded: glued
-    // operators die in Navigate on the way through…
+  it('select() keeps its argument and outer operator scopes separate', () => {
     expectTypeOf<FhirpathResult<"Patient.name.select(family) = ('x')">>().toEqualTypeOf<boolean[]>()
-    // Direct dispatch keeps nested calls that the argument check would reject.
+    // Nested calls remain part of the select argument.
     const nested = compile('Patient.name.select(given.where(use.exists()))').evaluate(patient, options)
     expectTypeOf(nested).toEqualTypeOf<string[]>()
     expect(nested).toEqual([])
   })
 
-  it('segments after a paren segment resolve instead of merging into it', () => {
-    // Regression: the tail after `where(...)` used to be swallowed into the
-    // where() segment, inferring HumanName[] — a wrong type, not just imprecise.
+  it('navigation after a call resolves independently', () => {
+    // The family navigation follows the HumanName collection returned by where().
     const family = compile("Patient.name.where(use = 'official').family.first()").evaluate(patient, options)
     expectTypeOf(family).toEqualTypeOf<string[]>()
     expect(family).toEqual(['Chalmers'])
 
-    // One-level nesting inside a trailing paren segment still resolves.
+    // A nested call in the projection also resolves.
     const nested = compile('Patient.name.select(given.first())').evaluate(patient, options)
     expectTypeOf(nested).toEqualTypeOf<string[]>()
     expect(nested).toEqual(['Peter', 'Jim'])

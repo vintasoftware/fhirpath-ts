@@ -109,7 +109,7 @@ type Scan<Source extends string, Tokens extends TypeTokens, Steps extends unknow
               : Character extends '`'
                 ? ReadQuoted<Rest, '', '`', 'name', Tokens, Step<Steps>>
                 : Character extends '@'
-                  ? ReadTemporal<Rest, '', Tokens, Step<Steps>>
+                  ? ReadTemporal<Rest, Tokens, Step<Steps>>
                   : Character extends '$'
                     ? ReadSpecial<Rest, '', Tokens, Step<Steps>>
                     : Character extends '/'
@@ -251,7 +251,6 @@ type Escaped<Character extends SimpleEscape> = Character extends 'f'
 
 type ReadTemporal<
   Source extends string,
-  _Acc extends string,
   Tokens extends TypeTokens,
   Steps extends unknown[],
 > = Source extends `T${infer Rest}`
@@ -983,7 +982,7 @@ type ParseOperand<
                           >
                         : OpaqueState
                       : Token extends ['symbol', ')']
-                        ? CloseEmptyCall<Rest, Stack, Ops, Delimiters, Context>
+                        ? CloseEmptyCall<Rest, Stack, Ops, Delimiters>
                         : OpaqueState
     : OpaqueState
 
@@ -1199,7 +1198,6 @@ type CloseEmptyCall<
   Stack extends Values,
   Ops extends Operators,
   Delimiters extends Frames,
-  _Context extends InferenceState,
 > = Stack extends []
   ? Ops extends []
     ? Delimiters extends [
@@ -1955,13 +1953,7 @@ type InputState<
           : HasHostContext<HostContext> extends true
             ? UnknownState & EnvironmentCarrier<[[], 'unknown', never, HostContext, never]>
             : UnknownState
-    : BindingFallback extends true
-      ? UnknownState & EnvironmentCarrier<['opaque', 'unknown', never, HostContext, never]>
-      : TrackEnvironment extends true
-        ? UnknownState & EnvironmentCarrier<[[], 'unknown', never, HostContext, never]>
-        : HasHostContext<HostContext> extends true
-          ? UnknownState & EnvironmentCarrier<[[], 'unknown', never, HostContext, never]>
-          : UnknownState
+    : never
 
 type FastInputState<Input extends string> =
   LocalTypeName<Input> extends infer Name extends string
