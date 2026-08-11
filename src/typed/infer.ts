@@ -45,7 +45,7 @@ export interface FhirpathTypeContext {
 /** The inferred result of evaluating a literal FHIRPath expression. */
 export type FhirpathResult<
   Expression extends string,
-  Context extends object = EmptyFhirpathTypeContext,
+  Context extends FhirpathTypeContext = EmptyFhirpathTypeContext,
 > = FhirpathResultIn<Expression, 'opaque', Context>
 
 /**
@@ -54,6 +54,13 @@ export type FhirpathResult<
  * `unknown[]`.
  */
 export type FhirpathResultIn<
+  Expression extends string,
+  Input extends string,
+  Context extends FhirpathTypeContext = EmptyFhirpathTypeContext,
+> = FhirpathResultForContext<Expression, Input, Context>
+
+/** Internal inference entry point for contexts assembled from generic API options. */
+export type FhirpathResultForContext<
   Expression extends string,
   Input extends string,
   Context extends object = EmptyFhirpathTypeContext,

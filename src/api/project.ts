@@ -2,7 +2,7 @@ import { type EvaluationContext, forkVariables } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { EmptyFhirpathTypeContext, FhirpathResultIn } from '../typed/infer.ts'
+import type { EmptyFhirpathTypeContext, FhirpathResultForContext } from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
@@ -54,7 +54,7 @@ type ColumnValues<Column, Root extends string, Context extends object> = Column 
           ? V[]
           : Column extends { type: infer T extends keyof R4TypeOf }
             ? R4TypeOf[T][]
-            : FhirpathResultIn<ColumnPath<Column>, Root, Context>
+            : FhirpathResultForContext<ColumnPath<Column>, Root, Context>
 
 /** A column's output type. A default replaces `undefined`; a collection returns every value. */
 export type ColumnResult<

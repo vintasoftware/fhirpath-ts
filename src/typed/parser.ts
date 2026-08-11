@@ -1541,16 +1541,18 @@ type HostSignatureResult<Types extends string, Result, Input extends InferenceSt
   ? CopyEnvironment<EmptyState, Input>
   : WideTypeName<Types> extends true
     ? CopyEnvironment<UnknownState, Input>
-    : CopyEnvironment<
-        [
-          Canonical<Types>,
-          Result extends { readonly single: infer Single extends boolean } ? Single : 'unknown',
-          never,
-          false,
-          never,
-        ],
-        Input
-      >
+    : Canonical<Types> extends keyof R4TypeOf
+      ? CopyEnvironment<
+          [
+            Canonical<Types>,
+            Result extends { readonly single: infer Single extends boolean } ? Single : 'unknown',
+            never,
+            false,
+            never,
+          ],
+          Input
+        >
+      : CopyEnvironment<UnknownState, Input>
 
 type InferHostBody<Declaration, Input extends InferenceState, Name extends string> =
   HostBodySource<Declaration> extends infer Body

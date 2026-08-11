@@ -22,7 +22,7 @@ import type {
   CheckedFhirpathOptionValues,
   EmptyFhirpathTypeContext,
   FhirpathInput,
-  FhirpathResultIn,
+  FhirpathResultForContext,
   FhirpathTypeContextOf,
   FhirpathTypeDeclarations,
   FhirTypeName,
@@ -108,6 +108,12 @@ export interface EvaluateOptions {
   regex?: RegexEngine
 }
 
+/** Preserve literal option inference while rejecting keys outside the accepted option shape. */
+export type Declaring<Options extends object, Accepted extends EvaluateOptions = EvaluateOptions> = Accepted &
+  Options &
+  CheckedFhirpathOptionValues<Options> &
+  Record<Exclude<keyof Options, keyof Accepted>, never>
+
 /**
  * A parsed expression, reusable across inputs. Create via `compile()` or the
  * `fhirpath` tag: literal expressions carry inferred result and input types for
@@ -128,7 +134,7 @@ type CompiledResult<
   Context extends object,
   Options,
 > = TResult extends InferredExpressionResult
-  ? FhirpathResultIn<Expr, Root, MergeFhirpathTypeContexts<Context, FhirpathTypeContextOf<Options>>>
+  ? FhirpathResultForContext<Expr, Root, MergeFhirpathTypeContexts<Context, FhirpathTypeContextOf<Options>>>
   : Extract<TResult, unknown[]>
 
 export class CompiledExpression<
@@ -147,9 +153,9 @@ export class CompiledExpression<
   }
 
   /** Evaluate and unwrap results to plain JS values. */
-  evaluate<const Options extends EvaluateOptions = EmptyFhirpathTypeContext>(
+  evaluate<const Options extends object = EmptyFhirpathTypeContext>(
     input?: TInput,
-    options?: EvaluateOptions & Options & CheckedFhirpathOptionValues<Options>
+    options?: Declaring<Options>
   ): CompiledResult<Expr, TResult, Root, Context, Options> {
     return this.evaluateTyped(input, options).map(unwrap) as CompiledResult<Expr, TResult, Root, Context, Options>
   }

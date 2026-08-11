@@ -29,6 +29,20 @@ describe('typed host context', () => {
     expectTypeOf<FhirpathResult<'%report.status', typeof _context>>().toEqualTypeOf<unknown[]>()
   })
 
+  it('rejects malformed standalone contexts and degrades unrecognized result types', () => {
+    // @ts-expect-error envTypez is not a FHIRPath context field
+    type _InvalidContextKey = FhirpathResult<'%report.status', { envTypez: { report: { type: 'DiagnosticReport' } } }>
+    // @ts-expect-error env must contain FHIRPath type declarations
+    type _InvalidEnvironment = FhirpathResult<'%report.status', { env: 42 }>
+    // @ts-expect-error declaration type names must come from the generated model
+    type _InvalidTypeName = FhirpathResult<'%report.status', { env: { report: { type: 'DiagnosticReprot' } } }>
+
+    type UnknownFunctionType = {
+      functions: { mystery: { signature: { result: { types: ['NotInTheModel'] } } } }
+    }
+    expectTypeOf<FhirpathResult<'mystery()', UnknownFunctionType>>().toEqualTypeOf<unknown[]>()
+  })
+
   it('types signatures, expression bodies, local overlays, criteria, and overloads', () => {
     const _functions = {
       nativeStatus: {
@@ -165,5 +179,28 @@ describe('typed host context', () => {
     })
     // @ts-expect-error a declaration with singleton cardinality cannot accept a two-item literal
     void new FhirPathEngine({ env: { status: ['final', 'amended'] }, envTypes: { status: { type: 'string' } } })
+  })
+
+  it('rejects unknown keys on every inferred per-call options route', () => {
+    const engine = new FhirPathEngine()
+    const bound = engine.compile('%report.status')
+    const compiled = compile('%report.status')
+    const typo = { envTypez: { report: { type: 'DiagnosticReport' } } }
+
+    const assertInvalidOptions = () => {
+      // @ts-expect-error envTypez is not an evaluate option
+      engine.evaluate('%report.status', undefined, typo)
+      // @ts-expect-error envTypez is not an evaluate option
+      engine.first('%report.status', undefined, typo)
+      // @ts-expect-error envTypez is not a project option
+      engine.project({ resourceType: 'Patient' }, { status: '%report.status' }, typo)
+      // @ts-expect-error envTypez is not a bound-expression option
+      bound.evaluate(undefined, typo)
+      // @ts-expect-error envTypez is not a bound-expression option
+      bound.first(undefined, typo)
+      // @ts-expect-error envTypez is not a compiled-expression option
+      compiled.evaluate(undefined, typo)
+    }
+    void assertInvalidOptions
   })
 })
