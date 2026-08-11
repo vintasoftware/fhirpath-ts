@@ -224,6 +224,8 @@ function runManualCapability(id: string, expression: string): string | undefined
     'variable.opaque-fixed': { input: patient, env: { rowIndex: 3 }, expected: ['3'] },
     'syntax.trivia': { input: patient, expected: [...patient.name] },
     'syntax.delimited-identifier': { input: patient, expected: [...patient.name] },
+    'literal.integer': { input: undefined, expected: [7] },
+    'literal.string': { input: undefined, expected: ['plain'] },
     'precedence.call-dot': { input: patient, expected: ['Peter', 'James'] },
     'precedence.dot-index': { input: patient, expected: ['Peter', 'James'] },
     'precedence.index-unary': { input: patient, expected: [-5] },

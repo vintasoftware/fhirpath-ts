@@ -177,13 +177,13 @@ export const INFERENCE_CAPABILITIES = {
   },
   'syntax.escaped-string': {
     family: 'syntax',
-    source: { corpusId: 'fhirpathjs:4.1_literals.yaml:2:0' },
+    source: { corpusId: 'fhirpathjs:4.1_literals.yaml:1:0' },
     expectedType: 'string[]',
     compositionType: 'string[]',
     runtime: true,
     analyzer: { types: ['System.String'], single: true },
     degradation: "'\\q'",
-    composition: "'\\u00e9'.upper()",
+    composition: "'\\u00E9'.upper()",
   },
   'syntax.delimited-identifier': {
     family: 'syntax',
@@ -217,13 +217,13 @@ export const INFERENCE_CAPABILITIES = {
   },
   'literal.integer': {
     family: 'literal',
-    source: { corpusId: 'fhirpathjs:4.1_literals.yaml:44:0' },
+    source: { expression: '7', corpusGap: 'focused integer literal without a unary operator' },
     expectedType: 'number[]',
     compositionType: 'string[]',
     runtime: true,
     analyzer: { types: ['System.Integer'], single: true },
     degradation: '7 8',
-    composition: '(+7).toString()',
+    composition: '(7).toString()',
   },
   'literal.long': {
     family: 'literal',
@@ -247,13 +247,13 @@ export const INFERENCE_CAPABILITIES = {
   },
   'literal.string': {
     family: 'literal',
-    source: { corpusId: 'fhirpathjs:4.1_literals.yaml:2:0' },
+    source: { expression: "'plain'", corpusGap: 'focused string literal without escape syntax' },
     expectedType: 'string[]',
     compositionType: 'string[]',
     runtime: true,
     analyzer: { types: ['System.String'], single: true },
     degradation: "'unterminated",
-    composition: "'\\u00e9'.upper()",
+    composition: "'plain'.upper()",
   },
   'literal.date': {
     family: 'literal',

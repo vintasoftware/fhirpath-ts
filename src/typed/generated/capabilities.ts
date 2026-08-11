@@ -214,7 +214,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
   'syntax.escaped-string': {
     family: 'syntax',
     source: {
-      corpusId: 'fhirpathjs:4.1_literals.yaml:2:0',
+      corpusId: 'fhirpathjs:4.1_literals.yaml:1:0',
     },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -224,13 +224,13 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
       single: true,
     },
     degradation: "'\\q'",
-    composition: "'\\u00e9'.upper()",
-    expression: "'\\u00e9'",
+    composition: "'\\u00E9'.upper()",
+    expression: "'a\\\\b\\'\\\"\\`\\r\\n\\t\\u0065'",
     reference: {
       kind: 'fhirpathjs',
       corpus: 'cases',
       file: '4.1_literals.yaml',
-      testIndex: 2,
+      testIndex: 1,
       expressionIndex: 0,
     },
   },
@@ -301,7 +301,8 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
   'literal.integer': {
     family: 'literal',
     source: {
-      corpusId: 'fhirpathjs:4.1_literals.yaml:44:0',
+      expression: '7',
+      corpusGap: 'focused integer literal without a unary operator',
     },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -311,15 +312,8 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
       single: true,
     },
     degradation: '7 8',
-    composition: '(+7).toString()',
-    expression: '+7',
-    reference: {
-      kind: 'fhirpathjs',
-      corpus: 'cases',
-      file: '4.1_literals.yaml',
-      testIndex: 44,
-      expressionIndex: 0,
-    },
+    composition: '(7).toString()',
+    expression: '7',
   },
   'literal.long': {
     family: 'literal',
@@ -370,7 +364,8 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
   'literal.string': {
     family: 'literal',
     source: {
-      corpusId: 'fhirpathjs:4.1_literals.yaml:2:0',
+      expression: "'plain'",
+      corpusGap: 'focused string literal without escape syntax',
     },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -380,15 +375,8 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
       single: true,
     },
     degradation: "'unterminated",
-    composition: "'\\u00e9'.upper()",
-    expression: "'\\u00e9'",
-    reference: {
-      kind: 'fhirpathjs',
-      corpus: 'cases',
-      file: '4.1_literals.yaml',
-      testIndex: 2,
-      expressionIndex: 0,
-    },
+    composition: "'plain'.upper()",
+    expression: "'plain'",
   },
   'literal.date': {
     family: 'literal',

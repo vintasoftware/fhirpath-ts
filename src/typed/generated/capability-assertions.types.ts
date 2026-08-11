@@ -94,10 +94,14 @@ export type SyntaxTriviaDegradation = Assert<
 export type SyntaxTriviaComposition = Assert<
   Equal<FhirpathResultIn<'Patient /* ignored */ . name.first()', 'opaque'>, HumanName[]>
 >
-export type SyntaxEscapedStringFastSlowParity = Assert<FastSlowInferenceParity<"'\\u00e9'", 'opaque'>>
-export type SyntaxEscapedStringPositive = Assert<Equal<FhirpathResultIn<"'\\u00e9'", 'opaque'>, string[]>>
+export type SyntaxEscapedStringFastSlowParity = Assert<
+  FastSlowInferenceParity<"'a\\\\b\\'\\\"\\`\\r\\n\\t\\u0065'", 'opaque'>
+>
+export type SyntaxEscapedStringPositive = Assert<
+  Equal<FhirpathResultIn<"'a\\\\b\\'\\\"\\`\\r\\n\\t\\u0065'", 'opaque'>, string[]>
+>
 export type SyntaxEscapedStringDegradation = Assert<Equal<FhirpathResultIn<"'\\q'", 'opaque'>, unknown[]>>
-export type SyntaxEscapedStringComposition = Assert<Equal<FhirpathResultIn<"'\\u00e9'.upper()", 'opaque'>, string[]>>
+export type SyntaxEscapedStringComposition = Assert<Equal<FhirpathResultIn<"'\\u00E9'.upper()", 'opaque'>, string[]>>
 export type SyntaxDelimitedIdentifierFastSlowParity = Assert<FastSlowInferenceParity<'Patient.`name`', 'opaque'>>
 export type SyntaxDelimitedIdentifierPositive = Assert<Equal<FhirpathResultIn<'Patient.`name`', 'opaque'>, HumanName[]>>
 export type SyntaxDelimitedIdentifierDegradation = Assert<Equal<FhirpathResultIn<'Patient.``', 'opaque'>, unknown[]>>
@@ -112,10 +116,10 @@ export type LiteralBooleanFastSlowParity = Assert<FastSlowInferenceParity<'true'
 export type LiteralBooleanPositive = Assert<Equal<FhirpathResultIn<'true', 'Functions'>, boolean[]>>
 export type LiteralBooleanDegradation = Assert<Equal<FhirpathResultIn<'tru', 'Functions'>, unknown[]>>
 export type LiteralBooleanComposition = Assert<Equal<FhirpathResultIn<'true.toString()', 'Functions'>, string[]>>
-export type LiteralIntegerFastSlowParity = Assert<FastSlowInferenceParity<'+7', 'opaque'>>
-export type LiteralIntegerPositive = Assert<Equal<FhirpathResultIn<'+7', 'opaque'>, number[]>>
+export type LiteralIntegerFastSlowParity = Assert<FastSlowInferenceParity<'7', 'opaque'>>
+export type LiteralIntegerPositive = Assert<Equal<FhirpathResultIn<'7', 'opaque'>, number[]>>
 export type LiteralIntegerDegradation = Assert<Equal<FhirpathResultIn<'7 8', 'opaque'>, unknown[]>>
-export type LiteralIntegerComposition = Assert<Equal<FhirpathResultIn<'(+7).toString()', 'opaque'>, string[]>>
+export type LiteralIntegerComposition = Assert<Equal<FhirpathResultIn<'(7).toString()', 'opaque'>, string[]>>
 export type LiteralLongFastSlowParity = Assert<FastSlowInferenceParity<'-7L', 'opaque'>>
 export type LiteralLongPositive = Assert<Equal<FhirpathResultIn<'-7L', 'opaque'>, bigint[]>>
 export type LiteralLongDegradation = Assert<Equal<FhirpathResultIn<'7LL', 'opaque'>, unknown[]>>
@@ -124,10 +128,10 @@ export type LiteralDecimalFastSlowParity = Assert<FastSlowInferenceParity<'-7.3'
 export type LiteralDecimalPositive = Assert<Equal<FhirpathResultIn<'-7.3', 'opaque'>, number[]>>
 export type LiteralDecimalDegradation = Assert<Equal<FhirpathResultIn<'7.', 'opaque'>, unknown[]>>
 export type LiteralDecimalComposition = Assert<Equal<FhirpathResultIn<'(-7.3).round()', 'opaque'>, number[]>>
-export type LiteralStringFastSlowParity = Assert<FastSlowInferenceParity<"'\\u00e9'", 'opaque'>>
-export type LiteralStringPositive = Assert<Equal<FhirpathResultIn<"'\\u00e9'", 'opaque'>, string[]>>
+export type LiteralStringFastSlowParity = Assert<FastSlowInferenceParity<"'plain'", 'opaque'>>
+export type LiteralStringPositive = Assert<Equal<FhirpathResultIn<"'plain'", 'opaque'>, string[]>>
 export type LiteralStringDegradation = Assert<Equal<FhirpathResultIn<"'unterminated", 'opaque'>, unknown[]>>
-export type LiteralStringComposition = Assert<Equal<FhirpathResultIn<"'\\u00e9'.upper()", 'opaque'>, string[]>>
+export type LiteralStringComposition = Assert<Equal<FhirpathResultIn<"'plain'.upper()", 'opaque'>, string[]>>
 export type LiteralDateFastSlowParity = Assert<FastSlowInferenceParity<'@2019', 'opaque'>>
 export type LiteralDatePositive = Assert<Equal<FhirpathResultIn<'@2019', 'opaque'>, string[]>>
 export type LiteralDateDegradation = Assert<Equal<FhirpathResultIn<'@20', 'opaque'>, unknown[]>>

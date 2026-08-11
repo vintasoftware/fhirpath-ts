@@ -3,12 +3,12 @@
   "compilers": {
     "typescript": {
       "commonPath": 121504,
-      "fullLanguage": 571141,
+      "fullLanguage": 573282,
       "apiSurface": 182299
     },
     "typescript-5-8": {
       "commonPath": 126256,
-      "fullLanguage": 590590,
+      "fullLanguage": 592734,
       "apiSurface": 203249
     }
   },
