@@ -1386,7 +1386,7 @@ type ApplyOperatorRule<Rule, Name extends string, Left extends InferenceState, R
     ? OpaqueState
     : IsOpaqueState<Right> extends true
       ? OpaqueState
-      : Rule extends readonly ['fixed', infer Type extends string, unknown]
+      : Rule extends readonly ['fixed', infer Type extends string]
         ? [LocalTypeName<Type>, never]
         : Rule extends readonly ['arithmetic']
           ? ArithmeticState<Name, Left, Right>
@@ -1478,7 +1478,7 @@ type ApplyTypeResult<
 type ApplyTypeOperator<Rule, Operand extends InferenceState, Target extends string> =
   IsOpaqueState<Operand> extends true
     ? CopyEnvironment<OpaqueState, Operand>
-    : Rule extends readonly ['fixed', infer Type extends string, unknown]
+    : Rule extends readonly ['fixed', infer Type extends string]
       ? CopyEnvironment<[LocalTypeName<Type>, never], Operand>
       : Rule extends readonly ['narrow']
         ? Narrow<Operand, Target>
@@ -1666,21 +1666,20 @@ type ApplyDefineVariable<
   Value extends InferenceState,
 > = BindVariable<ApplyResultRule<CompactFunctionRules['defineVariable'], Input, []>, Name, Value>
 
-type ApplyResultRule<Rule, Input extends InferenceState, Args extends InferenceState[]> = Rule extends {
-  readonly 0: 'fixed'
-  readonly 1: infer Type extends string
-  readonly 2: unknown
-}
+type ApplyResultRule<Rule, Input extends InferenceState, Args extends InferenceState[]> = Rule extends readonly [
+  'fixed',
+  infer Type extends string,
+]
   ? CopyEnvironment<[LocalTypeName<Type>, never], Input>
   : Rule extends readonly ['input']
     ? Input
     : Rule extends readonly ['input-item']
       ? Input
-      : Rule extends readonly ['argument', infer Index extends number, 'argument' | 'input-and-argument']
+      : Rule extends readonly ['argument', infer Index extends number]
         ? ArgumentState<Args, Index> extends infer Argument extends InferenceState
           ? CopyEnvironment<Argument, Input>
           : CopyEnvironment<UnknownState, Input>
-        : Rule extends readonly ['union', infer Sources extends 'input' | number, boolean | 'all']
+        : Rule extends readonly ['union', infer Sources extends 'input' | number]
           ? CombineRuleSources<Sources, Input, Args> extends infer Combined extends InferenceState
             ? CopyEnvironment<Combined, Input>
             : CopyEnvironment<UnknownState, Input>

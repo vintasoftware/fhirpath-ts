@@ -139,15 +139,15 @@ function isFastResultRule(rule: ResultRule): boolean {
 function compactResultRuleType(rule: ResultRule): string {
   switch (rule.kind) {
     case 'fixed':
-      return `readonly ['fixed', ${rule.types?.map(type => JSON.stringify(type)).join(' | ') ?? 'never'}, ${rule.single ?? "'unknown'"}]`
+      return `readonly ['fixed', ${rule.types?.map(type => JSON.stringify(type)).join(' | ') ?? 'never'}]`
     case 'input':
       return "readonly ['input']"
     case 'input-item':
       return "readonly ['input-item']"
     case 'argument':
-      return `readonly ['argument', ${rule.index}, ${JSON.stringify(rule.cardinality)}]`
+      return `readonly ['argument', ${rule.index}]`
     case 'union':
-      return `readonly ['union', ${rule.sources.map(source => JSON.stringify(source)).join(' | ')}, ${JSON.stringify(rule.single)}]`
+      return `readonly ['union', ${rule.sources.map(source => JSON.stringify(source)).join(' | ')}]`
     case 'arguments-union':
       return "readonly ['arguments-union']"
     case 'reference-targets':
@@ -160,7 +160,7 @@ function compactResultRuleType(rule: ResultRule): string {
 function compactOperatorRuleType(rule: OperatorResultRule): string {
   switch (rule.kind) {
     case 'fixed':
-      return `readonly ['fixed', ${rule.types.map(type => JSON.stringify(type)).join(' | ')}, ${rule.single}]`
+      return `readonly ['fixed', ${rule.types.map(type => JSON.stringify(type)).join(' | ')}]`
     case 'arithmetic':
       return "readonly ['arithmetic']"
     case 'union':
