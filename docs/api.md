@@ -288,7 +288,7 @@ types.
 | `FhirpathResultIn<Expr, Input, Context>` | Infer a literal expression against a named input type |
 | `FhirpathTypeDeclaration` / `FhirpathTypeDeclarations` | Declare host value types, collection shape, and Reference targets |
 | `FhirpathTypeContext` / `FhirpathFunctionDeclaration` | Describe standalone env, var, and function declarations |
-| `EmptyFhirpathTypeContext` | Empty default for context-aware generic wrappers |
+| `EmptyFhirpathTypeContext` / `EmptyContextMap` | Importable empty defaults used by context-aware generic wrappers and diagnostics |
 | `CompiledExpressionResult` / `InferredExpressionResult` | Select and compute a compiled expression's inferred result |
 | `EngineExpression` / `EngineInputRoot` | Describe accepted engine expressions and normalized input roots |
 | `EngineResult` | Compute the inferred result of an engine or bound-expression call |

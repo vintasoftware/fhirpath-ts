@@ -35,6 +35,7 @@ export type { ElementInfo, ModelProvider } from './model/provider.ts'
 export type { AstNode } from './parser/ast.ts'
 export { parse } from './parser/parser.ts'
 export { printExpression } from './parser/printer.ts'
+export type { EmptyContextMap } from './typed/context-maps.ts'
 export type {
   EmptyFhirpathTypeContext,
   FhirpathFunctionDeclaration,
