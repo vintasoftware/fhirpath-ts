@@ -1,3 +1,4 @@
+/* v8 ignore file -- build-time constants consumed by the type parser and generation scripts */
 /** Maximum tokens the type-level scanner emits for one literal expression. */
 export const INFERENCE_TOKEN_LIMIT = 64
 

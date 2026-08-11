@@ -21,28 +21,97 @@ export const BindingPower = {
   FunctionCall: 14,
 } as const
 
-export type ParseletFixity = 'infix' | 'postfix'
-export type ParseletAssociativity = 'left'
-export type ParseletRhsMode = 'expression' | 'type-name' | 'path' | 'index' | 'arguments'
-export type ParseletReducer = 'binary' | 'type' | 'dot' | 'indexer' | 'call'
+export type InfixParseletRecord =
+  | {
+      tokenKind: 'operator' | 'keyword'
+      fixity: 'infix'
+      bindingPower: number
+      associativity: 'left'
+      rhs: 'expression'
+      reducer: 'binary'
+    }
+  | {
+      tokenKind: 'keyword'
+      fixity: 'infix'
+      bindingPower: number
+      associativity: 'left'
+      rhs: 'type-name'
+      reducer: 'type'
+    }
+  | {
+      tokenKind: 'punct'
+      fixity: 'infix'
+      bindingPower: number
+      associativity: 'left'
+      rhs: 'path'
+      reducer: 'dot'
+    }
+  | {
+      tokenKind: 'punct'
+      fixity: 'postfix'
+      bindingPower: number
+      associativity: 'left'
+      rhs: 'index'
+      reducer: 'indexer'
+    }
+  | {
+      tokenKind: 'punct'
+      fixity: 'postfix'
+      bindingPower: number
+      associativity: 'left'
+      rhs: 'arguments'
+      reducer: 'call'
+    }
 
-export interface InfixParseletRecord {
-  tokenKind: 'operator' | 'keyword' | 'punct'
-  fixity: ParseletFixity
-  bindingPower: number
-  associativity: ParseletAssociativity
-  rhs: ParseletRhsMode
-  reducer: ParseletReducer
-}
-
-export interface PrefixParseletRecord {
-  tokenKind: 'identifier' | 'literal' | 'operator' | 'punct' | 'variable'
-  fixity: 'prefix'
-  bindingPower: number
-  associativity: 'right' | 'none'
-  rhs: 'none' | 'expression' | 'group' | 'external-name'
-  reducer: 'identifier' | 'literal' | 'unary' | 'group' | 'empty' | 'external'
-}
+export type PrefixParseletRecord =
+  | {
+      tokenKind: 'identifier' | 'variable'
+      fixity: 'prefix'
+      bindingPower: number
+      associativity: 'none'
+      rhs: 'none'
+      reducer: 'identifier'
+    }
+  | {
+      tokenKind: 'literal'
+      fixity: 'prefix'
+      bindingPower: number
+      associativity: 'none'
+      rhs: 'none'
+      reducer: 'literal'
+    }
+  | {
+      tokenKind: 'operator'
+      fixity: 'prefix'
+      bindingPower: number
+      associativity: 'right'
+      rhs: 'expression'
+      reducer: 'unary'
+    }
+  | {
+      tokenKind: 'punct'
+      fixity: 'prefix'
+      bindingPower: number
+      associativity: 'none'
+      rhs: 'group'
+      reducer: 'group'
+    }
+  | {
+      tokenKind: 'punct'
+      fixity: 'prefix'
+      bindingPower: number
+      associativity: 'none'
+      rhs: 'none'
+      reducer: 'empty'
+    }
+  | {
+      tokenKind: 'punct'
+      fixity: 'prefix'
+      bindingPower: number
+      associativity: 'none'
+      rhs: 'external-name'
+      reducer: 'external'
+    }
 
 /** Single source of truth for tokens and token kinds accepted before an operand. */
 export const PREFIX_PARSELETS = {
@@ -112,7 +181,10 @@ export const PREFIX_PARSELETS = {
   },
 } as const satisfies Record<string, PrefixParseletRecord>
 
-const binary = (tokenKind: 'operator' | 'keyword', bindingPower: number): InfixParseletRecord => ({
+const binary = (
+  tokenKind: 'operator' | 'keyword',
+  bindingPower: number
+): Extract<InfixParseletRecord, { reducer: 'binary' }> => ({
   tokenKind,
   fixity: 'infix',
   bindingPower,

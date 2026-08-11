@@ -63,9 +63,6 @@ class Parser {
     if (parselet === undefined) {
       throw this.error(token.kind === 'end' ? 'Unexpected end of expression' : `Unexpected '${token.text}'`, token)
     }
-    if (parselet.fixity !== 'prefix') {
-      throw new Error(`Invalid prefix parselet for '${token.text}'`)
-    }
     switch (parselet.reducer) {
       case 'identifier':
         this.advance()
@@ -102,15 +99,13 @@ class Parser {
       case 'keyword':
         this.advance()
         return { kind: 'boolean', value: token.text === 'true', span: token.span }
+      /* v8 ignore next -- prefixTokenKind admits only literal token kinds here */
       default:
         throw new Error(`Invalid literal parselet for '${token.text}'`)
     }
   }
 
-  private parseUnary(token: Token, parselet: PrefixParseletRecord): AstNode {
-    if (parselet.rhs !== 'expression' || parselet.associativity !== 'right') {
-      throw new Error(`Invalid unary parselet for '${token.text}'`)
-    }
+  private parseUnary(token: Token, parselet: Extract<PrefixParseletRecord, { reducer: 'unary' }>): AstNode {
     this.advance()
     const operand = this.parseExpression(parselet.bindingPower)
     return {
@@ -121,10 +116,12 @@ class Parser {
     }
   }
 
-  private parsePunctPrefix(token: Token, parselet: PrefixParseletRecord): AstNode {
+  private parsePunctPrefix(
+    token: Token,
+    parselet: Extract<PrefixParseletRecord, { reducer: 'group' | 'empty' | 'external' }>
+  ): AstNode {
     switch (parselet.reducer) {
       case 'group': {
-        if (parselet.rhs !== 'group') throw new Error(`Invalid group parselet for '${token.text}'`)
         this.advance()
         const inner = this.parseExpression(0)
         this.expect(')')
@@ -132,13 +129,11 @@ class Parser {
         return inner
       }
       case 'empty': {
-        if (parselet.rhs !== 'none') throw new Error(`Invalid empty parselet for '${token.text}'`)
         this.advance()
         const close = this.expect('}')
         return { kind: 'null', span: this.spanBetween(token.span, close.span) }
       }
       case 'external': {
-        if (parselet.rhs !== 'external-name') throw new Error(`Invalid external parselet for '${token.text}'`)
         this.advance()
         const name = this.peek()
         if (name.kind !== 'identifier' && name.kind !== 'delimitedIdentifier' && name.kind !== 'string') {
@@ -147,8 +142,6 @@ class Parser {
         this.advance()
         return { kind: 'external', name: name.value, span: this.spanBetween(token.span, name.span) }
       }
-      default:
-        throw new Error(`Invalid punctuation parselet for '${token.text}'`)
     }
   }
 
@@ -186,27 +179,15 @@ class Parser {
   private parseInfix(left: AstNode, token: Token, parselet: InfixParseletRecord): AstNode {
     switch (parselet.reducer) {
       case 'dot':
-        if (parselet.fixity !== 'infix' || parselet.rhs !== 'path') {
-          throw new Error(`Invalid dot parselet for '${token.text}'`)
-        }
         return this.parseDot(left)
       case 'indexer': {
-        if (parselet.fixity !== 'postfix' || parselet.rhs !== 'index') {
-          throw new Error(`Invalid indexer parselet for '${token.text}'`)
-        }
         const index = this.parseExpression(0)
         const close = this.expect(']')
         return { kind: 'indexer', target: left, index, span: this.spanBetween(left.span, close.span) }
       }
       case 'call':
-        if (parselet.fixity !== 'postfix' || parselet.rhs !== 'arguments') {
-          throw new Error(`Invalid call parselet for '${token.text}'`)
-        }
         return this.parseCall(left)
       case 'type': {
-        if (parselet.fixity !== 'infix' || parselet.rhs !== 'type-name') {
-          throw new Error(`Invalid type parselet for '${token.text}'`)
-        }
         const type = this.parseTypeSpecifier()
         return {
           kind: 'typeOp',
@@ -217,11 +198,7 @@ class Parser {
         }
       }
       case 'binary': {
-        if (parselet.fixity !== 'infix' || parselet.rhs !== 'expression') {
-          throw new Error(`Invalid binary parselet for '${token.text}'`)
-        }
-        const rightBindingPower = parselet.associativity === 'left' ? parselet.bindingPower : parselet.bindingPower - 1
-        const right = this.parseExpression(rightBindingPower)
+        const right = this.parseExpression(parselet.bindingPower)
         return {
           kind: 'binary',
           operator: token.text as BinaryOperator,
