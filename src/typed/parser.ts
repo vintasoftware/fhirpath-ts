@@ -1,4 +1,5 @@
 import type { R4Bases, R4Elements, R4ReferenceTargets, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type { EmptyContextMap, LookupContextMap, MergeContextMaps } from './context-maps.ts'
 import type {
   CompactCalendarUnit,
   CompactFastFunctionName,
@@ -595,7 +596,6 @@ type CoreState = [types: string, targets: string]
 type VariableBinding = [name: string, value: CoreState]
 type VariableBindings = VariableBinding[]
 type BindingState = VariableBindings | 'opaque'
-type EmptyHostContext = Record<never, never>
 type InferenceEnvironment = [
   bindings: BindingState,
   rootTypes: string,
@@ -603,7 +603,7 @@ type InferenceEnvironment = [
   host: object,
   activeHostDeclarations: string,
 ]
-type DefaultEnvironment = [[], 'unknown', never, EmptyHostContext, never]
+type DefaultEnvironment = [[], 'unknown', never, EmptyContextMap, never]
 type EnvironmentCarrier<Environment extends InferenceEnvironment> = { readonly __environment: Environment }
 type InferenceState = CoreState
 type OpaqueCore = ['opaque', never]
@@ -657,7 +657,7 @@ type FastFunctionName = CompactFastFunctionName
 export type InferTypeExpression<
   Expression extends string,
   Input extends string,
-  Context extends object = EmptyHostContext,
+  Context extends object = EmptyContextMap,
 > =
   HasHostContext<Context> extends true
     ? InferSlowExpression<Expression, Input, Context>
@@ -879,7 +879,7 @@ export type TokenizationStatus<Expression extends string> =
 export type FastSlowInferenceParity<Expression extends string, Input extends string> =
   FastExpression<Expression, Input> extends infer Fast
     ? Fast extends CoreState
-      ? EqualTypes<PublicResult<Fast>, InferSlowExpression<Expression, Input, EmptyHostContext>>
+      ? EqualTypes<PublicResult<Fast>, InferSlowExpression<Expression, Input, EmptyContextMap>>
       : true
     : true
 
@@ -1634,7 +1634,7 @@ type WithHostCallEnvironment<Input extends InferenceState, Declaration, Active e
 type OverlayFunctionContext<Context extends object, Declaration> = {
   env: MergeContextMaps<
     EnvOf<Context>,
-    Declaration extends { readonly envTypes?: infer Local } ? Local : EmptyHostContext
+    Declaration extends { readonly envTypes?: infer Local } ? Local : EmptyContextMap
   >
   vars: VarsOf<Context>
   functions: FunctionsOf<Context>
@@ -1753,25 +1753,11 @@ type LookupBinding<Bindings extends BindingState, Name extends string> = Binding
     : never
   : never
 
-type EnvOf<Context extends object> = Context extends { readonly env?: infer Env } ? Env : EmptyHostContext
-type VarsOf<Context extends object> = Context extends { readonly vars?: infer Vars } ? Vars : EmptyHostContext
+type EnvOf<Context extends object> = Context extends { readonly env?: infer Env } ? Env : EmptyContextMap
+type VarsOf<Context extends object> = Context extends { readonly vars?: infer Vars } ? Vars : EmptyContextMap
 type FunctionsOf<Context extends object> = Context extends { readonly functions?: infer Functions }
   ? Functions
-  : EmptyHostContext
-type BareContextName<Name extends PropertyKey> = Name extends string
-  ? Name extends `%${infer Bare}`
-    ? Bare
-    : Name
-  : Name
-type NormalizeContextMap<Map> =
-  Map extends Readonly<Record<PropertyKey, unknown>>
-    ? { readonly [Name in keyof Map as BareContextName<Name>]: Map[Name] }
-    : EmptyHostContext
-type MergeContextMaps<Base, Overlay> = Omit<NormalizeContextMap<Base>, keyof NormalizeContextMap<Overlay>> &
-  NormalizeContextMap<Overlay>
-type LookupContextMap<Map, Name extends string> = Name extends keyof NormalizeContextMap<Map>
-  ? NormalizeContextMap<Map>[Name]
-  : never
+  : EmptyContextMap
 
 type InferEmbeddedState<Expression extends string, Initial extends InferenceState> =
   Tokenize<Expression> extends infer Tokens
@@ -1851,7 +1837,7 @@ type DeclaredOnlyVars<Map> =
     ? {
         readonly [Name in keyof Map as Map[Name] extends { readonly __expression: string } ? never : Name]: Map[Name]
       }
-    : EmptyHostContext
+    : EmptyContextMap
 
 type VariableBodyHostContext<Context extends InferenceState> = {
   env: EnvOf<HostContextOf<Context>>

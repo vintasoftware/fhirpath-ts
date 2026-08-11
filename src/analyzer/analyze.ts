@@ -1,13 +1,15 @@
 import '../functions/install.ts'
 
-import { BUILTIN_ENV_VARIABLE_NAMES } from '../engine/context.ts'
+import { bareEnvironmentName, BUILTIN_ENV_VARIABLE_NAMES, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { describeArity, functions } from '../functions/registry.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
+import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
 import { unsatisfiedInput, type ValueKind, valueKindOfTypeName } from '../values/type-compat.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
+import { type AnalyzerVariable, analyzerVariablesFromDeclarations } from './declarations.ts'
 import { applyOperatorResultRule, TYPE_OPERATOR_RESULT_RULES } from './operator-rules.ts'
 import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
@@ -32,14 +34,7 @@ export interface AnalyzerDiagnostic {
 }
 
 /** A host variable known to the analyzer. Omit its types to keep the value unknown. */
-export interface DeclaredVariable {
-  /** Candidate type names ('Patient', 'System.String'); omit to leave the type unknown. */
-  types?: string[]
-  /** True when the variable always holds at most one item. */
-  single?: boolean
-  /** Canonical resource types a declared Reference may resolve to. */
-  targets?: string[]
-}
+export type DeclaredVariable = AnalyzerVariable
 
 /** A host function declaration. Arity resolves the call; an optional signature checks it. */
 export type SingleDeclaredFunction =
@@ -58,9 +53,7 @@ export type SingleDeclaredFunction =
       maxArity?: never
       signature?: CustomFunctionSignature
       criteria?: boolean
-      envTypes?: Readonly<
-        Record<string, { type: string | readonly string[]; collection?: boolean; targets?: string | readonly string[] }>
-      >
+      envTypes?: FhirpathTypeDeclarations
     }
 
 /** Same-name functions selected by the call focus. Unknown focus keeps only their shared claims. */
@@ -244,12 +237,7 @@ class Analyzer {
         ('overloads' in declared ? declared.overloads : [declared]).map(resolvedDeclaration),
       ])
     )
-    this.declaredVariables = new Map(
-      Object.entries(options?.variables ?? {}).map(([name, variable]) => [
-        name.startsWith('%') ? name.slice(1) : name,
-        variable,
-      ])
-    )
+    this.declaredVariables = new Map(Object.entries(normalizeEnvKeys(options?.variables)))
   }
 
   rootState(): StaticState {
@@ -604,7 +592,7 @@ class Analyzer {
     }
     const functionScope = forkScope(callerScope)
     for (const [declaredName, variable] of Object.entries(declaration.variables ?? {})) {
-      const bare = declaredName.startsWith('%') ? declaredName.slice(1) : declaredName
+      const bare = bareEnvironmentName(declaredName)
       // defineVariable() values have priority over environment overlays at runtime.
       if (!functionScope.vars.has(bare)) {
         functionScope.vars.set(bare, this.declaredVariableState(variable))
@@ -1114,7 +1102,7 @@ function resolvedDeclaration(declared: SingleDeclaredFunction): ResolvedDeclarat
     ...(declared.signature !== undefined && { signature: declared.signature }),
     ...(expression !== undefined && { expression }),
     ...(declared.criteria !== undefined && { criteria: declared.criteria }),
-    ...(declared.envTypes !== undefined && { variables: declaredTypeVariables(declared.envTypes) }),
+    ...(declared.envTypes !== undefined && { variables: analyzerVariablesFromDeclarations(declared.envTypes) }),
   }
 }
 
@@ -1130,25 +1118,6 @@ function resolvedExpression(expression: unknown): { source: string; ast?: AstNod
     source: compiled.source,
     ...(compiled.ast !== undefined && { ast: compiled.ast as AstNode }),
   }
-}
-
-function declaredTypeVariables(
-  declarations: Readonly<
-    Record<string, { type: string | readonly string[]; collection?: boolean; targets?: string | readonly string[] }>
-  >
-): Readonly<Record<string, DeclaredVariable>> {
-  return Object.fromEntries(
-    Object.entries(declarations).map(([name, declaration]) => [
-      name.startsWith('%') ? name.slice(1) : name,
-      {
-        types: typeof declaration.type === 'string' ? [declaration.type] : [...declaration.type],
-        single: declaration.collection === true ? false : true,
-        ...(declaration.targets !== undefined && {
-          targets: typeof declaration.targets === 'string' ? [declaration.targets] : [...declaration.targets],
-        }),
-      },
-    ])
-  )
 }
 
 /**

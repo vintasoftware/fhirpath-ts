@@ -1,9 +1,16 @@
 import type { R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type {
+  BareContextName,
+  ContextProperty,
+  EmptyContextMap,
+  MergeContextMaps,
+  NormalizeContextMap,
+} from './context-maps.ts'
 import type { InferTypeExpression } from './parser.ts'
 
 /** A type name known by the generated R4 model. */
 export type FhirTypeName = keyof R4TypeOf & string
-export type EmptyFhirpathTypeContext = Record<never, never>
+export type EmptyFhirpathTypeContext = EmptyContextMap
 
 /** A host declaration that the type-level evaluator can use without reading a runtime value. */
 export interface FhirpathTypeDeclaration<
@@ -66,27 +73,15 @@ export type FhirpathResultForContext<
   Context extends object = EmptyFhirpathTypeContext,
 > = string extends Expression ? unknown[] : InferTypeExpression<Expression, Input, Context>
 
-type BareName<Name extends PropertyKey> = Name extends string ? (Name extends `%${infer Bare}` ? Bare : Name) : Name
-
 /** Normalize leading `%` spellings so type declarations merge like runtime environment records. */
-export type NormalizeFhirpathTypeMap<Map> =
-  Map extends Readonly<Record<PropertyKey, unknown>>
-    ? { readonly [Name in keyof Map as BareName<Name>]: Map[Name] }
-    : EmptyFhirpathTypeContext
-
-type MergeMaps<Base, Overlay> = Omit<NormalizeFhirpathTypeMap<Base>, keyof NormalizeFhirpathTypeMap<Overlay>> &
-  NormalizeFhirpathTypeMap<Overlay>
+export type NormalizeFhirpathTypeMap<Map> = NormalizeContextMap<Map>
 
 /** Merge contexts by normalized name. The later context wins, matching per-call runtime options. */
 export type MergeFhirpathTypeContexts<Base extends object, Overlay extends object> = {
-  env: MergeMaps<OptionProperty<Base, 'env'>, OptionProperty<Overlay, 'env'>>
-  vars: MergeMaps<OptionProperty<Base, 'vars'>, OptionProperty<Overlay, 'vars'>>
-  functions: MergeMaps<OptionProperty<Base, 'functions'>, OptionProperty<Overlay, 'functions'>>
+  env: MergeContextMaps<ContextProperty<Base, 'env'>, ContextProperty<Overlay, 'env'>>
+  vars: MergeContextMaps<ContextProperty<Base, 'vars'>, ContextProperty<Overlay, 'vars'>>
+  functions: MergeContextMaps<ContextProperty<Base, 'functions'>, ContextProperty<Overlay, 'functions'>>
 }
-
-type OptionProperty<Options, Name extends PropertyKey> = Name extends keyof Options
-  ? Exclude<Options[Name], undefined>
-  : EmptyFhirpathTypeContext
 
 type LiteralVarDeclaration<Value> = Value extends string
   ? string extends Value
@@ -105,9 +100,9 @@ type LiteralVarDeclarations<Values> =
 
 /** The inference context retained from one literal engine or per-call options object. */
 export type FhirpathTypeContextOf<Options> = {
-  env: NormalizeFhirpathTypeMap<OptionProperty<Options, 'envTypes'>>
-  vars: MergeMaps<LiteralVarDeclarations<OptionProperty<Options, 'vars'>>, OptionProperty<Options, 'varTypes'>>
-  functions: NormalizeFhirpathTypeMap<OptionProperty<Options, 'functions'>>
+  env: NormalizeFhirpathTypeMap<ContextProperty<Options, 'envTypes'>>
+  vars: MergeContextMaps<LiteralVarDeclarations<ContextProperty<Options, 'vars'>>, ContextProperty<Options, 'varTypes'>>
+  functions: NormalizeFhirpathTypeMap<ContextProperty<Options, 'functions'>>
 }
 
 type DeclarationElement<Declaration> = Declaration extends { readonly type: infer Type }
@@ -136,8 +131,8 @@ type ConstrainedDeclaredValues<Values, Declarations> =
     : Values
 
 type LookupNormalizedDeclaration<Declarations, Name extends PropertyKey> =
-  BareName<Name> extends keyof NormalizeFhirpathTypeMap<Declarations>
-    ? NormalizeFhirpathTypeMap<Declarations>[BareName<Name>]
+  BareContextName<Name> extends keyof NormalizeFhirpathTypeMap<Declarations>
+    ? NormalizeFhirpathTypeMap<Declarations>[BareContextName<Name>]
     : never
 
 /** Cross-check declarations and values when both remain visible in one literal options object. */
