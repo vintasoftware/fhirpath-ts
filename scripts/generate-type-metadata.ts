@@ -143,7 +143,8 @@ function compactResultRuleType(rule: ResultRule): string {
     case 'input':
       return "readonly ['input']"
     case 'input-item':
-      return "readonly ['input-item']"
+      // The type-level state tracks value types, not analyzer cardinality.
+      return "readonly ['input']"
     case 'argument':
       return `readonly ['argument', ${rule.index}]`
     case 'union':

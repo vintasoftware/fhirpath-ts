@@ -1635,25 +1635,23 @@ type ApplyResultRule<Rule, Input extends InferenceState, Args extends InferenceS
   ? CopyEnvironment<[LocalTypeName<Type>, never], Input>
   : Rule extends readonly ['input']
     ? Input
-    : Rule extends readonly ['input-item']
-      ? Input
-      : Rule extends readonly ['argument', infer Index extends number]
-        ? ArgumentState<Args, Index> extends infer Argument extends InferenceState
-          ? CopyEnvironment<Argument, Input>
+    : Rule extends readonly ['argument', infer Index extends number]
+      ? ArgumentState<Args, Index> extends infer Argument extends InferenceState
+        ? CopyEnvironment<Argument, Input>
+        : CopyEnvironment<UnknownState, Input>
+      : Rule extends readonly ['union', infer Sources extends 'input' | number]
+        ? CombineRuleSources<Sources, Input, Args> extends infer Combined extends InferenceState
+          ? CopyEnvironment<Combined, Input>
           : CopyEnvironment<UnknownState, Input>
-        : Rule extends readonly ['union', infer Sources extends 'input' | number]
-          ? CombineRuleSources<Sources, Input, Args> extends infer Combined extends InferenceState
-            ? CopyEnvironment<Combined, Input>
-            : CopyEnvironment<UnknownState, Input>
-          : Rule extends readonly ['arguments-union']
-            ? CopyEnvironment<UnionArguments<Args>, Input>
-            : Rule extends readonly ['reference-targets']
-              ? [Input[1]] extends [never]
-                ? CopyEnvironment<UnknownState, Input>
-                : CopyEnvironment<[Input[1], never], Input>
-              : Rule extends readonly ['unknown']
-                ? CopyEnvironment<UnknownState, Input>
-                : CopyEnvironment<OpaqueState, Input>
+        : Rule extends readonly ['arguments-union']
+          ? CopyEnvironment<UnionArguments<Args>, Input>
+          : Rule extends readonly ['reference-targets']
+            ? [Input[1]] extends [never]
+              ? CopyEnvironment<UnknownState, Input>
+              : CopyEnvironment<[Input[1], never], Input>
+            : Rule extends readonly ['unknown']
+              ? CopyEnvironment<UnknownState, Input>
+              : CopyEnvironment<OpaqueState, Input>
 
 type ArgumentState<Args extends InferenceState[], Index extends number> = Args[Index] extends InferenceState
   ? Args[Index]
