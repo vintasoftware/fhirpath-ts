@@ -510,7 +510,6 @@ class LabRow extends defineDto('DiagnosticReport') {
   static env = { system: 'http://loinc.org' }
 
   @column('code.coding.where(system = %system).first().code', {
-    type: 'string',
     default: '',
   })
   loincCode!: string
