@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
 import { r4Model } from '../r4/index.ts'
-import { canonicalFocusType, typesOverlap, unsatisfiedInput, valueKindOfTypeName } from './type-compat.ts'
+import {
+  canonicalFocusType,
+  commonValueKind,
+  typesOverlap,
+  unsatisfiedInput,
+  valueKindOfTypeName,
+} from './type-compat.ts'
+
+describe('commonValueKind', () => {
+  it('returns a kind only when every candidate has the same behavior', () => {
+    expect(commonValueKind(['FHIR.string', 'FHIR.code', 'System.String'])).toBe('String')
+    expect(commonValueKind(['FHIR.string', 'System.Integer'])).toBeUndefined()
+    expect(commonValueKind([])).toBeUndefined()
+    expect(commonValueKind(undefined)).toBeUndefined()
+  })
+})
 
 describe('canonicalFocusType', () => {
   it.each([

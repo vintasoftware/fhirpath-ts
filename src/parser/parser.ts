@@ -5,12 +5,10 @@ import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { tokenize } from '../lexer/lexer.ts'
 import { CALENDAR_DURATION_UNITS, type Token } from '../lexer/tokens.ts'
 import type { AstNode, BinaryOperator, TypeSpecifier, UnaryOperator } from './ast.ts'
-import { BindingPower, INFIX_BINDING_POWER } from './precedence.ts'
+import { INFIX_PARSELETS, type InfixParseletRecord, PREFIX_PARSELETS, type PrefixParseletRecord } from './precedence.ts'
 
 /** Keywords the grammar also accepts as element names, e.g. `'abc'.contains('b')`. */
 const KEYWORDS_USABLE_AS_IDENTIFIERS: ReadonlySet<string> = new Set(['as', 'contains', 'in', 'is'])
-
-const TYPE_OPERATORS: ReadonlySet<string> = new Set(['is', 'as'])
 
 /**
  * Nesting far beyond anything a real expression uses. Without a cap, adversarial
@@ -47,13 +45,12 @@ class Parser {
       let left = this.parsePrefix()
       for (;;) {
         const token = this.peek()
-        const key = token.kind === 'operator' || token.kind === 'punct' || token.kind === 'keyword' ? token.text : ''
-        const bindingPower = INFIX_BINDING_POWER[key]
-        if (bindingPower === undefined || bindingPower <= minBindingPower) {
+        const parselet = this.infixParselet(token)
+        if (parselet === undefined || parselet.bindingPower <= minBindingPower) {
           return left
         }
         this.advance()
-        left = this.parseInfix(left, token, bindingPower)
+        left = this.parseInfix(left, token, parselet)
       }
     } finally {
       this.depth--
@@ -62,9 +59,29 @@ class Parser {
 
   private parsePrefix(): AstNode {
     const token = this.peek()
+    const parselet = this.prefixParselet(token)
+    if (parselet === undefined) {
+      throw this.error(token.kind === 'end' ? 'Unexpected end of expression' : `Unexpected '${token.text}'`, token)
+    }
+    switch (parselet.reducer) {
+      case 'identifier':
+        this.advance()
+        return parselet.tokenKind === 'variable'
+          ? { kind: 'special', name: token.value as 'this' | 'index' | 'total', span: token.span }
+          : { kind: 'identifier', name: token.value, span: token.span }
+      case 'literal':
+        return this.parseLiteral(token)
+      case 'unary':
+        return this.parseUnary(token, parselet)
+      case 'group':
+      case 'empty':
+      case 'external':
+        return this.parsePunctPrefix(token, parselet)
+    }
+  }
+
+  private parseLiteral(token: Token): AstNode {
     switch (token.kind) {
-      case 'end':
-        throw this.error('Unexpected end of expression', token)
       case 'number':
         return this.parseNumberOrQuantity()
       case 'string':
@@ -79,44 +96,18 @@ class Parser {
       case 'time':
         this.advance()
         return { kind: 'time', text: token.value, span: token.span }
-      case 'specialVariable':
-        this.advance()
-        return { kind: 'special', name: token.value as 'this' | 'index' | 'total', span: token.span }
-      case 'identifier':
-      case 'delimitedIdentifier':
-        this.advance()
-        return { kind: 'identifier', name: token.value, span: token.span }
       case 'keyword':
-        return this.parseKeywordPrefix(token)
-      case 'operator':
-        return this.parseUnary(token)
-      case 'punct':
-        return this.parsePunctPrefix(token)
-      /* v8 ignore start -- exhaustive fallback, every token kind has a case above */
+        this.advance()
+        return { kind: 'boolean', value: token.text === 'true', span: token.span }
+      /* v8 ignore next -- prefixTokenKind admits only literal token kinds here */
       default:
-        throw this.error(`Unexpected '${token.text}'`, token)
-      /* v8 ignore stop */
+        throw new Error(`Invalid literal parselet for '${token.text}'`)
     }
   }
 
-  private parseKeywordPrefix(token: Token): AstNode {
-    if (token.text === 'true' || token.text === 'false') {
-      this.advance()
-      return { kind: 'boolean', value: token.text === 'true', span: token.span }
-    }
-    if (KEYWORDS_USABLE_AS_IDENTIFIERS.has(token.text)) {
-      this.advance()
-      return { kind: 'identifier', name: token.value, span: token.span }
-    }
-    throw this.error(`Unexpected '${token.text}'`, token)
-  }
-
-  private parseUnary(token: Token): AstNode {
-    if (token.text !== '+' && token.text !== '-') {
-      throw this.error(`Unexpected '${token.text}'`, token)
-    }
+  private parseUnary(token: Token, parselet: Extract<PrefixParseletRecord, { reducer: 'unary' }>): AstNode {
     this.advance()
-    const operand = this.parseExpression(BindingPower.Unary)
+    const operand = this.parseExpression(parselet.bindingPower)
     return {
       kind: 'unary',
       operator: token.text as UnaryOperator,
@@ -125,21 +116,24 @@ class Parser {
     }
   }
 
-  private parsePunctPrefix(token: Token): AstNode {
-    switch (token.text) {
-      case '(': {
+  private parsePunctPrefix(
+    token: Token,
+    parselet: Extract<PrefixParseletRecord, { reducer: 'group' | 'empty' | 'external' }>
+  ): AstNode {
+    switch (parselet.reducer) {
+      case 'group': {
         this.advance()
         const inner = this.parseExpression(0)
         this.expect(')')
         this.parenthesized.add(inner)
         return inner
       }
-      case '{': {
+      case 'empty': {
         this.advance()
         const close = this.expect('}')
         return { kind: 'null', span: this.spanBetween(token.span, close.span) }
       }
-      case '%': {
+      case 'external': {
         this.advance()
         const name = this.peek()
         if (name.kind !== 'identifier' && name.kind !== 'delimitedIdentifier' && name.kind !== 'string') {
@@ -148,8 +142,6 @@ class Parser {
         this.advance()
         return { kind: 'external', name: name.value, span: this.spanBetween(token.span, name.span) }
       }
-      default:
-        throw this.error(`Unexpected '${token.text}'`, token)
     }
   }
 
@@ -184,40 +176,52 @@ class Parser {
     return { kind: 'number', text: token.value, isDecimal: token.value.includes('.'), span: token.span }
   }
 
-  private parseInfix(left: AstNode, token: Token, bindingPower: number): AstNode {
-    switch (token.text) {
-      case '.':
+  private parseInfix(left: AstNode, token: Token, parselet: InfixParseletRecord): AstNode {
+    switch (parselet.reducer) {
+      case 'dot':
         return this.parseDot(left)
-      case '[': {
+      case 'indexer': {
         const index = this.parseExpression(0)
         const close = this.expect(']')
         return { kind: 'indexer', target: left, index, span: this.spanBetween(left.span, close.span) }
       }
-      case '(':
+      case 'call':
         return this.parseCall(left)
-      default:
-        break
-    }
-    if (TYPE_OPERATORS.has(token.text)) {
-      const type = this.parseTypeSpecifier()
-      return {
-        kind: 'typeOp',
-        operator: token.text as 'is' | 'as',
-        operand: left,
-        type,
-        span: this.spanBetween(left.span, type.span),
+      case 'type': {
+        const type = this.parseTypeSpecifier()
+        return {
+          kind: 'typeOp',
+          operator: token.text as 'is' | 'as',
+          operand: left,
+          type,
+          span: this.spanBetween(left.span, type.span),
+        }
+      }
+      case 'binary': {
+        const right = this.parseExpression(parselet.bindingPower)
+        return {
+          kind: 'binary',
+          operator: token.text as BinaryOperator,
+          left,
+          right,
+          span: this.spanBetween(left.span, right.span),
+        }
       }
     }
-    // All FHIRPath binary operators are left-associative, so the right side
-    // parses at this operator's own binding power.
-    const right = this.parseExpression(bindingPower)
-    return {
-      kind: 'binary',
-      operator: token.text as BinaryOperator,
-      left,
-      right,
-      span: this.spanBetween(left.span, right.span),
-    }
+  }
+
+  private infixParselet(token: Token): InfixParseletRecord | undefined {
+    if (token.kind !== 'operator' && token.kind !== 'keyword' && token.kind !== 'punct') return undefined
+    const parselet = INFIX_PARSELETS[token.text as keyof typeof INFIX_PARSELETS] as InfixParseletRecord | undefined
+    return parselet?.tokenKind === token.kind ? parselet : undefined
+  }
+
+  private prefixParselet(token: Token): PrefixParseletRecord | undefined {
+    const tokenKind = prefixTokenKind(token)
+    if (tokenKind === undefined) return undefined
+    const key = tokenKind === 'operator' || tokenKind === 'punct' ? token.text : tokenKind
+    const parselet = PREFIX_PARSELETS[key as keyof typeof PREFIX_PARSELETS] as PrefixParseletRecord | undefined
+    return parselet?.tokenKind === tokenKind ? parselet : undefined
   }
 
   /**
@@ -312,6 +316,34 @@ class Parser {
 
   private spanBetween(start: SourceSpan, end: SourceSpan): SourceSpan {
     return { start: start.start, end: end.end, line: start.line, column: start.column }
+  }
+}
+
+function prefixTokenKind(token: Token): PrefixParseletRecord['tokenKind'] | undefined {
+  switch (token.kind) {
+    case 'identifier':
+    case 'delimitedIdentifier':
+      return 'identifier'
+    case 'number':
+    case 'string':
+    case 'date':
+    case 'dateTime':
+    case 'time':
+      return 'literal'
+    case 'specialVariable':
+      return 'variable'
+    case 'operator':
+      return 'operator'
+    case 'punct':
+      return 'punct'
+    case 'keyword':
+      return token.text === 'true' || token.text === 'false'
+        ? 'literal'
+        : KEYWORDS_USABLE_AS_IDENTIFIERS.has(token.text)
+          ? 'identifier'
+          : undefined
+    case 'end':
+      return undefined
   }
 }
 

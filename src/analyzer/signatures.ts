@@ -1,6 +1,6 @@
 import type { ValueKind } from '../values/type-compat.ts'
 
-interface StaticStateLike {
+export interface StaticStateLike {
   types: string[] | undefined
   /** True: at most one item. False: may hold several. Undefined: cardinality unknown. */
   single: boolean | undefined
@@ -35,7 +35,7 @@ export interface InputSpec {
   kind?: ValueKind
   singleton?: boolean
   /** Canonical or local model type names ('CodeableConcept', 'System.String'). */
-  types?: string[]
+  types?: readonly string[]
 }
 
 /**
@@ -46,26 +46,74 @@ export interface InputSpec {
  */
 export interface CustomFunctionSignature {
   input?: InputSpec
-  args?: ValueArgSpec[]
-  result?: { types?: string[]; single?: boolean }
+  args?: readonly ValueArgSpec[]
+  result?: { types?: readonly string[]; single?: boolean }
 }
+
+/**
+ * Declarative result rules shared by analyzer signatures and the generated
+ * type-level rule table. Keeping these as data prevents the two inference
+ * implementations from acquiring separate handwritten function semantics.
+ */
+export type ResultRule =
+  | { kind: 'fixed'; types?: readonly string[]; single?: boolean }
+  | { kind: 'input' }
+  | { kind: 'input-item' }
+  | { kind: 'argument'; index: number }
+  | { kind: 'union'; sources: readonly ('input' | number)[]; single: boolean | 'all' }
+  | { kind: 'arguments-union' }
+  | { kind: 'reference-targets' }
+  | { kind: 'unknown' }
 
 export interface FunctionSignature {
   input?: InputSpec
-  args?: ArgSpec[]
-  /**
-   * Result state from the input state and the analyzed argument states
-   * (undefined for `type-name` positions and missing optional arguments).
-   */
-  result: (input: StaticStateLike, args: readonly (StaticStateLike | undefined)[]) => StaticStateLike
+  args?: readonly ArgSpec[]
+  result: ResultRule
 }
 
-const BOOLEAN = (): StaticStateLike => ({ types: ['System.Boolean'], single: true })
-const INTEGER = (): StaticStateLike => ({ types: ['System.Integer'], single: true })
-const STRING = (): StaticStateLike => ({ types: ['System.String'], single: true })
-const DECIMAL = (): StaticStateLike => ({ types: ['System.Decimal'], single: true })
-const UNKNOWN = (): StaticStateLike => ({ types: undefined, single: undefined })
-const SAME = (input: StaticStateLike): StaticStateLike => input
+const BOOLEAN = { kind: 'fixed', types: ['System.Boolean'], single: true } as const satisfies ResultRule
+const INTEGER = { kind: 'fixed', types: ['System.Integer'], single: true } as const satisfies ResultRule
+const STRING = { kind: 'fixed', types: ['System.String'], single: true } as const satisfies ResultRule
+const DECIMAL = { kind: 'fixed', types: ['System.Decimal'], single: true } as const satisfies ResultRule
+const LONG = { kind: 'fixed', types: ['System.Long'], single: true } as const satisfies ResultRule
+const DATE = { kind: 'fixed', types: ['System.Date'], single: true } as const satisfies ResultRule
+const DATETIME = { kind: 'fixed', types: ['System.DateTime'], single: true } as const satisfies ResultRule
+const TIME = { kind: 'fixed', types: ['System.Time'], single: true } as const satisfies ResultRule
+const QUANTITY = { kind: 'fixed', types: ['System.Quantity'], single: true } as const satisfies ResultRule
+const UNKNOWN = { kind: 'unknown' } as const satisfies ResultRule
+const SAME = { kind: 'input' } as const satisfies ResultRule
+const ITEM = { kind: 'input-item' } as const satisfies ResultRule
+
+/** Interpret one declarative result rule for the runtime analyzer. */
+export function applyResultRule(
+  rule: ResultRule,
+  input: StaticStateLike,
+  args: readonly (StaticStateLike | undefined)[]
+): StaticStateLike {
+  switch (rule.kind) {
+    case 'fixed':
+      return { types: rule.types === undefined ? undefined : [...rule.types], single: rule.single }
+    case 'input':
+      return input
+    case 'input-item':
+      return withSingle(input, true)
+    case 'argument': {
+      const argument = args[rule.index] ?? { types: undefined, single: undefined }
+      return withSingle(argument, singleAnd(input.single, argument.single))
+    }
+    case 'union': {
+      const states = rule.sources.map(source => (source === 'input' ? input : args[source]))
+      const merged = unionStates(states)
+      return rule.single === 'all' ? merged : withSingle(merged, rule.single)
+    }
+    case 'arguments-union':
+      return unionStates([...args])
+    case 'reference-targets':
+      return { types: input.targets, single: input.single }
+    case 'unknown':
+      return { types: undefined, single: undefined }
+  }
+}
 
 /**
  * The input's candidate types and reference targets at a different cardinality
@@ -77,8 +125,6 @@ export function withSingle(input: StaticStateLike, single: boolean | undefined):
     ? { types: input.types, single }
     : { types: input.types, single, targets: input.targets }
 }
-
-const ITEM = (input: StaticStateLike): StaticStateLike => withSingle(input, true)
 
 /**
  * The union of several alternative states (iif branches, coalesce arguments,
@@ -101,14 +147,21 @@ export function unionStates(states: (StaticStateLike | undefined)[]): StaticStat
   return targets === undefined ? { types, single } : { types, single, targets }
 }
 
-const STRING_FN: FunctionSignature = { input: { kind: 'String', singleton: true }, args: ['String'], result: STRING }
-const MATH_FN: FunctionSignature = { input: { kind: 'Numeric', singleton: true }, result: DECIMAL }
+const STRING_FN = {
+  input: { kind: 'String', singleton: true },
+  args: ['String'],
+  result: STRING,
+} as const satisfies FunctionSignature
+const MATH_FN = {
+  input: { kind: 'Numeric', singleton: true },
+  result: DECIMAL,
+} as const satisfies FunctionSignature
 
 /**
  * What the analyzer knows about each function. Functions missing here still get
  * arity checks from the runtime registry; their results become unknown.
  */
-export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = {
+const FUNCTION_SIGNATURE_DEFINITIONS = {
   empty: { result: BOOLEAN },
   exists: { args: ['expression'], result: BOOLEAN },
   all: { args: ['expression'], result: BOOLEAN },
@@ -128,7 +181,7 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
     args: ['expression'],
     // The projection's analyzed state, collection-ized: single only when both
     // the input and the projection body are single.
-    result: (input, args) => withSingle(args[0] ?? UNKNOWN(), singleAnd(input.single, args[0]?.single)),
+    result: { kind: 'argument', index: 0 },
   },
   repeat: { args: ['expression'], result: UNKNOWN },
   // ofType/as results narrow to the named type; the analyzer computes that with
@@ -144,12 +197,12 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   take: { args: ['Numeric'], result: SAME },
   intersect: { args: ['any'], result: SAME },
   exclude: { args: ['any'], result: SAME },
-  union: { args: ['any'], result: (input, args) => withSingle(unionStates([input, args[0]]), false) },
-  combine: { args: ['any'], result: (input, args) => withSingle(unionStates([input, args[0]]), false) },
+  union: { args: ['any'], result: { kind: 'union', sources: ['input', 0], single: false } },
+  combine: { args: ['any'], result: { kind: 'union', sources: ['input', 0], single: false } },
   iif: {
     args: ['condition', 'expression', 'expression'],
     // The union of the branch states; a missing else-branch contributes empty.
-    result: (_input, args) => unionStates([args[1], args[2] ?? { types: [], single: true }]),
+    result: { kind: 'union', sources: [1, 2], single: 'all' },
   },
   // not() takes anything a Boolean test accepts (0/1, single items), so no kind pin.
   not: { input: { singleton: true }, result: BOOLEAN },
@@ -158,7 +211,7 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   descendants: { result: UNKNOWN },
   // A reference resolves to its declared target types (Reference.targetProfile,
   // HAPI's TypeDetails.targets); an unconstrained reference stays unknown.
-  resolve: { result: input => ({ types: input.targets, single: input.single }) },
+  resolve: { result: { kind: 'reference-targets' } },
   extension: { args: ['String'], result: UNKNOWN },
   hasValue: { input: { singleton: true }, result: BOOLEAN },
   getValue: { input: { singleton: true }, result: UNKNOWN },
@@ -181,13 +234,13 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   replaceMatches: { input: { kind: 'String', singleton: true }, args: ['String', 'String'], result: STRING },
   toChars: {
     input: { kind: 'String', singleton: true },
-    result: () => ({ types: ['System.String'], single: false }),
+    result: { kind: 'fixed', types: ['System.String'], single: false },
   },
   trim: { input: { kind: 'String', singleton: true }, result: STRING },
   split: {
     input: { kind: 'String', singleton: true },
     args: ['String'],
-    result: () => ({ types: ['System.String'], single: false }),
+    result: { kind: 'fixed', types: ['System.String'], single: false },
   },
   join: { input: { kind: 'String' }, args: ['String'], result: STRING },
   encode: STRING_FN,
@@ -205,7 +258,9 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   sqrt: MATH_FN,
   log: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: DECIMAL },
   power: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: UNKNOWN },
-  aggregate: { args: ['expression', 'any'], result: UNKNOWN },
+  // Each iteration replaces the accumulator with the aggregator result. An
+  // empty input returns init, when supplied, so both arguments can contribute.
+  aggregate: { args: ['expression', 'any'], result: { kind: 'union', sources: [0, 1], single: 'all' } },
   sum: { input: { kind: 'Numeric' }, result: UNKNOWN },
   min: { input: { kind: 'Numeric' }, result: UNKNOWN },
   max: { input: { kind: 'Numeric' }, result: UNKNOWN },
@@ -214,16 +269,16 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
 
   toBoolean: { input: { singleton: true }, result: BOOLEAN },
   toInteger: { input: { singleton: true }, result: INTEGER },
-  toLong: { input: { singleton: true }, result: () => ({ types: ['System.Long'], single: true }) },
+  toLong: { input: { singleton: true }, result: LONG },
   toDecimal: { input: { singleton: true }, result: DECIMAL },
   toString: { input: { singleton: true }, result: STRING },
-  toDate: { input: { singleton: true }, result: () => ({ types: ['System.Date'], single: true }) },
-  toDateTime: { input: { singleton: true }, result: () => ({ types: ['System.DateTime'], single: true }) },
-  toTime: { input: { singleton: true }, result: () => ({ types: ['System.Time'], single: true }) },
+  toDate: { input: { singleton: true }, result: DATE },
+  toDateTime: { input: { singleton: true }, result: DATETIME },
+  toTime: { input: { singleton: true }, result: TIME },
   toQuantity: {
     input: { singleton: true },
     args: ['String'],
-    result: () => ({ types: ['System.Quantity'], single: true }),
+    result: QUANTITY,
   },
   convertsToBoolean: { input: { singleton: true }, result: BOOLEAN },
   convertsToInteger: { input: { singleton: true }, result: BOOLEAN },
@@ -235,9 +290,9 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   convertsToTime: { input: { singleton: true }, result: BOOLEAN },
   convertsToQuantity: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
 
-  now: { result: () => ({ types: ['System.DateTime'], single: true }) },
-  today: { result: () => ({ types: ['System.Date'], single: true }) },
-  timeOfDay: { result: () => ({ types: ['System.Time'], single: true }) },
+  now: { result: DATETIME },
+  today: { result: DATE },
+  timeOfDay: { result: TIME },
   yearOf: { input: { kind: 'Temporal', singleton: true }, result: INTEGER },
   monthOf: { input: { kind: 'Temporal', singleton: true }, result: INTEGER },
   dayOf: { input: { kind: 'Temporal', singleton: true }, result: INTEGER },
@@ -246,8 +301,8 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   secondOf: { input: { kind: 'Temporal', singleton: true }, result: INTEGER },
   millisecondOf: { input: { kind: 'Temporal', singleton: true }, result: INTEGER },
   timezoneOffsetOf: { input: { kind: 'Temporal', singleton: true }, result: DECIMAL },
-  dateOf: { input: { kind: 'Temporal', singleton: true }, result: () => ({ types: ['System.Date'], single: true }) },
-  timeOf: { input: { kind: 'Temporal', singleton: true }, result: () => ({ types: ['System.Time'], single: true }) },
+  dateOf: { input: { kind: 'Temporal', singleton: true }, result: DATE },
+  timeOf: { input: { kind: 'Temporal', singleton: true }, result: TIME },
   lowBoundary: { input: { singleton: true }, args: ['Numeric'], result: UNKNOWN },
   highBoundary: { input: { singleton: true }, args: ['Numeric'], result: UNKNOWN },
   precision: { input: { singleton: true }, result: INTEGER },
@@ -255,6 +310,9 @@ export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = 
   // Variadic: the analyzer repeats the last arg spec for every position, so one
   // 'expression' entry covers all of coalesce's arguments. The result is the
   // first non-empty argument, hence the union of all of them.
-  coalesce: { args: ['expression'], result: (_input, args) => unionStates([...args]) },
+  coalesce: { args: ['expression'], result: { kind: 'arguments-union' } },
   type: { result: UNKNOWN },
-}
+} as const satisfies Readonly<Record<string, FunctionSignature>>
+
+export type FunctionSignatureName = keyof typeof FUNCTION_SIGNATURE_DEFINITIONS
+export const FUNCTION_SIGNATURES: Readonly<Record<string, FunctionSignature>> = FUNCTION_SIGNATURE_DEFINITIONS

@@ -18,7 +18,15 @@ import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { printExpression } from '../parser/printer.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { FhirpathInput, FhirpathResult, FhirpathResultIn, FhirTypeName } from '../typed/infer.ts'
+import type {
+  CheckedFhirpathOptionValues,
+  EmptyFhirpathTypeContext,
+  FhirpathInput,
+  FhirpathResultForContext,
+  FhirpathTypeContextOf,
+  FhirpathTypeDeclarations,
+  FhirTypeName,
+} from '../typed/infer.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
 
@@ -36,12 +44,15 @@ export type SingleCustomFunction =
       criteria?: never
       /** Only an expression body reads `%name`; a native `fn` gets plain values. */
       env?: never
+      envTypes?: never
     })
   | {
       expression: AnyExpression
       signature?: CustomFunctionSignature
       /** Environment values available only while this expression body runs. */
       env?: Record<string, unknown>
+      /** Static declarations for values in this function-local environment. */
+      envTypes?: FhirpathTypeDeclarations
       /** Return one criteria Boolean. An empty body result becomes `false`. */
       criteria?: boolean
       fn?: never
@@ -57,6 +68,7 @@ export interface OverloadedCustomFunction {
   signature?: never
   criteria?: never
   env?: never
+  envTypes?: never
   minArity?: never
   maxArity?: never
 }
@@ -66,12 +78,16 @@ export type CustomFunction = SingleCustomFunction | OverloadedCustomFunction
 export interface EvaluateOptions {
   /** Environment variables (`%name`), keyed with or without the leading `%`. */
   env?: Record<string, unknown>
+  /** Static types for environment variables; declarations never create runtime values. */
+  envTypes?: FhirpathTypeDeclarations
   /**
    * FHIRPath bindings evaluated against the input in declaration order. They
    * keep FHIRPath types and may use `%context`, `env`, and earlier variables.
    * During projection they run once per row. A `TypedValue[]` binds directly.
    */
   vars?: Record<string, AnyExpression | readonly TypedValue[]>
+  /** Static types for pre-resolved vars, or explicit overrides for expression vars. */
+  varTypes?: FhirpathTypeDeclarations
   model?: ModelProvider
   /** Clock for `now()`, `today()`, and `timeOfDay()`. Defaults to the current time. */
   now?: Date
@@ -91,6 +107,37 @@ export interface EvaluateOptions {
   regex?: RegexEngine
 }
 
+type CheckedOptionKeys<Options, Accepted> = string extends keyof Options
+  ? unknown
+  : keyof EvaluateOptions extends keyof Options
+    ? unknown
+    : Record<Exclude<keyof Options, keyof Accepted>, never>
+
+/**
+ * Keeps literal option declarations for inference and rejects unknown literal
+ * keys. Named extensions of the accepted options and index-signature records
+ * remain assignable.
+ */
+export type Declaring<Options extends object, Accepted extends EvaluateOptions = EvaluateOptions> = Accepted &
+  Options &
+  CheckedFhirpathOptionValues<Options> &
+  CheckedOptionKeys<Options, Accepted>
+
+/** Sentinel selecting built-in result inference instead of an explicit TResult. */
+export interface InferredExpressionResult {
+  readonly __inferredExpressionResult: unique symbol
+}
+
+/** The result of a compiled expression after applying its per-call static declarations. */
+export type CompiledExpressionResult<
+  Expr extends string,
+  TResult extends unknown[] | InferredExpressionResult,
+  Root extends string,
+  Options,
+> = TResult extends InferredExpressionResult
+  ? FhirpathResultForContext<Expr, Root, FhirpathTypeContextOf<Options>>
+  : Extract<TResult, unknown[]>
+
 /**
  * A parsed expression, reusable across inputs. Create via `compile()` or the
  * `fhirpath` tag: literal expressions carry inferred result and input types for
@@ -103,9 +150,10 @@ export interface EvaluateOptions {
 export class CompiledExpression<
   Expr extends string = string,
   TInput = FhirpathInput<Expr>,
-  TResult extends unknown[] = FhirpathResult<Expr>,
+  TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
+  Root extends string = 'opaque',
 > {
-  readonly source: string
+  readonly source: Expr
   readonly ast: AstNode
 
   constructor(source: Expr) {
@@ -114,8 +162,11 @@ export class CompiledExpression<
   }
 
   /** Evaluate and unwrap results to plain JS values. */
-  evaluate(input?: TInput, options?: EvaluateOptions): TResult {
-    return this.evaluateTyped(input, options).map(unwrap) as TResult
+  evaluate<const Options extends object = EmptyFhirpathTypeContext>(
+    input?: TInput,
+    options?: Declaring<Options>
+  ): CompiledExpressionResult<Expr, TResult, Root, Options> {
+    return this.evaluateTyped(input, options).map(unwrap) as CompiledExpressionResult<Expr, TResult, Root, Options>
   }
 
   /** Evaluate keeping the internal typed representation (types, Decimal, Temporal). */
@@ -139,12 +190,12 @@ export class CompiledExpression<
 export function compile<
   const Expr extends string,
   const Root extends FhirTypeName,
-  TResult extends unknown[] = FhirpathResultIn<Expr, Root>,
->(expression: Expr, inputType: Root): CompiledExpression<Expr, R4TypeOf[Root], TResult>
+  TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
+>(expression: Expr, inputType: Root): CompiledExpression<Expr, R4TypeOf[Root], TResult, Root>
 export function compile<
   const Expr extends string,
   TInput = FhirpathInput<Expr>,
-  TResult extends unknown[] = FhirpathResult<Expr>,
+  TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
 >(expression: Expr): CompiledExpression<Expr, TInput, TResult>
 export function compile(expression: string): CompiledExpression {
   // A declared input type is a compile-time and check-time declaration (see
@@ -152,9 +203,9 @@ export function compile(expression: string): CompiledExpression {
   return new CompiledExpression(expression)
 }
 
-/** An expression as text or already compiled, with any literal type. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts any literal-typed CompiledExpression
-export type AnyExpression = string | CompiledExpression<any>
+/** An expression as text or already compiled, with any literal, input, result, and root types. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts every CompiledExpression specialization
+export type AnyExpression = string | CompiledExpression<any, any, any, any>
 
 /** A pre-resolved `vars` value; Array.isArray alone cannot exclude readonly arrays for the checker. */
 function isResolvedCollection<T>(value: T | readonly TypedValue[]): value is readonly TypedValue[] {

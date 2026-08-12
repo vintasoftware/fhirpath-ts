@@ -1,15 +1,19 @@
 import '../functions/install.ts'
 
-import { BUILTIN_ENV_VARIABLE_NAMES } from '../engine/context.ts'
+import { bareEnvironmentName, BUILTIN_ENV_VARIABLE_NAMES, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { describeArity, functions } from '../functions/registry.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
-import { unsatisfiedInput, type ValueKind, valueKindOfTypeName } from '../values/type-compat.ts'
+import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
+import { commonValueKind, unsatisfiedInput, type ValueKind } from '../values/type-compat.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
+import { type AnalyzerVariable, analyzerVariablesFromDeclarations } from './declarations.ts'
+import { applyOperatorResultRule, applyTypeOperatorResultRule } from './operator-rules.ts'
 import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
+  applyResultRule,
   type CustomFunctionSignature,
   FUNCTION_SIGNATURES,
   type FunctionSignature,
@@ -30,22 +34,26 @@ export interface AnalyzerDiagnostic {
 }
 
 /** A host variable known to the analyzer. Omit its types to keep the value unknown. */
-export interface DeclaredVariable {
-  /** Candidate type names ('Patient', 'System.String'); omit to leave the type unknown. */
-  types?: string[]
-  /** True when the variable always holds at most one item. */
-  single?: boolean
-}
+export type DeclaredVariable = AnalyzerVariable
 
 /** A host function declaration. Arity resolves the call; an optional signature checks it. */
 export type SingleDeclaredFunction =
-  | { minArity?: number; maxArity?: number; expression?: never; signature?: CustomFunctionSignature }
+  | {
+      minArity?: number
+      maxArity?: number
+      expression?: never
+      signature?: CustomFunctionSignature
+      criteria?: never
+      envTypes?: never
+    }
   | {
       /** The body of an expression-defined CustomFunction; its presence pins the arity to 0. */
       expression: unknown
       minArity?: never
       maxArity?: never
       signature?: CustomFunctionSignature
+      criteria?: boolean
+      envTypes?: FhirpathTypeDeclarations
     }
 
 /** Same-name functions selected by the call focus. Unknown focus keeps only their shared claims. */
@@ -217,6 +225,7 @@ class Analyzer {
   /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
   private readonly declaredVariables: ReadonlyMap<string, DeclaredVariable>
+  private readonly activeExpressionFunctions = new Set<string>()
 
   constructor(options: AnalyzeOptions | undefined) {
     this.model = options?.model
@@ -228,12 +237,7 @@ class Analyzer {
         ('overloads' in declared ? declared.overloads : [declared]).map(resolvedDeclaration),
       ])
     )
-    this.declaredVariables = new Map(
-      Object.entries(options?.variables ?? {}).map(([name, variable]) => [
-        name.startsWith('%') ? name.slice(1) : name,
-        variable,
-      ])
-    )
+    this.declaredVariables = new Map(Object.entries(normalizeEnvKeys(options?.variables)))
   }
 
   rootState(): StaticState {
@@ -312,7 +316,7 @@ class Analyzer {
     }
     const declared = this.declaredVariables.get(node.name)
     if (declared !== undefined) {
-      return { types: declared.types?.map(type => this.canonicalize(type)), single: declared.single }
+      return this.declaredVariableState(declared)
     }
     switch (node.name) {
       case 'context':
@@ -528,7 +532,7 @@ class Analyzer {
     const signature = registered !== undefined ? FUNCTION_SIGNATURES[node.name] : this.toSignature(custom?.signature)
     if (!signature) {
       this.walkUncheckedArguments(node, input, scope)
-      return UNKNOWN
+      return this.expressionFunctionResult(node.name, custom, input, scope) ?? UNKNOWN
     }
     this.checkCallInput(node, signature, input)
     const { argStates, typeTarget } = this.walkArguments(node, signature, input, scope)
@@ -541,7 +545,80 @@ class Analyzer {
     if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
       return { types: this.narrowTypes(input, typeTarget, node.span), single: input.single }
     }
-    return signature.result(input, argStates)
+    const expressionResult = this.expressionFunctionResult(node.name, custom, input, scope)
+    if (expressionResult !== undefined) {
+      return expressionResult
+    }
+    return applyResultRule(signature.result, input, argStates)
+  }
+
+  /** Apply the expression-body and criteria rules in one place for signed and unsigned declarations. */
+  private expressionFunctionResult(
+    name: string,
+    declaration: ResolvedDeclaration | undefined,
+    input: StaticState,
+    scope: VariableScope
+  ): StaticState | undefined {
+    if (declaration?.expression === undefined) {
+      return undefined
+    }
+    const expression = declaration.expression
+    if (declaration.criteria === true) {
+      this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
+      return { types: ['System.Boolean'], single: true }
+    }
+    return declaration.signature?.result === undefined
+      ? this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
+      : undefined
+  }
+
+  /** Infer a literal expression-function body under its call focus and temporary local environment declarations. */
+  private walkExpressionFunction(
+    name: string,
+    expression: NonNullable<ResolvedDeclaration['expression']>,
+    variables: ResolvedDeclaration['variables'],
+    input: StaticState,
+    callerScope: VariableScope
+  ): StaticState {
+    if (this.activeExpressionFunctions.has(name)) {
+      return UNKNOWN
+    }
+    let ast = expression.ast
+    if (ast === undefined) {
+      try {
+        ast = parse(expression.source)
+      } catch {
+        return UNKNOWN
+      }
+    }
+    const functionScope = forkScope(callerScope)
+    for (const [declaredName, variable] of Object.entries(variables ?? {})) {
+      const bare = bareEnvironmentName(declaredName)
+      // defineVariable() values have priority over environment overlays at runtime.
+      if (!functionScope.vars.has(bare)) {
+        functionScope.vars.set(bare, this.declaredVariableState(variable))
+      }
+    }
+    const diagnosticCount = this.diagnostics.length
+    this.activeExpressionFunctions.add(name)
+    this.frames.push(input)
+    try {
+      return this.walk(ast, input, functionScope)
+    } finally {
+      // Body spans index another source string, so callers cannot display these diagnostics correctly.
+      this.diagnostics.length = diagnosticCount
+      this.frames.pop()
+      this.activeExpressionFunctions.delete(name)
+    }
+  }
+
+  /** Convert one declared environment value into the same state used for scoped variables. */
+  private declaredVariableState(declared: DeclaredVariable): StaticState {
+    return {
+      types: declared.types?.map(type => this.canonicalize(type)),
+      single: declared.single,
+      ...(declared.targets !== undefined && { targets: declared.targets.map(type => this.canonicalize(type)) }),
+    }
   }
 
   /**
@@ -740,7 +817,11 @@ class Analyzer {
     return {
       ...(declared.input !== undefined && { input: declared.input }),
       ...(declared.args !== undefined && { args: declared.args }),
-      result: () => ({ types, single }),
+      result: {
+        kind: 'fixed',
+        ...(types !== undefined && { types }),
+        ...(single !== undefined && { single }),
+      },
     }
   }
 
@@ -826,24 +907,14 @@ class Analyzer {
       case 'div':
       case 'mod': {
         this.checkArithmetic(node.operator, left, right, node.span)
-        // Quantity arithmetic yields Quantity (4.0 'g' / 2.0 'm' is 2 'g/m');
-        // plain division yields Decimal; everything else keeps the operand type.
-        const quantity =
-          (node.operator === '*' || node.operator === '/') &&
-          (kindOf(left) === 'Quantity' || kindOf(right) === 'Quantity')
-        const types = quantity
-          ? ['System.Quantity']
-          : node.operator === '/'
-            ? ['System.Decimal']
-            : (left.types ?? right.types)
-        return { types, single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       }
       case '&':
         this.requireSingle(left, node.left.span, "'&' expects single-item operands")
         this.requireSingle(right, node.right.span, "'&' expects single-item operands")
         this.requireKind(left, 'String', node.left.span, "'&' expects String operands")
         this.requireKind(right, 'String', node.right.span, "'&' expects String operands")
-        return { types: ['System.String'], single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       case '<':
       case '>':
       case '<=':
@@ -851,13 +922,13 @@ class Analyzer {
         this.requireSingle(left, node.left.span, `Operator '${node.operator}' expects single-item operands`)
         this.requireSingle(right, node.right.span, `Operator '${node.operator}' expects single-item operands`)
         this.checkComparable(left, right, node.span)
-        return { types: ['System.Boolean'], single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       case '=':
       case '!=':
       case '~':
       case '!~':
         this.checkEquality(left, right, node.span)
-        return { types: ['System.Boolean'], single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       case 'and':
       case 'or':
       case 'xor':
@@ -866,17 +937,10 @@ class Analyzer {
         // rule, so only cardinality is checkable here.
         this.requireSingle(left, node.left.span, `'${node.operator}' expects single-item operands`)
         this.requireSingle(right, node.right.span, `'${node.operator}' expects single-item operands`)
-        return { types: ['System.Boolean'], single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       }
       case '|': {
-        // A statically empty side contributes nothing: `{} | true` is one item.
-        if (left.types?.length === 0) {
-          return right
-        }
-        if (right.types?.length === 0) {
-          return left
-        }
-        return withSingle(unionStates([left, right]), false)
+        return applyOperatorResultRule(node.operator, left, right)
       }
       case 'in':
       case 'contains': {
@@ -887,7 +951,7 @@ class Analyzer {
           singletonSpan,
           `The ${node.operator === 'in' ? 'left' : 'right'} operand of '${node.operator}' must be a single item`
         )
-        return { types: ['System.Boolean'], single: true }
+        return applyOperatorResultRule(node.operator, left, right)
       }
       /* v8 ignore start -- the parser produces no other binary operators */
       default:
@@ -907,13 +971,9 @@ class Analyzer {
     const operand = this.walk(node.operand, input, scope)
     this.requireSingle(operand, node.operand.span, `'${node.operator}' expects a single item operand`)
     const resolved = this.checkTypeName(node.type.parts, node.type.span)
-    if (node.operator === 'is') {
-      return { types: ['System.Boolean'], single: true }
-    }
-    if (resolved === undefined) {
-      return UNKNOWN
-    }
-    return { types: this.narrowTypes(operand, resolved, node.span), single: true }
+    const narrowed =
+      node.operator === 'as' && resolved !== undefined ? this.narrowTypes(operand, resolved, node.span) : undefined
+    return applyTypeOperatorResultRule(node.operator, narrowed)
   }
 
   private checkArithmetic(operator: string, left: StaticState, right: StaticState, span: SourceSpan): void {
@@ -921,8 +981,8 @@ class Analyzer {
       this.report('singleton-required', `Operator '${operator}' expects single-item operands${NARROW_HINT}`, span)
       return
     }
-    const leftKind = kindOf(left)
-    const rightKind = kindOf(right)
+    const leftKind = commonValueKind(left.types)
+    const rightKind = commonValueKind(right.types)
     if (leftKind === undefined || rightKind === undefined || leftKind === 'Complex' || rightKind === 'Complex') {
       return
     }
@@ -941,8 +1001,8 @@ class Analyzer {
   }
 
   private checkComparable(left: StaticState, right: StaticState, span: SourceSpan): void {
-    const leftKind = kindOf(left)
-    const rightKind = kindOf(right)
+    const leftKind = commonValueKind(left.types)
+    const rightKind = commonValueKind(right.types)
     if (leftKind === undefined || rightKind === undefined) {
       return
     }
@@ -952,8 +1012,8 @@ class Analyzer {
   }
 
   private checkEquality(left: StaticState, right: StaticState, span: SourceSpan): void {
-    const leftKind = kindOf(left)
-    const rightKind = kindOf(right)
+    const leftKind = commonValueKind(left.types)
+    const rightKind = commonValueKind(right.types)
     if (leftKind === undefined || rightKind === undefined || leftKind === 'Complex' || rightKind === 'Complex') {
       return
     }
@@ -963,7 +1023,7 @@ class Analyzer {
   }
 
   private requireKind(state: StaticState, kind: ValueKind, span: SourceSpan, message: string): void {
-    const actual = kindOf(state)
+    const actual = commonValueKind(state.types)
     if (actual === undefined) {
       return
     }
@@ -1016,15 +1076,44 @@ interface ResolvedDeclaration {
   minArity?: number
   maxArity?: number
   signature?: CustomFunctionSignature
+  expression?: { source: string; ast?: AstNode }
+  criteria?: boolean
+  variables?: Readonly<Record<string, DeclaredVariable>>
 }
 
 function resolvedDeclaration(declared: SingleDeclaredFunction): ResolvedDeclaration {
   if (declared.expression === undefined) {
-    return declared
+    return {
+      ...(declared.minArity !== undefined && { minArity: declared.minArity }),
+      ...(declared.maxArity !== undefined && { maxArity: declared.maxArity }),
+      ...(declared.signature !== undefined && { signature: declared.signature }),
+    }
   }
   // An expression-defined function takes no arguments, which is how the runtime
   // calls it (`evaluateHostFunction`).
-  return { minArity: 0, maxArity: 0, ...(declared.signature !== undefined && { signature: declared.signature }) }
+  const expression = resolvedExpression(declared.expression)
+  return {
+    minArity: 0,
+    maxArity: 0,
+    ...(declared.signature !== undefined && { signature: declared.signature }),
+    ...(expression !== undefined && { expression }),
+    ...(declared.criteria !== undefined && { criteria: declared.criteria }),
+    ...(declared.envTypes !== undefined && { variables: analyzerVariablesFromDeclarations(declared.envTypes) }),
+  }
+}
+
+function resolvedExpression(expression: unknown): { source: string; ast?: AstNode } | undefined {
+  if (typeof expression === 'string') {
+    return { source: expression }
+  }
+  const compiled = expression as { source?: unknown; ast?: unknown } | undefined
+  if (typeof compiled?.source !== 'string') {
+    return undefined
+  }
+  return {
+    source: compiled.source,
+    ...(compiled.ast !== undefined && { ast: compiled.ast as AstNode }),
+  }
 }
 
 /**
@@ -1061,7 +1150,7 @@ function mergedInput(candidates: readonly ResolvedDeclaration[]): InputSpec | un
 function mergedResult(candidates: readonly ResolvedDeclaration[]): { types?: string[]; single?: boolean } | undefined {
   const union = unionStates(
     candidates.map(candidate => ({
-      types: candidate.signature?.result?.types,
+      types: candidate.signature?.result?.types === undefined ? undefined : [...candidate.signature.result.types],
       single: candidate.signature?.result?.single,
     }))
   )
@@ -1072,23 +1161,6 @@ function mergedResult(candidates: readonly ResolvedDeclaration[]): { types?: str
     ...(union.types !== undefined && { types: union.types }),
     ...(union.single !== undefined && { single: union.single }),
   }
-}
-
-/** The behavior kind shared by every candidate type, or undefined when mixed/unknown. */
-function kindOf(state: StaticState): ValueKind | undefined {
-  if (state.types === undefined || state.types.length === 0) {
-    return undefined
-  }
-  let kind: ValueKind | undefined
-  for (const type of state.types) {
-    const typeKind = valueKindOfTypeName(type)
-    if (kind === undefined) {
-      kind = typeKind
-    } else if (kind !== typeKind) {
-      return undefined
-    }
-  }
-  return kind
 }
 
 function typeSpecifierParts(node: AstNode): string[] | undefined {

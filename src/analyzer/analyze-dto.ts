@@ -1,6 +1,8 @@
 import { columnResultType } from '../api/column-signature.ts'
 import { type ColumnSpec, type DtoClass, dtoDefinition } from '../api/dto.ts'
+import { bareEnvironmentName } from '../engine/context.ts'
 import type { ModelProvider } from '../model/provider.ts'
+import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
 import { valueKindOfTypeName } from '../values/type-compat.ts'
 import {
   analyzeExpressionDetailed,
@@ -9,6 +11,7 @@ import {
   type DeclaredFunction,
   type DeclaredVariable,
 } from './analyze.ts'
+import { analyzerVariables } from './declarations.ts'
 
 /** One `analyzeDto` finding: an analyzer diagnostic plus the class member it came from. */
 export interface DtoDiagnostic extends AnalyzerDiagnostic {
@@ -20,7 +23,14 @@ export interface DtoDiagnostic extends AnalyzerDiagnostic {
 
 /** Engine context read by the analyzer without importing the engine implementation. */
 export interface AnalyzedContext {
-  readonly defaults: { model?: ModelProvider; functions?: Record<string, DeclaredFunction>; env?: object }
+  readonly defaults: {
+    model?: ModelProvider
+    functions?: Record<string, DeclaredFunction>
+    env?: object
+    envTypes?: FhirpathTypeDeclarations
+    vars?: object
+    varTypes?: FhirpathTypeDeclarations
+  }
 }
 
 /** A context that also knows which DTOs it registered, which is what a sweep needs. */
@@ -46,22 +56,17 @@ function contextOf(options: AnalyzeDtoOptions | undefined): AnalyzeOptions {
   if (engine === undefined) {
     return caller
   }
-  const { model, functions, env } = engine.defaults
+  const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
   return {
     ...(model !== undefined && { model }),
     ...caller,
     functions: { ...functions, ...caller.functions },
-    variables: { ...envVariables(env), ...caller.variables },
+    variables: {
+      ...analyzerVariables(env, envTypes),
+      ...analyzerVariables(vars, varTypes),
+      ...caller.variables,
+    },
   }
-}
-
-/** An engine's env names, declared as variables the expressions may read. */
-function envVariables(env: object | undefined): Record<string, DeclaredVariable> {
-  const variables: Record<string, DeclaredVariable> = {}
-  for (const name of Object.keys(env ?? {})) {
-    variables[bare(name)] = {}
-  }
-  return variables
 }
 
 /**
@@ -95,7 +100,7 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
     rowTotal: { types: ['System.Integer'], single: true },
   }
   for (const name of [...Object.keys(definition.env ?? {}), ...(definition.callerEnv ?? [])]) {
-    declared[bare(name)] = {}
+    declared[bareEnvironmentName(name)] = {}
   }
   const diagnostics: DtoDiagnostic[] = []
   const analyze = (member: string, expression: string, column?: ColumnSpec): void => {
@@ -125,9 +130,9 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
     const source = typeof value === 'string' ? value : sourceOf(value)
     if (source !== undefined) {
       // A var declares no type, so there is nothing to cross-check against.
-      analyze(`vars.${bare(name)}`, source)
+      analyze(`vars.${bareEnvironmentName(name)}`, source)
     }
-    declared[bare(name)] = {}
+    declared[bareEnvironmentName(name)] = {}
   }
   for (const [name, spec] of Object.entries(definition.columns)) {
     analyze(name, expressionOf(spec), spec)
@@ -182,8 +187,6 @@ function declaredTypeMismatch(
   })
   return fits ? undefined : `Column declares type '${claimed}', but the expression yields ${yielded.join(' | ')}`
 }
-
-const bare = (name: string): string => (name.startsWith('%') ? name.slice(1) : name)
 
 /** A pre-compiled var's source text; a pre-bound TypedValue[] has nothing to analyze. */
 function sourceOf(value: object): string | undefined {

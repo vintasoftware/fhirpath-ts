@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { analyzeExpression } from '../analyzer/analyze.ts'
+import { analyzeExpression, analyzeExpressionDetailed } from '../analyzer/analyze.ts'
 import { compile, type CustomFunction, evaluate } from '../index.ts'
 import { r4Model } from '../r4/index.ts'
 
@@ -231,6 +231,68 @@ describe('custom functions in the analyzer', () => {
     expect(codes("maritalStatus.displayText('x')")).toEqual(['wrong-arity'])
     // The declared String result feeds later checks.
     expect(codes('maritalStatus.displayText().length()')).toEqual([])
+  })
+
+  it('infers an undeclared expression body under the call focus and its local type overlay', () => {
+    const functions = {
+      displayText: { expression: '(text | coding.display.first() | coding.first().code).first()' },
+      labelled: {
+        expression: '%prefix & text',
+        envTypes: { prefix: { type: 'string' } },
+      },
+      holds: { expression: 'nothing.here', criteria: true },
+    } as const satisfies Record<string, CustomFunction>
+    const analyze = (expression: string) =>
+      analyzeExpressionDetailed(expression, { model: r4Model, inputType: 'Condition', functions }).result
+
+    expect(analyze('code.displayText()')).toEqual({ types: ['FHIR.string', 'FHIR.code'], single: true })
+    expect(analyze('code.labelled()')).toEqual({ types: ['System.String'], single: true })
+    expect(analyze('code.holds()')).toEqual({ types: ['System.Boolean'], single: true })
+  })
+
+  it('collects element dependencies from a criteria body', () => {
+    const functions = {
+      isNamed: { expression: 'name.given.exists()', criteria: true },
+    } as const satisfies Record<string, CustomFunction>
+    const details = analyzeExpressionDetailed('Patient.isNamed()', { model: r4Model, functions })
+
+    expect(details.result).toEqual({ types: ['System.Boolean'], single: true })
+    expect(details.elementDependencies).toEqual(['Patient.name', 'HumanName.given'])
+  })
+
+  it('reuses a compiled body AST and preserves caller variables over a local environment', () => {
+    const compiled = compile('%prefix')
+    Object.defineProperty(compiled, 'source', { value: 'not valid (' })
+    const functions = {
+      readPrefix: {
+        expression: compiled,
+        envTypes: { prefix: { type: 'integer' } },
+      },
+    } as const satisfies Record<string, CustomFunction>
+    const result = analyzeExpressionDetailed("defineVariable('prefix', 'caller').readPrefix()", {
+      model: r4Model,
+      inputType: 'Patient',
+      functions,
+    }).result
+
+    expect(result).toEqual({ types: ['System.String'], single: true })
+  })
+
+  it('keeps recursive and malformed expression bodies opaque', () => {
+    const analyze = (expression: string, body: string) =>
+      analyzeExpressionDetailed(expression, {
+        model: r4Model,
+        functions: { recurse: { expression: body } },
+      })
+
+    expect(analyze('Patient.recurse()', 'recurse()')).toMatchObject({
+      diagnostics: [],
+      result: { types: undefined, single: undefined },
+    })
+    expect(analyze('Patient.recurse()', '(')).toMatchObject({
+      diagnostics: [],
+      result: { types: undefined, single: undefined },
+    })
   })
 })
 

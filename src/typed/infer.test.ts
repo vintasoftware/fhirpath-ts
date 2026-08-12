@@ -1,6 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { FUNCTION_SIGNATURES } from '../analyzer/signatures.ts'
 import { compile } from '../api/compile.ts'
 import { column, defineDto } from '../api/dto.ts'
 import { fhirpath } from '../api/tagged.ts'
@@ -11,9 +10,10 @@ import type {
   Patient,
   PatientContact,
   Quantity,
+  SystemQuantity,
 } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
-import { type FhirpathInput, type FhirpathResult, FIXED_RETURNS, IDENTITY_RETURNS } from './infer.ts'
+import { type FhirpathInput, type FhirpathResult } from './infer.ts'
 
 const patient: Patient = {
   resourceType: 'Patient',
@@ -122,18 +122,18 @@ describe('type-level inference agrees with the runtime', () => {
 describe('fixed-return conversion functions', () => {
   it('toQuantity() chains agree with the runtime', () => {
     const quantity = compile("Observation.value.ofType(Quantity).toQuantity('kg')").evaluate(observation, options)
-    expectTypeOf(quantity).toEqualTypeOf<Quantity[]>()
+    expectTypeOf(quantity).toEqualTypeOf<SystemQuantity[]>()
     expect(quantity).toEqual([{ value: 80, unit: 'kg' }])
 
     const value = compile("Observation.value.ofType(Quantity).toQuantity('kg').value").evaluate(observation, options)
     expectTypeOf(value).toEqualTypeOf<number[]>()
     expect(value).toEqual([80])
 
-    // A dot inside the UCUM argument reassembles via the one-level paren logic.
+    // Dots inside a UCUM string stay inside the function argument.
     expectTypeOf<FhirpathResult<"Observation.value.ofType(Quantity).toQuantity('kg.m/s2').value">>().toEqualTypeOf<
       number[]
     >()
-    expectTypeOf<FhirpathResult<'Observation.value.ofType(Quantity).toQuantity()'>>().toEqualTypeOf<Quantity[]>()
+    expectTypeOf<FhirpathResult<'Observation.value.ofType(Quantity).toQuantity()'>>().toEqualTypeOf<SystemQuantity[]>()
   })
 
   it('string and boolean conversions agree with the runtime', () => {
@@ -214,7 +214,6 @@ describe('fixed-return string, boolean, and numeric functions (batch 2)', () => 
     expectTypeOf(trimmed).toEqualTypeOf<string[]>()
     expect(trimmed).toEqual(['Chalmers'])
 
-    // Comma-separated arguments pass the CleanArg check.
     const initial = compile('Patient.name.given.first().substring(0, 1)').evaluate(patient, options)
     expectTypeOf(initial).toEqualTypeOf<string[]>()
     expect(initial).toEqual(['P'])
@@ -303,41 +302,6 @@ describe('fixed-return string, boolean, and numeric functions (batch 2)', () => 
   })
 })
 
-describe('the tables cannot drift from the analyzer', () => {
-  /** FIXED_RETURNS names R4TypeOf keys; the analyzer names System types. */
-  const SYSTEM_OF: Record<string, string> = {
-    boolean: 'System.Boolean',
-    integer: 'System.Integer',
-    decimal: 'System.Decimal',
-    string: 'System.String',
-    date: 'System.Date',
-    dateTime: 'System.DateTime',
-    time: 'System.Time',
-    Quantity: 'System.Quantity',
-  }
-
-  it('every FIXED_RETURNS entry matches its FUNCTION_SIGNATURES result type', () => {
-    for (const [fn, r4Name] of Object.entries(FIXED_RETURNS)) {
-      const signature = FUNCTION_SIGNATURES[fn]
-      expect(signature, `${fn}() has no analyzer signature`).toBeDefined()
-      const result = signature?.result({ types: ['FHIR.Patient'], single: undefined }, [])
-      expect(result?.types, `${fn}() disagrees with the analyzer`).toEqual([SYSTEM_OF[r4Name]])
-    }
-  })
-
-  it('every IDENTITY_RETURNS entry passes the input types through in the analyzer', () => {
-    for (const fn of IDENTITY_RETURNS) {
-      const signature = FUNCTION_SIGNATURES[fn]
-      expect(signature, `${fn}() has no analyzer signature`).toBeDefined()
-      const input = { types: ['FHIR.HumanName'], single: false }
-      const result = signature?.result(input, [undefined])
-      // Same reference: the signature passes the input's types through
-      // untouched, so the function is genuinely type-preserving.
-      expect(result?.types, `${fn}() does not preserve its input type`).toBe(input.types)
-    }
-  })
-})
-
 describe('a declared root types a relative expression', () => {
   it('infers against the root instead of degrading', () => {
     // fhirpath(expr, root) / compile(expr, root): the same inference a DTO column
@@ -371,35 +335,32 @@ describe('DTO column integration', () => {
   })
 })
 
-describe('operator-glued segments degrade instead of inferring the swallowed match', () => {
-  // Each of these runtime-evaluates to a boolean or a union, but the last
-  // segment ends in ')' or ']', so a naive pattern match would swallow the
-  // operator and claim the function's type. They must all be unknown[].
+describe('operators after calls and indexers keep their runtime result', () => {
   it('a parenthesized right operand cannot hide inside a function argument', () => {
-    expectTypeOf<FhirpathResult<"Patient.name.given.join(', ') = ('x')">>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<"Patient.name.where(use = 'a') = (Patient.name)">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.given.join(', ') = ('x')">>().toEqualTypeOf<boolean[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.where(use = 'a') = (Patient.name)">>().toEqualTypeOf<boolean[]>()
     expectTypeOf<FhirpathResult<"Observation.value.ofType(Quantity).toQuantity('kg') > (5)">>().toEqualTypeOf<
-      unknown[]
+      boolean[]
     >()
     expectTypeOf<
       FhirpathResult<"Observation.value.ofType(Quantity).convertsToQuantity('kg') or (true)">
-    >().toEqualTypeOf<unknown[]>()
+    >().toEqualTypeOf<boolean[]>()
   })
 
-  it('comma-separated arguments cannot hide a glued operator either', () => {
+  it('comma-separated arguments and following operators parse independently', () => {
     // Runtime: [false] / [true] — comparisons, not strings; both must degrade.
-    expectTypeOf<FhirpathResult<"Patient.name.given.first().replace('a', 'b') = ('x')">>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<"Patient.name.given.first().substring(0, 1) = ('P')">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.given.first().replace('a', 'b') = ('x')">>().toEqualTypeOf<boolean[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.given.first().substring(0, 1) = ('P')">>().toEqualTypeOf<boolean[]>()
   })
 
   it('an operator between two indexers cannot hide inside one indexer', () => {
     expectTypeOf<FhirpathResult<'Patient.name.family[0] | active[0]'>>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<'Patient.name.family[0] = given[0]'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.family[0] = given[0]'>>().toEqualTypeOf<boolean[]>()
   })
 
-  it('a paren inside a string literal does not confuse the segment close', () => {
-    // The `).`-scan strips string literals before checking balance, so a
-    // literal paren neither ends the segment early nor degrades it.
+  it('a parenthesis inside a string literal does not close the call', () => {
+    // Quoted parentheses remain literal content while following calls and
+    // navigation parse normally.
     const length = compile("Patient.name.given.join('(').length()").evaluate(patient, options)
     expectTypeOf(length).toEqualTypeOf<number[]>()
     expect(length).toEqual([15])
@@ -408,19 +369,17 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
     expectTypeOf(filtered).toEqualTypeOf<string[]>()
     expect(filtered).toEqual([])
 
-    // A literal paren with no trailing segments is still precise.
+    // The call is also precise without following navigation.
     expectTypeOf<FhirpathResult<"Patient.name.given.join('(')">>().toEqualTypeOf<string[]>()
   })
 
-  it('escaped quotes and delimited identifiers in arguments degrade, never lie', () => {
-    // Backslash escapes can confound quote pairing, so such arguments are
-    // declined outright — including the glued-operator shape they could hide.
-    expectTypeOf<FhirpathResult<"Patient.name.where(family = 'it\\'s') = ('y')">>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<"Patient.name.where(given.first() = 'it\\'s')">>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<'Patient.name.where(`div`.exists())'>>().toEqualTypeOf<unknown[]>()
+  it('escaped quotes and delimited identifiers preserve token boundaries', () => {
+    expectTypeOf<FhirpathResult<"Patient.name.where(family = 'it\\'s') = ('y')">>().toEqualTypeOf<boolean[]>()
+    expectTypeOf<FhirpathResult<"Patient.name.where(given.first() = 'it\\'s')">>().toEqualTypeOf<HumanName[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.where(`div`.exists())'>>().toEqualTypeOf<HumanName[]>()
   })
 
-  it('where() conditions with sane parentheses keep their precision', () => {
+  it('where() conditions with nested calls keep following navigation precise', () => {
     const withCall = compile("Patient.name.where(given.first() = 'Peter')").evaluate(patient, options)
     expectTypeOf(withCall).toEqualTypeOf<HumanName[]>()
     expect(withCall).toHaveLength(1)
@@ -429,8 +388,7 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
     expectTypeOf(twoClauses).toEqualTypeOf<HumanName[]>()
     expect(twoClauses).toHaveLength(2)
 
-    // A call inside the condition plus trailing segments: the `).`-scan finds
-    // the close that completes the argument, not the first `).` it sees.
+    // The condition's call closes before the following navigation begins.
     const nestedCondition = compile('Patient.name.where(a.exists()).given').evaluate(patient, options)
     expectTypeOf(nestedCondition).toEqualTypeOf<string[]>()
     expect(nestedCondition).toEqual([])
@@ -440,24 +398,21 @@ describe('operator-glued segments degrade instead of inferring the swallowed mat
     expect(afterSelect).toEqual([2])
   })
 
-  it('select() stays sound without an argument guard, and keeps nested precision', () => {
-    // select's argument is re-parsed rather than CleanArg-guarded: glued
-    // operators die in Navigate on the way through…
-    expectTypeOf<FhirpathResult<"Patient.name.select(family) = ('x')">>().toEqualTypeOf<unknown[]>()
-    // Direct dispatch keeps nested calls that the argument check would reject.
+  it('select() keeps its argument and outer operator scopes separate', () => {
+    expectTypeOf<FhirpathResult<"Patient.name.select(family) = ('x')">>().toEqualTypeOf<boolean[]>()
+    // Nested calls remain part of the select argument.
     const nested = compile('Patient.name.select(given.where(use.exists()))').evaluate(patient, options)
     expectTypeOf(nested).toEqualTypeOf<string[]>()
     expect(nested).toEqual([])
   })
 
-  it('segments after a paren segment resolve instead of merging into it', () => {
-    // Regression: the tail after `where(...)` used to be swallowed into the
-    // where() segment, inferring HumanName[] — a wrong type, not just imprecise.
+  it('navigation after a call resolves independently', () => {
+    // The family navigation follows the HumanName collection returned by where().
     const family = compile("Patient.name.where(use = 'official').family.first()").evaluate(patient, options)
     expectTypeOf(family).toEqualTypeOf<string[]>()
     expect(family).toEqual(['Chalmers'])
 
-    // One-level nesting inside a trailing paren segment still resolves.
+    // A nested call in the projection also resolves.
     const nested = compile('Patient.name.select(given.first())').evaluate(patient, options)
     expectTypeOf(nested).toEqualTypeOf<string[]>()
     expect(nested).toEqual(['Peter', 'Jim'])
@@ -518,35 +473,30 @@ describe('union groups and top-level unions', () => {
   })
 })
 
-describe('union adversarial battery: glued operators and garbage terms degrade', () => {
-  it('an operator glued after a group cannot claim the group type', () => {
-    // Runtime: [false] / [true] — comparisons; both must degrade.
-    expectTypeOf<FhirpathResult<"(Patient.name.given | Patient.name.family) = ('x')">>().toEqualTypeOf<unknown[]>()
+describe('unions compose through operators', () => {
+  it('an operator after a group reports the operator result', () => {
+    expectTypeOf<FhirpathResult<"(Patient.name.given | Patient.name.family) = ('x')">>().toEqualTypeOf<boolean[]>()
     expectTypeOf<FhirpathResult<'(Patient.name.given | Patient.name.family).count() > (0)'>>().toEqualTypeOf<
-      unknown[]
+      boolean[]
     >()
     expectTypeOf<FhirpathResult<"(Patient.name.given | Patient.name.family) | (Patient.id) = ('x')">>().toEqualTypeOf<
-      unknown[]
+      boolean[]
     >()
   })
 
-  it('one garbage term poisons the whole union', () => {
-    // Runtime yields mixed strings and the number 8 — string[] would be a lie.
-    expectTypeOf<FhirpathResult<'Patient.name.select((given | 5 + 3).first())'>>().toEqualTypeOf<unknown[]>()
+  it('mixed inferable terms produce their public union', () => {
+    expectTypeOf<FhirpathResult<'Patient.name.select((given | 5 + 3).first())'>>().toEqualTypeOf<(string | number)[]>()
     // A relative term has no root at the top level (the id | %rowIndex idiom
     // needs a projection context), so the union degrades rather than guessing.
     expectTypeOf<FhirpathResult<'(id | %rowIndex.toString()).first()'>>().toEqualTypeOf<unknown[]>()
   })
 
-  it('a word or symbol operator glued into a middle segment degrades', () => {
-    // Regression: these used to widen to the broad state and let the trailing
-    // fixed-return call claim integer[] — a wrong type, the runtime evaluates
-    // a comparison. GluedName sends them to 'opaque' instead.
-    expectTypeOf<FhirpathResult<'Patient.name and x.count()'>>().toEqualTypeOf<unknown[]>()
+  it('word and symbol operators in the middle produce Boolean results', () => {
+    expectTypeOf<FhirpathResult<'Patient.name and x.count()'>>().toEqualTypeOf<boolean[]>()
     const compared = compile('Patient.gender = gender.count()').evaluate(patient, options)
-    expectTypeOf(compared).toEqualTypeOf<unknown[]>()
+    expectTypeOf(compared).toEqualTypeOf<boolean[]>()
     expect(compared).toEqual([])
-    expectTypeOf<FhirpathResult<'%a = b.count()'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'%a = b.count()'>>().toEqualTypeOf<boolean[]>()
   })
 })
 
@@ -587,10 +537,16 @@ describe('%var roots enter the broad state', () => {
 })
 
 describe('degradation to unknown[]', () => {
+  it('keeps one local binding precise and bounds additional definitions', () => {
+    expectTypeOf<
+      FhirpathResult<"Patient.name.first().defineVariable('n').select(given.select(%n.family))">
+    >().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"defineVariable('a').defineVariable('b')">>().toEqualTypeOf<unknown[]>()
+  })
+
   it('constructs outside the subset degrade instead of erroring', () => {
-    // power's result depends on its input (integer^integer vs decimal), so it
-    // stays out of FIXED_RETURNS and degrades; abs is type-preserving at
-    // runtime but the analyzer declares it unknown, so it stays out too.
+    // power's result depends on its input (integer^integer vs decimal), and abs
+    // is input-dependent too. Both have explicit unknown analyzer rules.
     expectTypeOf<FhirpathResult<'Patient.name.count().power(2)'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.name.count().abs()'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.descendants()'>>().toEqualTypeOf<unknown[]>()

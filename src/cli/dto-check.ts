@@ -79,9 +79,10 @@ function analyzeFor(dto: DtoClass, engines: readonly FhirPathEngine[]): DtoDiagn
 }
 
 /**
- * Every engine's context as one: the union of their registered functions and env
- * names. The first engine's `model` stands for all of them — a project binds one
- * FHIR version, and an unregistered DTO names no engine that could pick another.
+ * Every engine's context as one: the union of their registered functions,
+ * environment declarations, and vars. The first engine's `model` stands for
+ * all of them — a project binds one FHIR version, and an unregistered DTO names
+ * no engine that could pick another.
  */
 function merged(engines: readonly FhirPathEngine[]): AnalyzedContext {
   return {
@@ -89,6 +90,9 @@ function merged(engines: readonly FhirPathEngine[]): AnalyzedContext {
       ...engines[0]?.defaults,
       functions: Object.assign({}, ...engines.map(engine => engine.defaults.functions)),
       env: Object.assign({}, ...engines.map(engine => engine.defaults.env)),
+      envTypes: Object.assign({}, ...engines.map(engine => engine.defaults.envTypes)),
+      vars: Object.assign({}, ...engines.map(engine => engine.defaults.vars)),
+      varTypes: Object.assign({}, ...engines.map(engine => engine.defaults.varTypes)),
     },
   }
 }

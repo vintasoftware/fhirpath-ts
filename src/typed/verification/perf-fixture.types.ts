@@ -1,6 +1,6 @@
 // tsc-perf fixture: keeps roughly a hundred typed expressions in the normal
 // typecheck run so CI reports higher type-level inference costs.
-import type { FhirpathResult } from './infer.ts'
+import type { FhirpathResult, FhirpathResultIn } from '../infer.ts'
 
 export type T001 = FhirpathResult<'Patient.name.given'>
 export type T002 = FhirpathResult<'Patient.name.family'>
@@ -141,3 +141,36 @@ export type T131 = FhirpathResult<'(id | %rowIndex.toString()).first()'>
 export type T132 = FhirpathResult<"Patient.name.where(family = 'a|b').given">
 export type T133 = FhirpathResult<'Patient.name.where(a.exists()).given'>
 export type T134 = FhirpathResult<'Patient.name.select(given.first()).count()'>
+// Host declarations, expression vars/functions, overload selection, and roots.
+type HostContext = {
+  env: {
+    report: { type: 'DiagnosticReport' }
+    fallback: { type: 'string'; collection: true }
+  }
+  vars: {
+    status: { type: 'string' }
+    reportId: { type: never; __expression: '%report.id' }
+  }
+  functions: {
+    display: { expression: '(text | coding.display).first()' }
+    labelled: { expression: '%prefix & text'; envTypes: { prefix: { type: 'string' } } }
+    render: {
+      overloads: readonly [
+        { signature: { input: { types: readonly ['Patient'] }; result: { types: readonly ['string']; single: true } } },
+        {
+          signature: {
+            input: { types: readonly ['Observation'] }
+            result: { types: readonly ['integer']; single: true }
+          }
+        },
+      ]
+    }
+  }
+}
+export type T135 = FhirpathResult<'%report.status.combine(%fallback)', HostContext>
+export type T136 = FhirpathResult<'%reportId', HostContext>
+export type T137 = FhirpathResult<'Condition.code.display()', HostContext>
+export type T138 = FhirpathResult<'Condition.code.labelled()', HostContext>
+export type T139 = FhirpathResult<'Patient.render()', HostContext>
+export type T140 = FhirpathResult<'Observation.render()', HostContext>
+export type T141 = FhirpathResultIn<'%context.name.given', 'Patient', HostContext>

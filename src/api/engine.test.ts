@@ -236,14 +236,13 @@ describe('FhirPathEngine.project', () => {
     })
   })
 
-  it('column type annotations declare what inference cannot see', () => {
+  it('infers operator-shaped columns without repeating a type', () => {
     const row = r4.project(patient, {
-      // Outside the inference subset (operators, join/trim) → unknown without a declared type.
       inferred: "(Patient.name.family + ' ' + Patient.name.given.join(' ')).trim()",
-      name: { path: "(Patient.name.family + ' ' + Patient.name.given.join(' ')).trim()", type: 'string' },
+      name: { path: "(Patient.name.family + ' ' + Patient.name.given.join(' ')).trim()" },
       initials: { path: 'Patient.name.given.select(substring(0, 1))', collection: true, type: 'string' },
     })
-    expectTypeOf(row.inferred).toEqualTypeOf<unknown>()
+    expectTypeOf(row.inferred).toEqualTypeOf<string | undefined>()
     expectTypeOf(row.name).toEqualTypeOf<string | undefined>()
     expectTypeOf(row.initials).toEqualTypeOf<string[]>()
     expect(row).toEqual({
@@ -271,6 +270,10 @@ describe('FhirPathEngine.project', () => {
       { id: 'example', born: '1974-12-25' },
       { id: 'other', born: '1994-06-01' },
     ])
+
+    const fromWrappedBundle = r4.project([searchset], { bundleType: 'type' })
+    expectTypeOf(fromWrappedBundle).toEqualTypeOf<{ bundleType: string | undefined }[]>()
+    expect(fromWrappedBundle).toEqual([{ bundleType: 'searchset' }])
 
     // The Bundle overload resolves to concrete typed rows, not just the alias:
     const fromBundle = r4.project(searchset, {
@@ -573,13 +576,12 @@ describe('vars: per-call FHIRPath bindings', () => {
 })
 
 describe('evaluate/first result type declaration', () => {
-  // Outside the inference subset (union of navigations), like a template-built expression.
   const displayName =
     "(Patient.name.where(use = 'official') | Patient.name).first().select(given.first() & ' ' & family)"
 
-  it('declares what inference cannot see, matching a project column type', () => {
+  it('keeps explicit declarations compatible with newly inferred operators', () => {
     const untyped = r4.first(displayName, patient)
-    expectTypeOf(untyped).toEqualTypeOf<unknown>()
+    expectTypeOf(untyped).toEqualTypeOf<string | undefined>()
 
     const name = r4.first(displayName, patient, { type: 'string' })
     expectTypeOf(name).toEqualTypeOf<string | undefined>()

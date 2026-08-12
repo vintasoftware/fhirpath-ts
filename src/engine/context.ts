@@ -157,16 +157,21 @@ export const BUILTIN_ENV_VARIABLE_NAMES: ReadonlySet<string> = new Set([
   'rootResource',
 ])
 
+/** The canonical key used for environment and variable maps. */
+export function bareEnvironmentName(name: string): string {
+  return name.startsWith('%') ? name.slice(1) : name
+}
+
 /**
  * Env records accept variable names with or without the leading `%`
  * (`{ '%loinc': … }` or `{ loinc: … }`). Normalize to bare names — the form the
  * context binds — so code that merges or overrides env records treats both
  * spellings as one namespace. Later entries win on the same bare name.
  */
-export function normalizeEnvKeys<T>(env: Record<string, T> | undefined): Record<string, T> {
+export function normalizeEnvKeys<T>(env: Readonly<Record<string, T>> | undefined): Record<string, T> {
   const normalized: Record<string, T> = {}
   for (const [name, value] of Object.entries(env ?? {})) {
-    normalized[name.startsWith('%') ? name.slice(1) : name] = value
+    normalized[bareEnvironmentName(name)] = value
   }
   return normalized
 }

@@ -21,6 +21,10 @@ interface PackageManifest {
   publishConfig?: { exports?: Record<string, unknown> }
 }
 
+function assertString(value: unknown, message: string): asserts value is string {
+  assert.equal(typeof value, 'string', message)
+}
+
 const root = fileURLToPath(new URL('..', import.meta.url))
 const fixturesDirectory = join(root, 'scripts', 'package-check-fixtures')
 const rawArguments = process.argv.slice(2)
@@ -52,7 +56,7 @@ function packageBin(packageName: string, command: string): string {
   const packageDirectory = join(root, 'node_modules', packageName)
   const { bin } = readJson<PackageManifest>(join(packageDirectory, 'package.json'))
   const relativePath = typeof bin === 'string' ? bin : bin?.[command]
-  assert.equal(typeof relativePath, 'string', `${packageName} does not declare the ${command} bin`)
+  assertString(relativePath, `${packageName} does not declare the ${command} bin`)
   return resolve(packageDirectory, relativePath)
 }
 
@@ -70,8 +74,8 @@ function runTool(name: ToolName, args: string[], cwd = root, environment: NodeJS
 }
 
 function packWithPnpm(args: string[]): string {
-  const executable = process.env.npm_execpath
-  assert.equal(typeof executable, 'string', 'run this check through pnpm')
+  const executable = process.env['npm_execpath']
+  assertString(executable, 'run this check through pnpm')
   const isJavaScript = /\.(?:cjs|mjs|js)$/i.test(executable)
   const command = isJavaScript ? process.execPath : executable
   const commandArguments = isJavaScript ? [executable, ...args] : args
@@ -137,8 +141,27 @@ try {
     '--pack-destination',
     packDirectory,
   ])
-  const { filename } = JSON.parse(packOutput) as { filename?: unknown }
-  assert.equal(typeof filename, 'string', 'pnpm pack did not report a tarball filename')
+  const { filename, files } = JSON.parse(packOutput) as {
+    filename?: unknown
+    files?: { path?: unknown }[]
+  }
+  assertString(filename, 'pnpm pack did not report a tarball filename')
+  assert(Array.isArray(files), 'pnpm pack did not report the packed files')
+  const packedPaths = new Set(files.flatMap(file => (typeof file.path === 'string' ? [file.path] : [])))
+  const leakedArtifacts = [...packedPaths].filter(
+    path => path.startsWith('src/typed/verification/') || path.startsWith('dist/typed/verification/')
+  )
+  assert.deepEqual(leakedArtifacts, [], `verification artifacts leaked into the package: ${leakedArtifacts.join(', ')}`)
+  const generatedArtifacts = [...packedPaths].filter(
+    path => path.startsWith('src/typed/generated/') || path.startsWith('dist/typed/generated/')
+  )
+  assert.deepEqual(
+    generatedArtifacts,
+    [],
+    `generated verification artifacts leaked into the package: ${generatedArtifacts.join(', ')}`
+  )
+  assert(packedPaths.has('src/typed/metadata-compact.ts'), 'the source type metadata is missing')
+  assert(packedPaths.has('dist/typed/metadata-compact.d.ts'), 'the built type metadata is missing')
   const tarball = resolve(packDirectory, filename)
 
   runTool('publint', ['run', tarball, '--strict', '--pack=false'])

@@ -1,0 +1,7 @@
+// Covers the API call sites that the standalone expression fixtures do not:
+// DTO decorators, engine declarations, per-call declarations, and project().
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/typed/verification/api-perf-fixture.types.ts"],
+  "exclude": []
+}

@@ -57,6 +57,7 @@ error. The comparison includes only expressions accepted by every engine.
 | `bench-ts.ts` | fhirpath-ts runner; `--no-model` selects the model-free run. |
 | `rs-harness/` | Rust runner (`octofhir-fhirpath`) for the same workload. |
 | `compare.mjs` | Prints the comparison table over the common accepted set. |
+| `summarize-runs.mjs` | Summarizes repeated run directories over their unchanged common accepted set. |
 | `results/` | Generated workload + per-engine result JSON (git-ignored). |
 
 Each runner writes `{name, expression, accepted, parseNs, evalNs, error}` for every

@@ -2,5 +2,6 @@
 // can measure inference cost in isolation from the rest of the project.
 {
   "extends": "./tsconfig.json",
-  "include": ["src/typed/perf-fixture.types.ts"]
+  "include": ["src/typed/verification/perf-fixture.types.ts"],
+  "exclude": []
 }

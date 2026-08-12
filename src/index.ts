@@ -2,8 +2,11 @@ export type { CustomFunctionSignature, ValueArgSpec } from './analyzer/signature
 export type { BundleLike } from './api/bundle.ts'
 export type {
   AnyExpression,
+  CompiledExpressionResult,
   CustomFunction,
+  Declaring,
   EvaluateOptions,
+  InferredExpressionResult,
   OverloadedCustomFunction,
   SingleCustomFunction,
 } from './api/compile.ts'
@@ -11,7 +14,16 @@ export { compile, CompiledExpression, DEFAULT_PARSE_CACHE_SIZE } from './api/com
 export type { ConstraintCheckResult, ConstraintIssue, FhirConstraint, OperationOutcome } from './api/constraints.ts'
 export type { ColumnTypeMismatch, DtoBase, DtoClass, DtoEnv, DtoInstance, DtoOptions, DtoRow } from './api/dto.ts'
 export { column, criteria, defineDto } from './api/dto.ts'
-export type { EngineInput, EngineOptions, TypedEvaluateOptions } from './api/engine.ts'
+export type {
+  EngineExpression,
+  EngineInput,
+  EngineInputRoot,
+  EngineOptions,
+  EngineProjection,
+  EngineProjectionContext,
+  EngineResult,
+  TypedEvaluateOptions,
+} from './api/engine.ts'
 export { BoundExpression, FhirPathEngine, recordEngines } from './api/engine.ts'
 export { evaluate } from './api/evaluate.ts'
 export type { ColumnOptions, ColumnResult, Projection, ProjectionColumn, ProjectionColumns } from './api/project.ts'
@@ -23,7 +35,18 @@ export type { ElementInfo, ModelProvider } from './model/provider.ts'
 export type { AstNode } from './parser/ast.ts'
 export { parse } from './parser/parser.ts'
 export { printExpression } from './parser/printer.ts'
-export type { FhirpathInput, FhirpathResult, FhirpathResultIn, FhirTypeName } from './typed/infer.ts'
+export type { EmptyContextMap } from './typed/context-maps.ts'
+export type {
+  EmptyFhirpathTypeContext,
+  FhirpathFunctionDeclaration,
+  FhirpathInput,
+  FhirpathResult,
+  FhirpathResultIn,
+  FhirpathTypeContext,
+  FhirpathTypeDeclaration,
+  FhirpathTypeDeclarations,
+  FhirTypeName,
+} from './typed/infer.ts'
 export { Temporal } from './values/datetime.ts'
 export { Decimal } from './values/decimal.ts'
 export type { ValueKind } from './values/type-compat.ts'

@@ -34,6 +34,15 @@
     "noPropertyAccessFromIndexSignature": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["src/**/*.ts", "dogfood/**/*.ts"],
-  "exclude": ["node_modules", "**/node_modules", "**/dist", "**/build"]
+  "include": ["src/**/*.ts", "dogfood/**/*.ts", "scripts/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "scripts/package-check-fixtures/**",
+    "src/typed/verification/api-perf-fixture.types.ts",
+    "src/typed/verification/perf-fixture.types.ts",
+    "src/typed/generated/full-language-perf.types.ts"
+  ]
 }

@@ -29,9 +29,8 @@ There are two source walkers because their callers receive different ASTs:
 TypeScript out of runtime dependencies and lets Monaco use the compiler already
 inside its worker.
 
-An older implementation also had a TypeScript-free lexical scanner. It was
-deleted after the demo moved extraction into Monaco's TypeScript worker. Do not
-add a third walker unless a real consumer cannot supply either supported AST.
+Do not add a third walker unless a real consumer cannot supply either supported
+AST.
 
 Keep decisions shared between the walkers in
 `src/analyzer/expression-policy.ts`: call names, expression argument positions,
@@ -49,6 +48,21 @@ to that corpus.
 The analyzer package stays independent of both compilers. Runtime tools such as
 an expression editor can call `analyzeExpression`, `analyzeDto`, and
 `analyzeSite` without loading TypeScript.
+
+## Type-level inference
+
+`src/typed/parser.ts` is the only type-level parser. It consumes generated
+parser, function, and R4 model metadata. Keep the runtime parser, analyzer
+signatures, and model maps as the sources of truth; do not add handwritten
+copies.
+
+Keep inference bounded by `src/typed/inference-limits.ts`. Returning `unknown[]`
+is safe; returning a type narrower than `analyzeExpressionDetailed()` is not.
+The required checks below cover generated drift, corpus soundness, and compiler
+cost.
+
+Normalize host declaration names through `src/typed/context-maps.ts`. Per-call
+declarations override engine defaults, matching runtime option merging.
 
 ## Monaco worker integration
 
@@ -184,22 +198,28 @@ pnpm typecheck
 pnpm test
 pnpm lint
 pnpm check:fhirpath
+pnpm check:inference
 pnpm check:type-perf
 pnpm coverage
+pnpm build
+pnpm check:package
 ```
 
 `scripts/type-perf-budget.json` sets the type-instantiation budget. Explain any
 budget increase in the same change.
 
+`generate:*` commands rewrite generated sources; their `check:*` variants report
+drift. Precision and type-performance ratchets accept new baselines only with
+`--update`; review the measurements first.
+
 The demo has its own typecheck. Files under `demo/src/monaco/*.d.ts` are
 generated; run `npm run generate:dts` in `demo/` after a public API change.
 
-`pnpm build` and `pnpm check:package` are package gates, and they catch a different
-class of problem than `pnpm typecheck` does. The build compiles under
-`nodenext` resolution — the way Node reads the published output — where the
-root config uses bundler resolution; `check:package` resolves every entry point's
-types and executes the installed tarball and CLI as a consumer. An import that
-only ever existed as a `devDependency` passes typecheck and fails here. See
+`pnpm build` and `pnpm check:package` catch problems that `pnpm typecheck` misses.
+The build uses `nodenext` resolution, which matches how Node reads published
+output. The root config uses bundler resolution. `check:package` resolves every
+entry point's types and executes the installed tarball and CLI as a consumer. An
+import that exists only as a `devDependency` passes typecheck and fails here. See
 [RELEASING.md](RELEASING.md) for what the published tarball contains and why
 `sideEffects` is an allowlist rather than `false`.
 

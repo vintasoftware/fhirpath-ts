@@ -365,6 +365,16 @@ describe('lambda result typing', () => {
     expect(codes("coalesce(Patient.name.family.first(), 'unknown').length()")).toEqual([])
   })
 
+  it('aggregate() returns the aggregator result or its initializer for empty input', () => {
+    expect(codes('Patient.name.aggregate($this.given.first()).length()')).toEqual([])
+    expect(codes('Patient.name.aggregate($this.given.first()) + 1')).toEqual(['operand-type'])
+    expect(codes('Patient.name.aggregate($this.given.first(), 0) + 1')).toEqual([])
+    expect(analyzeExpressionDetailed('Patient.name.aggregate($this.given.first(), 0)', options).result).toEqual({
+      types: ['FHIR.string', 'System.Integer'],
+      single: true,
+    })
+  })
+
   it('sort() keys accept a top-level descending minus on any type', () => {
     expect(codes('Patient.name.sort(-family, given.first()).first().use')).toEqual([])
     expect(codes('Patient.name.sort(-nope)')).toEqual(['unknown-element'])
