@@ -41,6 +41,9 @@ const commonNames = acceptedNames.reduce(
   (common, names) => common.filter(name => names.includes(name)),
   acceptedNames[0]
 )
+if (commonNames.length === 0) {
+  throw new Error('no non-trace expression was accepted by every engine in every run')
+}
 
 console.log(`Runs: ${runs.length}; unchanged common accepted set (no trace): ${commonNames.length}`)
 console.log()

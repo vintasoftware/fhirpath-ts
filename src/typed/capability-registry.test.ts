@@ -25,8 +25,7 @@ const observation = {
 } as const
 
 describe('type-inference capability registry', () => {
-  it('has unique ids, resolved sources, parseable positives, and companions', () => {
-    expect(new Set(Object.keys(INFERENCE_CAPABILITIES)).size).toBe(Object.keys(INFERENCE_CAPABILITIES).length)
+  it('has resolved sources, parseable positives, and companions', () => {
     expect(Object.keys(RESOLVED_INFERENCE_CAPABILITIES)).toEqual(Object.keys(INFERENCE_CAPABILITIES))
     for (const [id, capability] of Object.entries(RESOLVED_INFERENCE_CAPABILITIES)) {
       expect(() => parse(capability.expression), id).not.toThrow()

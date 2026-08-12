@@ -3,7 +3,7 @@ import {
   type OperatorResultRule,
   TYPE_OPERATOR_RESULT_RULES,
 } from '../src/analyzer/operator-rules.ts'
-import { type ArgSpec, FUNCTION_SIGNATURES, type ResultRule } from '../src/analyzer/signatures.ts'
+import { FUNCTION_SIGNATURES, type ResultRule } from '../src/analyzer/signatures.ts'
 import { CALENDAR_DURATION_UNITS } from '../src/lexer/tokens.ts'
 import { INFIX_PARSELETS, PREFIX_PARSELETS } from '../src/parser/precedence.ts'
 import { R4_RESOURCES } from '../src/r4/generated/resources-data.ts'
@@ -42,13 +42,6 @@ export interface CompactFunctionRules {
 ${Object.entries(FUNCTION_SIGNATURES)
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([name, signature]) => `  ${JSON.stringify(name)}: ${compactResultRuleType(signature.result)}`)
-  .join('\n')}
-}
-
-export interface CompactFunctionArguments {
-${Object.entries(FUNCTION_SIGNATURES)
-  .sort(([a], [b]) => a.localeCompare(b))
-  .map(([name, signature]) => `  ${JSON.stringify(name)}: ${compactArgumentSpecsType(signature.args ?? [])}`)
   .join('\n')}
 }
 
@@ -114,10 +107,6 @@ export type CompactCalendarUnit = ${[...CALENDAR_DURATION_UNITS]
     .map(unit => JSON.stringify(unit))
     .join(' | ')}
 `
-}
-
-function compactArgumentSpecsType(args: readonly ArgSpec[]): string {
-  return `readonly [${args.map(argument => JSON.stringify(argument)).join(', ')}]`
 }
 
 function lambdaArgumentNames(index: number): string {

@@ -2,7 +2,6 @@
 
 export const BUILTIN_FUNCTION_CAPABILITIES = {
   'builtin.abs': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().abs()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -18,7 +17,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().abs()).count()',
   },
   'builtin.aggregate': {
-    family: 'function-lambda',
     source: {
       expression: 'Patient.name.aggregate($total | $this, {})',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -34,7 +32,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.aggregate($total | $this, {})).count()',
   },
   'builtin.all': {
-    family: 'function-lambda',
     source: {
       expression: 'Patient.name.all($this)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -50,7 +47,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.all($this)).count()',
   },
   'builtin.allFalse': {
-    family: 'function-fixed',
     source: {
       expression: 'true.allFalse()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -66,7 +62,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(true.allFalse()).count()',
   },
   'builtin.allTrue': {
-    family: 'function-fixed',
     source: {
       expression: 'true.allTrue()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -82,7 +77,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(true.allTrue()).count()',
   },
   'builtin.anyFalse': {
-    family: 'function-fixed',
     source: {
       expression: 'true.anyFalse()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -98,7 +92,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(true.anyFalse()).count()',
   },
   'builtin.anyTrue': {
-    family: 'function-fixed',
     source: {
       expression: 'true.anyTrue()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -114,7 +107,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(true.anyTrue()).count()',
   },
   'builtin.as': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().as(HumanName)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -130,7 +122,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().as(HumanName)).count()',
   },
   'builtin.avg': {
-    family: 'function-fixed',
     source: {
       expression: '2.avg()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -146,7 +137,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.avg()).count()',
   },
   'builtin.ceiling': {
-    family: 'function-fixed',
     source: {
       expression: '2.ceiling()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -162,7 +152,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.ceiling()).count()',
   },
   'builtin.children': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.children()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -178,7 +167,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.children()).count()',
   },
   'builtin.coalesce': {
-    family: 'function-lambda',
     source: {
       expression: 'Patient.name.coalesce(given, family)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -194,7 +182,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.coalesce(given, family)).count()',
   },
   'builtin.combine': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.combine(Patient.name)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -210,7 +197,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.combine(Patient.name)).count()',
   },
   'builtin.comparable': {
-    family: 'function-fixed',
     source: {
       expression: "1 'mg'.comparable(1 'mg')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -226,7 +212,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(1 'mg'.comparable(1 'mg')).count()",
   },
   'builtin.conformsTo': {
-    family: 'function-fixed',
     source: {
       expression: "Patient.name.first().conformsTo('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -242,7 +227,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(Patient.name.first().conformsTo('x')).count()",
   },
   'builtin.contains': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.contains('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -258,7 +242,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.contains('x')).count()",
   },
   'builtin.convertsToBoolean': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().convertsToBoolean()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -274,7 +257,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().convertsToBoolean()).count()',
   },
   'builtin.convertsToDate': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().convertsToDate()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -290,7 +272,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().convertsToDate()).count()',
   },
   'builtin.convertsToDateTime': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().convertsToDateTime()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -306,7 +287,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().convertsToDateTime()).count()',
   },
   'builtin.convertsToDecimal': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().convertsToDecimal()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -322,7 +302,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().convertsToDecimal()).count()',
   },
   'builtin.convertsToInteger': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().convertsToInteger()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -338,7 +317,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().convertsToInteger()).count()',
   },
   'builtin.convertsToLong': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().convertsToLong()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -354,7 +332,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().convertsToLong()).count()',
   },
   'builtin.convertsToQuantity': {
-    family: 'function-fixed',
     source: {
       expression: "Patient.name.first().convertsToQuantity('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -370,7 +347,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(Patient.name.first().convertsToQuantity('x')).count()",
   },
   'builtin.convertsToString': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().convertsToString()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -386,7 +362,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().convertsToString()).count()',
   },
   'builtin.convertsToTime': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().convertsToTime()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -402,7 +377,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().convertsToTime()).count()',
   },
   'builtin.count': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.count()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -418,7 +392,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.count()).count()',
   },
   'builtin.dateOf': {
-    family: 'function-fixed',
     source: {
       expression: '@2020-01-01.dateOf()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -434,7 +407,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(@2020-01-01.dateOf()).count()',
   },
   'builtin.dayOf': {
-    family: 'function-fixed',
     source: {
       expression: '@2020-01-01.dayOf()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -450,7 +422,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(@2020-01-01.dayOf()).count()',
   },
   'builtin.decode': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.decode('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -466,7 +437,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.decode('x')).count()",
   },
   'builtin.defineVariable': {
-    family: 'function-lambda',
     source: {
       expression: "Patient.name.defineVariable('generatedVariable')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -482,7 +452,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(Patient.name.defineVariable('generatedVariable')).count()",
   },
   'builtin.descendants': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.descendants()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -498,7 +467,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.descendants()).count()',
   },
   'builtin.distinct': {
-    family: 'function-input',
     source: {
       expression: 'Patient.name.distinct()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -514,7 +482,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.distinct()).count()',
   },
   'builtin.empty': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.empty()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -530,7 +497,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.empty()).count()',
   },
   'builtin.encode': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.encode('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -546,7 +512,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.encode('x')).count()",
   },
   'builtin.endsWith': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.endsWith('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -562,7 +527,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.endsWith('x')).count()",
   },
   'builtin.escape': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.escape('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -578,7 +542,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.escape('x')).count()",
   },
   'builtin.exclude': {
-    family: 'function-input',
     source: {
       expression: "Patient.name.exclude('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -594,7 +557,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(Patient.name.exclude('x')).count()",
   },
   'builtin.exists': {
-    family: 'function-lambda',
     source: {
       expression: 'Patient.name.exists($this)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -610,7 +572,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.exists($this)).count()',
   },
   'builtin.exp': {
-    family: 'function-fixed',
     source: {
       expression: '2.exp()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -626,7 +587,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.exp()).count()',
   },
   'builtin.extension': {
-    family: 'function-fixed',
     source: {
       expression: "Patient.name.extension('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -642,7 +602,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(Patient.name.extension('x')).count()",
   },
   'builtin.first': {
-    family: 'function-input',
     source: {
       expression: 'Patient.name.first()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -658,7 +617,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first()).count()',
   },
   'builtin.floor': {
-    family: 'function-fixed',
     source: {
       expression: '2.floor()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -674,7 +632,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.floor()).count()',
   },
   'builtin.getValue': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().getValue()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -690,7 +647,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().getValue()).count()',
   },
   'builtin.hasValue': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().hasValue()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -706,7 +662,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().hasValue()).count()',
   },
   'builtin.highBoundary': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().highBoundary(1)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -722,7 +677,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().highBoundary(1)).count()',
   },
   'builtin.hourOf': {
-    family: 'function-fixed',
     source: {
       expression: '@2020-01-01.hourOf()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -738,7 +692,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(@2020-01-01.hourOf()).count()',
   },
   'builtin.htmlChecks': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().htmlChecks()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -754,7 +707,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().htmlChecks()).count()',
   },
   'builtin.iif': {
-    family: 'function-lambda',
     source: {
       expression: 'Patient.name.iif(true, given, family)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -770,7 +722,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.iif(true, given, family)).count()',
   },
   'builtin.indexOf': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.indexOf('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -786,7 +737,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.indexOf('x')).count()",
   },
   'builtin.intersect': {
-    family: 'function-input',
     source: {
       expression: "Patient.name.intersect('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -802,7 +752,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(Patient.name.intersect('x')).count()",
   },
   'builtin.is': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().is(HumanName)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -818,7 +767,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().is(HumanName)).count()',
   },
   'builtin.isDistinct': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.isDistinct()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -834,7 +782,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.isDistinct()).count()',
   },
   'builtin.join': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.join('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -850,7 +797,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.join('x')).count()",
   },
   'builtin.last': {
-    family: 'function-input',
     source: {
       expression: 'Patient.name.last()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -866,7 +812,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.last()).count()',
   },
   'builtin.lastIndexOf': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.lastIndexOf('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -882,7 +827,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.lastIndexOf('x')).count()",
   },
   'builtin.length': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.length()",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -898,7 +842,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.length()).count()",
   },
   'builtin.ln': {
-    family: 'function-fixed',
     source: {
       expression: '2.ln()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -914,7 +857,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.ln()).count()',
   },
   'builtin.log': {
-    family: 'function-fixed',
     source: {
       expression: '2.log(1)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -930,7 +872,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.log(1)).count()',
   },
   'builtin.lowBoundary': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().lowBoundary(1)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -946,7 +887,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().lowBoundary(1)).count()',
   },
   'builtin.lower': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.lower()",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -962,7 +902,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.lower()).count()",
   },
   'builtin.matches': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.matches('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -978,7 +917,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.matches('x')).count()",
   },
   'builtin.matchesFull': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.matchesFull('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -994,7 +932,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.matchesFull('x')).count()",
   },
   'builtin.max': {
-    family: 'function-fixed',
     source: {
       expression: '2.max()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1010,7 +947,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.max()).count()',
   },
   'builtin.millisecondOf': {
-    family: 'function-fixed',
     source: {
       expression: '@2020-01-01.millisecondOf()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1026,7 +962,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(@2020-01-01.millisecondOf()).count()',
   },
   'builtin.min': {
-    family: 'function-fixed',
     source: {
       expression: '2.min()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1042,7 +977,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.min()).count()',
   },
   'builtin.minuteOf': {
-    family: 'function-fixed',
     source: {
       expression: '@2020-01-01.minuteOf()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1058,7 +992,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(@2020-01-01.minuteOf()).count()',
   },
   'builtin.monthOf': {
-    family: 'function-fixed',
     source: {
       expression: '@2020-01-01.monthOf()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1074,7 +1007,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(@2020-01-01.monthOf()).count()',
   },
   'builtin.not': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().not()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1090,7 +1022,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().not()).count()',
   },
   'builtin.now': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.now()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1106,7 +1037,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.now()).count()',
   },
   'builtin.ofType': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.ofType(HumanName)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1122,7 +1052,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.ofType(HumanName)).count()',
   },
   'builtin.power': {
-    family: 'function-fixed',
     source: {
       expression: '2.power(1)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1138,7 +1067,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.power(1)).count()',
   },
   'builtin.precision': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().precision()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1154,7 +1082,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().precision()).count()',
   },
   'builtin.repeat': {
-    family: 'function-lambda',
     source: {
       expression: 'Patient.name.repeat($this)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1170,7 +1097,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.repeat($this)).count()',
   },
   'builtin.replace': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.replace('x', 'x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1186,7 +1112,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.replace('x', 'x')).count()",
   },
   'builtin.replaceMatches': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.replaceMatches('x', 'x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1202,7 +1127,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.replaceMatches('x', 'x')).count()",
   },
   'builtin.resolve': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.generalPractitioner.resolve()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1218,7 +1142,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.generalPractitioner.resolve()).count()',
   },
   'builtin.round': {
-    family: 'function-fixed',
     source: {
       expression: '2.round(1)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1234,7 +1157,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.round(1)).count()',
   },
   'builtin.secondOf': {
-    family: 'function-fixed',
     source: {
       expression: '@2020-01-01.secondOf()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1250,7 +1172,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(@2020-01-01.secondOf()).count()',
   },
   'builtin.select': {
-    family: 'function-lambda',
     source: {
       expression: 'Patient.name.select(given)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1266,7 +1187,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.select(given)).count()',
   },
   'builtin.single': {
-    family: 'function-input',
     source: {
       expression: 'Patient.name.single()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1282,7 +1202,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.single()).count()',
   },
   'builtin.skip': {
-    family: 'function-input',
     source: {
       expression: 'Patient.name.skip(1)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1298,7 +1217,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.skip(1)).count()',
   },
   'builtin.sort': {
-    family: 'function-lambda',
     source: {
       expression: 'Patient.name.sort($this)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1314,7 +1232,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.sort($this)).count()',
   },
   'builtin.split': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.split('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1330,7 +1247,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.split('x')).count()",
   },
   'builtin.sqrt': {
-    family: 'function-fixed',
     source: {
       expression: '2.sqrt()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1346,7 +1262,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.sqrt()).count()',
   },
   'builtin.startsWith': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.startsWith('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1362,7 +1277,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.startsWith('x')).count()",
   },
   'builtin.subsetOf': {
-    family: 'function-fixed',
     source: {
       expression: "Patient.name.subsetOf('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1378,7 +1292,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(Patient.name.subsetOf('x')).count()",
   },
   'builtin.substring': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.substring(1, 1)",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1394,7 +1307,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.substring(1, 1)).count()",
   },
   'builtin.sum': {
-    family: 'function-fixed',
     source: {
       expression: '2.sum()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1410,7 +1322,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.sum()).count()',
   },
   'builtin.supersetOf': {
-    family: 'function-fixed',
     source: {
       expression: "Patient.name.supersetOf('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1426,7 +1337,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(Patient.name.supersetOf('x')).count()",
   },
   'builtin.tail': {
-    family: 'function-input',
     source: {
       expression: 'Patient.name.tail()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1442,7 +1352,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.tail()).count()',
   },
   'builtin.take': {
-    family: 'function-input',
     source: {
       expression: 'Patient.name.take(1)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1458,7 +1367,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.take(1)).count()',
   },
   'builtin.timeOf': {
-    family: 'function-fixed',
     source: {
       expression: '@2020-01-01.timeOf()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1474,7 +1382,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(@2020-01-01.timeOf()).count()',
   },
   'builtin.timeOfDay': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.timeOfDay()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1490,7 +1397,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.timeOfDay()).count()',
   },
   'builtin.timezoneOffsetOf': {
-    family: 'function-fixed',
     source: {
       expression: '@2020-01-01.timezoneOffsetOf()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1506,7 +1412,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(@2020-01-01.timezoneOffsetOf()).count()',
   },
   'builtin.toBoolean': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().toBoolean()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1522,7 +1427,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().toBoolean()).count()',
   },
   'builtin.toChars': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.toChars()",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1538,7 +1442,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.toChars()).count()",
   },
   'builtin.toDate': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().toDate()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1554,7 +1457,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().toDate()).count()',
   },
   'builtin.toDateTime': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().toDateTime()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1570,7 +1472,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().toDateTime()).count()',
   },
   'builtin.today': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.today()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1586,7 +1487,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.today()).count()',
   },
   'builtin.toDecimal': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().toDecimal()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1602,7 +1502,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().toDecimal()).count()',
   },
   'builtin.toInteger': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().toInteger()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1618,7 +1517,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().toInteger()).count()',
   },
   'builtin.toLong': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().toLong()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1634,7 +1532,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().toLong()).count()',
   },
   'builtin.toQuantity': {
-    family: 'function-fixed',
     source: {
       expression: "Patient.name.first().toQuantity('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1650,7 +1547,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(Patient.name.first().toQuantity('x')).count()",
   },
   'builtin.toString': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().toString()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1666,7 +1562,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().toString()).count()',
   },
   'builtin.toTime': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.first().toTime()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1682,7 +1577,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.first().toTime()).count()',
   },
   'builtin.trace': {
-    family: 'function-lambda',
     source: {
       expression: "Patient.name.trace('x', $this)",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1698,7 +1592,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "(Patient.name.trace('x', $this)).count()",
   },
   'builtin.trim': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.trim()",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1714,7 +1607,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.trim()).count()",
   },
   'builtin.truncate': {
-    family: 'function-fixed',
     source: {
       expression: '2.truncate()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1730,7 +1622,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(2.truncate()).count()',
   },
   'builtin.type': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.type()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1746,7 +1637,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.type()).count()',
   },
   'builtin.unescape': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.unescape('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1762,7 +1652,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.unescape('x')).count()",
   },
   'builtin.union': {
-    family: 'function-fixed',
     source: {
       expression: 'Patient.name.union(Patient.name)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1778,7 +1667,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.union(Patient.name)).count()',
   },
   'builtin.upper': {
-    family: 'function-fixed',
     source: {
       expression: "'abc'.upper()",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1794,7 +1682,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: "('abc'.upper()).count()",
   },
   'builtin.where': {
-    family: 'function-lambda',
     source: {
       expression: 'Patient.name.where($this)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -1810,7 +1697,6 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     composition: '(Patient.name.where($this)).count()',
   },
   'builtin.yearOf': {
-    family: 'function-fixed',
     source: {
       expression: '@2020-01-01.yearOf()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',

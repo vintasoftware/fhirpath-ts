@@ -277,6 +277,23 @@ describe('custom functions in the analyzer', () => {
 
     expect(result).toEqual({ types: ['System.String'], single: true })
   })
+
+  it('keeps recursive and malformed expression bodies opaque', () => {
+    const analyze = (expression: string, body: string) =>
+      analyzeExpressionDetailed(expression, {
+        model: r4Model,
+        functions: { recurse: { expression: body } },
+      })
+
+    expect(analyze('Patient.recurse()', 'recurse()')).toMatchObject({
+      diagnostics: [],
+      result: { types: undefined, single: undefined },
+    })
+    expect(analyze('Patient.recurse()', '(')).toMatchObject({
+      diagnostics: [],
+      result: { types: undefined, single: undefined },
+    })
+  })
 })
 
 describe('criteria: the criteria rule on the function', () => {

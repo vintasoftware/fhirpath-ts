@@ -20,7 +20,6 @@ const entries = Object.fromEntries(
       return [
         `builtin.${name}`,
         {
-          family: familyOf(signature),
           source: {
             expression,
             corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
@@ -50,17 +49,6 @@ writeOrCheckGenerated(output, generated, {
   check: process.argv.includes('--check'),
   regenerate: 'pnpm generate:function-capabilities',
 })
-
-function familyOf(signature: FunctionSignature): 'function-fixed' | 'function-input' | 'function-lambda' {
-  if (
-    signature.args?.some(argument => argument === 'expression' || argument === 'condition' || argument === 'sort-key')
-  ) {
-    return 'function-lambda'
-  }
-  return signature.result.kind === 'input' || signature.result.kind === 'input-item'
-    ? 'function-input'
-    : 'function-fixed'
-}
 
 function functionExpression(name: string, signature: FunctionSignature): string {
   switch (name) {

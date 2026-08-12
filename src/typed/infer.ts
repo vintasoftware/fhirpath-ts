@@ -73,9 +73,6 @@ export type FhirpathResultForContext<
   Context extends object = EmptyFhirpathTypeContext,
 > = string extends Expression ? unknown[] : InferTypeExpression<Expression, Input, Context>
 
-/** Normalize leading `%` spellings so type declarations merge like runtime environment records. */
-export type NormalizeFhirpathTypeMap<Map> = NormalizeContextMap<Map>
-
 /** Merge contexts by normalized name. The later context wins, matching per-call runtime options. */
 export type MergeFhirpathTypeContexts<Base extends object, Overlay extends object> = {
   env: MergeContextMaps<ContextProperty<Base, 'env'>, ContextProperty<Overlay, 'env'>>
@@ -100,9 +97,9 @@ type LiteralVarDeclarations<Values> =
 
 /** The inference context retained from one literal engine or per-call options object. */
 export type FhirpathTypeContextOf<Options> = {
-  env: NormalizeFhirpathTypeMap<ContextProperty<Options, 'envTypes'>>
+  env: NormalizeContextMap<ContextProperty<Options, 'envTypes'>>
   vars: MergeContextMaps<LiteralVarDeclarations<ContextProperty<Options, 'vars'>>, ContextProperty<Options, 'varTypes'>>
-  functions: NormalizeFhirpathTypeMap<ContextProperty<Options, 'functions'>>
+  functions: NormalizeContextMap<ContextProperty<Options, 'functions'>>
 }
 
 type DeclarationElement<Declaration> = Declaration extends { readonly type: infer Type }
@@ -131,8 +128,8 @@ type ConstrainedDeclaredValues<Values, Declarations> =
     : Values
 
 type LookupNormalizedDeclaration<Declarations, Name extends PropertyKey> =
-  BareContextName<Name> extends keyof NormalizeFhirpathTypeMap<Declarations>
-    ? NormalizeFhirpathTypeMap<Declarations>[BareContextName<Name>]
+  BareContextName<Name> extends keyof NormalizeContextMap<Declarations>
+    ? NormalizeContextMap<Declarations>[BareContextName<Name>]
     : never
 
 /** Cross-check declarations and values when both remain visible in one literal options object. */

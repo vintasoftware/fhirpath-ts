@@ -19,7 +19,7 @@ type KeywordToken = ['keyword', string]
 type SymbolToken = ['symbol', string]
 type LiteralToken = ['string' | 'number' | 'date' | 'dateTime' | 'time', string]
 type SpecialToken = ['special', 'this' | 'index' | 'total']
-type UnsafeToken = ['unsafe', string]
+type UnsafeToken = ['unsafe']
 type TypeToken = NameToken | KeywordToken | SymbolToken | LiteralToken | SpecialToken | UnsafeToken
 type TypeTokens = TypeToken[]
 type ScanFailure = { readonly opaque: true }
@@ -191,13 +191,13 @@ type ReadQuoted<
       ? Character extends Quote
         ? EmitAndScan<
             Rest,
-            Kind extends 'string' ? ['string', Acc] : Kind extends 'name' ? ['name', Acc] : ['unsafe', Acc],
+            Kind extends 'string' ? ['string', Acc] : Kind extends 'name' ? ['name', Acc] : UnsafeToken,
             Tokens,
             Step<Steps>
           >
         : Character extends '\\'
           ? ReadEscape<Rest, Acc, Quote, Kind, Tokens, Step<Steps>>
-          : ReadQuoted<Rest, `${Acc}${Character}`, Quote, Kind, Tokens, Step<Steps>>
+          : ReadQuoted<Rest, Kind extends 'unsafe' ? '' : `${Acc}${Character}`, Quote, Kind, Tokens, Step<Steps>>
       : ScanFailure
 
 type ReadEscape<
@@ -215,7 +215,14 @@ type ReadEscape<
       ? Character extends 'u'
         ? ReadUnicodeEscape<Rest, Acc, Quote, Kind, Tokens, Step<Steps>, []>
         : Character extends SimpleEscape
-          ? ReadQuoted<Rest, `${Acc}${Escaped<Character>}`, Quote, Kind, Tokens, Step<Steps>>
+          ? ReadQuoted<
+              Rest,
+              Kind extends 'unsafe' ? '' : `${Acc}${Escaped<Character>}`,
+              Quote,
+              Kind,
+              Tokens,
+              Step<Steps>
+            >
           : ScanFailure
       : ScanFailure
 
@@ -228,7 +235,14 @@ type ReadUnicodeEscape<
   Steps extends unknown[],
   Digits extends unknown[],
 > = Digits['length'] extends 4
-  ? ReadQuoted<Source, `${Acc}${string}`, Quote, Kind extends 'name' ? 'unsafe' : Kind, Tokens, Steps>
+  ? ReadQuoted<
+      Source,
+      Kind extends 'string' ? `${Acc}${string}` : '',
+      Quote,
+      Kind extends 'name' ? 'unsafe' : Kind,
+      Tokens,
+      Steps
+    >
   : Source extends ''
     ? ScanFailure
     : Steps['length'] extends InferenceSourceStepLimit
@@ -629,7 +643,7 @@ type IsOpaqueState<State extends InferenceState> = StateKind<State> extends 'opa
 type IsUnknownState<State extends InferenceState> = StateKind<State> extends 'unknown' ? true : false
 type Values = InferenceState[]
 type BinaryOperatorFrame = ['binary', string, number, InferenceState]
-type UnaryOperatorFrame = ['unary', '+' | '-', number]
+type UnaryOperatorFrame = ['unary', number]
 type OperatorFrame = BinaryOperatorFrame | UnaryOperatorFrame
 type Operators = OperatorFrame[]
 type GroupFrame = ['group', Values, Operators, InferenceState]
@@ -956,7 +970,7 @@ type ParseOperand<
                       ? ParseLoop<
                           Rest,
                           Stack,
-                          [...Ops, ['unary', Unary, PrefixBindingPower<Unary>]],
+                          [...Ops, ['unary', PrefixBindingPower<Unary>]],
                           Delimiters,
                           Context,
                           'operand'
@@ -2133,7 +2147,9 @@ type TokenPolicy<
 
 type ParseletBindingPower<Token extends keyof CompactInfixParselets> = CompactInfixParselets[Token][2]
 type PrefixBindingPower<Token extends keyof CompactPrefixParselets> = CompactPrefixParselets[Token][2]
-type OperatorBindingPower<Operator extends OperatorFrame> = Operator[2]
+type OperatorBindingPower<Operator extends OperatorFrame> = Operator extends UnaryOperatorFrame
+  ? Operator[1]
+  : Operator[2]
 
 type PrefixParseletMatches<
   Token extends keyof CompactPrefixParselets,
@@ -2163,6 +2179,7 @@ type BinarySymbol = '=' | '~' | '!=' | '!~' | '<' | '>' | '<=' | '>=' | '|' | '+
 type InfixParseletKey = BinaryKeyword | BinarySymbol | 'is' | 'as' | '[' | '.' | '('
 
 /** Makes parser metadata drift a type error instead of widening an expression result. */
+// Exported so no-unused-vars permits this assertion-only alias; its constraints are the check.
 export type ParseletMetadataAssertions = [
   Assert<EqualTypes<keyof CompactPrefixParselets, PrefixParseletKey>>,
   Assert<PrefixParseletMatches<'identifier', 'identifier', 'none', 'none', 'identifier'>>,

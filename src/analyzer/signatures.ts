@@ -59,7 +59,7 @@ export type ResultRule =
   | { kind: 'fixed'; types?: readonly string[]; single?: boolean }
   | { kind: 'input' }
   | { kind: 'input-item' }
-  | { kind: 'argument'; index: number; cardinality: 'argument' | 'input-and-argument' }
+  | { kind: 'argument'; index: number }
   | { kind: 'union'; sources: readonly ('input' | number)[]; single: boolean | 'all' }
   | { kind: 'arguments-union' }
   | { kind: 'reference-targets' }
@@ -99,9 +99,7 @@ export function applyResultRule(
       return withSingle(input, true)
     case 'argument': {
       const argument = args[rule.index] ?? { types: undefined, single: undefined }
-      return rule.cardinality === 'input-and-argument'
-        ? withSingle(argument, singleAnd(input.single, argument.single))
-        : argument
+      return withSingle(argument, singleAnd(input.single, argument.single))
     }
     case 'union': {
       const states = rule.sources.map(source => (source === 'input' ? input : args[source]))
@@ -183,7 +181,7 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
     args: ['expression'],
     // The projection's analyzed state, collection-ized: single only when both
     // the input and the projection body are single.
-    result: { kind: 'argument', index: 0, cardinality: 'input-and-argument' },
+    result: { kind: 'argument', index: 0 },
   },
   repeat: { args: ['expression'], result: UNKNOWN },
   // ofType/as results narrow to the named type; the analyzer computes that with

@@ -562,24 +562,25 @@ class Analyzer {
     if (declaration?.expression === undefined) {
       return undefined
     }
+    const expression = declaration.expression
     if (declaration.criteria === true) {
-      this.walkExpressionFunction(name, declaration, input, scope)
+      this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
       return { types: ['System.Boolean'], single: true }
     }
     return declaration.signature?.result === undefined
-      ? this.walkExpressionFunction(name, declaration, input, scope)
+      ? this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
       : undefined
   }
 
   /** Infer a literal expression-function body under its call focus and temporary local environment declarations. */
   private walkExpressionFunction(
     name: string,
-    declaration: ResolvedDeclaration,
+    expression: NonNullable<ResolvedDeclaration['expression']>,
+    variables: ResolvedDeclaration['variables'],
     input: StaticState,
     callerScope: VariableScope
   ): StaticState {
-    const expression = declaration.expression
-    if (expression === undefined || this.activeExpressionFunctions.has(name)) {
+    if (this.activeExpressionFunctions.has(name)) {
       return UNKNOWN
     }
     let ast = expression.ast
@@ -591,7 +592,7 @@ class Analyzer {
       }
     }
     const functionScope = forkScope(callerScope)
-    for (const [declaredName, variable] of Object.entries(declaration.variables ?? {})) {
+    for (const [declaredName, variable] of Object.entries(variables ?? {})) {
       const bare = bareEnvironmentName(declaredName)
       // defineVariable() values have priority over environment overlays at runtime.
       if (!functionScope.vars.has(bare)) {

@@ -1,22 +1,5 @@
 import { BUILTIN_FUNCTION_CAPABILITIES } from '../generated/function-capabilities.ts'
 
-export type CapabilityFamily =
-  | 'path'
-  | 'indexer'
-  | 'literal'
-  | 'operator'
-  | 'choice'
-  | 'group'
-  | 'union'
-  | 'function-fixed'
-  | 'function-input'
-  | 'function-lambda'
-  | 'syntax'
-  | 'precedence'
-  | 'variable'
-  | 'reference'
-  | 'host-context'
-
 interface CapabilityFunctionSignature {
   input?: { types?: readonly string[] }
   result?: { types?: readonly string[]; single?: boolean }
@@ -34,7 +17,6 @@ type CapabilityFunction =
   | { overloads: readonly CapabilityFunction[] }
 
 export interface CapabilityEntry {
-  family: CapabilityFamily
   source: { corpusId: string } | { expression: string; corpusGap: string }
   input?: string
   context?: {
@@ -53,7 +35,6 @@ export interface CapabilityEntry {
 /** Baseline registry for the precise subset present before the full parser lands. */
 export const INFERENCE_CAPABILITIES = {
   'path.resource-root': {
-    family: 'path',
     source: { corpusId: 'official:r4:testBasics:testSimpleWithContext' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -63,7 +44,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.name.given.first()',
   },
   'path.indexer': {
-    family: 'indexer',
     source: { expression: 'Patient.name[0]', corpusGap: 'focused positive without a following equality' },
     expectedType: 'HumanName[]',
     compositionType: 'string[]',
@@ -73,7 +53,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.name[0].given',
   },
   'path.choice-stem': {
-    family: 'choice',
     source: { expression: 'Observation.value', corpusGap: 'focused positive independent of an R5-only corpus case' },
     expectedType:
       "R4TypeOf['Quantity' | 'CodeableConcept' | 'string' | 'boolean' | 'integer' | 'Range' | 'Ratio' | 'SampledData' | 'time' | 'dateTime' | 'Period'][]",
@@ -99,7 +78,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Observation.value.ofType(Quantity).value',
   },
   'group.navigation': {
-    family: 'group',
     source: { expression: '(Patient.name).given', corpusGap: 'focused grouped-navigation composition' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -109,7 +87,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(Patient.name).given.first()',
   },
   'union.navigation': {
-    family: 'union',
     source: { expression: '(Patient.name.given | Patient.name.family)', corpusGap: 'focused union result assertion' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -119,7 +96,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(Patient.name.given | Patient.name.family).first()',
   },
   'function.fixed': {
-    family: 'function-fixed',
     source: { corpusId: 'official:r4:testCount:testCount1' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -129,7 +105,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.name.count().toString()',
   },
   'function.input': {
-    family: 'function-input',
     source: { expression: 'Patient.name.first()', corpusGap: 'focused input-preserving function result' },
     expectedType: 'HumanName[]',
     compositionType: 'string[]',
@@ -139,7 +114,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.name.first().given',
   },
   'function.select': {
-    family: 'function-lambda',
     source: { corpusId: 'fhirpathjs:simple.yaml:22:0' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -149,7 +123,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.name.select(given).first()',
   },
   'variable.opaque-fixed': {
-    family: 'variable',
     source: {
       expression: '%rowIndex.toString()',
       corpusGap: 'host variable declaration is absent from reference formats',
@@ -163,7 +136,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '%rowIndex.toString().upper()',
   },
   'syntax.trivia': {
-    family: 'syntax',
     source: {
       expression: 'Patient /* ignored . | ( ) */ . name',
       corpusGap: 'focused comment and whitespace tokenization case',
@@ -176,7 +148,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient /* ignored */ . name.first()',
   },
   'syntax.escaped-string': {
-    family: 'syntax',
     source: { corpusId: 'fhirpathjs:4.1_literals.yaml:1:0' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -186,7 +157,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "'\\u00E9'.upper()",
   },
   'syntax.delimited-identifier': {
-    family: 'syntax',
     source: { expression: 'Patient.`name`', corpusGap: 'focused known-model delimited identifier case' },
     expectedType: 'HumanName[]',
     compositionType: 'HumanName[]',
@@ -196,7 +166,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.`name`.first()',
   },
   'literal.empty': {
-    family: 'literal',
     source: { corpusId: 'fhirpathjs:4.1_literals.yaml:0:0' },
     expectedType: 'never[]',
     compositionType: 'boolean[]',
@@ -206,7 +175,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '{}.exists()',
   },
   'literal.boolean': {
-    family: 'literal',
     source: { corpusId: 'fhirpathjs:5.5_conversion.yaml:0:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -216,7 +184,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'true.toString()',
   },
   'literal.integer': {
-    family: 'literal',
     source: { expression: '7', corpusGap: 'focused integer literal without a unary operator' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -226,7 +193,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(7).toString()',
   },
   'literal.long': {
-    family: 'literal',
     source: { corpusId: 'fhirpathjs:4.1_literals.yaml:43:0' },
     expectedType: 'bigint[]',
     compositionType: 'string[]',
@@ -236,7 +202,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(-7L).toString()',
   },
   'literal.decimal': {
-    family: 'literal',
     source: { corpusId: 'fhirpathjs:4.1_literals.yaml:42:0' },
     expectedType: 'number[]',
     compositionType: 'number[]',
@@ -246,7 +211,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(-7.3).round()',
   },
   'literal.string': {
-    family: 'literal',
     source: { expression: "'plain'", corpusGap: 'focused string literal without escape syntax' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -256,7 +220,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "'plain'.upper()",
   },
   'literal.date': {
-    family: 'literal',
     source: { corpusId: 'fhirpathjs:4.1_literals.yaml:20:0' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -266,7 +229,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '@2019.toString()',
   },
   'literal.date-time': {
-    family: 'literal',
     source: { corpusId: 'fhirpathjs:4.1_literals.yaml:31:0' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -276,7 +238,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '@2019-02-29T12:00.toString()',
   },
   'literal.time': {
-    family: 'literal',
     source: { corpusId: 'fhirpathjs:4.1_literals.yaml:35:0' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -286,7 +247,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '@T14:30:00.toString()',
   },
   'literal.quantity': {
-    family: 'literal',
     source: { corpusId: 'fhirpathjs:4.1_literals.yaml:17:0' },
     expectedType: 'SystemQuantity[]',
     compositionType: 'number[]',
@@ -296,7 +256,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "(2 'mo').value",
   },
   'operator.unary-plus': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:4.1_literals.yaml:44:0' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -306,7 +265,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(+7).toString()',
   },
   'operator.unary-minus': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:4.1_literals.yaml:41:0' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -316,7 +274,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(-7).toString()',
   },
   'operator.multiply': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.6_math.yaml:1:0' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -326,7 +283,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(2 * 4).toString()',
   },
   'operator.divide': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.6_math.yaml:39:0' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -336,7 +292,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(5 / 2).toString()',
   },
   'operator.div': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:fhir-r4.yaml:764:0' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -346,7 +301,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(5 div 2).toString()',
   },
   'operator.mod': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:fhir-r4.yaml:769:0' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -356,7 +310,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(5 mod 2).toString()',
   },
   'operator.add': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.6_math.yaml:85:0' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -366,7 +319,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(2 + 3).toString()',
   },
   'operator.subtract': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.6_math.yaml:129:0' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -376,7 +328,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(5 - 3).toString()',
   },
   'operator.concatenate': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.6_math.yaml:182:0' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -386,7 +337,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "('a' & 'b').upper()",
   },
   'operator.union': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:simple.yaml:21:0' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -396,7 +346,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "('a' | 'b').first()",
   },
   'operator.less-than': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.2_comparision.yaml:0:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -406,7 +355,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 < 2).toString()',
   },
   'operator.greater-than': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.2_comparision.yaml:11:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -416,7 +364,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 > 2).toString()',
   },
   'operator.less-or-equal': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.2_comparision.yaml:33:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -426,7 +373,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 <= 2).toString()',
   },
   'operator.greater-or-equal': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.2_comparision.yaml:22:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -436,7 +382,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 >= 2).toString()',
   },
   'operator.equal': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:fhir-r4.yaml:442:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -446,7 +391,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 = 1).toString()',
   },
   'operator.equivalent': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:fhir-r4.yaml:494:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -456,7 +400,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 ~ 1).toString()',
   },
   'operator.not-equal': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:fhir-r4.yaml:470:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -466,7 +409,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 != 2).toString()',
   },
   'operator.not-equivalent': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:fhir-r4.yaml:518:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -476,7 +418,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 !~ 2).toString()',
   },
   'operator.in': {
-    family: 'operator',
     source: { corpusId: 'official:r5:testIn:testInEmptyCollection' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -486,7 +427,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 in (1 | 2)).toString()',
   },
   'operator.contains': {
-    family: 'operator',
     source: { corpusId: 'official:r5:testContainsCollection:testContainsCollectionEmpty1' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -496,7 +436,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '((1 | 2) contains 1).toString()',
   },
   'operator.and': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.5_boolean_logic.yaml:0:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -506,7 +445,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(true and false).toString()',
   },
   'operator.xor': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.5_boolean_logic.yaml:21:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -516,7 +454,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(true xor false).toString()',
   },
   'operator.or': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.5_boolean_logic.yaml:10:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -526,7 +463,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(true or false).toString()',
   },
   'operator.implies': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.5_boolean_logic.yaml:32:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -536,7 +472,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(true implies false).toString()',
   },
   'operator.is': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.3_types.yaml:3:0' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -546,7 +481,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(5L is Long).toString()',
   },
   'operator.as': {
-    family: 'operator',
     source: { corpusId: 'fhirpathjs:6.3_types.yaml:38:0' },
     expectedType: 'SystemQuantity[]',
     compositionType: 'number[]',
@@ -556,7 +490,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 year as System.Quantity).value',
   },
   'precedence.call-dot': {
-    family: 'precedence',
     source: { expression: 'Patient.name.first().given', corpusGap: 'focused adjacent call/dot precedence case' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -566,7 +499,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.name.first().given.first()',
   },
   'precedence.dot-index': {
-    family: 'precedence',
     source: { expression: 'Patient.name[0].given', corpusGap: 'focused adjacent dot/index precedence case' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -576,7 +508,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.name[0].given.first()',
   },
   'precedence.index-unary': {
-    family: 'precedence',
     source: {
       expression: '-Patient.name.given[0].length()',
       corpusGap: 'focused adjacent index/unary precedence case',
@@ -589,7 +520,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(-Patient.name.given[0].length()).toString()',
   },
   'precedence.unary-multiplicative': {
-    family: 'precedence',
     source: { expression: '-1 * 2', corpusGap: 'focused adjacent unary/multiplicative precedence case' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -599,7 +529,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(-1 * 2).toString()',
   },
   'precedence.multiplicative-additive': {
-    family: 'precedence',
     source: { expression: '1 + 2 * 3', corpusGap: 'focused adjacent multiplicative/additive precedence case' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -609,7 +538,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 + 2 * 3).toString()',
   },
   'precedence.additive-type': {
-    family: 'precedence',
     source: { expression: '1 + 2 is Integer', corpusGap: 'focused adjacent additive/type precedence case' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -619,7 +547,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 + 2 is Integer).toString()',
   },
   'precedence.type-union': {
-    family: 'precedence',
     source: { expression: '1 | 2 is Integer', corpusGap: 'focused adjacent type/union precedence case' },
     expectedType: '(number | boolean)[]',
     compositionType: 'string[]',
@@ -629,7 +556,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 | 2 is Integer).toString()',
   },
   'precedence.union-comparison': {
-    family: 'precedence',
     source: { expression: '1 < 2 | 2', corpusGap: 'focused adjacent union/comparison precedence case' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -639,7 +565,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 < 2 | 2).toString()',
   },
   'precedence.comparison-equality': {
-    family: 'precedence',
     source: { expression: 'true = 1 < 2', corpusGap: 'focused adjacent comparison/equality precedence case' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -649,7 +574,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(true = 1 < 2).toString()',
   },
   'precedence.equality-membership': {
-    family: 'precedence',
     source: { expression: '1 in 1 = 1', corpusGap: 'focused adjacent equality/membership precedence case' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -659,7 +583,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 in 1 = 1).toString()',
   },
   'precedence.membership-and': {
-    family: 'precedence',
     source: { expression: '1 in (1 | 2) and true', corpusGap: 'focused adjacent membership/and precedence case' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -669,7 +592,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 in (1 | 2) and true).toString()',
   },
   'precedence.and-or': {
-    family: 'precedence',
     source: { expression: 'true or false and false', corpusGap: 'focused adjacent and/or precedence case' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -679,7 +601,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(true or false and false).toString()',
   },
   'precedence.or-implies': {
-    family: 'precedence',
     source: { expression: 'true implies false or true', corpusGap: 'focused adjacent or/implies precedence case' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
@@ -689,7 +610,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(true implies false or true).toString()',
   },
   'scope.this': {
-    family: 'function-lambda',
     source: { expression: 'Patient.name.select($this.family)', corpusGap: 'focused lambda-frame type assertion' },
     expectedType: 'string[]',
     compositionType: 'string[]',
@@ -699,7 +619,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.name.select($this.family).upper()',
   },
   'scope.index': {
-    family: 'function-lambda',
     source: { expression: 'Patient.name.select($index)', corpusGap: 'focused lambda index assertion' },
     expectedType: 'number[]',
     compositionType: 'string[]',
@@ -709,7 +628,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.name.select($index).first().toString()',
   },
   'scope.total': {
-    family: 'function-lambda',
     source: {
       expression: "Patient.name.aggregate($total.toString(), '')",
       corpusGap: 'focused aggregate accumulator-frame assertion',
@@ -722,7 +640,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "Patient.name.aggregate($total.toString(), '').upper()",
   },
   'scope.nested-frame-restore': {
-    family: 'function-lambda',
     source: {
       expression: 'Patient.name.select(given.select($this.substring(1)) | family)',
       corpusGap: 'focused nested lambda-frame restoration assertion',
@@ -735,7 +652,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.name.select(given.select($this.substring(1)) | family).first()',
   },
   'scope.define-variable-input': {
-    family: 'variable',
     source: {
       expression: "Patient.name.first().defineVariable('n').select(%n.family)",
       corpusGap: 'focused inferred defineVariable input binding',
@@ -748,7 +664,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "Patient.name.first().defineVariable('n').select(%n.family).upper()",
   },
   'scope.define-variable-value': {
-    family: 'variable',
     source: {
       expression: "Patient.defineVariable('n', name.first()).select(%n.family)",
       corpusGap: 'focused inferred defineVariable expression binding',
@@ -761,7 +676,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "Patient.defineVariable('n', name.first()).select(%n.family).upper()",
   },
   'scope.nested-binding-restore': {
-    family: 'variable',
     source: {
       expression: "Patient.name.first().defineVariable('n').select(given.select(%n.family))",
       corpusGap: 'focused binding restoration through a nested lambda frame',
@@ -774,7 +688,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "Patient.name.first().defineVariable('n').select(given.select(%n.family)).first()",
   },
   'scope.multiple-definition-fallback': {
-    family: 'variable',
     source: { corpusId: 'official:r5:defineVariable:dvConceptMapExample' },
     expectedType: 'boolean[]',
     compositionType: 'number[]',
@@ -784,7 +697,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "defineVariable('a').defineVariable('b').count()",
   },
   'scope.operator-fork': {
-    family: 'variable',
     source: {
       expression: "Patient.defineVariable('left').active | %left",
       corpusGap: 'focused branch-local operator scope assertion',
@@ -797,7 +709,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "(Patient.defineVariable('left').active | %left).count()",
   },
   'scope.argument-fork': {
-    family: 'variable',
     source: {
       expression: "Patient.select(defineVariable('inner').active).select(%inner)",
       corpusGap: 'focused branch-local argument scope assertion',
@@ -810,7 +721,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: "Patient.select(defineVariable('inner').active).select(%inner).count()",
   },
   'variable.context-root': {
-    family: 'variable',
     source: { expression: '%context.name.given', corpusGap: 'typed built-in root variable assertion' },
     input: 'Patient',
     expectedType: 'string[]',
@@ -821,7 +731,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '%context.name.given.first()',
   },
   'variable.resource-root': {
-    family: 'variable',
     source: { expression: '%resource.name.family', corpusGap: 'typed built-in resource variable assertion' },
     input: 'Patient',
     expectedType: 'string[]',
@@ -832,7 +741,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '%resource.name.family.first()',
   },
   'variable.root-resource': {
-    family: 'variable',
     source: { expression: '%rootResource.name.family', corpusGap: 'typed built-in rootResource assertion' },
     input: 'Patient',
     expectedType: 'string[]',
@@ -843,7 +751,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '%rootResource.name.family.first()',
   },
   'variable.builtin-constant': {
-    family: 'variable',
     source: { expression: '%loinc.upper()', corpusGap: 'typed built-in terminology constant assertion' },
     expectedType: 'string[]',
     compositionType: 'number[]',
@@ -853,7 +760,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '%loinc.upper().length()',
   },
   'reference.generated-targets': {
-    family: 'reference',
     source: {
       expression: 'Patient.generalPractitioner.resolve()',
       corpusGap: 'focused generated Reference target union assertion',
@@ -866,7 +772,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.generalPractitioner.resolve().ofType(Organization).name',
   },
   'reference.state-preservation': {
-    family: 'reference',
     source: {
       expression: 'Patient.generalPractitioner.where($this.exists())[0].resolve()',
       corpusGap: 'focused Reference target propagation through filter and index',
@@ -879,7 +784,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.generalPractitioner.where($this.exists())[0].resolve().ofType(Organization).name',
   },
   'host-context.environment': {
-    family: 'host-context',
     source: { expression: '%report.status', corpusGap: 'host declaration route assertion' },
     typeContext: { env: { report: { type: 'DiagnosticReport' } } },
     context: { variables: { report: { types: ['DiagnosticReport'], single: true } } },
@@ -891,7 +795,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '%report.status.first()',
   },
   'host-context.variable': {
-    family: 'host-context',
     source: { expression: '%subject.name.given', corpusGap: 'pre-resolved var declaration route assertion' },
     typeContext: { vars: { subject: { type: 'Patient' } } },
     context: { variables: { subject: { types: ['Patient'], single: true } } },
@@ -903,7 +806,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: '%subject.name.given.first()',
   },
   'host-context.function-signature': {
-    family: 'host-context',
     source: { expression: 'Patient.statusText()', corpusGap: 'custom signature route assertion' },
     typeContext: {
       functions: {
@@ -923,7 +825,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Patient.statusText().upper()',
   },
   'host-context.function-body': {
-    family: 'host-context',
     source: { expression: 'Condition.code.displayText()', corpusGap: 'literal function-body route assertion' },
     typeContext: { functions: { displayText: { expression: '(text | coding.display).first()' } } },
     context: { functions: { displayText: { expression: '(text | coding.display).first()' } } },
@@ -935,7 +836,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Condition.code.displayText().upper()',
   },
   'host-context.function-local-overlay': {
-    family: 'host-context',
     source: { expression: 'Condition.code.labelled()', corpusGap: 'function-local envTypes route assertion' },
     typeContext: {
       functions: {
@@ -955,7 +855,6 @@ export const INFERENCE_CAPABILITIES = {
     composition: 'Condition.code.labelled().length()',
   },
   'host-context.reference-targets': {
-    family: 'host-context',
     source: { expression: '%subject.resolve().name.given', corpusGap: 'declared Reference target route assertion' },
     typeContext: { env: { subject: { type: 'Reference', targets: 'Practitioner' } } },
     context: {
@@ -970,5 +869,3 @@ export const INFERENCE_CAPABILITIES = {
   },
   ...BUILTIN_FUNCTION_CAPABILITIES,
 } as const satisfies Record<string, CapabilityEntry>
-
-export type InferenceCapabilityId = keyof typeof INFERENCE_CAPABILITIES

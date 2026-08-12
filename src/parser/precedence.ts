@@ -259,8 +259,6 @@ export const INFIX_PARSELETS = {
   },
 } as const satisfies Record<string, InfixParseletRecord>
 
-export type InfixParseletToken = keyof typeof INFIX_PARSELETS
-
 /** Compatibility view used by callers that only need precedence. */
 export const INFIX_BINDING_POWER: Readonly<Record<string, number>> = Object.fromEntries(
   Object.entries(INFIX_PARSELETS).map(([token, record]) => [token, record.bindingPower])

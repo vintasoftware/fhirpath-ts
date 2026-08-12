@@ -4,7 +4,6 @@ import type { OPERATOR_RESULT_RULES, TYPE_OPERATOR_RESULT_RULES } from '../analy
 import type { FunctionSignatureName } from '../analyzer/signatures.ts'
 import type { INFIX_PARSELETS, PREFIX_PARSELETS } from '../parser/precedence.ts'
 import type {
-  CompactFunctionArguments,
   CompactFunctionRules,
   CompactInfixParselets,
   CompactOperatorRules,
@@ -15,7 +14,6 @@ import type {
 describe('generated type-inference metadata', () => {
   it('matches every analyzer function result rule', () => {
     expectTypeOf<keyof CompactFunctionRules>().toEqualTypeOf<FunctionSignatureName>()
-    expectTypeOf<keyof CompactFunctionArguments>().toEqualTypeOf<FunctionSignatureName>()
   })
 
   it('matches parser and operator metadata', () => {
