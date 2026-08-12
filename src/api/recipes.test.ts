@@ -259,7 +259,6 @@ describe('README usage recipes', () => {
       {
         env: { reports },
         vars: { report: '%reports.where(orderId = %context.id).report' },
-        varTypes: { report: { type: 'DiagnosticReport' } },
       }
     )
     expectTypeOf(rows).toEqualTypeOf<{ resultDate: string | null; hasResult: boolean }[]>()

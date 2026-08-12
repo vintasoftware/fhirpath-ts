@@ -24,7 +24,7 @@ type StatusChoice = { code: string; label: string; tone: StatusTone }
 
 export class CodeableConceptDTO extends defineDto('CodeableConcept') {
   /** The text | display | code fallback. */
-  @column('(text | coding.display.first() | coding.first().code).first()', { type: 'string' })
+  @column('(text | coding.display.first() | coding.first().code).first()')
   displayText!: string | undefined
 }
 
@@ -36,12 +36,11 @@ export class MedicationRequestDTO extends defineDto('MedicationRequest') {
 
   @column(
     'dosageInstruction.first().doseAndRate.first().dose.ofType(Quantity)' +
-      ".select(value.toString().combine((unit | code).first()).join(' '))",
-    { type: 'string' }
+      ".select(value.toString().combine((unit | code).first()).join(' '))"
   )
   doseText!: string | undefined
 
-  @column('dosageInstruction.first().route.select(text | coding.display.first()).first()', { type: 'string' })
+  @column('dosageInstruction.first().route.select(text | coding.display.first()).first()')
   routeText!: string | undefined
 
   @column('dosageInstruction.first().text')
@@ -269,7 +268,7 @@ export class MedicationDetailRow extends MedicationRow {
   // When a non-active request ended: the dispense validity end. Deliberately not
   // meta.lastUpdated — that is when the record row was last touched, not a clinical
   // end date, and the patient would see it as a real "ended on" date.
-  @column("iif(status = 'active', {}, dispenseRequest.validityPeriod.end)", { type: 'dateTime', default: null })
+  @column("iif(status = 'active', {}, dispenseRequest.validityPeriod.end)", { default: null })
   endedOn!: string | null
 
   @column('requester.display', { default: null })
@@ -349,7 +348,7 @@ export class LabResultRow extends badgedRow('ServiceRequest', {
   // order's own text can apply.
   @column(
     "(code.coding.select((display | code).first()).distinct().join(', ').where($this != '') | code.text).first()",
-    { type: 'string', default: 'Lab order' }
+    { default: 'Lab order' }
   )
   name!: string
 

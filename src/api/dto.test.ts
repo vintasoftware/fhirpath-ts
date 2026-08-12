@@ -743,7 +743,7 @@ describe('analyzeDto', () => {
     ).toEqual(['unknown-function', 'unknown-variable'])
   })
 
-  it('matches engine values and type declarations across leading-percent spellings', () => {
+  it('infers engine environment types across leading-percent spellings', () => {
     class Named extends defineDto('Condition') {
       @criteria('%report.status + 1')
       invalid!: boolean
@@ -751,10 +751,21 @@ describe('analyzeDto', () => {
     const engine = new FhirPathEngine({
       model: r4Model,
       env: { '%report': { resourceType: 'DiagnosticReport' as const, status: 'final' as const } },
-      envTypes: { report: { type: 'DiagnosticReport' } },
     })
 
     expect(analyzeDto(Named, { engine }).map(finding => finding.code)).toEqual(['operand-type'])
+  })
+
+  it('keeps custom engine resources opaque so analysis matches raw JSON navigation', () => {
+    class Named extends defineDto('Condition') {
+      @column('%custom.foo', { type: 'string', default: '' })
+      foo!: string
+    }
+    const custom = { resourceType: 'CustomThing', foo: 'ok' }
+    const engine = new FhirPathEngine({ model: r4Model, env: { custom } })
+
+    expect(engine.evaluate('%custom.foo')).toEqual(['ok'])
+    expect(analyzeDto(Named, { engine })).toEqual([])
   })
 
   it('resolves engine functions passed through options', () => {

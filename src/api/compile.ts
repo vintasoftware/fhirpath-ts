@@ -51,7 +51,7 @@ export type SingleCustomFunction =
       signature?: CustomFunctionSignature
       /** Environment values available only while this expression body runs. */
       env?: Record<string, unknown>
-      /** Static declarations for values in this function-local environment. */
+      /** Explicit types or refinements for this function-local environment. */
       envTypes?: FhirpathTypeDeclarations
       /** Return one criteria Boolean. An empty body result becomes `false`. */
       criteria?: boolean
@@ -78,7 +78,7 @@ export type CustomFunction = SingleCustomFunction | OverloadedCustomFunction
 export interface EvaluateOptions {
   /** Environment variables (`%name`), keyed with or without the leading `%`. */
   env?: Record<string, unknown>
-  /** Static types for environment variables; declarations never create runtime values. */
+  /** Explicit types or refinements for environment values. */
   envTypes?: FhirpathTypeDeclarations
   /**
    * FHIRPath bindings evaluated against the input in declaration order. They
@@ -86,7 +86,7 @@ export interface EvaluateOptions {
    * During projection they run once per row. A `TypedValue[]` binds directly.
    */
   vars?: Record<string, AnyExpression | readonly TypedValue[]>
-  /** Static types for pre-resolved vars, or explicit overrides for expression vars. */
+  /** Types for pre-resolved vars, or explicit overrides for expression vars. */
   varTypes?: FhirpathTypeDeclarations
   model?: ModelProvider
   /** Clock for `now()`, `today()`, and `timeOfDay()`. Defaults to the current time. */

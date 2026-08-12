@@ -63,6 +63,8 @@ cost.
 
 Normalize host declaration names through `src/typed/context-maps.ts`. Per-call
 declarations override engine defaults, matching runtime option merging.
+Infer literal `env` values before applying `envTypes`; explicit declarations
+remain the override for widened values and Reference targets.
 
 ## Monaco worker integration
 

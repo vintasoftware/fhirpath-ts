@@ -41,7 +41,6 @@ import { r4Model } from 'fhirpath-ts/r4'
 const fp = new FhirPathEngine({
   model: r4Model,
   env: { threshold: 5 },
-  envTypes: { threshold: { type: 'integer' } },
 })
 fp.evaluate('%threshold + 1') // number[]; [6]
 ```
@@ -212,7 +211,6 @@ r4.project(
   {
     env: { reports },
     vars: { report: '%reports.where(orderId = %context.id).report' },
-    varTypes: { report: { type: 'DiagnosticReport' } },
   },
 )
 ```
@@ -285,9 +283,12 @@ given.evaluate(patient) // string[]; the input must be a Patient
 
 Type inference stays conservative. Malformed, over-budget, dynamically widened,
 or deliberately opaque expressions become `unknown[]` instead of producing an
-incorrect type. Host values and custom functions can add static declarations;
-see [type context declarations](docs/api.md#type-context-declarations).
+incorrect type. Literal host values are inferred automatically. Static
+`envTypes` and `varTypes` declarations cover ambiguous or widened data; see
+[type context declarations](docs/api.md#type-context-declarations).
 The type-level scanner budget is 64 tokens and 256 visited source characters.
+Type inference computes a safe TypeScript type; it does not validate the
+expression. ESLint and the CLI run the analyzer to report expression errors.
 
 Static checking has three layers:
 
@@ -295,6 +296,10 @@ Static checking has three layers:
 2. `fhirpath-ts/eslint` checks expression literals while linting.
 3. `fhirpath-check` runs the same analyzer without requiring ESLint and can load
    exported DTOs for a complete DTO check.
+
+The CLI imports exported DTOs and records engines constructed by their modules.
+This checks runtime context, registered functions, and cross-DTO calls that
+TypeScript and source-only ESLint cannot see.
 
 The analyzer is also public for editors, tests, and other tools. It follows the
 [FHIRPath §11 rules](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation)

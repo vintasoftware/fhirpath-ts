@@ -3,6 +3,7 @@ import type {
   BareContextName,
   ContextProperty,
   EmptyContextMap,
+  InferredHostValueDeclarations,
   MergeContextMaps,
   NormalizeContextMap,
 } from './context-maps.ts'
@@ -37,6 +38,7 @@ export type FhirpathFunctionDeclaration =
       }
       readonly expression?: string | { readonly source: string }
       readonly criteria?: boolean
+      readonly env?: Readonly<Record<string, unknown>>
       readonly envTypes?: FhirpathTypeDeclarations
     }
   | { readonly overloads: readonly FhirpathFunctionDeclaration[] }
@@ -95,9 +97,13 @@ type LiteralVarDeclarations<Values> =
     ? { readonly [Name in keyof Values]: LiteralVarDeclaration<Values[Name]> }
     : EmptyFhirpathTypeContext
 
+type OptionEnvironmentContext<Options> = Options extends { readonly env?: infer Env }
+  ? InferredHostValueDeclarations<Exclude<Env, undefined>, ContextProperty<Options, 'envTypes'>>
+  : NormalizeContextMap<ContextProperty<Options, 'envTypes'>>
+
 /** The inference context retained from one literal engine or per-call options object. */
 export type FhirpathTypeContextOf<Options> = {
-  env: NormalizeContextMap<ContextProperty<Options, 'envTypes'>>
+  env: OptionEnvironmentContext<Options>
   vars: MergeContextMaps<LiteralVarDeclarations<ContextProperty<Options, 'vars'>>, ContextProperty<Options, 'varTypes'>>
   functions: NormalizeContextMap<ContextProperty<Options, 'functions'>>
 }

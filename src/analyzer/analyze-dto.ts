@@ -11,7 +11,7 @@ import {
   type DeclaredFunction,
   type DeclaredVariable,
 } from './analyze.ts'
-import { analyzerVariables } from './declarations.ts'
+import { analyzerEnvironmentVariables, analyzerVariables } from './declarations.ts'
 
 /** One `analyzeDto` finding: an analyzer diagnostic plus the class member it came from. */
 export interface DtoDiagnostic extends AnalyzerDiagnostic {
@@ -57,12 +57,13 @@ function contextOf(options: AnalyzeDtoOptions | undefined): AnalyzeOptions {
     return caller
   }
   const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
+  const activeModel = caller.model ?? model
   return {
     ...(model !== undefined && { model }),
     ...caller,
     functions: { ...functions, ...caller.functions },
     variables: {
-      ...analyzerVariables(env, envTypes),
+      ...analyzerEnvironmentVariables(env, envTypes, activeModel),
       ...analyzerVariables(vars, varTypes),
       ...caller.variables,
     },

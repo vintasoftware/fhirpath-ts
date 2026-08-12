@@ -48,7 +48,7 @@ const PATIENT_DISPLAY_NAME = fhirpath("(Patient.name.where(use = 'official') | P
 
 /** Greeting and avatar name, e.g. "Mary Miller": first given name + family, else `text`, family, or "there". */
 export function patientDisplayName(patient: Patient): string {
-  return fp.first(PATIENT_DISPLAY_NAME, patient, { type: 'string' }) ?? 'there'
+  return fp.first(PATIENT_DISPLAY_NAME, patient) ?? 'there'
 }
 
 // A record with no status fails this criteria (empty → false). R4 makes

@@ -9,7 +9,7 @@ import { parse } from '../parser/parser.ts'
 import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
 import { commonValueKind, unsatisfiedInput, type ValueKind } from '../values/type-compat.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
-import { type AnalyzerVariable, analyzerVariablesFromDeclarations } from './declarations.ts'
+import { analyzerEnvironmentVariables, type AnalyzerVariable } from './declarations.ts'
 import { applyOperatorResultRule, applyTypeOperatorResultRule } from './operator-rules.ts'
 import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
@@ -53,6 +53,7 @@ export type SingleDeclaredFunction =
       maxArity?: never
       signature?: CustomFunctionSignature
       criteria?: boolean
+      env?: Record<string, unknown>
       envTypes?: FhirpathTypeDeclarations
     }
 
@@ -234,7 +235,9 @@ class Analyzer {
     this.customFunctions = new Map(
       Object.entries(options?.functions ?? {}).map(([name, declared]) => [
         name,
-        ('overloads' in declared ? declared.overloads : [declared]).map(resolvedDeclaration),
+        ('overloads' in declared ? declared.overloads : [declared]).map(declaration =>
+          resolvedDeclaration(declaration, this.model)
+        ),
       ])
     )
     this.declaredVariables = new Map(Object.entries(normalizeEnvKeys(options?.variables)))
@@ -1081,7 +1084,7 @@ interface ResolvedDeclaration {
   variables?: Readonly<Record<string, DeclaredVariable>>
 }
 
-function resolvedDeclaration(declared: SingleDeclaredFunction): ResolvedDeclaration {
+function resolvedDeclaration(declared: SingleDeclaredFunction, model: ModelProvider | undefined): ResolvedDeclaration {
   if (declared.expression === undefined) {
     return {
       ...(declared.minArity !== undefined && { minArity: declared.minArity }),
@@ -1098,7 +1101,9 @@ function resolvedDeclaration(declared: SingleDeclaredFunction): ResolvedDeclarat
     ...(declared.signature !== undefined && { signature: declared.signature }),
     ...(expression !== undefined && { expression }),
     ...(declared.criteria !== undefined && { criteria: declared.criteria }),
-    ...(declared.envTypes !== undefined && { variables: analyzerVariablesFromDeclarations(declared.envTypes) }),
+    ...((declared.env !== undefined || declared.envTypes !== undefined) && {
+      variables: analyzerEnvironmentVariables(declared.env, declared.envTypes, model),
+    }),
   }
 }
 

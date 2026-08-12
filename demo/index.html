@@ -158,10 +158,11 @@
 given.evaluate(observation)             // won't compile: expects a Patient
 given.evaluate(patient)[0].toFixed(1)   // won't compile: it's a string</pre>
             <p class="layer-note">
-              A bounded type-level parser infers input and result types from literal expressions. It
-              follows the runtime grammar, function rules, variables, Reference targets, and declared
-              host types. TypeScript reports a wrong input or result use. Malformed, widened,
-              over-budget, or deliberately opaque expressions become <code>unknown[]</code>.
+              A bounded type-level parser follows the runtime grammar, function rules, variables,
+              Reference targets, and inferred host values. Explicit declarations refine ambiguous
+              values. It computes safe TypeScript types but does not validate the expression; the
+              analyzer below reports expression errors. Malformed, widened, over-budget, or
+              deliberately opaque expressions become <code>unknown[]</code>.
             </p>
           </div>
         </article>

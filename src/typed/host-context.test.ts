@@ -52,7 +52,7 @@ describe('typed host context', () => {
       display: { expression: '(text | coding.display).first()' },
       labelled: {
         expression: '%prefix & text',
-        envTypes: { prefix: { type: 'string' } },
+        env: { prefix: 'Result: ' },
       },
       holds: { expression: 'text', criteria: true },
       render: {
@@ -83,12 +83,10 @@ describe('typed host context', () => {
     const engine = new FhirPathEngine({
       model: r4Model,
       env: { report },
-      envTypes: { report: { type: 'DiagnosticReport' } },
     })
     const fromDefault = engine.evaluate('%report.status')
     const fromCall = engine.evaluate('%report.active', undefined, {
       env: { report: { resourceType: 'Patient', active: true } },
-      envTypes: { report: { type: 'Patient' } },
     })
     const projected = engine.project({ resourceType: 'Patient', id: 'p1' }, { status: '%report.status' })
     expectTypeOf(fromDefault).toEqualTypeOf<string[]>()
@@ -118,21 +116,30 @@ describe('typed host context', () => {
     expectTypeOf<FhirpathResult<'%first', ForwardContext>>().toEqualTypeOf<unknown[]>()
   })
 
+  it('infers primitive and structural environment values through literal vars', () => {
+    const reports: { orderId: string; report: DiagnosticReport }[] = []
+    const engine = new FhirPathEngine({ env: { threshold: 5, reports } })
+    const incremented = engine.evaluate('%threshold + 1')
+    const status = engine.evaluate('%report.status', undefined, {
+      vars: { report: '%reports.where(orderId = %context.id).report' },
+    })
+
+    expectTypeOf(incremented).toEqualTypeOf<number[]>()
+    expectTypeOf(status).toEqualTypeOf<string[]>()
+  })
+
   it('refines compiled and bound expressions while preserving an explicit result override', () => {
     const report: DiagnosticReport = { resourceType: 'DiagnosticReport', status: 'final', code: {} }
     const compiled = compile('%report.status')
     const refined = compiled.evaluate(undefined, {
       env: { report },
-      envTypes: { report: { type: 'DiagnosticReport' } },
     })
     const explicit = compile<'%report.status', unknown, number[]>('%report.status')
     const explicitResult = explicit.evaluate(undefined, {
       env: { report },
-      envTypes: { report: { type: 'DiagnosticReport' } },
     })
     const bound = new FhirPathEngine({
       env: { report },
-      envTypes: { report: { type: 'DiagnosticReport' } },
     }).compile('%report.status')
 
     expectTypeOf(refined).toEqualTypeOf<string[]>()
@@ -170,7 +177,10 @@ describe('typed host context', () => {
   it('keeps old untyped options source-compatible and opaque', () => {
     const options = { env: { report: {} } }
     const result = new FhirPathEngine().evaluate('%report.status', undefined, options)
+    const mixed = undefined as unknown as string | { value: number }
+    const mixedResult = new FhirPathEngine({ env: { mixed } }).evaluate('%mixed')
     expectTypeOf(result).toEqualTypeOf<unknown[]>()
+    expectTypeOf(mixedResult).toEqualTypeOf<unknown[]>()
   })
 
   it('degrades an invalid overlapping env and var declaration instead of choosing one', () => {
