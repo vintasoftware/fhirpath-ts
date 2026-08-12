@@ -102,7 +102,7 @@ const patients = [
 // Column expressions are analyzed too: drop the first() calls and the analyzer
 // flags '+' on a collection, because name repeats.
 const rows = r4.project(patients, {
-  // %rowIndex/%rowTotal hold the row position, so a key can fall back to the row number:
+  // %rowIndex is typed, so this fallback needs no explicit result declaration:
   key: '(Patient.id | %rowIndex.toString()).first()',
   name: "(Patient.name.first().family + ' ' + Patient.name.first().given.join(' ')).trim()",
   // as: 'Date' coerces to JS Dates; the partial birthDate becomes June 1 UTC:

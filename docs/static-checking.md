@@ -8,27 +8,21 @@ run through TypeScript inference, an ESLint rule, a CLI, and a public analyzer A
 
 ### TypeScript inference
 
-Literal expressions infer result and input types in plain `tsc`. No compiler
-plugin is required.
+Literal expressions use a bounded type-level parser that follows the runtime
+grammar. They infer result and input types in plain `tsc`; no compiler plugin is
+required.
 
 ```ts
 const names = r4.compile('Patient.name.given')
 names.evaluate(patient) // string[]; input must be a Patient
 ```
 
-Inference covers common paths and functions, including:
+The parser covers literals, operators and precedence, paths, built-in functions,
+lambda scope, variables, generated Reference targets, and declared host context.
+A construct remains `unknown[]` when its result cannot be expressed safely.
 
-- dotted paths, indexes, groups, and unions;
-- choice stems;
-- `where()`, `select()`, `first()`, `last()`, `single()`, `tail()`, `skip()`,
-  `take()`, `distinct()`, `exclude()`, `intersect()`, and `trace()`;
-- `ofType()` and `as()`;
-- boolean, comparison, existence, count, numeric, conversion, and string
-  functions with fixed result types;
-- `%var` roots when a fixed-result function ends the chain.
-
-An expression outside this subset becomes `unknown[]`. It does not become a
-TypeScript error. Use the analyzer for the full language.
+Malformed, dynamically widened, and deliberately opaque expressions also become
+`unknown[]`, not TypeScript errors. Use the analyzer to report expression errors.
 
 The type-level scanner accepts at most 64 emitted tokens and 256 visited source
 characters. Crossing either limit returns `unknown[]`; runtime evaluation and

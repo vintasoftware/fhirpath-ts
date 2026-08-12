@@ -8,7 +8,7 @@ No FHIR data is sent to a server.
 Use it to explore:
 
 - evaluation against editable R4 resources;
-- result types inferred from literal expressions;
+- input and result types inferred for literal paths, operators, functions, and variables;
 - parser, type, cardinality, and unknown-element diagnostics;
 - `test`, `filter`, `checkConstraints`, and `project` behavior;
 - Bundle navigation and reference resolution;
@@ -17,8 +17,7 @@ Use it to explore:
 - DTO-style application projections shown in the samples.
 
 The repository README keeps its recipes short and points here for interactive
-examples. The playground can be published as a static GitHub Pages site when the
-package becomes public.
+examples.
 
 ## Package imports
 

@@ -274,8 +274,9 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
 
 ## Static checking
 
-Literal expressions infer useful result and input types without a compiler
-plugin:
+Literal expressions use a bounded type-level parser that follows the runtime
+grammar and built-in function rules. It infers result and input types without a
+compiler plugin:
 
 ```ts
 const given = r4.compile('Patient.name.given')
@@ -290,7 +291,7 @@ The type-level scanner budget is 64 tokens and 256 visited source characters.
 
 Static checking has three layers:
 
-1. TypeScript infers common literal expressions at compile time.
+1. TypeScript infers literal expressions at compile time.
 2. `fhirpath-ts/eslint` checks expression literals while linting.
 3. `fhirpath-check` runs the same analyzer without requiring ESLint and can load
    exported DTOs for a complete DTO check.
@@ -318,8 +319,8 @@ comparison with other implementations.
 
 ## Licensing and attribution
 
-Package code is part of this private repository. Third-party material and full
-license texts are collected in
+Package code is licensed under Apache-2.0. Third-party material and full license
+texts are collected in
 [`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md).
 
 - The parser structure is adapted from Medplum (Apache-2.0).
@@ -333,13 +334,15 @@ license texts are collected in
 ## Development
 
 ```bash
-pnpm test
-pnpm coverage
 pnpm typecheck
+pnpm test
 pnpm lint
 pnpm check:fhirpath
+pnpm check:inference
 pnpm check:type-perf
-pnpm generate:r4
+pnpm coverage
+pnpm build
+pnpm check:package
 ```
 
 Run the demo separately:

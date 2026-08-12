@@ -108,8 +108,9 @@
           <article>
             <h3>Types from plain <code>tsc</code></h3>
             <p>
-              <code>r4.evaluate('Patient.name.given', patient)</code> is a <code>string[]</code>. No
-              plugin, no codegen — the result type falls out of the expression literal.
+              <code>r4.evaluate('Patient.name.given.count() + 1', patient)</code> is a
+              <code>number[]</code>. The type-level parser applies FHIRPath precedence and function
+              rules. No compiler plugin or app code generation is required.
             </p>
           </article>
           <article>
@@ -157,10 +158,10 @@
 given.evaluate(observation)             // won't compile: expects a Patient
 given.evaluate(patient)[0].toFixed(1)   // won't compile: it's a string</pre>
             <p class="layer-note">
-              The input and result types are inferred straight from the expression literal, in plain
-              TypeScript. Pass the wrong resource, or misuse the result, and your editor flags it
-              before you save. It's the narrowest net — expressions outside the supported subset fall
-              back to <code>unknown[]</code> rather than a false error — but it costs nothing to run.
+              A bounded type-level parser infers input and result types from literal expressions. It
+              follows the runtime grammar, function rules, variables, Reference targets, and declared
+              host types. TypeScript reports a wrong input or result use. Malformed, widened,
+              over-budget, or deliberately opaque expressions become <code>unknown[]</code>.
             </p>
           </div>
         </article>
