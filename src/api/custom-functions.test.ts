@@ -238,7 +238,7 @@ describe('custom functions in the analyzer', () => {
       displayText: { expression: '(text | coding.display.first() | coding.first().code).first()' },
       labelled: {
         expression: '%prefix & text',
-        envTypes: { prefix: { type: 'string' } },
+        env: { prefix: 'Result: ' },
       },
       holds: { expression: 'nothing.here', criteria: true },
     } as const satisfies Record<string, CustomFunction>

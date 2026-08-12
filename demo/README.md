@@ -4,6 +4,8 @@ The playground is a client-only demonstration of the engine, TypeScript
 inference, and the [specification §11 analyzer](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation).
 It runs entirely in the browser.
 No FHIR data is sent to a server.
+Type inference computes safe TypeScript types; the analyzer reports expression errors.
+Literal host values infer automatically; `envTypes` and `varTypes` handle ambiguous values.
 
 Use it to explore:
 

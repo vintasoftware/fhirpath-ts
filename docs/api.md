@@ -31,7 +31,6 @@ import { r4Model } from 'fhirpath-ts/r4'
 const fp = new FhirPathEngine({
   model: r4Model,
   env: { system: 'http://loinc.org' },
-  envTypes: { system: { type: 'string' } },
 })
 ```
 
@@ -198,7 +197,7 @@ name.
 | --- | --- |
 | `model` | A `ModelProvider`; use `r4Model` for FHIR R4 |
 | `env` | Plain host values available as `%name` |
-| `envTypes` | Static FHIRPath declarations for `env` values |
+| `envTypes` | Explicit types or refinements for `env` values |
 | `vars` | FHIRPath bindings evaluated against the input |
 | `varTypes` | Static declarations or explicit overrides for `vars` |
 | `now` | Clock for `now()`, `today()`, and `timeOfDay()` |
@@ -235,17 +234,16 @@ engine calls when a wrapper needs the same literal checks and widening rules.
 
 ### Type context declarations
 
-Literal expressions can infer through host values when their FHIRPath types are
-declared. `envTypes` describes plain values in `env`; `varTypes` describes
-pre-resolved variables or overrides the inferred result of a `vars` expression.
-The declarations do not create values and are not runtime validation.
+Literal expressions infer primitive, resource, collection, and structural types
+from `env`. Literal `vars` expressions can carry those types through property
+navigation. Use `envTypes` or `varTypes` when a value is widened, ambiguous, or
+needs an explicit override. Declarations do not create or validate values.
 
 ```ts
 import type { EvaluateOptions } from 'fhirpath-ts'
 
 const options = {
   env: { report },
-  envTypes: { report: { type: 'DiagnosticReport' } },
 } as const satisfies EvaluateOptions
 
 const statuses = r4.evaluate('%report.status', undefined, options) // string[]
@@ -262,13 +260,13 @@ Each `FhirpathTypeDeclaration` has these fields:
 Use `as const satisfies EvaluateOptions` when options are stored in a variable.
 It checks the shape without widening the type-name literals. A literal `env`
 value beside its declaration is also checked for compatible type and singleton
-cardinality. Data that is dynamic or deliberately widened stays `unknown[]`.
+cardinality. Use declarations for pre-resolved `vars`, `Reference` targets, or
+data whose TypeScript type is too broad. Explicit declarations take precedence.
 
-`FhirpathTypeContext` is the standalone form used by `FhirpathResult` and
-`FhirpathResultIn`. Its fields are named `env`, `vars`, and `functions`; engine
-and per-call options expose the first two as `envTypes` and `varTypes` so static
-declarations stay separate from runtime values. Names may include or omit their
-leading `%`.
+`FhirpathTypeContext` is the declaration-only form used by `FhirpathResult` and
+`FhirpathResultIn`. Its fields are named `env`, `vars`, and `functions`. Engine
+and per-call options infer from values and accept `envTypes` and `varTypes` as
+overrides. Names may include or omit their leading `%`.
 
 Engine defaults and per-call declarations merge by normalized name, with the
 per-call declaration winning. A `BoundExpression` returned by
@@ -317,12 +315,11 @@ Variables are evaluated in declaration order, so a later variable may use an
 earlier one. A variable cannot replace an environment value, including built-in
 values such as `%loinc`.
 
-TypeScript does not retain object-property declaration order. Type inference can
-therefore use `envTypes`, the input, and explicit `varTypes` while reading a
-literal variable body, but it does not assume that another expression variable
-was evaluated first. Declare that dependency in `varTypes` when it is needed for
-a result type. Runtime evaluation and the analyzer still honor declaration
-order.
+TypeScript does not retain object-property declaration order. Type inference
+can use `env`, the input, and explicit declarations while reading a literal
+variable body, but it does not assume that another expression variable ran
+first. Use `varTypes` for that dependency. Runtime evaluation and the analyzer
+still honor declaration order.
 
 During projection, variables are evaluated once per row. `%context`,
 `%rowIndex`, and `%rowTotal` are in scope. Every column reads the same bindings.
@@ -400,8 +397,8 @@ The body receives the call focus. `%context` and environment values remain the
 caller's. Results keep FHIRPath type information. Direct or indirect recursion is
 an error. A literal body supplies its result type to callers. Add a signature
 result for a widened body, or use the manual call `type` escape hatch when the
-function is intentionally opaque. Function-local `env` values can be paired with
-`envTypes` in the same declaration.
+function is intentionally opaque. Function-local `env` values infer the same
+way as engine values; add `envTypes` only when they need refinement.
 
 Set `criteria: true` when the function should always return one boolean using
 the same rules as `test()`:

@@ -1,6 +1,12 @@
 /** An empty host context that contributes no known keys. */
 export type EmptyContextMap = Record<never, never>
 
+/** Preserve host values for best-effort type inference without exposing them as declarations. */
+export type HostValueDeclarations<Values> =
+  Values extends Readonly<Record<PropertyKey, unknown>>
+    ? { readonly [Name in keyof Values]: { readonly __value: Values[Name] } }
+    : EmptyContextMap
+
 /** Environment names are stored without the optional leading `%`. */
 export type BareContextName<Name extends PropertyKey> = Name extends string
   ? Name extends `%${infer Bare}`
@@ -17,6 +23,12 @@ export type NormalizeContextMap<Map> =
 /** Merge normalized maps by name, with the overlay taking precedence. */
 export type MergeContextMaps<Base, Overlay> = Omit<NormalizeContextMap<Base>, keyof NormalizeContextMap<Overlay>> &
   NormalizeContextMap<Overlay>
+
+/** Infer undeclared host values while letting explicit declarations replace them. */
+export type InferredHostValueDeclarations<Values, Declarations> =
+  keyof NormalizeContextMap<Values> extends keyof NormalizeContextMap<Declarations>
+    ? NormalizeContextMap<Declarations>
+    : MergeContextMaps<HostValueDeclarations<Values>, Declarations>
 
 /** Read an optional context field without distributing undefined into its map. */
 export type ContextProperty<Context, Name extends PropertyKey> = Name extends keyof Context

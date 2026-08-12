@@ -1,5 +1,10 @@
 import type { R4Bases, R4Elements, R4ReferenceTargets, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { EmptyContextMap, LookupContextMap, MergeContextMaps } from './context-maps.ts'
+import type {
+  EmptyContextMap,
+  InferredHostValueDeclarations,
+  LookupContextMap,
+  MergeContextMaps,
+} from './context-maps.ts'
 import type { InferenceSourceStepLimit, InferenceTokenLimit } from './inference-limits.ts'
 import type {
   CompactCalendarUnit,
@@ -619,10 +624,13 @@ type InferenceEnvironment = [
 ]
 type DefaultEnvironment = [[], 'unknown', never, EmptyContextMap, never]
 type EnvironmentCarrier<Environment extends InferenceEnvironment> = { readonly __environment: Environment }
+type HostValueCarrier<Value> = { readonly __hostValue: Value }
 type OpaqueState = ['opaque', never]
 type UnknownState = ['unknown', never]
 type EmptyState = [never, never]
-type CoreOf<State extends InferenceState> = [State[0], State[1]]
+type CoreOf<State extends InferenceState> =
+  State extends HostValueCarrier<infer Value> ? [State[0], State[1]] & HostValueCarrier<Value> : [State[0], State[1]]
+type HostValueOf<State extends InferenceState> = State extends HostValueCarrier<infer Value> ? Value : never
 type EnvironmentOf<State extends InferenceState> =
   State extends EnvironmentCarrier<infer Environment> ? Environment : DefaultEnvironment
 type BindingsOf<State extends InferenceState> = EnvironmentOf<State>[0]
@@ -1630,7 +1638,10 @@ type WithHostCallEnvironment<Input extends InferenceState, Declaration, Active e
 type OverlayFunctionContext<Context extends object, Declaration> = {
   env: MergeContextMaps<
     EnvOf<Context>,
-    Declaration extends { readonly envTypes?: infer Local } ? Local : EmptyContextMap
+    InferredHostValueDeclarations<
+      Declaration extends { readonly env?: infer Local } ? Local : EmptyContextMap,
+      Declaration extends { readonly envTypes?: infer Local } ? Local : EmptyContextMap
+    >
   >
   vars: VarsOf<Context>
   functions: FunctionsOf<Context>
@@ -1864,7 +1875,43 @@ type DeclaredTypeState<Declaration, Context extends InferenceState> = Declaratio
         ? CopyEnvironment<UnknownState, Context>
         : CopyEnvironment<[LocalTypeName<Types>, DeclarationTargets<Declaration>], Context>
     : CopyEnvironment<UnknownState, Context>
-  : CopyEnvironment<UnknownState, Context>
+  : Declaration extends { readonly __value: infer Value }
+    ? CopyEnvironment<HostValueState<Value>, Context>
+    : CopyEnvironment<UnknownState, Context>
+
+type HostValueState<Value> = [Value] extends [null | undefined]
+  ? EmptyState
+  : HostPresentValueState<Exclude<Value, null | undefined>>
+
+type HostPresentValueState<Value> = 0 extends 1 & Value
+  ? UnknownState
+  : unknown extends Value
+    ? UnknownState
+    : [Value] extends [readonly (infer Item)[]]
+      ? HostValueState<Item>
+      : [Value] extends [boolean]
+        ? ['System.Boolean', never]
+        : [Value] extends [string]
+          ? ['System.String', never]
+          : [Value] extends [bigint]
+            ? ['System.Long', never]
+            : [Value] extends [number]
+              ? [HostNumberType<Extract<Value, number>>, never]
+              : [Value] extends [{ readonly resourceType: infer Root }]
+                ? Root extends keyof R4TypeOf & string
+                  ? [Root, never]
+                  : UnknownState
+                : [Value] extends [object]
+                  ? ['host', never] & HostValueCarrier<Value>
+                  : UnknownState
+
+type HostNumberType<Value extends number> = number extends Value
+  ? 'System.Integer' | 'System.Decimal'
+  : Value extends Value
+    ? `${Value}` extends `${bigint}`
+      ? 'System.Integer'
+      : 'System.Decimal'
+    : never
 
 type DeclarationTypeNames<Declared> = Declared extends readonly string[]
   ? Declared[number]
@@ -1943,7 +1990,7 @@ type FastInputState<Input extends string> =
  */
 type Navigate<Input extends InferenceState, Element extends string> =
   Input extends EnvironmentCarrier<infer Environment extends InferenceEnvironment>
-    ? NavigateCore<[Input[0], Input[1]], Element> & EnvironmentCarrier<Environment>
+    ? NavigateCore<CoreOf<Input>, Element> & EnvironmentCarrier<Environment>
     : NavigateCore<Input, Element>
 
 type NavigateCore<Input extends InferenceState, Element extends string> =
@@ -1953,13 +2000,21 @@ type NavigateCore<Input extends InferenceState, Element extends string> =
       ? OpaqueState
       : IsUnknownState<Input> extends true
         ? UnknownState
-        : ElementInformation<Input[0], Element> extends infer Information
-          ? [Information] extends [never]
-            ? UnknownState
-            : Information extends { t: infer Types extends string }
-              ? [LocalTypeName<Types>, ReferenceTargets<Input[0], Element, Types>]
-              : OpaqueState
-          : OpaqueState
+        : Input[0] extends 'host'
+          ? NavigateHostValue<HostValueOf<Input>, Element>
+          : ElementInformation<Input[0], Element> extends infer Information
+            ? [Information] extends [never]
+              ? UnknownState
+              : Information extends { t: infer Types extends string }
+                ? [LocalTypeName<Types>, ReferenceTargets<Input[0], Element, Types>]
+                : OpaqueState
+            : OpaqueState
+
+type NavigateHostValue<Value, Element extends string> = Value extends Value
+  ? Element extends keyof Value
+    ? HostValueState<Value[Element]>
+    : UnknownState
+  : UnknownState
 
 type ReferenceTargets<
   InputTypes extends string,
@@ -2100,7 +2155,9 @@ type PublicResult<State extends InferenceState> =
   StateKind<State> extends 'empty'
     ? never[]
     : StateKind<State> extends 'known'
-      ? R4TypeOf[Extract<State[0], keyof R4TypeOf>][]
+      ? [Exclude<State[0], keyof R4TypeOf>] extends [never]
+        ? R4TypeOf[Extract<State[0], keyof R4TypeOf>][]
+        : unknown[]
       : unknown[]
 
 type LiteralState<Token extends LiteralToken> = Token[0] extends 'string'
