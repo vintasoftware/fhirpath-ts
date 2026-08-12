@@ -251,40 +251,12 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
 })
 ```
 
-## What throws errors and what doesn't?
-
-FHIRPath uses an empty collection for absence, so path navigation is lenient at
-runtime. These expressions do not throw:
-
-| Example | Result | Reason |
-| --- | --- | --- |
-| `r4.evaluate('Encounter.id', patient)` | `[]` | The root type does not match the input. |
-| `r4.evaluate('Patient.telecom.value', patient)` | `[]` | The element is absent from this resource. |
-| `r4.evaluate('Patient.name.givenn', patient)` | `[]` | An unknown path segment, including a misspelling, navigates to empty. |
-| `r4.evaluate('Patient.name[99]', patient)` | `[]` | The index is outside the collection. |
-
-The other application helpers convert an empty result: `first()` returns
-`undefined`, `test()` returns `false`, and `filter()` drops that input.
-
-Engine-generated failures use these exported `FhirPathError` subclasses:
-
-| Error | Example | Why it throws |
-| --- | --- | --- |
-| `FhirPathSyntaxError` | `r4.evaluate('Patient..name', patient)` | The expression does not match the grammar, so parsing fails before evaluation. |
-| `FhirPathTypeError` | `r4.evaluate('frobnicate()', patient)` | The expression is grammatical, but the function is unknown. Wrong argument types or counts and undefined `%variables` also throw this error. |
-| `FhirPathTypeError` | `r4.evaluate('Observation.valueQuantity', observation)` | Choice elements must use their FHIRPath stem (`Observation.value`), not their JSON key. This is the unknown-path case that throws. |
-| `FhirPathRuntimeError` | `r4.evaluate('(1 | 2).single()')` | The operation requires at most one item, but the data contains two. |
-| `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. Bare search Bundle paths can also throw when their root is ambiguous. |
-
-Caller-supplied callbacks, including custom functions, conversion functions,
-regular expression engines, and trace sinks, may also throw their own errors;
-the engine does not swallow them. Use [static checking](#static-checking) to
-catch wrong paths and other expression errors before runtime.
-
 ## Important gotchas
 
 - FHIRPath always evaluates collections. Use `first()` when application code
   expects one optional value.
+- Unknown elements evaluate to an empty collection, as they do in other
+  engines. Use [static checking](#static-checking) to catch misspellings before runtime.
 - Use choice stems such as `Observation.value`, not JSON keys such as
   `valueQuantity`. The analyzer and runtime report the latter as an error.
 - Function names and arguments are strict: an unknown function, wrong arity or
