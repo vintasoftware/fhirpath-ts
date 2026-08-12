@@ -756,6 +756,18 @@ describe('analyzeDto', () => {
     expect(analyzeDto(Named, { engine }).map(finding => finding.code)).toEqual(['operand-type'])
   })
 
+  it('keeps custom engine resources opaque so analysis matches raw JSON navigation', () => {
+    class Named extends defineDto('Condition') {
+      @column('%custom.foo', { type: 'string', default: '' })
+      foo!: string
+    }
+    const custom = { resourceType: 'CustomThing', foo: 'ok' }
+    const engine = new FhirPathEngine({ model: r4Model, env: { custom } })
+
+    expect(engine.evaluate('%custom.foo')).toEqual(['ok'])
+    expect(analyzeDto(Named, { engine })).toEqual([])
+  })
+
   it('resolves engine functions passed through options', () => {
     class Named extends defineDto('Condition') {
       @column('code.displayText()', { type: 'string', default: '' })

@@ -57,12 +57,13 @@ function contextOf(options: AnalyzeDtoOptions | undefined): AnalyzeOptions {
     return caller
   }
   const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
+  const activeModel = caller.model ?? model
   return {
     ...(model !== undefined && { model }),
     ...caller,
     functions: { ...functions, ...caller.functions },
     variables: {
-      ...analyzerEnvironmentVariables(env, envTypes),
+      ...analyzerEnvironmentVariables(env, envTypes, activeModel),
       ...analyzerVariables(vars, varTypes),
       ...caller.variables,
     },

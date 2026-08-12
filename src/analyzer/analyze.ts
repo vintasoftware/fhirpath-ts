@@ -235,7 +235,9 @@ class Analyzer {
     this.customFunctions = new Map(
       Object.entries(options?.functions ?? {}).map(([name, declared]) => [
         name,
-        ('overloads' in declared ? declared.overloads : [declared]).map(resolvedDeclaration),
+        ('overloads' in declared ? declared.overloads : [declared]).map(declaration =>
+          resolvedDeclaration(declaration, this.model)
+        ),
       ])
     )
     this.declaredVariables = new Map(Object.entries(normalizeEnvKeys(options?.variables)))
@@ -1082,7 +1084,7 @@ interface ResolvedDeclaration {
   variables?: Readonly<Record<string, DeclaredVariable>>
 }
 
-function resolvedDeclaration(declared: SingleDeclaredFunction): ResolvedDeclaration {
+function resolvedDeclaration(declared: SingleDeclaredFunction, model: ModelProvider | undefined): ResolvedDeclaration {
   if (declared.expression === undefined) {
     return {
       ...(declared.minArity !== undefined && { minArity: declared.minArity }),
@@ -1100,7 +1102,7 @@ function resolvedDeclaration(declared: SingleDeclaredFunction): ResolvedDeclarat
     ...(expression !== undefined && { expression }),
     ...(declared.criteria !== undefined && { criteria: declared.criteria }),
     ...((declared.env !== undefined || declared.envTypes !== undefined) && {
-      variables: analyzerEnvironmentVariables(declared.env, declared.envTypes),
+      variables: analyzerEnvironmentVariables(declared.env, declared.envTypes, model),
     }),
   }
 }

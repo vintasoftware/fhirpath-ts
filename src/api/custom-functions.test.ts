@@ -250,6 +250,17 @@ describe('custom functions in the analyzer', () => {
     expect(analyze('code.holds()')).toEqual({ types: ['System.Boolean'], single: true })
   })
 
+  it('keeps custom function environment resources opaque to an unrelated model', () => {
+    const functions = {
+      customValue: {
+        expression: '%custom.foo',
+        env: { custom: { resourceType: 'CustomThing', foo: 'ok' } },
+      },
+    } as const satisfies Record<string, CustomFunction>
+
+    expect(analyzeExpression('customValue()', { model: r4Model, functions })).toEqual([])
+  })
+
   it('collects element dependencies from a criteria body', () => {
     const functions = {
       isNamed: { expression: 'name.given.exists()', criteria: true },
