@@ -118,6 +118,7 @@ describe('DTO projection', () => {
       wrongStatus!: number | undefined
     }
     const row = r4.project(weighed, Inferred)
+    expectTypeOf(row.fhirType).toEqualTypeOf<'Observation'>()
     expect(row).toMatchObject({ status: 'final', key: '0', total: 1 })
   })
 
@@ -141,7 +142,10 @@ describe('DTO projection', () => {
   it('rejects unknown literal DTO option keys', () => {
     // @ts-expect-error -- literal DTO options keep their excess-property check
     class WrongOptions extends defineDto('Observation', { varz: { status: 'status' } }) {}
+    // @ts-expect-error -- valid keys do not hide an extra literal key
+    class MixedOptions extends defineDto('Observation', { vars: {}, callerEnv: [], varz: {} }) {}
     expect(new WrongOptions().fhirType).toBe('Observation')
+    expect(new MixedOptions().fhirType).toBe('Observation')
   })
 
   it('a DTO needs no engine registration to be projectable', () => {

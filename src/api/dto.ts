@@ -45,15 +45,11 @@ export interface DtoInstance {
 }
 
 /** The inference root for a DTO's columns: the `fhirType` of the class they are declared on. */
-type RootOf<This> = This extends {
-  readonly fhirType: { readonly __fhirpathRoot: infer Root extends string }
-}
-  ? Root
-  : 'opaque'
+type RootOf<This> = This extends { readonly fhirType: infer Root extends string } ? Root : 'opaque'
 
 /** The literal options retained by the base that a DTO extends. */
 type DtoOptionsOf<This extends DtoInstance> = This extends {
-  readonly fhirType: { readonly __fhirpathDtoOptions: infer Options extends object }
+  readonly __fhirpathDtoOptions?: infer Options extends object
 }
   ? Options
   : EmptyFhirpathTypeContext
@@ -88,10 +84,9 @@ export type DtoEnv = Record<string, unknown>
 
 /** Base class returned by `defineDto()`, with the root and literal options used for column inference. */
 export type DtoBase<Root extends string, Options extends object = EmptyFhirpathTypeContext> = (new () => DtoInstance & {
-  readonly fhirType: Root & {
-    readonly __fhirpathRoot: Root
-    readonly __fhirpathDtoOptions: Options
-  }
+  readonly fhirType: Root
+  /** @internal Type-only carrier for DTO decorator inference. */
+  readonly __fhirpathDtoOptions?: Options
 }) & {
   readonly fhirType: Root
 }
@@ -110,11 +105,12 @@ export interface DtoOptions {
   callerEnv?: readonly string[]
 }
 
-type CheckedDtoOptionKeys<Options> = string extends keyof Options
-  ? unknown
-  : keyof DtoOptions extends keyof Options
-    ? unknown
-    : Record<Exclude<keyof Options, keyof DtoOptions>, never>
+type DtoVars = NonNullable<DtoOptions['vars']>
+type DtoCallerEnv = NonNullable<DtoOptions['callerEnv']>
+type LiteralDtoOptions<Vars extends DtoVars, CallerEnv extends DtoCallerEnv> = {
+  readonly vars?: Vars
+  readonly callerEnv?: CallerEnv
+}
 
 /** Everything a DTO class was declared with; `project()`, the engine, and `analyzeDto` all read it from here. */
 export interface DtoDefinition {
@@ -150,10 +146,11 @@ let collecting: object | undefined
  * context for relative column paths. Subclasses may add decorated fields,
  * getters, methods, and shared base columns.
  */
-export function defineDto<const Root extends FhirTypeName, const Options extends DtoOptions = EmptyFhirpathTypeContext>(
-  fhirType: Root,
-  options?: Options & CheckedDtoOptionKeys<Options>
-): DtoBase<Root, Options> {
+export function defineDto<
+  const Root extends FhirTypeName,
+  const Vars extends DtoVars = EmptyFhirpathTypeContext,
+  const CallerEnv extends DtoCallerEnv = readonly [],
+>(fhirType: Root, options?: LiteralDtoOptions<Vars, CallerEnv>): DtoBase<Root, LiteralDtoOptions<Vars, CallerEnv>> {
   const base = class {
     /** On the prototype, so it stays out of a projected row's own keys. */
     get fhirType(): Root {
@@ -164,7 +161,7 @@ export function defineDto<const Root extends FhirTypeName, const Options extends
   Object.defineProperty(base, 'name', { value: `${fhirType}Dto` })
   Object.defineProperty(base, 'fhirType', { value: fhirType, enumerable: true })
   bases.set(base, { fhirType, ...options })
-  return base as unknown as DtoBase<Root, Options>
+  return base as unknown as DtoBase<Root, LiteralDtoOptions<Vars, CallerEnv>>
 }
 
 /** Records one column against the class being collected, and does nothing at any other time. */

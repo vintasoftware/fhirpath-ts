@@ -1,4 +1,4 @@
-import { column, criteria, defineDto, type DtoOptions, FhirPathEngine } from 'fhirpath-ts'
+import { column, criteria, defineDto, type DtoOptions, FhirPathEngine, type FhirTypeName } from 'fhirpath-ts'
 import { r4Model } from 'fhirpath-ts/r4'
 
 import type { StatusTone, VitalStatus } from './types'
@@ -122,31 +122,23 @@ export class DiagnosticReportDTO extends defineDto('DiagnosticReport') {
  * value, so the `default` exists only to type the column `string` instead of
  * `string | undefined`.
  */
-type KeyedRoot = 'Condition' | 'DiagnosticReport' | 'MedicationRequest' | 'ServiceRequest'
-type KeyedRowBase<Root extends KeyedRoot, Options extends DtoOptions> = (new () => InstanceType<
-  ReturnType<typeof defineDto<Root, Options>>
-> & { id: string }) & {
-  readonly fhirType: Root
-}
+type ExactDtoOptions<Options extends DtoOptions> = Options & Record<Exclude<keyof Options, keyof DtoOptions>, never>
 
-// Check the shared field against the supported roots once, then preserve the
-// caller's exact root and options for decorators on each derived row.
-function keyedRow<const Root extends KeyedRoot, const Options extends DtoOptions = Record<never, never>>(
+function keyedRow<const Root extends FhirTypeName, const Options extends DtoOptions = Record<never, never>>(
   fhirType: Root,
-  options?: Options
-): KeyedRowBase<Root, Options>
-function keyedRow(fhirType: KeyedRoot, options?: DtoOptions) {
+  options?: ExactDtoOptions<Options>
+) {
   class KeyedRow extends defineDto(fhirType, options) {
-    @column('(id | %rowIndex.toString()).first()', { default: '' })
+    @column('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
     id!: string
   }
   return KeyedRow
 }
 
 /** The badge columns every lab row renders, reading the per-row %badge binding. */
-function badgedRow<const Root extends KeyedRoot, const Options extends DtoOptions = Record<never, never>>(
+function badgedRow<const Root extends FhirTypeName, const Options extends DtoOptions = Record<never, never>>(
   fhirType: Root,
-  options?: Options
+  options?: ExactDtoOptions<Options>
 ) {
   class BadgedRow extends keyedRow(fhirType, options) {
     @column('%badge.label', { type: 'string', default: 'Result' })
