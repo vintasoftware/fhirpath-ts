@@ -191,6 +191,10 @@ the same target in Monaco.
 Legacy `experimentalDecorators` cannot check a field's declared value type
 against the inferred column type, so this project uses standard decorators.
 
+`defineDto()` keeps its literal options in a type-only brand on the returned
+base. Field decorators read that brand so DTO `vars` and projection row bindings
+participate in column inference; it must not add runtime fields to projected rows.
+
 ## Required checks
 
 Run the checks that match the change:

@@ -23,7 +23,7 @@ import {
 } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
 import { assertInputMatchesDto, dtoCallOptions, type DtoClass, dtoDefinition, withDtos } from './dto.ts'
-import { type Projection, type ProjectionColumns, projectRows } from './project.ts'
+import { type Projection, type ProjectionColumns, type ProjectionTypeContext, projectRows } from './project.ts'
 
 /**
  * What engine methods accept as input: one resource, an array of resources, or a
@@ -62,14 +62,8 @@ export type EngineResult<Expr extends string, Input, Defaults, Options> = Fhirpa
 >
 
 /** The merged static declarations visible while project() evaluates a row. */
-export type EngineProjectionContext<Defaults, Options> = MergeFhirpathTypeContexts<
-  MergeFhirpathTypeContexts<FhirpathTypeContextOf<Defaults>, FhirpathTypeContextOf<Options>>,
-  {
-    env: {
-      rowIndex: { type: 'System.Integer' }
-      rowTotal: { type: 'System.Integer' }
-    }
-  }
+export type EngineProjectionContext<Defaults, Options> = ProjectionTypeContext<
+  MergeFhirpathTypeContexts<FhirpathTypeContextOf<Defaults>, FhirpathTypeContextOf<Options>>
 >
 
 /** The inferred row returned by project(), including its built-in row variables. */

@@ -2,7 +2,7 @@ import { type EvaluationContext, forkVariables } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
-import type { EmptyFhirpathTypeContext, FhirpathResultForContext } from '../typed/infer.ts'
+import type { EmptyFhirpathTypeContext, FhirpathResultForContext, MergeFhirpathTypeContexts } from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
@@ -30,6 +30,17 @@ export type ColumnOptions = {
 )
 
 export type ProjectionColumns = Record<string, ProjectionColumn>
+
+/** Add the environment bindings available while every projection column runs. */
+export type ProjectionTypeContext<Context extends object> = MergeFhirpathTypeContexts<
+  Context,
+  {
+    env: {
+      rowIndex: { type: 'System.Integer' }
+      rowTotal: { type: 'System.Integer' }
+    }
+  }
+>
 
 type ColumnPath<Column> = Column extends string
   ? Column

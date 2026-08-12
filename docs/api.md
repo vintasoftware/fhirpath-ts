@@ -453,8 +453,9 @@ const rows = fp.project(observations, WeightRow) // WeightRow[]
 ```
 
 The field type is checked against the inferred column type. The decorator accepts
-the same options as a plain project column. Rows are class instances, so derived
-values can be getters or methods.
+the same options as a plain project column. `%rowIndex`, `%rowTotal`, and literal
+`vars` declared by `defineDto()` participate in this check. Rows are class
+instances, so derived values can be getters or methods.
 
 ### Decorator compilation
 

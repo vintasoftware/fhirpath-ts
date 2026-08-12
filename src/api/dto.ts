@@ -4,13 +4,13 @@ import { mergeEnvKeys, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import type { FhirTypeName } from '../typed/infer.ts'
+import type { EmptyFhirpathTypeContext, FhirpathTypeContextOf, FhirTypeName } from '../typed/infer.ts'
 import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
 import { columnSignature, criteriaSignature } from './column-signature.ts'
 import type { AnyExpression, Compiler, CustomFunction, EvaluateOptions, SingleCustomFunction } from './compile.ts'
-import type { ColumnOptions, ColumnResult, ProjectionColumn } from './project.ts'
+import type { ColumnOptions, ColumnResult, ProjectionColumn, ProjectionTypeContext } from './project.ts'
 
 /** The object forms of ProjectionColumn — what a `@column`/`@criteria` decorator records. */
 export type ColumnSpec = Exclude<ProjectionColumn, string>
@@ -39,13 +39,32 @@ type Checked<Inferred, Declared> = unknown extends Inferred
     ? (initial: Declared) => Declared
     : ColumnTypeMismatch<Declared, Inferred>
 
-/** Every DTO instance carries the type its columns read, which is also their inference root. */
+/** Every DTO instance carries the type its columns read. */
 export interface DtoInstance {
   readonly fhirType: string
 }
 
 /** The inference root for a DTO's columns: the `fhirType` of the class they are declared on. */
-type RootOf<This> = This extends { readonly fhirType: infer Root extends string } ? Root : 'opaque'
+type RootOf<This> = This extends {
+  readonly fhirType: { readonly __fhirpathRoot: infer Root extends string }
+}
+  ? Root
+  : 'opaque'
+
+/** The literal options retained by the base that a DTO extends. */
+type DtoOptionsOf<This extends DtoInstance> = This extends {
+  readonly fhirType: { readonly __fhirpathDtoOptions: infer Options extends object }
+}
+  ? Options
+  : EmptyFhirpathTypeContext
+
+/** Build projection context only for columns that read an environment binding. */
+type DtoColumnContext<
+  Column extends { path: string },
+  This extends DtoInstance,
+> = Column['path'] extends `${string}%${string}`
+  ? ProjectionTypeContext<FhirpathTypeContextOf<DtoOptionsOf<This>>>
+  : EmptyFhirpathTypeContext
 
 /** A checked field decorator for a column whose value type is already fixed (a criteria). */
 type ColumnDecorator<Value> = <This extends DtoInstance, Declared>(
@@ -57,7 +76,7 @@ type ColumnDecorator<Value> = <This extends DtoInstance, Declared>(
 type PathDecorator<Column extends { path: string }> = <This extends DtoInstance, Declared>(
   target: undefined,
   context: ClassFieldDecoratorContext<This, Declared>
-) => Checked<ColumnResult<Column, RootOf<This>>, Declared>
+) => Checked<ColumnResult<Column, RootOf<This>, DtoColumnContext<Column, This>>, Declared>
 
 /**
  * Environment values owned by a DTO. Declare them as `static env`, with keys
@@ -67,8 +86,15 @@ type PathDecorator<Column extends { path: string }> = <This extends DtoInstance,
  */
 export type DtoEnv = Record<string, unknown>
 
-/** Base class returned by `defineDto()`, with the FHIR type used for column inference. */
-export type DtoBase<Root extends string> = (new () => { readonly fhirType: Root }) & { readonly fhirType: Root }
+/** Base class returned by `defineDto()`, with the root and literal options used for column inference. */
+export type DtoBase<Root extends string, Options extends object = EmptyFhirpathTypeContext> = (new () => DtoInstance & {
+  readonly fhirType: Root & {
+    readonly __fhirpathRoot: Root
+    readonly __fhirpathDtoOptions: Options
+  }
+}) & {
+  readonly fhirType: Root
+}
 
 /** A DTO class: a `defineDto()` base, or any class extending one. */
 export type DtoClass = (new () => DtoInstance) & { readonly fhirType: string }
@@ -83,6 +109,12 @@ export interface DtoOptions {
   /** Environment names supplied by `project()`, declared so DTO checks can resolve them. */
   callerEnv?: readonly string[]
 }
+
+type CheckedDtoOptionKeys<Options> = string extends keyof Options
+  ? unknown
+  : keyof DtoOptions extends keyof Options
+    ? unknown
+    : Record<Exclude<keyof Options, keyof DtoOptions>, never>
 
 /** Everything a DTO class was declared with; `project()`, the engine, and `analyzeDto` all read it from here. */
 export interface DtoDefinition {
@@ -118,7 +150,10 @@ let collecting: object | undefined
  * context for relative column paths. Subclasses may add decorated fields,
  * getters, methods, and shared base columns.
  */
-export function defineDto<const Root extends FhirTypeName>(fhirType: Root, options: DtoOptions = {}): DtoBase<Root> {
+export function defineDto<const Root extends FhirTypeName, const Options extends DtoOptions = EmptyFhirpathTypeContext>(
+  fhirType: Root,
+  options?: Options & CheckedDtoOptionKeys<Options>
+): DtoBase<Root, Options> {
   const base = class {
     /** On the prototype, so it stays out of a projected row's own keys. */
     get fhirType(): Root {
@@ -129,7 +164,7 @@ export function defineDto<const Root extends FhirTypeName>(fhirType: Root, optio
   Object.defineProperty(base, 'name', { value: `${fhirType}Dto` })
   Object.defineProperty(base, 'fhirType', { value: fhirType, enumerable: true })
   bases.set(base, { fhirType, ...options })
-  return base as unknown as DtoBase<Root>
+  return base as unknown as DtoBase<Root, Options>
 }
 
 /** Records one column against the class being collected, and does nothing at any other time. */

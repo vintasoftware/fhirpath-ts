@@ -93,6 +93,34 @@ describe('DTO projection', () => {
     expect(analyzeDto(ConditionRow, { model: r4Model })).toEqual([])
   })
 
+  it('infers projection row bindings and literal DTO vars', () => {
+    class Inferred extends defineDto('Observation', {
+      vars: {
+        projectedStatus: 'status',
+        key: '(id | %rowIndex.toString()).first()',
+      },
+    }) {
+      @column('%projectedStatus')
+      status!: string | undefined
+
+      @column('%key', { default: '' })
+      key!: string
+
+      @column('%rowTotal')
+      total!: number | undefined
+
+      // @ts-expect-error -- %rowIndex is an integer, not a string
+      @column('%rowIndex')
+      wrongIndex!: string | undefined
+
+      // @ts-expect-error -- the literal var resolves to Observation.status
+      @column('%projectedStatus')
+      wrongStatus!: number | undefined
+    }
+    const row = r4.project(weighed, Inferred)
+    expect(row).toMatchObject({ status: 'final', key: '0', total: 1 })
+  })
+
   it('a declared type that cannot hold the column value is a compile error', () => {
     class Wrong extends defineDto('Condition') {
       // @ts-expect-error -- the expression yields string | undefined, not number
@@ -108,6 +136,12 @@ describe('DTO projection', () => {
       wider!: string | number | undefined
     }
     expect(new Wrong().fhirType).toBe('Condition')
+  })
+
+  it('rejects unknown literal DTO option keys', () => {
+    // @ts-expect-error -- literal DTO options keep their excess-property check
+    class WrongOptions extends defineDto('Observation', { varz: { status: 'status' } }) {}
+    expect(new WrongOptions().fhirType).toBe('Observation')
   })
 
   it('a DTO needs no engine registration to be projectable', () => {
@@ -634,7 +668,7 @@ describe('analyzeDto', () => {
     }) {
       static env = { waitingBadge: { label: 'Waiting' } }
 
-      @column('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
+      @column('(id | %rowIndex.toString()).first()', { default: '' })
       id!: string
 
       @column('%badge.label', { type: 'string', default: '' })
