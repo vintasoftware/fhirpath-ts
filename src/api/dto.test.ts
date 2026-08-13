@@ -117,7 +117,11 @@ describe('DTO projection', () => {
       @column('%projectedStatus')
       wrongStatus!: number | undefined
     }
-    const row = r4.project(weighed, Inferred)
+    const row = r4.project(weighed, Inferred, {
+      // The DTO binding determines the decorated field's type, so a call cannot
+      // replace it with the number produced by this expression.
+      vars: { projectedStatus: '1' },
+    })
     expectTypeOf(row.fhirType).toEqualTypeOf<'Observation'>()
     expect(row).toMatchObject({ status: 'final', key: '0', total: 1 })
   })
@@ -192,7 +196,7 @@ describe('DTO projection', () => {
     expect(Object.keys(second.columns)).toEqual(['status'])
   })
 
-  it('vars express the join, overridable per call', () => {
+  it('vars express the join and keep the DTO binding when a call reuses its name', () => {
     class OrderRow extends defineDto('ServiceRequest', {
       vars: { report: '%reports.where(orderId = %context.id).report' },
     }) {
@@ -211,9 +215,10 @@ describe('DTO projection', () => {
       expect.objectContaining({ id: 'sr1', reportStatus: 'final' }),
       expect.objectContaining({ id: 'sr2', reportStatus: 'waiting' }),
     ])
-    // A per-call var wins over the DTO var of the same name.
+    // The DTO var wins: decorator inference relies on that expression retaining
+    // its declared result type.
     const overridden = r4.project(orders, OrderRow, { env: { reports }, vars: { report: '{}' } })
-    expect(overridden.map(row => row.reportStatus)).toEqual(['waiting', 'waiting'])
+    expect(overridden.map(row => row.reportStatus)).toEqual(['final', 'waiting'])
   })
 
   it('filters a searchset down to the DTO type, the way the README recipe does', () => {

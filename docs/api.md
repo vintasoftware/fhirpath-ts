@@ -538,7 +538,8 @@ values. Pass them to `project()` through `env`.
 
 DTO `vars` apply only when the DTO is projected. They are row expressions and do
 not travel with a registered function call, which has a focus but no projection
-row.
+row. The DTO's binding wins when per-call `vars` reuse its name; use `env` to
+parameterize a DTO variable without changing the type its columns infer.
 
 ### Inheritance
 

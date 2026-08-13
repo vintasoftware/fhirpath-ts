@@ -153,6 +153,11 @@ projection, so different precedence would give one declaration two answers.
 DTO `vars` remain projection-only. A variable is evaluated against a row; a
 registered function call has a focus but no row.
 
+DTO `vars` take priority over same-name caller vars during projection. Decorator
+inference reads the DTO expression, so allowing a caller to replace that binding
+could make the projected runtime value disagree with the declared field type.
+Use caller `env` to parameterize a DTO var.
+
 ## Criteria booleans
 
 `@criteria` registers a function with `criteria: true`. The evaluator applies

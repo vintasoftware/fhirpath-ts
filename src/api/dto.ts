@@ -457,9 +457,8 @@ export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
 }
 
 /**
- * Merges DTO options with call options. DTO environment values win so projected
- * and registered columns read the same value. Call variables win because they
- * may replace a DTO's row binding.
+ * Merges DTO options with call options. DTO environment values and variables
+ * win so a column's declared context cannot change when it is projected.
  */
 export function dtoCallOptions(dto: DtoClass, options: EvaluateOptions | undefined): EvaluateOptions | undefined {
   const { env, vars } = dtoDefinition(dto)
@@ -471,7 +470,7 @@ export function dtoCallOptions(dto: DtoClass, options: EvaluateOptions | undefin
     merged.env = mergeEnvKeys(options?.env, env)
   }
   if (vars !== undefined) {
-    merged.vars = mergeEnvKeys(vars, options?.vars)
+    merged.vars = mergeEnvKeys(options?.vars, vars)
   }
   return merged
 }
