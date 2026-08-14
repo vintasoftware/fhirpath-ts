@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Client-only playground for fhirpath-ts, deployable to Cloudflare Pages.",
+  "description": "Client-only playground for fhirpath-ts, deployable to GitHub Pages or Cloudflare Pages.",
   "scripts": {
     "generate:dts": "node scripts/generate-dts.mjs",
     "predev": "node scripts/generate-dts.mjs",
