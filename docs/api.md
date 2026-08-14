@@ -632,7 +632,7 @@ Engine-generated failures use these exported `FhirPathError` subclasses:
 | `FhirPathSyntaxError` | `r4.evaluate('Patient..name', patient)` | Parsing fails because the expression does not match the grammar. |
 | `FhirPathTypeError` | `r4.evaluate('frobnicate()', patient)` | The function is unknown. Wrong argument types or counts and undefined `%variables` also throw this error. |
 | `FhirPathTypeError` | `r4.evaluate('Observation.valueQuantity', observation)` | Choice elements must use their FHIRPath stem (`Observation.value`), not their JSON key. This is the unknown-path case that throws. |
-| `FhirPathRuntimeError` | `r4.evaluate('(1 | 2).single()')` | The operation requires at most one item, but the data contains two. |
+| `FhirPathRuntimeError` | `r4.evaluate('(1 \| 2).single()')` | The operation requires at most one item, but the data contains two. |
 | `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. Bare search Bundle paths can also throw when their root is ambiguous. |
 
 This follows FHIRPath's
