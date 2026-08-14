@@ -5,6 +5,20 @@ published package data, source review, and each project's documented test setup.
 An em dash means the item was not assessed. “Not applicable” means the feature is
 outside that tool's purpose.
 
+## Implementation repositories
+
+- **fhirpath-ts:** [vintasoftware/fhirpath-ts](https://github.com/vintasoftware/fhirpath-ts)
+- **fhirpath.js:** [HL7/fhirpath.js](https://github.com/HL7/fhirpath.js)
+- **fhirpath-py:** [beda-software/fhirpath-py](https://github.com/beda-software/fhirpath-py)
+- **fhirpath-rs:** [octofhir/fhirpath-rs](https://github.com/octofhir/fhirpath-rs)
+- **Medplum:** [medplum/medplum](https://github.com/medplum/medplum)
+- **HAPI / HL7 Java:** engine in
+  [hapifhir/org.hl7.fhir.core](https://github.com/hapifhir/org.hl7.fhir.core);
+  HAPI adapters in [hapifhir/hapi-fhir](https://github.com/hapifhir/hapi-fhir)
+- **helios-fhirpath:** [HeliosSoftware/hfs](https://github.com/HeliosSoftware/hfs)
+- **kotlin-fhirpath:** [ohs-foundation/kotlin-fhirpath](https://github.com/ohs-foundation/kotlin-fhirpath)
+- **HealthSamurai editor:** [HealthSamurai/fhirpath-editor](https://github.com/HealthSamurai/fhirpath-editor)
+
 ## Features
 
 | | **fhirpath-ts** | fhirpath.js | fhirpath-py | fhirpath-rs | Medplum | HAPI / HL7 Java | helios-fhirpath | kotlin-fhirpath | HealthSamurai editor |
