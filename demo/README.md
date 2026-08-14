@@ -70,10 +70,20 @@ The generated files are ignored by Git.
 ## Deployment
 
 The output is a static site. It does not require a Worker or an application
-server.
+server. Vite uses relative asset paths, so the same build works at the
+`/fhirpath-ts/` GitHub project path and at other deployment paths.
 
-For GitHub Pages, build `demo/` and publish `demo/dist`. Configure Vite's base
-path for the final repository URL before enabling the Pages workflow.
+### GitHub Pages
+
+The [Pages workflow](../.github/workflows/pages.yml) builds `demo/`, uploads
+`demo/dist`, and deploys it after each push to `main`. It can also be run
+manually from the Actions tab.
+
+Before the first deployment, select **GitHub Actions** as the source under
+**Settings → Pages → Build and deployment**. No branch containing generated
+assets is required.
+
+### Cloudflare Pages
 
 Cloudflare Pages can use:
 
