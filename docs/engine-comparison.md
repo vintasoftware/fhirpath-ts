@@ -12,7 +12,9 @@ outside that tool's purpose.
 - **fhirpath-py:** [beda-software/fhirpath-py](https://github.com/beda-software/fhirpath-py)
 - **fhirpath-rs:** [octofhir/fhirpath-rs](https://github.com/octofhir/fhirpath-rs)
 - **Medplum:** [medplum/medplum](https://github.com/medplum/medplum)
-- **HAPI / HL7 Java:** [hapifhir/org.hl7.fhir.core](https://github.com/hapifhir/org.hl7.fhir.core)
+- **HAPI / HL7 Java:** engine in
+  [hapifhir/org.hl7.fhir.core](https://github.com/hapifhir/org.hl7.fhir.core);
+  HAPI adapters in [hapifhir/hapi-fhir](https://github.com/hapifhir/hapi-fhir)
 - **helios-fhirpath:** [HeliosSoftware/hfs](https://github.com/HeliosSoftware/hfs)
 - **kotlin-fhirpath:** [ohs-foundation/kotlin-fhirpath](https://github.com/ohs-foundation/kotlin-fhirpath)
 - **HealthSamurai editor:** [HealthSamurai/fhirpath-editor](https://github.com/HealthSamurai/fhirpath-editor)
