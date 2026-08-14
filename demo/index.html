@@ -144,11 +144,10 @@
       </section>
 
       <section class="layers">
-        <h2 class="layers-title">Checks before and during evaluation</h2>
+        <h2 class="layers-title">Where a mistake gets caught</h2>
         <p class="layers-lede">
-          TypeScript checks host values and inferred results. The analyzer checks expression
-          semantics. Runtime evaluation stays lenient when path navigation produces an empty
-          collection.
+          TypeScript checks the values you pass in and the result types you get back. The
+          fhirpath-check CLI / ESLint rule checks the expression itself against the FHIR model.
         </p>
 
         <article class="layer layer-early">
@@ -205,13 +204,13 @@ analyzeExpression('Patient.name.given.substring(1)', opts)
             <h3 class="layer-name">Lenient runtime result</h3>
           </div>
           <div class="layer-body">
-            <pre class="layer-code">r4.evaluate('Patient.namee.given', patient)   // [] at runtime; analyzer: unknown-element</pre>
+            <pre class="layer-code">r4.evaluate('Patient.namee.given', patient)   // []  — no error, just empty</pre>
             <p class="layer-note">
-              <code>evaluate()</code> does not run static analysis. Runtime navigation propagates an
-              empty collection when a path step finds nothing, so an invalid member can look like
-              absent data. The analyzer still reports <code>namee</code> before evaluation. Runtime
-              rules such as choice-key misuse, an unconvertible unit, and invalid cardinality still
-              throw.
+              <code>evaluate()</code> does not run static analysis. A path step that finds nothing
+              returns <code>[]</code>, so the typo in <code>namee</code> gives the same result as
+              valid data that happens to be absent. The fhirpath-check CLI / ESLint rule above
+              catches it before this line runs. A few mistakes still throw at runtime: choice-key
+              misuse, an unconvertible unit, a cardinality violation.
             </p>
           </div>
         </article>

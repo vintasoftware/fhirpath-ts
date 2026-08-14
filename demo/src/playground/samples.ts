@@ -38,8 +38,7 @@ const names: string[] = r4.evaluate('Patient.name', patient)
 const weight = { resourceType: 'Observation' as const, status: 'final' }
 r4.evaluate('Patient.name.given', weight)
 
-// Analyzer error: 'namee' is not defined on FHIR.Patient.
-// Without analysis, evaluate() would return [].
+// Analyzer (the fhirpath-check CLI / ESLint rule): 'namee' is not on Patient.
 r4.evaluate('Patient.namee.given', patient)
 
 // The analyzer is callable directly, too:
