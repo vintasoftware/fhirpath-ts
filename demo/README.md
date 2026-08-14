@@ -7,6 +7,8 @@ No FHIR data is sent to a server.
 Type inference computes safe TypeScript types; the analyzer reports expression errors.
 Literal host values infer automatically; `envTypes` and `varTypes` handle ambiguous values.
 
+Try the [live playground](https://vintasoftware.github.io/fhirpath-ts/).
+
 Use it to explore:
 
 - evaluation against editable R4 resources;
