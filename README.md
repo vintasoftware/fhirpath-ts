@@ -10,7 +10,7 @@ development. It has zero runtime dependencies and includes:
 - [Medplum](https://www.medplum.com/) compatibility;
 - currently focused in FHIR R4, the most commonly used FHIR version.
 
-Check the [playground demo](demo/README.md) or keep reading!
+Check the [playground demo](https://vintasoftware.github.io/fhirpath-ts/) or keep reading!
 
 ## Quick start
 
@@ -108,7 +108,7 @@ This is useful for shared application vocabulary such as `displayText()` or `isF
 ## Usage recipes
 
 These short examples show the main application APIs. The
-[playground demo](demo/README.md) is the best place to explore expressions
+[playground demo](https://vintasoftware.github.io/fhirpath-ts/) is the best place to explore expressions
 interactively. A test runs every static expression in this section and checks it
 with the analyzer.
 
