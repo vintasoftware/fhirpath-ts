@@ -612,15 +612,20 @@ entries where `search.mode = 'match'`.
 
 ## What throws errors and what doesn't?
 
-FHIRPath uses an empty collection for absence, so ordinary path navigation is
-lenient at runtime:
+`evaluate()` does not run static analysis. Runtime path navigation propagates
+an empty collection, so these calls all return `[]` even though they do not all
+represent valid paths for the input type:
 
 | Example | Result | Reason |
 | --- | --- | --- |
 | `r4.evaluate('Encounter.id', patient)` | `[]` | The root type does not match the input. |
 | `r4.evaluate('Patient.telecom.value', patient)` | `[]` | The element is absent from this resource. |
-| `r4.evaluate('Patient.name.givenn', patient)` | `[]` | An unknown path segment, including a misspelling, navigates to empty. |
+| `r4.evaluate('Patient.name.active', patient)` | `[]` | `active` is not defined on `HumanName`; the analyzer reports `unknown-element`. |
 | `r4.evaluate('Patient.name[99]', patient)` | `[]` | The index is outside the collection. |
+
+An empty runtime result does not prove that an expression is valid. The
+analyzer reports unknown or misspelled elements against the FHIR model before
+evaluation.
 
 The application helpers convert an empty result: `first()` returns `undefined`,
 `test()` returns `false`, and `filter()` drops that input.
@@ -631,12 +636,14 @@ Engine-generated failures use these exported `FhirPathError` subclasses:
 | --- | --- | --- |
 | `FhirPathSyntaxError` | `r4.evaluate('Patient..name', patient)` | Parsing fails because the expression does not match the grammar. |
 | `FhirPathTypeError` | `r4.evaluate('frobnicate()', patient)` | The function is unknown. Wrong argument types or counts and undefined `%variables` also throw this error. |
-| `FhirPathTypeError` | `r4.evaluate('Observation.valueQuantity', observation)` | Choice elements must use their FHIRPath stem (`Observation.value`), not their JSON key. This is the unknown-path case that throws. |
+| `FhirPathTypeError` | `r4.evaluate('Observation.valueQuantity', observation)` | Choice elements must use their FHIRPath stem (`Observation.value`), not their JSON key. Unlike ordinary unknown members, this misuse is a runtime semantic error. |
 | `FhirPathRuntimeError` | `r4.evaluate('(1 | 2).single()')` | The operation requires at most one item, but the data contains two. |
 | `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. Bare search Bundle paths can also throw when their root is ambiguous. |
 
-This follows FHIRPath's
-[empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/N1/#singleton-evaluation-of-collections).
+This separation follows FHIRPath's
+[empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/N1/#singleton-evaluation-of-collections)
+and its allowance for
+[type-safety checks before or during evaluation](https://hl7.org/fhirpath/N1/#type-safety-and-strict-evaluation).
 Caller-supplied callbacks, including
 custom functions, conversions, regular expression engines, and trace sinks, may
 throw their own errors; the engine does not swallow them. Use

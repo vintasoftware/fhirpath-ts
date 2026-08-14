@@ -144,11 +144,11 @@
       </section>
 
       <section class="layers">
-        <h2 class="layers-title">Where a mistake gets caught</h2>
+        <h2 class="layers-title">Checks before and during evaluation</h2>
         <p class="layers-lede">
-          The same broken path can surface at three different moments. The earlier it does, the
-          cheaper it is to fix — so fhirpath-ts pushes as many checks as it can up toward the
-          keystroke, and leaves as little as possible for production.
+          TypeScript checks host values and inferred results. The analyzer checks expression
+          semantics. Runtime evaluation stays lenient when path navigation produces an empty
+          collection.
         </p>
 
         <article class="layer layer-early">
@@ -200,19 +200,18 @@ analyzeExpression('Patient.name.given.substring(1)', opts)
 
         <article class="layer layer-late">
           <div class="layer-head">
-            <span class="layer-when">Only when it runs</span>
-            <span class="layer-tool">against real data</span>
-            <h3 class="layer-name">Runtime error</h3>
+            <span class="layer-when">When it runs</span>
+            <span class="layer-tool">default evaluator</span>
+            <h3 class="layer-name">Lenient runtime result</h3>
           </div>
           <div class="layer-body">
-            <pre class="layer-code">r4.evaluate('Patient.namee.given', patient)   // []  — no error, just empty</pre>
+            <pre class="layer-code">r4.evaluate('Patient.namee.given', patient)   // [] at runtime; analyzer: unknown-element</pre>
             <p class="layer-note">
-              This is what the two checks above exist to shrink. Against real data most mistakes
-              don't throw — an unknown path just returns nothing, and you learn about it from a failing
-              test or a blank field, not an exception. A few hard cases genuinely throw (choice-key
-              misuse, an unconvertible unit), but the silent empty result is the one that reaches
-              production, which is why fhirpath-ts turns as much of it as it can into the two errors
-              you can catch first.
+              <code>evaluate()</code> does not run static analysis. Runtime navigation propagates an
+              empty collection when a path step finds nothing, so an invalid member can look like
+              absent data. The analyzer still reports <code>namee</code> before evaluation. Runtime
+              rules such as choice-key misuse, an unconvertible unit, and invalid cardinality still
+              throw.
             </p>
           </div>
         </article>

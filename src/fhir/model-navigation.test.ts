@@ -29,6 +29,9 @@ describe('model navigation branches', () => {
     // See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
     expect(evaluate('unknownKey', resource, options)).toEqual([])
     expect(evaluate('resourceType', resource, options)).toEqual(['Patient'])
+    expect(evaluate('Patient.name.active', { resourceType: 'Patient', name: [{ given: ['Ada'] }] }, options)).toEqual(
+      []
+    )
     // The one shape the official suites pin as a runtime semantic error.
     const observation = { resourceType: 'Observation', status: 'final', valueQuantity: { value: 1 } }
     expect(() => evaluate('Observation.valueQuantity.exists()', observation, options)).toThrow(
