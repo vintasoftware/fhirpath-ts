@@ -7,6 +7,7 @@ import { $, escapeHtml, renderTabs } from './dom.ts'
 import { run } from './engine.ts'
 import { type Tab, TABS } from './examples.ts'
 import { highlightBlocks } from './highlight.ts'
+import { bindTextareaWordNavigation } from './word-nav.ts'
 
 const exprEl = $<HTMLTextAreaElement>('[data-expr]')
 const highlightEl = $<HTMLDivElement>('[data-highlight]')
@@ -218,5 +219,6 @@ const observer = new IntersectionObserver(
 observer.observe(playgroundEl)
 
 exprEl.addEventListener('input', evaluate)
+bindTextareaWordNavigation(exprEl)
 window.addEventListener('resize', autosize)
 selectTab(TABS[0]!)
