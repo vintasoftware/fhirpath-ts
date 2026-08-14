@@ -1,0 +1,3 @@
+# Keep every change behind an independent Building Blocks review. The main
+# ruleset requires code-owner approval and approval of the most recent push.
+* @vintasoftware/building-blocks-devs

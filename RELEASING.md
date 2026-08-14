@@ -50,9 +50,9 @@ from a laptop is expected to fail — see
 
 5. **Watch the run.** `.github/workflows/release.yml` calls the same full CI
    workflow on the tagged commit, then checks the version, builds, checks the
-   package, prints the tarball's file list, and publishes. If the `npm-publish`
-   environment has required reviewers configured, it waits for an approval
-   between the two jobs.
+   package, and prints the tarball's file list. The `npm-publish` environment
+   then waits for approval from a Building Blocks Dev other than the person who
+   started the run before the publish job can begin.
 
 6. **Check what landed:** `npm view fhirpath-ts version`.
 
@@ -96,11 +96,22 @@ Only needed once, or if the workflow file is renamed.
    OIDC token's subject includes the environment name, so a mismatch fails the
    publish with an authentication error rather than a helpful one.
 
-3. In this repository's **Settings → Environments**, create `npm-publish`. Adding
-   required reviewers there is what turns a pushed tag into something a second
-   person approves.
+3. In this repository's **Settings → Environments**, create `npm-publish` with
+   the **Building Blocks Devs** team as required reviewers and **Prevent
+   self-review** enabled. Disable administrator bypass. This turns a pushed tag
+   into something a second person must approve before the OIDC-enabled publish
+   job starts.
 
-4. Delete the bootstrap token and discard the bootstrap clone. Future publishes
+4. Protect the default branch with the `protect main` ruleset. It requires:
+
+   - a pull request with one approval;
+   - code-owner approval from `.github/CODEOWNERS`;
+   - approval of the most recent push by someone other than its author;
+   - all review threads resolved;
+   - successful `node 22`, `node 24`, and `demo` checks against current `main`;
+   - no branch deletion or force pushes.
+
+5. Delete the bootstrap token and discard the bootstrap clone. Future publishes
    authenticate only through the workflow's short-lived OIDC token. The first
    real release is still `v0.1.0`, cut through the normal process above; its
    workflow publishes `0.1.0` under npm's default `latest` dist-tag.
