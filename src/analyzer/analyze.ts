@@ -135,6 +135,12 @@ export interface AnalysisDetails {
   elementDependencies: string[]
 }
 
+/** Runtime-known input state used by strict evaluation. Not part of the public analyzer API. */
+export interface AnalyzerRoot {
+  types: string[] | undefined
+  single: boolean | undefined
+}
+
 /**
  * Statically check one expression against the model: spec §11's strict-mode rules
  * (singleton misuse, wrong operand and argument types, incomparable equality)
@@ -208,7 +214,17 @@ export function analyzeExpressionDetailed(expression: string, options?: AnalyzeO
       result: { types: undefined, single: undefined },
     }
   }
-  const analyzer = new Analyzer(options)
+  return analyzeAstDetailed(ast, options)
+}
+
+/** Analyze an already parsed expression, optionally with a runtime-derived input state. */
+export function analyzeAstDetailed(
+  ast: AstNode,
+  options?: AnalyzeOptions,
+  root?: AnalyzerRoot,
+  includeExpressionDiagnostics = false
+): AnalysisDetails {
+  const analyzer = new Analyzer(options, root, includeExpressionDiagnostics)
   const state = analyzer.walk(ast, analyzer.rootState(), emptyScope())
   return {
     diagnostics: analyzer.diagnostics,
@@ -221,17 +237,27 @@ class Analyzer {
   readonly diagnostics: AnalyzerDiagnostic[] = []
   readonly dependencies = new Set<string>()
   private readonly model: ModelProvider | undefined
-  private readonly inputType: string | undefined
+  private readonly root: AnalyzerRoot
+  private readonly includeExpressionDiagnostics: boolean
   private readonly frames: StaticState[] = []
   /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
   private readonly declaredVariables: ReadonlyMap<string, DeclaredVariable>
   private readonly activeExpressionFunctions = new Set<string>()
 
-  constructor(options: AnalyzeOptions | undefined) {
+  constructor(
+    options: AnalyzeOptions | undefined,
+    root: AnalyzerRoot | undefined,
+    includeExpressionDiagnostics: boolean
+  ) {
     this.model = options?.model
+    this.includeExpressionDiagnostics = includeExpressionDiagnostics
     const inputType = options?.inputType
-    this.inputType = inputType === undefined ? undefined : (this.model?.resolveType(inputType) ?? inputType)
+    this.root =
+      root ??
+      (inputType === undefined
+        ? { types: undefined, single: undefined }
+        : { types: [this.model?.resolveType(inputType) ?? inputType], single: true })
     this.customFunctions = new Map(
       Object.entries(options?.functions ?? {}).map(([name, declared]) => [
         name,
@@ -244,7 +270,9 @@ class Analyzer {
   }
 
   rootState(): StaticState {
-    return this.inputType === undefined ? UNKNOWN : { types: [this.inputType], single: true, rawInput: true }
+    return this.root.types === undefined
+      ? { ...UNKNOWN }
+      : { types: this.root.types, single: this.root.single, rawInput: true }
   }
 
   walk(node: AstNode, input: StaticState, scope: VariableScope): StaticState {
@@ -381,7 +409,12 @@ class Analyzer {
     // Root rule: an identifier naming the (super)type of the context is the context.
     if (this.model) {
       const asType = this.model.resolveType(node.name)
-      if (asType !== undefined && input.types.some(type => this.model?.isSubtypeOf(type, asType))) {
+      let matchingTypes: string[] = []
+      if (asType !== undefined) {
+        const requiredType: string = asType
+        matchingTypes = input.types.filter(type => this.model?.isSubtypeOf(type, requiredType) === true)
+      }
+      if (asType !== undefined && matchingTypes.length > 0) {
         // The runtime matches a type name against the raw input only through the
         // resourceType discriminator (values/typed-value.ts), so a non-resource
         // name never matches there and the whole path navigates to empty.
@@ -392,7 +425,7 @@ class Analyzer {
             node.span
           )
         }
-        return input
+        return { ...input, types: matchingTypes }
       }
     }
     const found: string[] = []
@@ -570,9 +603,13 @@ class Analyzer {
       this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
       return { types: ['System.Boolean'], single: true }
     }
-    return declaration.signature?.result === undefined
-      ? this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
-      : undefined
+    if (declaration.signature?.result === undefined) {
+      return this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
+    }
+    if (this.includeExpressionDiagnostics) {
+      this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
+    }
+    return undefined
   }
 
   /** Infer a literal expression-function body under its call focus and temporary local environment declarations. */
@@ -608,8 +645,14 @@ class Analyzer {
     try {
       return this.walk(ast, input, functionScope)
     } finally {
-      // Body spans index another source string, so callers cannot display these diagnostics correctly.
-      this.diagnostics.length = diagnosticCount
+      if (this.includeExpressionDiagnostics) {
+        for (const diagnostic of this.diagnostics.slice(diagnosticCount)) {
+          diagnostic.message = `Custom function '${name}': ${diagnostic.message}`
+        }
+      } else {
+        // Body spans index another source string, so callers cannot display these diagnostics correctly.
+        this.diagnostics.length = diagnosticCount
+      }
       this.frames.pop()
       this.activeExpressionFunctions.delete(name)
     }

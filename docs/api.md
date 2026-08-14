@@ -34,6 +34,38 @@ const fp = new FhirPathEngine({
 })
 ```
 
+### Strict evaluation
+
+Evaluation is lenient by default: invalid model members navigate to an empty
+collection. Set `strict: true` on an engine to run the analyzer before every
+evaluation and throw `FhirPathTypeError` when it reports an error:
+
+```ts-invalid
+const strict = new FhirPathEngine({ model: r4Model, strict: true })
+
+strict.evaluate('Patient.name.givenn', patient)
+// FhirPathTypeError: Strict evaluation failed:
+// - [unknown-element] Element 'givenn' is not defined on FHIR.HumanName ...
+```
+
+`strict` is also an `EvaluateOptions` field, so one call can enable or disable
+it:
+
+```ts-invalid
+r4.evaluate('Patient.name.givenn', patient, { strict: true })
+strict.evaluate('Patient.name.givenn', patient, { strict: false }) // []
+```
+
+Strict evaluation rejects every error-severity analyzer diagnostic. Warnings,
+including `regex-backtracking`, do not stop evaluation. It checks `vars` and
+expression-defined custom functions with the same model, functions, and
+environment declarations as the evaluator. FHIR member checks require a model;
+values whose resource type is unknown to that model remain opaque.
+
+Runtime contracts still apply in lenient mode. Unknown functions and variables,
+wrong function arguments, invalid type names, and invalid cardinality are
+evaluation errors required by FHIRPath; `strict` does not control them.
+
 ## Engine methods
 
 ### `evaluate()`
@@ -612,18 +644,19 @@ entries where `search.mode = 'match'`.
 
 ## What throws errors and what doesn't?
 
-`evaluate()` does not run static analysis. FHIRPath uses an empty collection
-for absence, so ordinary path navigation is lenient at runtime:
+By default, `evaluate()` does not run static analysis. FHIRPath uses an empty
+collection for absence, so ordinary path navigation is lenient at runtime:
 
 | Example | Result | Reason |
 | --- | --- | --- |
 | `r4.evaluate('Encounter.id', patient)` | `[]` | The root type does not match the input. |
 | `r4.evaluate('Patient.telecom.value', patient)` | `[]` | The element is absent from this resource. |
 | `r4.evaluate('Patient.name.givenn', patient)` | `[]` | An unknown path segment, including a misspelling, navigates to empty. |
+| `r4.evaluate('Observation.valueQuantity', observation)` | `[]` | A choice JSON key is not a FHIRPath element; use the `Observation.value` stem. |
 | `r4.evaluate('Patient.name[99]', patient)` | `[]` | The index is outside the collection. |
 
-The analyzer (the `fhirpath-check` CLI / ESLint rule) reports unknown or
-misspelled elements against the FHIR model before evaluation.
+The `fhirpath-check` CLI, ESLint rule, analyzer API, and `strict: true`
+evaluation report unknown or misspelled elements against the FHIR model.
 
 The application helpers convert an empty result: `first()` returns `undefined`,
 `test()` returns `false`, and `filter()` drops that input.
@@ -634,7 +667,7 @@ Engine-generated failures use these exported `FhirPathError` subclasses:
 | --- | --- | --- |
 | `FhirPathSyntaxError` | `r4.evaluate('Patient..name', patient)` | Parsing fails because the expression does not match the grammar. |
 | `FhirPathTypeError` | `r4.evaluate('frobnicate()', patient)` | The function is unknown. Wrong argument types or counts and undefined `%variables` also throw this error. |
-| `FhirPathTypeError` | `r4.evaluate('Observation.valueQuantity', observation)` | Choice elements must use their FHIRPath stem (`Observation.value`), not their JSON key. This is the unknown-path case that throws. |
+| `FhirPathTypeError` | `r4.evaluate('Patient.name.givenn', patient, { strict: true })` | Strict evaluation runs the analyzer and rejects its error diagnostics before reading data. |
 | `FhirPathRuntimeError` | `r4.evaluate('(1 | 2).single()')` | The operation requires at most one item, but the data contains two. |
 | `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. Bare search Bundle paths can also throw when their root is ambiguous. |
 

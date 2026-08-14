@@ -23,7 +23,7 @@ describe('model navigation branches', () => {
     expect(evaluate('Observation.value.hasValue()', resource, options)).toEqual([false])
   })
 
-  it('unknown elements navigate to empty; choice-key misuse is the runtime error', () => {
+  it('unknown elements and choice-key misuse navigate to empty', () => {
     const resource = { resourceType: 'Patient', unknownKey: 'x' }
     // Typos are the static analyzer's job (spec §11); runtime navigation is lenient.
     // See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
@@ -32,11 +32,8 @@ describe('model navigation branches', () => {
     expect(evaluate('Patient.name.active', { resourceType: 'Patient', name: [{ given: ['Ada'] }] }, options)).toEqual(
       []
     )
-    // The one shape the official suites pin as a runtime semantic error.
     const observation = { resourceType: 'Observation', status: 'final', valueQuantity: { value: 1 } }
-    expect(() => evaluate('Observation.valueQuantity.exists()', observation, options)).toThrow(
-      'choice elements use their stem name'
-    )
+    expect(evaluate('Observation.valueQuantity.exists()', observation, options)).toEqual([false])
     // Types the model does not define read like raw JSON.
     const custom = { resourceType: 'CustomResource', anything: 'works' }
     expect(evaluate('anything', custom, options)).toEqual(['works'])

@@ -2,7 +2,24 @@
 
 [FHIRPath specification §11](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation)
 defines type safety and strict evaluation rules. This package applies them before expressions
-run through TypeScript inference, an ESLint rule, a CLI, and a public analyzer API.
+run through TypeScript inference, an ESLint rule, a CLI, a public analyzer API,
+and opt-in strict evaluation.
+
+## Strict evaluation
+
+Set `strict: true` on `FhirPathEngine` or an individual evaluation call to run
+the analyzer with the evaluator's model, functions, environment, variables, and
+runtime input type. Every error diagnostic becomes a `FhirPathTypeError` before
+the expression runs. Analyzer warnings remain non-fatal.
+
+```ts-invalid
+const fp = new FhirPathEngine({ model: r4Model, strict: true })
+fp.evaluate('Patient.name.givenn', patient) // FhirPathTypeError: unknown-element
+```
+
+This is useful when expressions arrive dynamically and cannot be checked by the
+CLI or ESLint. A model is required to validate FHIR members. The default remains
+lenient so ordinary navigation keeps FHIRPath's empty-collection behavior.
 
 ## The three layers
 

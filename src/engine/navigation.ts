@@ -1,4 +1,3 @@
-import { FhirPathTypeError } from '../errors.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
 import { OBJECT_TYPE, toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import type { EvaluationContext } from './context.ts'
@@ -16,17 +15,10 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
     } else if (context.model && item.type.startsWith(`${context.model.namespace}.`)) {
       const modelRead = readModelProperty(context.model, item, name)
       if (modelRead === undefined) {
-        // Choice elements go by stem name; a suffixed key like Observation.valueQuantity
-        // is the one unknown-element shape the official suites require to error at
-        // runtime. Everything else is the static analyzer's job (spec §11) — plain
-        // unknown elements navigate to empty, and types the model has never heard of
-        // (custom resourceTypes) read like raw JSON.
-        // See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
-        if (isChoiceKeyMisuse(context, item.type, name)) {
-          throw new FhirPathTypeError(
-            `Element '${name}' is not defined on ${item.type}; choice elements use their stem name`
-          )
-        }
+        // Unknown model elements navigate to empty. Strict evaluation runs the
+        // analyzer before reaching this point, including for choice-key misuse.
+        // Types the model has never heard of (custom resourceTypes) still read
+        // like raw JSON.
         if (
           name === 'resourceType' ||
           (context.model.listElements !== undefined && context.model.listElements(item.type) === undefined)
@@ -44,21 +36,6 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
     }
   }
   return results
-}
-
-/** True for `valueQuantity`-style keys whose stem is a choice element of the type. */
-function isChoiceKeyMisuse(context: EvaluationContext, type: string, name: string): boolean {
-  const model = context.model as NonNullable<EvaluationContext['model']>
-  for (let position = 1; position < name.length; position++) {
-    if (!/[A-Z]/.test(name[position] as string)) {
-      continue
-    }
-    const stem = name.slice(0, position)
-    if (model.getElement(type, stem)?.isChoice === true) {
-      return true
-    }
-  }
-  return false
 }
 
 function matchesTypeName(context: EvaluationContext, item: TypedValue, name: string): boolean {

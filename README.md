@@ -45,6 +45,11 @@ const fp = new FhirPathEngine({
 fp.evaluate('%threshold + 1') // number[]; [6]
 ```
 
+```ts-invalid
+const strict = new FhirPathEngine({ model: r4Model, strict: true })
+strict.evaluate('Patient.name.givenn', patient) // throws FhirPathTypeError
+```
+
 See [API reference](docs/api.md) for all entry points, options, custom functions,
 DTO behavior, parse caching, and Medplum type compatibility.
 
@@ -256,9 +261,11 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
 - FHIRPath always evaluates collections. Use `first()` when application code
   expects one optional value.
 - Unknown elements evaluate to an empty collection, as they do in other
-  engines. Use [static checking](#static-checking) to catch misspellings before runtime.
+  engines. Use [static checking](#static-checking), or set `strict: true` on an
+  engine or evaluation call, to catch misspellings before data is read.
 - Use choice stems such as `Observation.value`, not JSON keys such as
-  `valueQuantity`. The analyzer and runtime report the latter as an error.
+  `valueQuantity`. The analyzer and strict evaluation report the latter as an
+  error; lenient evaluation returns an empty collection.
 - Function names and arguments are strict: an unknown function, wrong arity or
   type, or undefined `%variable` is an error. See the
   [runtime error table](docs/api.md#what-throws-errors-and-what-doesnt).

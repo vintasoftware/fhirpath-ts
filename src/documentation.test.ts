@@ -38,6 +38,7 @@ const documentation: readonly DocumentExpectation[] = [
     fences: [
       valid('Patient.name.given', 'Patient.name.family', 'Patient.active = true', 'Patient.name.family'),
       valid('%threshold + 1'),
+      invalid('Patient', ['unknown-element'], 'Patient.name.givenn'),
       valid('id', "name.where(use = 'official').first().family", 'name.given', 'active = true'),
       valid('(text | coding.display.first() | coding.first().code).first()', 'Condition.code.displayText()'),
       valid(
@@ -66,6 +67,8 @@ const documentation: readonly DocumentExpectation[] = [
     fences: [
       valid('Patient.name.given', 'Patient.name.family'),
       valid(),
+      invalid('Patient', ['unknown-element'], 'Patient.name.givenn'),
+      invalid('Patient', ['unknown-element', 'unknown-element'], 'Patient.name.givenn', 'Patient.name.givenn'),
       valid('Patient.name.given'),
       valid('Patient.name.family'),
       valid('active = true'),
@@ -111,6 +114,7 @@ const documentation: readonly DocumentExpectation[] = [
   {
     path: 'docs/static-checking.md',
     fences: [
+      invalid('Patient', ['unknown-element'], 'Patient.name.givenn'),
       valid('Patient.name.given'),
       valid(),
       valid('%reports.where(orderId = %context.id).report'),

@@ -11,7 +11,7 @@ export interface ResultItem {
 export interface RunOutcome {
   diagnostics: AnalyzerDiagnostic[]
   results: ResultItem[] | null
-  /** Set when the expression parses but throws while running (e.g. choice-key misuse). */
+  /** Set when the expression parses but throws while running. */
   runtimeError: string | null
 }
 

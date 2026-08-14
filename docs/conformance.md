@@ -11,8 +11,8 @@ repository, converted to JSON offline, and run with Vitest.
 
 | Suite | Passing | Skipped with a reason | Failing |
 | --- | ---: | ---: | ---: |
-| R4 (`tests-fhir-r4.xml`) | 923 | 12 | 0 |
-| R5 (`tests-fhir-r5.xml`) | 1,026 | 25 | 0 |
+| R4 (`tests-fhir-r4.xml`) | 927 | 8 | 0 |
+| R5 (`tests-fhir-r5.xml`) | 1,031 | 20 | 0 |
 
 Every non-skipped official case passes.
 
@@ -22,12 +22,13 @@ Invalid cases must fail in the phase named by the suite:
 - `invalid="semantic"` throws `FhirPathTypeError`;
 - `invalid="execution"` throws a runtime or type error during evaluation.
 
-Six intentional phase differences are recorded in the checked
+Four intentional phase differences are recorded in the checked
 `PHASE_OVERRIDES` list.
 
-The static analyzer runs a separate pass over both official suites. Every
-strict-mode and semantic-invalid case must report an error diagnostic. Every
-valid case must report none.
+Semantic-invalid and strict-mode cases run through strict evaluation. The static
+analyzer also runs a separate pass over both official suites. Every
+semantic-invalid case it supports must report an error diagnostic, while valid
+cases must report none.
 
 ## Skipped official cases
 
@@ -39,7 +40,7 @@ fails when a skip no longer matches a suite case.
 | Terminology mode | Needs a terminology service |
 | CDA mode | Needs a CDA `ModelProvider` |
 | Lenient polymorphics | Profile-dependent mode that this engine does not offer |
-| Strict-mode static checks | Covered by the analyzer conformance pass instead of evaluation |
+| Ordered strict operation | Tracking whether `children()` has defined order is not implemented |
 | R5-only elements | The package currently ships an R4 model |
 | Decimal boundary and dateTime millisecond cases | Expected values conflict with the mathematical bounds; recorded as upstream test issues |
 | `testIif6` and `testPlusDate19` in R4 | R5 changed ambiguous R4 behavior; the engine follows R5 |
