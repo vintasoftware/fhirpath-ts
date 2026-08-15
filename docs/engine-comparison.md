@@ -28,9 +28,15 @@ outside that tool's purpose.
 | Official R4 and R5 suites in CI | all non-skipped cases | not run | not run | regrouped R5 | not run | R4 and R5 | R4 and R5 | R4 only | none |
 | Tests from other engines | yes, with reasons for each difference | no | no | no | no | no | no | no | Not applicable |
 | Compile-time result types | plain `tsc` | no | no | no | no | no | no | no | no |
-| [Spec §11 static analysis](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation) | CLI, ESLint, and API | no | no | runtime analyzer | no | `check()` API | display-only inference | no | editor inference |
+| Default unknown-member result | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` through fhirpath.js |
+| [Optional invalid-member check](https://hl7.org/fhirpath/N1/#type-safety-and-strict-evaluation) | CLI, ESLint, and API | no | no | analyzer API | no | `check()` API | strict runtime mode | strict runtime mode | editor inference |
 | Terminology, async evaluation, `%factory` | deferred | yes | partial | `%factory` | no | yes | — | — | Not applicable |
 | FHIR models | R4; provider interface | DSTU2 through R5 | DSTU2 through R5 | R5 | R4 | DSTU2 through R5 | R4 and R5 | R4, R4B, and R5 | — |
+
+Every default evaluator listed above returns empty for an unknown member. That
+runtime result does not make the member valid. fhirpath-ts, fhirpath-rs, HAPI,
+and the HealthSamurai editor check members separately from evaluation. Helios
+and kotlin-fhirpath instead offer an optional strict runtime mode.
 
 This package focuses on application development in TypeScript:
 
@@ -49,7 +55,6 @@ terminology and external-reference services. See
 
 | Practice | **fhirpath-ts** | fhirpath.js | fhirpath-py | fhirpath-rs | Medplum | HAPI / HL7 Java | helios-fhirpath | kotlin-fhirpath | HealthSamurai editor |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Errors checked in the expected phase | yes, with recorded exceptions | no | no | no | no | yes | no | no | Not applicable |
 | Static checker tested with official suites | valid and invalid cases | Not applicable | Not applicable | — | Not applicable | through phase checks | no | Not applicable | selected unit tests |
 | Custom functions visible to static checking | one record for checking and evaluation | runtime table only | — | — | — | yes | no | no | Not applicable |
 | `resolve()` typed from `targetProfile` | yes | Not applicable | Not applicable | — | Not applicable | yes | no | Not applicable | function absent |

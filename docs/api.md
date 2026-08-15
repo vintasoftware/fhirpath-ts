@@ -612,8 +612,8 @@ entries where `search.mode = 'match'`.
 
 ## What throws errors and what doesn't?
 
-FHIRPath uses an empty collection for absence, so ordinary path navigation is
-lenient at runtime:
+`evaluate()` does not run static analysis. FHIRPath uses an empty collection
+for absence, so ordinary path navigation is lenient at runtime:
 
 | Example | Result | Reason |
 | --- | --- | --- |
@@ -621,6 +621,9 @@ lenient at runtime:
 | `r4.evaluate('Patient.telecom.value', patient)` | `[]` | The element is absent from this resource. |
 | `r4.evaluate('Patient.name.givenn', patient)` | `[]` | An unknown path segment, including a misspelling, navigates to empty. |
 | `r4.evaluate('Patient.name[99]', patient)` | `[]` | The index is outside the collection. |
+
+The analyzer (the `fhirpath-check` CLI / ESLint rule) reports unknown or
+misspelled elements against the FHIR model before evaluation.
 
 The application helpers convert an empty result: `first()` returns `undefined`,
 `test()` returns `false`, and `filter()` drops that input.
@@ -636,7 +639,9 @@ Engine-generated failures use these exported `FhirPathError` subclasses:
 | `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. Bare search Bundle paths can also throw when their root is ambiguous. |
 
 This follows FHIRPath's
-[empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/N1/#singleton-evaluation-of-collections).
+[empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/N1/#singleton-evaluation-of-collections)
+and its
+[type-safety and strict evaluation model](https://hl7.org/fhirpath/N1/#type-safety-and-strict-evaluation).
 Caller-supplied callbacks, including
 custom functions, conversions, regular expression engines, and trace sinks, may
 throw their own errors; the engine does not swallow them. Use

@@ -51,12 +51,14 @@ describe('spec §11 rules', () => {
       'unknown-element',
     ])
     expect(codes('Patient.name.gven')).toEqual(['unknown-element'])
+    expect(codes('Patient.name.active')).toEqual(['unknown-element'])
   })
 
   it('suggests the closest name for a mistyped element', () => {
     expect(messages('Patient.name.gven')).toEqual([
       "Element 'gven' is not defined on FHIR.HumanName — did you mean 'given'?",
     ])
+    expect(messages('Patient.name.active')).toEqual(["Element 'active' is not defined on FHIR.HumanName"])
     expect(messages('Patient.nome')).toEqual(["Element 'nome' is not defined on FHIR.Patient — did you mean 'name'?"])
     // No suggestion when nothing is a plausible typo, and the choice hint wins over it.
     expect(messages('Patient.nope')).toEqual(["Element 'nope' is not defined on FHIR.Patient"])
