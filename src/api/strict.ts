@@ -1,8 +1,8 @@
 import {
-  analyzeAstDetailed,
   type AnalyzeOptions,
   type AnalyzerDiagnostic,
   type AnalyzerRoot,
+  analyzeRuntimeAstDetailed,
 } from '../analyzer/analyze.ts'
 import { analyzerEnvironmentVariables, type AnalyzerVariable, analyzerVariable } from '../analyzer/declarations.ts'
 import { normalizeEnvKeys } from '../engine/context.ts'
@@ -37,7 +37,7 @@ export function assertStrictExpression(ast: AstNode, root: TypedValue[], options
       continue
     }
 
-    const details = analyzeAstDetailed(astOf(value), analyzerOptions(options, variables), analyzerRoot, true)
+    const details = analyzeRuntimeAstDetailed(astOf(value), analyzerOptions(options, variables), analyzerRoot)
     findings.push(
       ...details.diagnostics
         .filter(diagnostic => diagnostic.severity === 'error')
@@ -56,7 +56,7 @@ export function assertStrictExpression(ast: AstNode, root: TypedValue[], options
     variables[name] ??= analyzerVariable(declaration)
   }
 
-  const details = analyzeAstDetailed(ast, analyzerOptions(options, variables), analyzerRoot, true)
+  const details = analyzeRuntimeAstDetailed(ast, analyzerOptions(options, variables), analyzerRoot)
   findings.push(
     ...details.diagnostics.filter(diagnostic => diagnostic.severity === 'error').map(diagnostic => ({ diagnostic }))
   )
@@ -75,10 +75,15 @@ function analyzerOptions(options: EvaluateOptions, variables: Record<string, Ana
 }
 
 function runtimeRoot(root: TypedValue[], model: ModelProvider | undefined): AnalyzerRoot {
-  const inferred = root.map(item => analyzerType(item.type, model))
+  const exactTypes = root.map(item => item.type)
+  const inferred = exactTypes.map(type => analyzerType(type, model))
   const types =
     root.length > 0 && inferred.every((type): type is string => type !== undefined) ? [...new Set(inferred)] : undefined
-  return { types, single: root.length <= 1 }
+  return {
+    types,
+    single: root.length <= 1,
+    exactTypes,
+  }
 }
 
 function analyzerType(type: string, model: ModelProvider | undefined): string | undefined {

@@ -110,6 +110,28 @@ describe('strict evaluation', () => {
     )
     expect(message).toContain('[unknown-element]')
 
+    const signedMessage = errorMessage(() =>
+      strict.evaluate('opaque().signedBroken()', undefined, {
+        functions: {
+          opaque: { minArity: 0, maxArity: 0, fn: () => patient },
+          signedBroken: { expression: 'status', signature: { input: { types: ['Patient'] } } },
+        },
+      })
+    )
+    expect(signedMessage).toContain("Custom function 'signedBroken': Element 'status' is not defined on FHIR.Patient")
+
+    const canonicalMessage = errorMessage(() =>
+      strict.evaluate('opaque().canonicalBroken()', undefined, {
+        functions: {
+          opaque: { minArity: 0, maxArity: 0, fn: () => patient },
+          canonicalBroken: { expression: 'status', signature: { input: { types: ['FHIR.Patient'] } } },
+        },
+      })
+    )
+    expect(canonicalMessage).toContain(
+      "Custom function 'canonicalBroken': Element 'status' is not defined on FHIR.Patient"
+    )
+
     expect(
       strict.evaluate('label()', patient, {
         functions: {
@@ -130,6 +152,49 @@ describe('strict evaluation', () => {
     ).toEqual(['p1'])
   })
 
+  it('checks the overload body runtime can select without losing statically possible bodies', () => {
+    const exactMessage = errorMessage(() =>
+      strict.evaluate('broken()', [patient, observation], {
+        functions: {
+          broken: {
+            overloads: [
+              { expression: 'nope', signature: { input: { types: ['Patient'] } } },
+              { expression: 'nope', signature: { input: { types: ['Observation'] } } },
+            ],
+          },
+        },
+      })
+    )
+    expect(exactMessage).toContain("Custom function 'broken': Element 'nope' is not defined on FHIR.Patient")
+    expect(exactMessage).not.toContain('FHIR.Observation')
+
+    const safeFunctions = {
+      safe: {
+        overloads: [
+          { expression: "'ok'", signature: { input: { types: ['Patient'] } } },
+          { expression: 'nope', signature: { input: { types: ['Observation'] } } },
+        ],
+      },
+    } as const
+    expect(strict.evaluate('safe()', undefined, { functions: safeFunctions })).toEqual(['ok'])
+    expect(strict.evaluate('safe()', { resourceType: 'CustomResource' }, { functions: safeFunctions })).toEqual(['ok'])
+
+    const possibleMessage = errorMessage(() =>
+      strict.evaluate('opaque().broken()', undefined, {
+        functions: {
+          opaque: { minArity: 0, maxArity: 0, fn: () => observation },
+          broken: {
+            overloads: [
+              { expression: 'id', signature: { input: { types: ['Patient'] } } },
+              { expression: 'nope', signature: { input: { types: ['Observation'] } } },
+            ],
+          },
+        },
+      })
+    )
+    expect(possibleMessage).toContain("Custom function 'broken': Element 'nope' is not defined on FHIR.Observation")
+  })
+
   it('applies through compiled expressions, filters, projections, and constraints', () => {
     expect(() => compile('Patient.nope').evaluate(patient, { model: r4Model, strict: true })).toThrow(
       /\[unknown-element\]/
@@ -148,5 +213,30 @@ describe('strict evaluation', () => {
   it('can reject model-independent type errors without a model', () => {
     const bareStrict = new FhirPathEngine({ strict: true })
     expect(() => bareStrict.evaluate("1 + 'x'")).toThrow(/\[operand-type\]/)
+    expect(
+      bareStrict.evaluate("'x'.safe()", undefined, {
+        functions: {
+          safe: {
+            overloads: [
+              { expression: "'ok'", signature: { input: { types: ['System.String'] } } },
+              { expression: "1 + 'x'", signature: { input: { types: ['System.Integer'] } } },
+            ],
+          },
+        },
+      })
+    ).toEqual(['ok'])
+  })
+
+  it('recognizes runtime type-name roots outside the FHIR model', () => {
+    expect(strict.evaluate('String.length()', 'abc')).toEqual([3])
+    expect(strict.evaluate('Integer.toString()', 12)).toEqual(['12'])
+    expect(strict.evaluate('CustomResource.anything', { resourceType: 'CustomResource', anything: 'works' })).toEqual([
+      'works',
+    ])
+    expect(
+      strict.evaluate('opaque().Integer.toString()', undefined, {
+        functions: { opaque: { minArity: 0, maxArity: 0, fn: () => 12 } },
+      })
+    ).toEqual(['12'])
   })
 })

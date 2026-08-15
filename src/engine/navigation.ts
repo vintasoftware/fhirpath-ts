@@ -1,5 +1,6 @@
 import { readModelProperty } from '../fhir/model-navigation.ts'
-import { OBJECT_TYPE, toTypedValue, type TypedValue } from '../values/typed-value.ts'
+import { rootTypeMatches } from '../values/type-compat.ts'
+import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import type { EvaluationContext } from './context.ts'
 
 /**
@@ -10,7 +11,7 @@ import type { EvaluationContext } from './context.ts'
 export function navigateIdentifier(context: EvaluationContext, name: string, input: TypedValue[]): TypedValue[] {
   const results: TypedValue[] = []
   for (const item of input) {
-    if (matchesTypeName(context, item, name)) {
+    if (rootTypeMatches(context.model, item.type, name)) {
       results.push(item)
     } else if (context.model && item.type.startsWith(`${context.model.namespace}.`)) {
       const modelRead = readModelProperty(context.model, item, name)
@@ -36,29 +37,6 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
     }
   }
   return results
-}
-
-function matchesTypeName(context: EvaluationContext, item: TypedValue, name: string): boolean {
-  // Only the namespace strips off: the backbone type FHIR.ValueSet.expansion.contains
-  // must not answer to the element name 'contains'. Lowercase primitive type names
-  // (FHIR.code) never self-match either — `children().code` means the element.
-  if (!/^[A-Z]/.test(name)) {
-    // Lowercase names are always elements: `children().code` never filters by the
-    // primitive type FHIR.code.
-    return false
-  }
-  const separator = item.type.indexOf('.')
-  const local = separator === -1 ? item.type : item.type.slice(separator + 1)
-  if (local === name && item.type !== OBJECT_TYPE) {
-    return true
-  }
-  if (context.model) {
-    const canonical = context.model.resolveType(name)
-    if (canonical !== undefined) {
-      return context.model.isSubtypeOf(item.type, canonical)
-    }
-  }
-  return false
 }
 
 /** Read one child element from a complex value, flattening arrays. Missing → empty. */

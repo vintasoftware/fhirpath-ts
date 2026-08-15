@@ -7,7 +7,16 @@ import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
-import { commonValueKind, unsatisfiedInput, type ValueKind } from '../values/type-compat.ts'
+import {
+  canonicalFocusType,
+  commonValueKind,
+  resolveByInput,
+  resolveSystemTypeName,
+  rootTypeMatches,
+  SYSTEM_TYPE_LOCAL_NAMES,
+  unsatisfiedInput,
+  type ValueKind,
+} from '../values/type-compat.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
 import { analyzerEnvironmentVariables, type AnalyzerVariable } from './declarations.ts'
 import { applyOperatorResultRule, applyTypeOperatorResultRule } from './operator-rules.ts'
@@ -86,6 +95,8 @@ export interface AnalyzeOptions {
 interface StaticState {
   types: string[] | undefined
   single: boolean | undefined
+  /** Exact runtime focus types, present only while strict analysis can still prove them. */
+  exactTypes?: string[]
   /**
    * Canonical resource types a Reference-valued state may point to (from
    * `Reference.targetProfile`) — what resolve() yields. Carried by element
@@ -97,6 +108,17 @@ interface StaticState {
 }
 
 const UNKNOWN: StaticState = { types: undefined, single: undefined }
+
+/** A runtime-analyzed function result no longer has exact facts about its input focus. */
+function callResult(state: Pick<StaticState, 'types' | 'single' | 'targets'>, runtime: boolean): StaticState {
+  return runtime
+    ? {
+        types: state.types,
+        single: state.single,
+        ...(state.targets !== undefined && { targets: state.targets }),
+      }
+    : state
+}
 
 /**
  * Variables visible at one point in analysis. Operators and arguments receive a
@@ -139,6 +161,8 @@ export interface AnalysisDetails {
 export interface AnalyzerRoot {
   types: string[] | undefined
   single: boolean | undefined
+  /** Canonical runtime types in focus order; an empty array means an exactly empty focus. */
+  exactTypes?: string[]
 }
 
 /**
@@ -218,13 +242,8 @@ export function analyzeExpressionDetailed(expression: string, options?: AnalyzeO
 }
 
 /** Analyze an already parsed expression, optionally with a runtime-derived input state. */
-export function analyzeAstDetailed(
-  ast: AstNode,
-  options?: AnalyzeOptions,
-  root?: AnalyzerRoot,
-  includeExpressionDiagnostics = false
-): AnalysisDetails {
-  const analyzer = new Analyzer(options, root, includeExpressionDiagnostics)
+function analyzeAstDetailed(ast: AstNode, options?: AnalyzeOptions, root?: AnalyzerRoot): AnalysisDetails {
+  const analyzer = new Analyzer(options, root)
   const state = analyzer.walk(ast, analyzer.rootState(), emptyScope())
   return {
     diagnostics: analyzer.diagnostics,
@@ -233,25 +252,26 @@ export function analyzeAstDetailed(
   }
 }
 
+/** Analyze a parsed expression using facts from the actual evaluation focus. */
+export function analyzeRuntimeAstDetailed(ast: AstNode, options: AnalyzeOptions, root: AnalyzerRoot): AnalysisDetails {
+  return analyzeAstDetailed(ast, options, root)
+}
+
 class Analyzer {
   readonly diagnostics: AnalyzerDiagnostic[] = []
   readonly dependencies = new Set<string>()
   private readonly model: ModelProvider | undefined
   private readonly root: AnalyzerRoot
-  private readonly includeExpressionDiagnostics: boolean
+  private readonly runtime: boolean
   private readonly frames: StaticState[] = []
   /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
   private readonly declaredVariables: ReadonlyMap<string, DeclaredVariable>
   private readonly activeExpressionFunctions = new Set<string>()
 
-  constructor(
-    options: AnalyzeOptions | undefined,
-    root: AnalyzerRoot | undefined,
-    includeExpressionDiagnostics: boolean
-  ) {
+  constructor(options: AnalyzeOptions | undefined, root: AnalyzerRoot | undefined) {
     this.model = options?.model
-    this.includeExpressionDiagnostics = includeExpressionDiagnostics
+    this.runtime = root !== undefined
     const inputType = options?.inputType
     this.root =
       root ??
@@ -270,9 +290,12 @@ class Analyzer {
   }
 
   rootState(): StaticState {
-    return this.root.types === undefined
-      ? { ...UNKNOWN }
-      : { types: this.root.types, single: this.root.single, rawInput: true }
+    return {
+      types: this.root.types,
+      single: this.root.single,
+      rawInput: true,
+      ...(this.root.exactTypes !== undefined && { exactTypes: this.root.exactTypes }),
+    }
   }
 
   walk(node: AstNode, input: StaticState, scope: VariableScope): StaticState {
@@ -397,35 +420,54 @@ class Analyzer {
     if (input.types !== undefined && input.types.length === 0) {
       return { types: [], single: true }
     }
+    const exactTypes = input.exactTypes?.filter(type => rootTypeMatches(this.model, type, node.name))
+    if (exactTypes !== undefined && exactTypes.length > 0) {
+      const types = input.types?.filter(type => rootTypeMatches(this.model, type, node.name))
+      return {
+        types: types === undefined ? undefined : [...new Set(types)],
+        single: input.single,
+        exactTypes,
+        ...(input.rawInput === true && { rawInput: true }),
+      }
+    }
     if (input.types === undefined) {
       // Even with an unknown input, a root identifier naming a model type anchors
       // the state — this is what checks `Patient.nope` without an inputType option.
-      const asType = this.model?.resolveType(node.name)
+      const asType = this.model?.resolveType(node.name) ?? resolveSystemTypeName(node.name)
       if (asType !== undefined) {
-        return { types: [asType], single: true }
+        return {
+          types: [asType],
+          single: true,
+          ...(input.exactTypes !== undefined && {
+            exactTypes: input.exactTypes.filter(type => this.model?.isSubtypeOf(type, asType) === true),
+          }),
+        }
       }
       return UNKNOWN
     }
     // Root rule: an identifier naming the (super)type of the context is the context.
-    if (this.model) {
-      const asType = this.model.resolveType(node.name)
+    {
+      const asType = this.model?.resolveType(node.name) ?? resolveSystemTypeName(node.name)
       let matchingTypes: string[] = []
       if (asType !== undefined) {
-        const requiredType: string = asType
-        matchingTypes = input.types.filter(type => this.model?.isSubtypeOf(type, requiredType) === true)
+        matchingTypes = input.types.filter(type => rootTypeMatches(this.model, type, node.name))
       }
       if (asType !== undefined && matchingTypes.length > 0) {
         // The runtime matches a type name against the raw input only through the
         // resourceType discriminator (values/typed-value.ts), so a non-resource
         // name never matches there and the whole path navigates to empty.
-        if (input.rawInput === true && !this.isResourceType(asType)) {
+        if (input.rawInput === true && !asType.startsWith('System.') && !this.isResourceType(asType)) {
           this.report(
             'datatype-root',
             `'${node.name}' is not a resource type, and a type-name root matches only a resource's resourceType, so this always evaluates to empty — navigate from the input with a relative path`,
             node.span
           )
         }
-        return { ...input, types: matchingTypes }
+        return {
+          ...input,
+          types: matchingTypes,
+          ...(input.exactTypes !== undefined && { exactTypes: input.exactTypes }),
+        }
       }
     }
     const found: string[] = []
@@ -568,7 +610,8 @@ class Analyzer {
     const signature = registered !== undefined ? FUNCTION_SIGNATURES[node.name] : this.toSignature(custom?.signature)
     if (!signature) {
       this.walkUncheckedArguments(node, input, scope)
-      return this.expressionFunctionResult(node.name, custom, input, scope) ?? UNKNOWN
+      const expressionResult = this.expressionFunctionResult(node.name, custom, input, scope)
+      return expressionResult === undefined ? UNKNOWN : callResult(expressionResult, this.runtime)
     }
     this.checkCallInput(node, signature, input)
     const { argStates, typeTarget } = this.walkArguments(node, signature, input, scope)
@@ -583,9 +626,9 @@ class Analyzer {
     }
     const expressionResult = this.expressionFunctionResult(node.name, custom, input, scope)
     if (expressionResult !== undefined) {
-      return expressionResult
+      return callResult(expressionResult, this.runtime)
     }
-    return applyResultRule(signature.result, input, argStates)
+    return callResult(applyResultRule(signature.result, input, argStates), this.runtime)
   }
 
   /** Apply the expression-body and criteria rules in one place for signed and unsigned declarations. */
@@ -596,20 +639,53 @@ class Analyzer {
     scope: VariableScope
   ): StaticState | undefined {
     if (declaration?.expression === undefined) {
+      for (const possible of declaration?.possibleBodies ?? []) {
+        if (possible.expression !== undefined) {
+          this.walkExpressionFunction(
+            name,
+            possible.expression,
+            possible.variables,
+            this.expressionBodyInput(possible, input),
+            scope
+          )
+        }
+      }
       return undefined
     }
     const expression = declaration.expression
+    const bodyInput = this.expressionBodyInput(declaration, input)
     if (declaration.criteria === true) {
-      this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
+      this.walkExpressionFunction(name, expression, declaration.variables, bodyInput, scope)
       return { types: ['System.Boolean'], single: true }
     }
     if (declaration.signature?.result === undefined) {
-      return this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
+      return this.walkExpressionFunction(name, expression, declaration.variables, bodyInput, scope)
     }
-    if (this.includeExpressionDiagnostics) {
-      this.walkExpressionFunction(name, expression, declaration.variables, input, scope)
+    if (this.runtime) {
+      this.walkExpressionFunction(name, expression, declaration.variables, bodyInput, scope)
     }
     return undefined
+  }
+
+  /** A declared input type is the contract an expression body must satisfy. */
+  private expressionBodyInput(declaration: ResolvedDeclaration, callInput: StaticState): StaticState {
+    const declared = declaration.signature?.input?.types
+    if (declared === undefined) {
+      return callInput
+    }
+    const types = declared
+      .map(type =>
+        this.model === undefined ? resolveSystemTypeName(typeLocalName(type)) : canonicalFocusType(this.model, type)
+      )
+      .filter((type): type is string => type !== undefined)
+    if (types.length === 0) {
+      return callInput
+    }
+    return {
+      types: [...new Set(types)],
+      single: callInput.single,
+      ...(callInput.targets !== undefined && { targets: callInput.targets }),
+    }
   }
 
   /** Infer a literal expression-function body under its call focus and temporary local environment declarations. */
@@ -645,7 +721,7 @@ class Analyzer {
     try {
       return this.walk(ast, input, functionScope)
     } finally {
-      if (this.includeExpressionDiagnostics) {
+      if (this.runtime) {
         for (const diagnostic of this.diagnostics.slice(diagnosticCount)) {
           diagnostic.message = `Custom function '${name}': ${diagnostic.message}`
         }
@@ -677,11 +753,25 @@ class Analyzer {
     if (candidates === undefined || candidates.length <= 1) {
       return candidates?.[0]
     }
+    if (this.runtime && (input.exactTypes !== undefined || this.model === undefined)) {
+      const resolution = resolveByInput(
+        this.model,
+        candidates,
+        candidate => candidate.signature?.input?.types,
+        input.exactTypes ?? []
+      )
+      return 'resolved' in resolution ? resolution.resolved : mergedDeclaration(candidates)
+    }
     const focus = input.types ?? []
     const fitting = candidates.filter(
       candidate => unsatisfiedInput(this.model, candidate.signature?.input?.types, focus) === undefined
     )
-    return fitting.length === 1 ? fitting[0] : mergedDeclaration(fitting.length === 0 ? candidates : fitting)
+    if (fitting.length === 1) {
+      return fitting[0]
+    }
+    const possible = fitting.length === 0 ? candidates : fitting
+    const merged = mergedDeclaration(possible)
+    return this.runtime ? { ...merged, possibleBodies: possible } : merged
   }
 
   /** Without a signature the arguments still walk (for their own diagnostics), each in a scope fork. */
@@ -920,7 +1010,7 @@ class Analyzer {
   /** Check a type name; returns its canonical form, or undefined when it was reported unknown. */
   private checkTypeName(parts: string[], span: SourceSpan): string | undefined {
     if (parts.length === 2 && parts[0] === 'System') {
-      if (!SYSTEM_TYPE_NAMES.has(parts[1] as string)) {
+      if (!SYSTEM_TYPE_LOCAL_NAMES.has(parts[1] as string)) {
         this.report('unknown-type', `Unknown type 'System.${parts[1]}'`, span)
         return undefined
       }
@@ -932,11 +1022,11 @@ class Analyzer {
       return undefined
     }
     const resolved = this.model?.resolveType(name)
-    if (this.model && resolved === undefined && !SYSTEM_TYPE_NAMES.has(name)) {
+    if (this.model && resolved === undefined && !SYSTEM_TYPE_LOCAL_NAMES.has(name)) {
       this.report('unknown-type', `Unknown type '${parts.join('.')}'`, span)
       return undefined
     }
-    return resolved ?? (SYSTEM_TYPE_NAMES.has(name) ? `System.${name}` : name)
+    return resolved ?? (SYSTEM_TYPE_LOCAL_NAMES.has(name) ? `System.${name}` : name)
   }
 
   private walkBinary(node: AstNode & { kind: 'binary' }, input: StaticState, scope: VariableScope): StaticState {
@@ -1093,19 +1183,6 @@ class Analyzer {
 /** Functions whose first argument is a regular expression pattern. */
 const REGEX_PATTERN_FUNCTIONS = new Set(['matches', 'matchesFull', 'replaceMatches'])
 
-const SYSTEM_TYPE_NAMES = new Set([
-  'Any',
-  'Boolean',
-  'String',
-  'Integer',
-  'Long',
-  'Decimal',
-  'Date',
-  'DateTime',
-  'Time',
-  'Quantity',
-])
-
 /** Appended to singleton-misuse messages so the fix is spelled out, not just the rule. */
 const NARROW_HINT = ' — narrow it to one item with first(), last(), or single()'
 
@@ -1125,6 +1202,8 @@ interface ResolvedDeclaration {
   expression?: { source: string; ast?: AstNode }
   criteria?: boolean
   variables?: Readonly<Record<string, DeclaredVariable>>
+  /** Expression declarations runtime dispatch may select when static focus is not exact. */
+  possibleBodies?: readonly ResolvedDeclaration[]
 }
 
 function resolvedDeclaration(declared: SingleDeclaredFunction, model: ModelProvider | undefined): ResolvedDeclaration {
