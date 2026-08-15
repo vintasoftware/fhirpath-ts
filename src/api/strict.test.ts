@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import type { Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
-import { compile } from './compile.ts'
+import { compile, type EvaluateOptions } from './compile.ts'
 import { FhirPathEngine } from './engine.ts'
 
 const patient: Patient = {
@@ -178,6 +178,39 @@ describe('strict evaluation', () => {
     } as const
     expect(strict.evaluate('safe()', undefined, { functions: safeFunctions })).toEqual(['ok'])
     expect(strict.evaluate('safe()', { resourceType: 'CustomResource' }, { functions: safeFunctions })).toEqual(['ok'])
+
+    expect(
+      strict.evaluate('%value.safe()', undefined, { env: { value: undefined }, functions: safeFunctions })
+    ).toEqual(['ok'])
+    expect(
+      strict.evaluate('%value.safe()', undefined, { env: { value: { opaque: true } }, functions: safeFunctions })
+    ).toEqual(['ok'])
+    expect(strict.evaluate('%value.safe()', undefined, { vars: { value: [] }, functions: safeFunctions })).toEqual([
+      'ok',
+    ])
+    expect(
+      strict.evaluate('%value.safe()', undefined, {
+        vars: { value: [{ type: 'FHIR.CustomResource', value: { resourceType: 'CustomResource' } }] },
+        functions: safeFunctions,
+      })
+    ).toEqual(['ok'])
+
+    expect(
+      strict.evaluate('fromEnv()', undefined, {
+        functions: {
+          ...safeFunctions,
+          fromEnv: { expression: '%value.safe()', env: { value: undefined } },
+        },
+      })
+    ).toEqual(['ok'])
+
+    const declaredOptions: EvaluateOptions = {
+      env: { value: observation },
+      envTypes: { value: { type: 'Patient' } },
+      functions: safeFunctions,
+    }
+    const declaredMessage = errorMessage(() => strict.evaluate('%value.safe()', undefined, declaredOptions))
+    expect(declaredMessage).toContain("Custom function 'safe': Element 'nope' is not defined on FHIR.Observation")
 
     const possibleMessage = errorMessage(() =>
       strict.evaluate('opaque().broken()', undefined, {

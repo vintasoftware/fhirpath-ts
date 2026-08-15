@@ -18,7 +18,7 @@ import {
   type ValueKind,
 } from '../values/type-compat.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
-import { analyzerEnvironmentVariables, type AnalyzerVariable } from './declarations.ts'
+import { analyzerEnvironmentVariables, type AnalyzerVariable, analyzerVariableRuntimeTypes } from './declarations.ts'
 import { applyOperatorResultRule, applyTypeOperatorResultRule } from './operator-rules.ts'
 import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
@@ -736,10 +736,12 @@ class Analyzer {
 
   /** Convert one declared environment value into the same state used for scoped variables. */
   private declaredVariableState(declared: DeclaredVariable): StaticState {
+    const exactTypes = this.runtime ? analyzerVariableRuntimeTypes(declared) : undefined
     return {
       types: declared.types?.map(type => this.canonicalize(type)),
       single: declared.single,
       ...(declared.targets !== undefined && { targets: declared.targets.map(type => this.canonicalize(type)) }),
+      ...(exactTypes !== undefined && { exactTypes }),
     }
   }
 
