@@ -5,6 +5,11 @@
 
 import 'monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution'
 import 'monaco-editor/esm/vs/editor/contrib/hover/browser/hoverContribution'
+// Registers the cursorWord* commands and their default Ctrl+Arrow (Windows,
+// Linux) and Option+Arrow (macOS) bindings, which editor.api leaves out.
+// Without it, the macOS rules in bindWordNavigation name commands that do
+// not exist. Also brings Ctrl/Option+Backspace word deletion.
+import 'monaco-editor/esm/vs/editor/contrib/wordOperations/browser/wordOperations'
 import 'monaco-editor/esm/vs/language/typescript/monaco.contribution'
 
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
