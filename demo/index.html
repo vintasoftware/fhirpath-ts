@@ -206,11 +206,11 @@ analyzeExpression('Patient.name.given.substring(1)', opts)
           <div class="layer-body">
             <pre class="layer-code">r4.evaluate('Patient.namee.given', patient)   // []  — no error, just empty</pre>
             <p class="layer-note">
-              <code>evaluate()</code> does not run static analysis. A path step that finds nothing
+              <code>evaluate()</code> does not run static analysis by default. A path step that finds nothing
               returns <code>[]</code>, so the typo in <code>namee</code> gives the same result as
               valid data that happens to be absent. The fhirpath-check CLI / ESLint rule above
-              catches it before this line runs. A few mistakes still throw at runtime: choice-key
-              misuse, an unconvertible unit, a cardinality violation.
+              catches it before this line runs. Invalid function calls, unconvertible units, and
+              cardinality violations still throw at runtime.
             </p>
           </div>
         </article>

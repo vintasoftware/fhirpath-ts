@@ -29,6 +29,7 @@ import type {
 } from '../typed/infer.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
+import { assertStrictExpression } from './strict.ts'
 
 /**
  * A native or expression-defined FHIRPath function. Native functions receive
@@ -76,6 +77,8 @@ export interface OverloadedCustomFunction {
 export type CustomFunction = SingleCustomFunction | OverloadedCustomFunction
 
 export interface EvaluateOptions {
+  /** Run the static analyzer before evaluation and throw on every error diagnostic. Defaults to false. */
+  strict?: boolean
   /** Environment variables (`%name`), keyed with or without the leading `%`. */
   env?: Record<string, unknown>
   /** Explicit types or refinements for environment values. */
@@ -172,6 +175,7 @@ export class CompiledExpression<
   /** Evaluate keeping the internal typed representation (types, Decimal, Temporal). */
   evaluateTyped(input?: unknown, options?: EvaluateOptions): TypedValue[] {
     const root = toCollection(input)
+    assertStrictExpression(this.ast, root, options)
     return evaluateNode(this.ast, contextFactory(options)(root), root)
   }
 

@@ -1,22 +1,14 @@
 import { FhirPathTypeError } from '../errors.ts'
-import { resolveByInput, type UnsatisfiedInput, unsatisfiedInput } from '../values/type-compat.ts'
+import {
+  resolveByInput,
+  SYSTEM_TYPE_LOCAL_NAMES,
+  type UnsatisfiedInput,
+  unsatisfiedInput,
+} from '../values/type-compat.ts'
 import { OBJECT_TYPE, type TypedValue, typeLocalName } from '../values/typed-value.ts'
 import type { EvaluationContext, HostFunction, HostSingleFunction } from './context.ts'
 
-const SYSTEM_LOCAL_NAMES = new Set([
-  'Any',
-  'Boolean',
-  'String',
-  'Integer',
-  'Long',
-  'Decimal',
-  'Date',
-  'DateTime',
-  'Time',
-  'Quantity',
-])
-
-const SYSTEM_LOCAL_NAMES_LOWER = new Set([...SYSTEM_LOCAL_NAMES].map(name => name.toLowerCase()))
+const SYSTEM_LOCAL_NAMES_LOWER = new Set([...SYSTEM_TYPE_LOCAL_NAMES].map(name => name.toLowerCase()))
 
 /** True when an unqualified name may mean a System primitive and requires exact `as`/`ofType` matching. */
 function isSystemAmbiguousName(name: string): boolean {
@@ -126,13 +118,15 @@ function* focusTypes(input: TypedValue[]): Iterable<string> {
 /** True when a single-part type name resolves in the model or the System namespace. */
 export function isKnownTypeName(context: EvaluationContext, parts: string[]): boolean {
   if (parts.length === 2) {
-    return parts[0] === 'System' ? SYSTEM_LOCAL_NAMES.has(parts[1] as string) : parts[0] === context.model?.namespace
+    return parts[0] === 'System'
+      ? SYSTEM_TYPE_LOCAL_NAMES.has(parts[1] as string)
+      : parts[0] === context.model?.namespace
   }
   const name = parts[0] as string
   if (context.model?.resolveType(name) !== undefined) {
     return true
   }
-  return SYSTEM_LOCAL_NAMES.has(name)
+  return SYSTEM_TYPE_LOCAL_NAMES.has(name)
 }
 
 function matchesSystemType(item: TypedValue, name: string): boolean {

@@ -1,6 +1,37 @@
 /** Shared, conservative type compatibility for runtime dispatch and static checks. */
 import type { ModelProvider } from '../model/provider.ts'
-import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from './typed-value.ts'
+import { FHIR_PRIMITIVE_TO_SYSTEM, OBJECT_TYPE, typeLocalName } from './typed-value.ts'
+
+/** System type names recognized by type specifiers and uppercase root selectors. */
+export const SYSTEM_TYPE_LOCAL_NAMES: ReadonlySet<string> = new Set([
+  'Any',
+  'Boolean',
+  'String',
+  'Integer',
+  'Long',
+  'Decimal',
+  'Date',
+  'DateTime',
+  'Time',
+  'Quantity',
+])
+
+/** The canonical System type for an exact local name. */
+export function resolveSystemTypeName(name: string): string | undefined {
+  return SYSTEM_TYPE_LOCAL_NAMES.has(name) ? `System.${name}` : undefined
+}
+
+/** Runtime root rule: an uppercase name matches an item's own type or a model supertype. */
+export function rootTypeMatches(model: ModelProvider | undefined, itemType: string, name: string): boolean {
+  if (!/^[A-Z]/.test(name)) {
+    return false
+  }
+  if (itemType !== OBJECT_TYPE && typeLocalName(itemType) === name) {
+    return true
+  }
+  const canonical = model?.resolveType(name)
+  return canonical !== undefined && model?.isSubtypeOf(itemType, canonical) === true
+}
 
 /** Behavior families used by the static checks. */
 export type ValueKind = 'Boolean' | 'String' | 'Numeric' | 'Temporal' | 'Quantity' | 'Complex'

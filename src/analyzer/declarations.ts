@@ -1,13 +1,24 @@
 import { normalizeEnvKeys } from '../engine/context.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { FhirpathTypeDeclaration, FhirpathTypeDeclarations } from '../typed/infer.ts'
-import { OBJECT_TYPE, toCollection, typeLocalName } from '../values/typed-value.ts'
+import { OBJECT_TYPE, toCollection, type TypedValue, typeLocalName } from '../values/typed-value.ts'
 
 /** A host variable in the analyzer's canonical collection form. */
 export interface AnalyzerVariable {
   types?: string[]
   single?: boolean
   targets?: string[]
+}
+
+/** Internal variable state with the exact focus types used by runtime host-function dispatch. */
+export interface RuntimeAnalyzerVariable extends AnalyzerVariable {
+  exactTypes: string[]
+}
+
+export type AnalyzerVariableState = AnalyzerVariable | RuntimeAnalyzerVariable
+
+export function isRuntimeAnalyzerVariable(variable: AnalyzerVariableState): variable is RuntimeAnalyzerVariable {
+  return 'exactTypes' in variable
 }
 
 /** Convert one public type declaration into analyzer state. */
@@ -21,14 +32,33 @@ export function analyzerVariable(declaration: FhirpathTypeDeclaration): Analyzer
   }
 }
 
-function analyzerVariableFromValue(value: unknown, model: ModelProvider | undefined): AnalyzerVariable {
-  const collection = toCollection(value)
+/** Convert one runtime collection while retaining the exact types used for host-function dispatch. */
+export function runtimeAnalyzerVariable(
+  collection: readonly TypedValue[],
+  model: ModelProvider | undefined,
+  declaration?: FhirpathTypeDeclaration
+): RuntimeAnalyzerVariable {
+  const inferred = analyzerVariableFromCollection(collection, model)
+  return {
+    ...(declaration === undefined ? inferred : analyzerVariable(declaration)),
+    exactTypes: collection.map(item => item.type),
+  }
+}
+
+function analyzerVariableFromCollection(
+  collection: readonly TypedValue[],
+  model: ModelProvider | undefined
+): AnalyzerVariable {
   const inferred = collection.map(item => inferAnalyzerType(item.type, model))
   const types = inferred.every(type => type !== undefined) ? [...new Set(inferred)] : undefined
   return {
     ...(types !== undefined && types.length > 0 && { types }),
     single: collection.length <= 1,
   }
+}
+
+function analyzerVariableFromValue(value: unknown, model: ModelProvider | undefined): AnalyzerVariable {
+  return analyzerVariableFromCollection(toCollection(value), model)
 }
 
 function inferAnalyzerType(type: string, model: ModelProvider | undefined): string | undefined {
@@ -43,7 +73,9 @@ export function analyzerVariables(
   values: object | undefined,
   declarations: FhirpathTypeDeclarations | undefined
 ): Record<string, AnalyzerVariable> {
-  return collectAnalyzerVariables(values, declarations, () => ({}))
+  return collectAnalyzerVariables(values, declarations, (_value, declaration) =>
+    declaration === undefined ? {} : analyzerVariable(declaration)
+  )
 }
 
 /** Infer safe types from environment values, with explicit declarations taking precedence. */
@@ -52,20 +84,37 @@ export function analyzerEnvironmentVariables(
   declarations: FhirpathTypeDeclarations | undefined,
   model: ModelProvider | undefined
 ): Record<string, AnalyzerVariable> {
-  return collectAnalyzerVariables(values, declarations, value => analyzerVariableFromValue(value, model))
+  return collectAnalyzerVariables(values, declarations, (value, declaration) =>
+    declaration === undefined ? analyzerVariableFromValue(value, model) : analyzerVariable(declaration)
+  )
+}
+
+/** Runtime environment state, retaining actual dispatch types independently of declarations. */
+export function runtimeAnalyzerEnvironmentVariables(
+  values: object | undefined,
+  declarations: FhirpathTypeDeclarations | undefined,
+  model: ModelProvider | undefined
+): Record<string, AnalyzerVariableState> {
+  return collectAnalyzerVariables(values, declarations, (value, declaration) =>
+    runtimeAnalyzerVariable(toCollection(value), model, declaration)
+  )
 }
 
 function collectAnalyzerVariables(
   values: object | undefined,
   declarations: FhirpathTypeDeclarations | undefined,
-  inferValue: (value: unknown) => AnalyzerVariable
+  inferValue: (value: unknown, declaration: FhirpathTypeDeclaration | undefined) => AnalyzerVariable
 ): Record<string, AnalyzerVariable> {
   const normalizedValues = normalizeEnvKeys(values as Readonly<Record<string, unknown>> | undefined)
   const normalizedDeclarations = normalizeEnvKeys(declarations)
   const variables: Record<string, AnalyzerVariable> = {}
   for (const name of new Set([...Object.keys(normalizedValues), ...Object.keys(normalizedDeclarations)])) {
     const declaration = normalizedDeclarations[name]
-    variables[name] = declaration === undefined ? inferValue(normalizedValues[name]) : analyzerVariable(declaration)
+    if (Object.hasOwn(normalizedValues, name)) {
+      variables[name] = inferValue(normalizedValues[name], declaration)
+    } else if (declaration !== undefined) {
+      variables[name] = analyzerVariable(declaration)
+    }
   }
   return variables
 }
