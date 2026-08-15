@@ -64,7 +64,9 @@ values whose resource type is unknown to that model remain opaque.
 
 Runtime contracts still apply in lenient mode. Unknown functions and variables,
 wrong function arguments, invalid type names, and invalid cardinality are
-evaluation errors required by FHIRPath; `strict` does not control them.
+evaluation errors required by FHIRPath; `strict` does not control them. See
+[What throws errors and what doesn't?](#what-throws-errors-and-what-doesnt) for
+the full boundary.
 
 ## Engine methods
 
@@ -668,6 +670,7 @@ Engine-generated failures use these exported `FhirPathError` subclasses:
 | `FhirPathSyntaxError` | `r4.evaluate('Patient..name', patient)` | Parsing fails because the expression does not match the grammar. |
 | `FhirPathTypeError` | `r4.evaluate('frobnicate()', patient)` | The function is unknown. Wrong argument types or counts and undefined `%variables` also throw this error. |
 | `FhirPathTypeError` | `r4.evaluate('Patient.name.givenn', patient, { strict: true })` | Strict evaluation runs the analyzer and rejects its error diagnostics before reading data. |
+| `FhirPathTypeError` | `r4.evaluate('Observation.valueQuantity', observation, { strict: true })` | A choice JSON key is an unknown path in FHIRPath; strict evaluation requires the `Observation.value` stem. |
 | `FhirPathRuntimeError` | `r4.evaluate('(1 | 2).single()')` | The operation requires at most one item, but the data contains two. |
 | `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. Bare search Bundle paths can also throw when their root is ambiguous. |
 
