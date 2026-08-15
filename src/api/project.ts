@@ -7,6 +7,7 @@ import { criteriaBoolean } from '../values/collection.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
 import { type Compiler, contextFactory, type EvaluateOptions } from './compile.ts'
+import { assertStrictExpression } from './strict.ts'
 
 /**
  * One `project()` column. A string or `{ path }` returns one optional value.
@@ -190,6 +191,11 @@ function assertShaperOptions(name: string, spec: Extract<ProjectionColumn, { pat
  */
 type ColumnReader = (root: TypedValue[], context: EvaluationContext, at: RowPosition) => unknown
 
+interface PlannedColumn {
+  ast: ReturnType<Compiler>['ast']
+  read: ColumnReader
+}
+
 /** Where a row sits in the batch, for the errors that need to point at one of many. */
 interface RowPosition {
   index: number
@@ -206,32 +212,38 @@ function inRow({ index, total }: RowPosition): string {
 }
 
 /** Take the column union apart once, at plan time; rows only run the result. */
-function planColumn(name: string, column: ProjectionColumn, compile: Compiler): ColumnReader {
+function planColumn(name: string, column: ProjectionColumn, compile: Compiler): PlannedColumn {
   if (typeof column !== 'string' && 'test' in column) {
     const criteria = compile(column.test)
-    return (root, context) => criteriaBoolean(evaluateNode(criteria.ast, forkVariables(context), root))
+    return {
+      ast: criteria.ast,
+      read: (root, context) => criteriaBoolean(evaluateNode(criteria.ast, forkVariables(context), root)),
+    }
   }
   const spec: Extract<ProjectionColumn, { path: string }> = typeof column === 'string' ? { path: column } : column
   assertShaperOptions(name, spec)
   const expression = compile(spec.path)
   const applyAs = coercion(spec)
   const empty = 'default' in spec ? spec.default : undefined
-  return (root, context, at) => {
-    const values = evaluateNode(expression.ast, forkVariables(context), root).map(unwrap)
-    if (spec.collection === true) {
-      return applyAs(values)
-    }
-    // The scalar-column rule counts the expression's values, before any `as`
-    // coercion or `choices` miss drops them. One row of a batch can be the only
-    // one that breaks it, so the message says which — `%rowIndex` numbering,
-    // the same the columns see.
-    if (values.length > 1) {
-      throw new FhirPathRuntimeError(
-        `project(): column '${name}' yielded ${values.length} values${inRow(at)}; append first() or set collection: true`
-      )
-    }
-    const coerced = applyAs(values)
-    return coerced.length > 0 ? coerced[0] : empty
+  return {
+    ast: expression.ast,
+    read: (root, context, at) => {
+      const values = evaluateNode(expression.ast, forkVariables(context), root).map(unwrap)
+      if (spec.collection === true) {
+        return applyAs(values)
+      }
+      // The scalar-column rule counts the expression's values, before any `as`
+      // coercion or `choices` miss drops them. One row of a batch can be the only
+      // one that breaks it, so the message says which — `%rowIndex` numbering,
+      // the same the columns see.
+      if (values.length > 1) {
+        throw new FhirPathRuntimeError(
+          `project(): column '${name}' yielded ${values.length} values${inRow(at)}; append first() or set collection: true`
+        )
+      }
+      const coerced = applyAs(values)
+      return coerced.length > 0 ? coerced[0] : empty
+    },
   }
 }
 
@@ -246,16 +258,21 @@ export function projectRows(
   options: EvaluateOptions,
   compile: Compiler
 ): Record<string, unknown>[] {
-  const readers = Object.entries(columns).map(([name, column]) => [name, planColumn(name, column, compile)] as const)
+  const planned = Object.entries(columns).map(([name, column]) => [name, planColumn(name, column, compile)] as const)
   const makeContext = contextFactory(options)
   const subjects = toSubjects(input)
   return subjects.map((subject, index) => {
     const root = toCollection(subject.value)
     const at: RowPosition = { index, total: subjects.length }
-    const context = makeContext(root, { rowIndex: index, rowTotal: subjects.length })
+    const rowEnv = { rowIndex: index, rowTotal: subjects.length }
+    const strictOptions = options.strict === true ? { ...options, env: { ...options.env, ...rowEnv } } : options
+    for (const [, column] of planned) {
+      assertStrictExpression(column.ast, root, strictOptions)
+    }
+    const context = makeContext(root, rowEnv)
     const row: Record<string, unknown> = {}
-    for (const [name, read] of readers) {
-      row[name] = read(root, context, at)
+    for (const [name, column] of planned) {
+      row[name] = column.read(root, context, at)
     }
     return row
   })

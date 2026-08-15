@@ -63,22 +63,6 @@ export const PHASE_OVERRIDES: PhaseOverride[] = [
     reason:
       'the FHIRPath grammar gives TIME literals no timezone offset, so @T14:34:28+10:00 is rejected at parse; the suite tags it execution',
   },
-  {
-    suite: 'r4',
-    group: 'testCollectionBoolean',
-    test: 'testCollectionBoolean1',
-    throws: 'execution',
-    reason:
-      'a multi-item iif criterion breaks the singleton rule while evaluating; this dynamic engine raises it at execution, the suite tags it semantic',
-  },
-  {
-    suite: 'r5',
-    group: 'testCollectionBoolean',
-    test: 'testCollectionBoolean1',
-    throws: 'execution',
-    reason:
-      'a multi-item iif criterion breaks the singleton rule while evaluating; this dynamic engine raises it at execution, the suite tags it semantic',
-  },
 ]
 
 export const SKIP_MANIFEST: SkipEntry[] = [
@@ -99,13 +83,17 @@ export const SKIP_MANIFEST: SkipEntry[] = [
   },
   {
     suite: 'r4',
-    mode: 'strict',
-    reason: 'strict static typing errors are the job of the analyzer, not the dynamic evaluator',
+    group: 'testDollar',
+    test: 'testDollarOrderNotAllowed',
+    reason:
+      'ordered/unordered collection tracking is not implemented; strict evaluation shares this analyzer limit; tracked in #63',
   },
   {
     suite: 'r5',
-    mode: 'strict',
-    reason: 'strict static typing errors are the job of the analyzer, not the dynamic evaluator',
+    group: 'testDollar',
+    test: 'testDollarOrderNotAllowed',
+    reason:
+      'ordered/unordered collection tracking is not implemented; strict evaluation shares this analyzer limit; tracked in #63',
   },
   {
     suite: 'r5',

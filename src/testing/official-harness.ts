@@ -122,11 +122,15 @@ function expectedPhase(suite: SuiteName, groupName: string, test: OfficialTest):
 /** Run one official case; returns undefined on pass, a failure message otherwise. */
 export function runOfficialTest(suite: SuiteName, test: OfficialTest, groupName = ''): string | undefined {
   const input = test.inputfile === undefined ? undefined : loadFixture(suite, test.inputfile)
+  const options = {
+    model: r4Model,
+    ...((test.invalid === 'semantic' || test.mode === 'strict') && { strict: true }),
+  }
   if (test.invalid !== undefined) {
     const phase = expectedPhase(suite, groupName, test)
     try {
       const compiled = new CompiledExpression(test.expression)
-      compiled.evaluateTyped(input, { model: r4Model })
+      compiled.evaluateTyped(input, options)
       return `expected an error (invalid="${test.invalid}") but evaluation succeeded`
     } catch (error) {
       if (!(error instanceof FhirPathError)) {
@@ -141,7 +145,7 @@ export function runOfficialTest(suite: SuiteName, test: OfficialTest, groupName 
   }
   let results: TypedValue[]
   try {
-    results = new CompiledExpression(test.expression).evaluateTyped(input, { model: r4Model })
+    results = new CompiledExpression(test.expression).evaluateTyped(input, options)
   } catch (error) {
     return `evaluation failed: ${(error as Error).message}`
   }

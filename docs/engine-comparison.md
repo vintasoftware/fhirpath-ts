@@ -29,14 +29,15 @@ outside that tool's purpose.
 | Tests from other engines | yes, with reasons for each difference | no | no | no | no | no | no | no | Not applicable |
 | Compile-time result types | plain `tsc` | no | no | no | no | no | no | no | no |
 | Default unknown-member result | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` through fhirpath.js |
-| [Optional invalid-member check](https://hl7.org/fhirpath/N1/#type-safety-and-strict-evaluation) | CLI, ESLint, and API | no | no | analyzer API | no | `check()` API | strict runtime mode | strict runtime mode | editor inference |
+| [Optional invalid-member check](https://hl7.org/fhirpath/N1/#type-safety-and-strict-evaluation) | strict runtime mode, CLI, ESLint, and API | no | no | analyzer API | no | `check()` API | strict runtime mode | strict runtime mode | editor inference |
 | Terminology, async evaluation, `%factory` | deferred | yes | partial | `%factory` | no | yes | — | — | Not applicable |
 | FHIR models | R4; provider interface | DSTU2 through R5 | DSTU2 through R5 | R5 | R4 | DSTU2 through R5 | R4 and R5 | R4, R4B, and R5 | — |
 
 Every default evaluator listed above returns empty for an unknown member. That
-runtime result does not make the member valid. fhirpath-ts, fhirpath-rs, HAPI,
-and the HealthSamurai editor check members separately from evaluation. Helios
-and kotlin-fhirpath instead offer an optional strict runtime mode.
+runtime result does not make the member valid. fhirpath-ts, Helios, and
+kotlin-fhirpath offer optional strict runtime evaluation. fhirpath-ts,
+fhirpath-rs, HAPI, and the HealthSamurai editor also check expressions separately
+from evaluation.
 
 This package focuses on application development in TypeScript:
 

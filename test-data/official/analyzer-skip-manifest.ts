@@ -2,27 +2,12 @@ import type { SkipEntry } from './skip-manifest.ts'
 
 /**
  * Official-suite cases the analyzer conformance test does not assert, each with a
- * reason. Two kinds live here: cases the analyzer should flag but cannot yet
- * (missing checks — every entry names the follow-up), and valid cases the
- * analyzer flags on purpose (deliberate strictness the suite does not share).
+ * reason. The remaining entries are valid cases the analyzer flags on purpose
+ * (deliberate strictness the suite does not share).
  * The hygiene test fails if an entry stops matching, so stale entries cannot
  * linger — and a fixed check makes its entries fail, forcing their removal.
  */
 export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
-  // --- missing checks: the analyzer emits no diagnostic yet ---
-  {
-    suite: 'r4',
-    group: 'testDollar',
-    test: 'testDollarOrderNotAllowed',
-    reason: 'flagging skip() after unordered children() needs ORDERED/UNORDERED collection tracking, which the analyzer does not do',
-  },
-  {
-    suite: 'r5',
-    group: 'testDollar',
-    test: 'testDollarOrderNotAllowed',
-    reason: 'flagging skip() after unordered children() needs ORDERED/UNORDERED collection tracking, which the analyzer does not do',
-  },
-
   // --- deliberate strictness: the analyzer flags these valid cases on purpose ---
   {
     suite: 'r4',
