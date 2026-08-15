@@ -10,7 +10,16 @@ export interface AnalyzerVariable {
   targets?: string[]
 }
 
-const runtimeTypes = new WeakMap<AnalyzerVariable, string[]>()
+/** Internal variable state with the exact focus types used by runtime host-function dispatch. */
+export interface RuntimeAnalyzerVariable extends AnalyzerVariable {
+  exactTypes: string[]
+}
+
+export type AnalyzerVariableState = AnalyzerVariable | RuntimeAnalyzerVariable
+
+export function isRuntimeAnalyzerVariable(variable: AnalyzerVariableState): variable is RuntimeAnalyzerVariable {
+  return 'exactTypes' in variable
+}
 
 /** Convert one public type declaration into analyzer state. */
 export function analyzerVariable(declaration: FhirpathTypeDeclaration): AnalyzerVariable {
@@ -28,34 +37,28 @@ export function runtimeAnalyzerVariable(
   collection: readonly TypedValue[],
   model: ModelProvider | undefined,
   declaration?: FhirpathTypeDeclaration
+): RuntimeAnalyzerVariable {
+  const inferred = analyzerVariableFromCollection(collection, model)
+  return {
+    ...(declaration === undefined ? inferred : analyzerVariable(declaration)),
+    exactTypes: collection.map(item => item.type),
+  }
+}
+
+function analyzerVariableFromCollection(
+  collection: readonly TypedValue[],
+  model: ModelProvider | undefined
 ): AnalyzerVariable {
   const inferred = collection.map(item => inferAnalyzerType(item.type, model))
   const types = inferred.every(type => type !== undefined) ? [...new Set(inferred)] : undefined
-  const variable =
-    declaration === undefined
-      ? {
-          ...(types !== undefined && types.length > 0 && { types }),
-          single: collection.length <= 1,
-        }
-      : analyzerVariable(declaration)
-  runtimeTypes.set(
-    variable,
-    collection.map(item => item.type)
-  )
-  return variable
+  return {
+    ...(types !== undefined && types.length > 0 && { types }),
+    single: collection.length <= 1,
+  }
 }
 
-/** Exact runtime types attached by runtimeAnalyzerVariable, including an exactly empty collection. */
-export function analyzerVariableRuntimeTypes(variable: AnalyzerVariable): string[] | undefined {
-  return runtimeTypes.get(variable)
-}
-
-function analyzerVariableFromValue(
-  value: unknown,
-  model: ModelProvider | undefined,
-  declaration: FhirpathTypeDeclaration | undefined
-): AnalyzerVariable {
-  return runtimeAnalyzerVariable(toCollection(value), model, declaration)
+function analyzerVariableFromValue(value: unknown, model: ModelProvider | undefined): AnalyzerVariable {
+  return analyzerVariableFromCollection(toCollection(value), model)
 }
 
 function inferAnalyzerType(type: string, model: ModelProvider | undefined): string | undefined {
@@ -82,7 +85,18 @@ export function analyzerEnvironmentVariables(
   model: ModelProvider | undefined
 ): Record<string, AnalyzerVariable> {
   return collectAnalyzerVariables(values, declarations, (value, declaration) =>
-    analyzerVariableFromValue(value, model, declaration)
+    declaration === undefined ? analyzerVariableFromValue(value, model) : analyzerVariable(declaration)
+  )
+}
+
+/** Runtime environment state, retaining actual dispatch types independently of declarations. */
+export function runtimeAnalyzerEnvironmentVariables(
+  values: object | undefined,
+  declarations: FhirpathTypeDeclarations | undefined,
+  model: ModelProvider | undefined
+): Record<string, AnalyzerVariableState> {
+  return collectAnalyzerVariables(values, declarations, (value, declaration) =>
+    runtimeAnalyzerVariable(toCollection(value), model, declaration)
   )
 }
 

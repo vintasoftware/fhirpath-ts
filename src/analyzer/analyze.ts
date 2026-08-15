@@ -18,7 +18,13 @@ import {
   type ValueKind,
 } from '../values/type-compat.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
-import { analyzerEnvironmentVariables, type AnalyzerVariable, analyzerVariableRuntimeTypes } from './declarations.ts'
+import {
+  analyzerEnvironmentVariables,
+  type AnalyzerVariable,
+  type AnalyzerVariableState,
+  isRuntimeAnalyzerVariable,
+  runtimeAnalyzerEnvironmentVariables,
+} from './declarations.ts'
 import { applyOperatorResultRule, applyTypeOperatorResultRule } from './operator-rules.ts'
 import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
@@ -85,6 +91,11 @@ export interface AnalyzeOptions {
   functions?: Record<string, DeclaredFunction>
   /** Host-supplied environment variables by name (with or without the leading `%`). */
   variables?: Record<string, DeclaredVariable>
+}
+
+/** Internal strict-analysis options whose variables may retain exact runtime focus types. */
+export interface RuntimeAnalyzeOptions extends Omit<AnalyzeOptions, 'variables'> {
+  variables?: Record<string, AnalyzerVariableState>
 }
 
 /**
@@ -242,7 +253,11 @@ export function analyzeExpressionDetailed(expression: string, options?: AnalyzeO
 }
 
 /** Analyze an already parsed expression, optionally with a runtime-derived input state. */
-function analyzeAstDetailed(ast: AstNode, options?: AnalyzeOptions, root?: AnalyzerRoot): AnalysisDetails {
+function analyzeAstDetailed(
+  ast: AstNode,
+  options?: AnalyzeOptions | RuntimeAnalyzeOptions,
+  root?: AnalyzerRoot
+): AnalysisDetails {
   const analyzer = new Analyzer(options, root)
   const state = analyzer.walk(ast, analyzer.rootState(), emptyScope())
   return {
@@ -253,7 +268,11 @@ function analyzeAstDetailed(ast: AstNode, options?: AnalyzeOptions, root?: Analy
 }
 
 /** Analyze a parsed expression using facts from the actual evaluation focus. */
-export function analyzeRuntimeAstDetailed(ast: AstNode, options: AnalyzeOptions, root: AnalyzerRoot): AnalysisDetails {
+export function analyzeRuntimeAstDetailed(
+  ast: AstNode,
+  options: RuntimeAnalyzeOptions,
+  root: AnalyzerRoot
+): AnalysisDetails {
   return analyzeAstDetailed(ast, options, root)
 }
 
@@ -266,10 +285,10 @@ class Analyzer {
   private readonly frames: StaticState[] = []
   /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
-  private readonly declaredVariables: ReadonlyMap<string, DeclaredVariable>
+  private readonly declaredVariables: ReadonlyMap<string, AnalyzerVariableState>
   private readonly activeExpressionFunctions = new Set<string>()
 
-  constructor(options: AnalyzeOptions | undefined, root: AnalyzerRoot | undefined) {
+  constructor(options: AnalyzeOptions | RuntimeAnalyzeOptions | undefined, root: AnalyzerRoot | undefined) {
     this.model = options?.model
     this.runtime = root !== undefined
     const inputType = options?.inputType
@@ -282,7 +301,7 @@ class Analyzer {
       Object.entries(options?.functions ?? {}).map(([name, declared]) => [
         name,
         ('overloads' in declared ? declared.overloads : [declared]).map(declaration =>
-          resolvedDeclaration(declaration, this.model)
+          resolvedDeclaration(declaration, this.model, this.runtime)
         ),
       ])
     )
@@ -735,8 +754,8 @@ class Analyzer {
   }
 
   /** Convert one declared environment value into the same state used for scoped variables. */
-  private declaredVariableState(declared: DeclaredVariable): StaticState {
-    const exactTypes = this.runtime ? analyzerVariableRuntimeTypes(declared) : undefined
+  private declaredVariableState(declared: AnalyzerVariableState): StaticState {
+    const exactTypes = this.runtime && isRuntimeAnalyzerVariable(declared) ? declared.exactTypes : undefined
     return {
       types: declared.types?.map(type => this.canonicalize(type)),
       single: declared.single,
@@ -1203,12 +1222,16 @@ interface ResolvedDeclaration {
   signature?: CustomFunctionSignature
   expression?: { source: string; ast?: AstNode }
   criteria?: boolean
-  variables?: Readonly<Record<string, DeclaredVariable>>
+  variables?: Readonly<Record<string, AnalyzerVariableState>>
   /** Expression declarations runtime dispatch may select when static focus is not exact. */
   possibleBodies?: readonly ResolvedDeclaration[]
 }
 
-function resolvedDeclaration(declared: SingleDeclaredFunction, model: ModelProvider | undefined): ResolvedDeclaration {
+function resolvedDeclaration(
+  declared: SingleDeclaredFunction,
+  model: ModelProvider | undefined,
+  runtime: boolean
+): ResolvedDeclaration {
   if (declared.expression === undefined) {
     return {
       ...(declared.minArity !== undefined && { minArity: declared.minArity }),
@@ -1226,7 +1249,9 @@ function resolvedDeclaration(declared: SingleDeclaredFunction, model: ModelProvi
     ...(expression !== undefined && { expression }),
     ...(declared.criteria !== undefined && { criteria: declared.criteria }),
     ...((declared.env !== undefined || declared.envTypes !== undefined) && {
-      variables: analyzerEnvironmentVariables(declared.env, declared.envTypes, model),
+      variables: runtime
+        ? runtimeAnalyzerEnvironmentVariables(declared.env, declared.envTypes, model)
+        : analyzerEnvironmentVariables(declared.env, declared.envTypes, model),
     }),
   }
 }

@@ -1,14 +1,13 @@
 import {
-  type AnalyzeOptions,
   type AnalyzerDiagnostic,
   type AnalyzerRoot,
   analyzeRuntimeAstDetailed,
+  type RuntimeAnalyzeOptions,
 } from '../analyzer/analyze.ts'
 import {
-  analyzerEnvironmentVariables,
-  type AnalyzerVariable,
   analyzerVariable,
-  analyzerVariableRuntimeTypes,
+  type AnalyzerVariableState,
+  runtimeAnalyzerEnvironmentVariables,
   runtimeAnalyzerVariable,
 } from '../analyzer/declarations.ts'
 import { normalizeEnvKeys } from '../engine/context.ts'
@@ -32,7 +31,11 @@ export function assertStrictExpression(ast: AstNode, root: TypedValue[], options
 
   const model = options.model
   const analyzerRoot = runtimeRoot(root, model)
-  const variables: Record<string, AnalyzerVariable> = analyzerEnvironmentVariables(options.env, options.envTypes, model)
+  const variables: Record<string, AnalyzerVariableState> = runtimeAnalyzerEnvironmentVariables(
+    options.env,
+    options.envTypes,
+    model
+  )
   const declarations = normalizeEnvKeys(options.varTypes)
   const findings: StrictFinding[] = []
 
@@ -72,7 +75,10 @@ export function assertStrictExpression(ast: AstNode, root: TypedValue[], options
   }
 }
 
-function analyzerOptions(options: EvaluateOptions, variables: Record<string, AnalyzerVariable>): AnalyzeOptions {
+function analyzerOptions(
+  options: EvaluateOptions,
+  variables: Record<string, AnalyzerVariableState>
+): RuntimeAnalyzeOptions {
   return {
     ...(options.model !== undefined && { model: options.model }),
     ...(options.functions !== undefined && { functions: options.functions }),
@@ -85,7 +91,7 @@ function runtimeRoot(root: TypedValue[], model: ModelProvider | undefined): Anal
   return {
     types: variable.types,
     single: variable.single,
-    exactTypes: analyzerVariableRuntimeTypes(variable)!,
+    exactTypes: variable.exactTypes,
   }
 }
 
