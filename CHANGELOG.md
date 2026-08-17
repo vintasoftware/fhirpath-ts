@@ -17,10 +17,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   variables, and input types before evaluating an expression.
 - Replaced path-segment type inference with a bounded type-level parser covering
   literals, operators, built-in functions, lambda scope, variables, reference
-  targets, and declared host context.
+  targets, and declared host context. Greater inference coverage achieved.
 - Added `envTypes` and `varTypes` declarations plus public inference helper types
   for engine, compiled-expression, and projection APIs.
-- Published the interactive playground through GitHub Pages.
 
 ### Changed
 
@@ -36,7 +35,6 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   values.
 - Fixed loaded DTO analysis so unregistered DTOs receive the complete merged
   environment and variable context from discovered engines.
-- Fixed word navigation and selection shortcuts in the playground editors.
 
 ## 0.1.0
 
