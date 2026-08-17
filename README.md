@@ -110,6 +110,10 @@ fp.first('Condition.code.displayText()', condition)
 
 This is useful for shared application vocabulary such as `displayText()` or `isFinal()`.
 
+Name DTO modules `*.dto.ts` and export the classes: `fhirpath-check` imports
+modules matching `**/*.dto.ts` by default and checks each DTO against its
+engine. See [DTO discovery](docs/static-checking.md#dto-discovery).
+
 ## Usage recipes
 
 These short examples show the main application APIs. The
