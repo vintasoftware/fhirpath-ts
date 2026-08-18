@@ -6,10 +6,14 @@ import {
 import { FUNCTION_SIGNATURES, type ResultRule } from '../src/analyzer/signatures.ts'
 import { CALENDAR_DURATION_UNITS } from '../src/lexer/tokens.ts'
 import { INFIX_PARSELETS, PREFIX_PARSELETS } from '../src/parser/precedence.ts'
-import { R4_RESOURCES } from '../src/r4/generated/resources-data.ts'
-import { R4_DATA_TYPES } from '../src/r4/generated/types-data.ts'
+import { R4_RESOURCES_COMPACT } from '../src/r4/generated/resources-data.ts'
+import { R4_DATA_TYPES_COMPACT } from '../src/r4/generated/types-data.ts'
+import { decodeCompactTypes } from '../src/r4/model-data.ts'
 import { formatGeneratedTypeScript } from './format-generated.ts'
 import { writeOrCheckGenerated } from './generated-file.ts'
+
+const R4_RESOURCES = decodeCompactTypes(R4_RESOURCES_COMPACT)
+const R4_DATA_TYPES = decodeCompactTypes(R4_DATA_TYPES_COMPACT)
 
 const compactOutputUrl = new URL('../src/typed/metadata-compact.ts', import.meta.url)
 const MAX_FAST_RESOURCE_ROOT_LENGTH = 33
