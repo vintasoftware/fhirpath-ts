@@ -1,8 +1,8 @@
 import { FhirPathEngine } from '../api/engine.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
-import { R4_RESOURCES } from './generated/resources-data.ts'
-import { R4_DATA_TYPES } from './generated/types-data.ts'
-import type { GeneratedElement, GeneratedType } from './model-data.ts'
+import { R4_RESOURCES_COMPACT } from './generated/resources-data.ts'
+import { R4_DATA_TYPES_COMPACT } from './generated/types-data.ts'
+import { CompactTypeTable, type GeneratedElement, type GeneratedType } from './model-data.ts'
 
 // One canonical FHIR-primitive → System map lives in values/typed-value.ts;
 // re-exported here because the model subpath is where consumers look for it.
@@ -12,8 +12,11 @@ export type { GeneratedElement, GeneratedType } from './model-data.ts'
 const NAMESPACE = 'FHIR'
 const PREFIX = `${NAMESPACE}.`
 
+const RESOURCES = new CompactTypeTable(R4_RESOURCES_COMPACT)
+const DATA_TYPES = new CompactTypeTable(R4_DATA_TYPES_COMPACT)
+
 function lookupType(name: string): GeneratedType | undefined {
-  return R4_RESOURCES[name] ?? R4_DATA_TYPES[name]
+  return RESOURCES.get(name) ?? DATA_TYPES.get(name)
 }
 
 function localName(canonical: string): string {
@@ -85,7 +88,10 @@ export const r4Model: ModelProvider = {
       }
       current = definition.b
     }
-    return names
+    // The tables carry each inherited element only on the type that declares
+    // it, so the walk yields own elements before inherited ones; sorting gives
+    // callers one stable order independent of where an element is declared.
+    return names.sort()
   },
 
   isSubtypeOf(type: string, base: string): boolean {
