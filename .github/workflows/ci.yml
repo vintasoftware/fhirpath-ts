@@ -22,11 +22,11 @@ jobs:
         node-version: [22, 24]
     name: node ${{ matrix.node-version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
           cache: pnpm
@@ -88,14 +88,14 @@ jobs:
     runs-on: ubuntu-latest
     name: demo
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # No root install on purpose. The demo has its own npm lockfile, and the
       # declaration generator compiles the library under demo/tsconfig.dts.json,
       # so this job runs the same way the documented Cloudflare Pages build does
       # — `cd demo && npm install && npm run build`. If that stops working
       # standalone, this job is what says so.
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
