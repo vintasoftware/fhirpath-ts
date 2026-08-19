@@ -8,6 +8,18 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+## 0.2.1 - 2026-08-18
+
+### Changed
+
+- Shipped the bundled R4 model as compact strings decoded on demand. An element
+  identical to the nearest ancestor's is stored once instead of in every type
+  that inherits it. The minified `fhirpath-ts/r4` bundle went from 427 KB to
+  287 KB, its import from 31 ms to 11 ms, and 200k element lookups from 47 ms
+  to 27 ms.
+- Sorted the result of `listElements`, so its order no longer depends on which
+  type in the inheritance chain declares each element.
+
 ## 0.2.0 - 2026-08-17
 
 ### Added

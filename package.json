@@ -1,6 +1,6 @@
 {
   "name": "fhirpath-ts",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "TypeScript-native FHIRPath engine with compile-time type inference and a spec §11 static analyzer.",
   "keywords": [
     "fhirpath",
