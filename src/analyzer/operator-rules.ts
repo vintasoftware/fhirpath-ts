@@ -1,6 +1,6 @@
 import type { BinaryOperator } from '../parser/ast.ts'
 import { commonValueKind } from '../values/type-compat.ts'
-import { type StaticStateLike, unionStates, withSingle } from './signatures.ts'
+import { sequentialOrder, type StaticStateLike, unionStates, withOrder, withSingle } from './signatures.ts'
 
 export type OperatorResultRule =
   | { kind: 'fixed'; types: readonly string[]; single: boolean }
@@ -50,7 +50,7 @@ export function applyOperatorResultRule(
   const rule = OPERATOR_RESULT_RULES[operator]
   switch (rule.kind) {
     case 'fixed':
-      return { types: [...rule.types], single: rule.single }
+      return { types: [...rule.types], single: rule.single, ordered: true }
     case 'arithmetic': {
       const leftKind = commonValueKind(left.types)
       const rightKind = commonValueKind(right.types)
@@ -58,6 +58,7 @@ export function applyOperatorResultRule(
       return {
         types: quantity ? ['System.Quantity'] : operator === '/' ? ['System.Decimal'] : (left.types ?? right.types),
         single: true,
+        ordered: true,
       }
     }
     case 'union':
@@ -67,7 +68,7 @@ export function applyOperatorResultRule(
       if (right.types?.length === 0) {
         return left
       }
-      return withSingle(unionStates([left, right]), false)
+      return withOrder(withSingle(unionStates([left, right]), false), sequentialOrder(left.ordered, right.ordered))
   }
 }
 
@@ -79,10 +80,10 @@ export function applyTypeOperatorResultRule(
   const rule = TYPE_OPERATOR_RESULT_RULES[operator]
   switch (rule.kind) {
     case 'fixed':
-      return { types: [...rule.types], single: rule.single }
+      return { types: [...rule.types], single: rule.single, ordered: true }
     case 'narrow':
       return narrowedTypes === undefined
-        ? { types: undefined, single: undefined }
-        : { types: [...narrowedTypes], single: true }
+        ? { types: undefined, single: undefined, ordered: undefined }
+        : { types: [...narrowedTypes], single: true, ordered: true }
   }
 }

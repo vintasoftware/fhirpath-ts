@@ -4,6 +4,8 @@ export interface StaticStateLike {
   types: string[] | undefined
   /** True: at most one item. False: may hold several. Undefined: cardinality unknown. */
   single: boolean | undefined
+  /** True: ordered. False: unordered. Undefined: ordering is unknown. */
+  ordered: boolean | undefined
   /** Canonical resource types a Reference state may point to — resolve()'s result. */
   targets?: string[]
 }
@@ -47,7 +49,12 @@ export interface InputSpec {
 export interface CustomFunctionSignature {
   input?: InputSpec
   args?: readonly ValueArgSpec[]
-  result?: { types?: readonly string[]; single?: boolean }
+  result?: {
+    types?: readonly string[]
+    single?: boolean
+    /** True: ordered. False: unordered. Omit when the function does not declare ordering. */
+    ordered?: boolean
+  }
 }
 
 /**
@@ -69,6 +76,10 @@ export interface FunctionSignature {
   input?: InputSpec
   args?: readonly ArgSpec[]
   result: ResultRule
+  /** Reject this function when its input is known to be unordered. */
+  orderDependent?: boolean
+  /** Override the result ordering when the function establishes it. */
+  resultOrder?: 'ordered' | 'unordered' | 'unknown' | 'inputs'
 }
 
 const BOOLEAN = { kind: 'fixed', types: ['System.Boolean'], single: true } as const satisfies ResultRule
@@ -88,31 +99,54 @@ const ITEM = { kind: 'input-item' } as const satisfies ResultRule
 export function applyResultRule(
   rule: ResultRule,
   input: StaticStateLike,
-  args: readonly (StaticStateLike | undefined)[]
+  args: readonly (StaticStateLike | undefined)[],
+  resultOrder?: FunctionSignature['resultOrder']
 ): StaticStateLike {
+  let result: StaticStateLike
   switch (rule.kind) {
     case 'fixed':
-      return { types: rule.types === undefined ? undefined : [...rule.types], single: rule.single }
+      result = { types: rule.types === undefined ? undefined : [...rule.types], single: rule.single, ordered: true }
+      break
     case 'input':
-      return input
+      result = input
+      break
     case 'input-item':
-      return withSingle(input, true)
+      result = withSingle(input, true)
+      break
     case 'argument': {
-      const argument = args[rule.index] ?? { types: undefined, single: undefined }
-      return withSingle(argument, singleAnd(input.single, argument.single))
+      const argument = args[rule.index] ?? { types: undefined, single: undefined, ordered: undefined }
+      result = withSingle(argument, singleAnd(input.single, argument.single))
+      result = withOrder(result, sequentialOrder(input.ordered, argument.ordered))
+      break
     }
     case 'union': {
       const states = rule.sources.map(source => (source === 'input' ? input : args[source]))
       const merged = unionStates(states)
-      return rule.single === 'all' ? merged : withSingle(merged, rule.single)
+      result = rule.single === 'all' ? merged : withSingle(merged, rule.single)
+      break
     }
     case 'arguments-union':
-      return unionStates([...args])
+      result = unionStates([...args])
+      break
     case 'reference-targets':
-      return { types: input.targets, single: input.single }
+      result = { types: input.targets, single: input.single, ordered: input.ordered }
+      break
     case 'unknown':
-      return { types: undefined, single: undefined }
+      result = { types: undefined, single: undefined, ordered: undefined }
+      break
   }
+  if (resultOrder === undefined) {
+    return result
+  }
+  const ordered =
+    resultOrder === 'inputs'
+      ? [input, ...args.filter((state): state is StaticStateLike => state !== undefined)]
+          .map(state => state.ordered)
+          .reduce(sequentialOrder, true)
+      : resultOrder === 'unknown'
+        ? undefined
+        : resultOrder === 'ordered'
+  return withOrder(result, ordered)
 }
 
 /**
@@ -121,9 +155,26 @@ export function applyResultRule(
  * metadata survives by construction instead of by per-function special cases.
  */
 export function withSingle(input: StaticStateLike, single: boolean | undefined): StaticStateLike {
+  const ordered = single === true ? true : input.ordered
   return input.targets === undefined
-    ? { types: input.types, single }
-    : { types: input.types, single, targets: input.targets }
+    ? { types: input.types, single, ordered }
+    : { types: input.types, single, ordered, targets: input.targets }
+}
+
+/** Set ordering without losing type, cardinality, or Reference-target facts. */
+export function withOrder(input: StaticStateLike, ordered: boolean | undefined): StaticStateLike {
+  const normalized = input.single === true ? true : ordered
+  return input.targets === undefined
+    ? { types: input.types, single: input.single, ordered: normalized }
+    : { types: input.types, single: input.single, ordered: normalized, targets: input.targets }
+}
+
+/** Flattening ordered subcollections preserves order only when both levels do. */
+export function sequentialOrder(a: boolean | undefined, b: boolean | undefined): boolean | undefined {
+  if (a === false || b === false) {
+    return false
+  }
+  return a === true && b === true ? true : undefined
 }
 
 /**
@@ -136,6 +187,14 @@ export function unionStates(states: (StaticStateLike | undefined)[]): StaticStat
   const present = states.filter((state): state is StaticStateLike => state !== undefined)
   const single = present.length > 0 ? present.map(state => state.single).reduce(singleAnd, true) : undefined
   const contributing = present.filter(state => state.types === undefined || state.types.length > 0)
+  const ordered =
+    contributing.length === 0
+      ? true
+      : contributing.every(state => state.ordered === true)
+        ? true
+        : contributing.every(state => state.ordered === false)
+          ? false
+          : undefined
   const targets =
     contributing.length > 0 && contributing.every(state => state.targets !== undefined)
       ? [...new Set(contributing.flatMap(state => state.targets as string[]))]
@@ -144,7 +203,7 @@ export function unionStates(states: (StaticStateLike | undefined)[]): StaticStat
     present.length === 0 || present.some(state => state.types === undefined)
       ? undefined
       : [...new Set(present.flatMap(state => state.types as string[]))]
-  return targets === undefined ? { types, single } : { types, single, targets }
+  return targets === undefined ? { types, single, ordered } : { types, single, ordered, targets }
 }
 
 const STRING_FN = {
@@ -183,22 +242,30 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
     // the input and the projection body are single.
     result: { kind: 'argument', index: 0 },
   },
-  repeat: { args: ['expression'], result: UNKNOWN },
+  repeat: { args: ['expression'], result: UNKNOWN, resultOrder: 'unordered' },
   // ofType/as results narrow to the named type; the analyzer computes that with
   // the model (walkCall), so their table results are never consulted.
   ofType: { args: ['type-name'], result: UNKNOWN },
   is: { input: { singleton: true }, args: ['type-name'], result: BOOLEAN },
   as: { input: { singleton: true }, args: ['type-name'], result: UNKNOWN },
   single: { result: ITEM },
-  first: { result: ITEM },
-  last: { result: ITEM },
-  tail: { result: SAME },
-  skip: { args: ['Numeric'], result: SAME },
-  take: { args: ['Numeric'], result: SAME },
+  first: { result: ITEM, orderDependent: true },
+  last: { result: ITEM, orderDependent: true },
+  tail: { result: SAME, orderDependent: true },
+  skip: { args: ['Numeric'], result: SAME, orderDependent: true },
+  take: { args: ['Numeric'], result: SAME, orderDependent: true },
   intersect: { args: ['any'], result: SAME },
   exclude: { args: ['any'], result: SAME },
-  union: { args: ['any'], result: { kind: 'union', sources: ['input', 0], single: false } },
-  combine: { args: ['any'], result: { kind: 'union', sources: ['input', 0], single: false } },
+  union: {
+    args: ['any'],
+    result: { kind: 'union', sources: ['input', 0], single: false },
+    resultOrder: 'inputs',
+  },
+  combine: {
+    args: ['any'],
+    result: { kind: 'union', sources: ['input', 0], single: false },
+    resultOrder: 'inputs',
+  },
   iif: {
     args: ['condition', 'expression', 'expression'],
     // The union of the branch states; a missing else-branch contributes empty.
@@ -207,8 +274,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   // not() takes anything a Boolean test accepts (0/1, single items), so no kind pin.
   not: { input: { singleton: true }, result: BOOLEAN },
   trace: { args: ['String', 'expression'], result: SAME },
-  children: { result: UNKNOWN },
-  descendants: { result: UNKNOWN },
+  children: { result: UNKNOWN, resultOrder: 'unordered' },
+  descendants: { result: UNKNOWN, resultOrder: 'unordered' },
   // A reference resolves to its declared target types (Reference.targetProfile,
   // HAPI's TypeDetails.targets); an unconstrained reference stays unknown.
   resolve: { result: { kind: 'reference-targets' } },
@@ -265,7 +332,7 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   min: { input: { kind: 'Numeric' }, result: UNKNOWN },
   max: { input: { kind: 'Numeric' }, result: UNKNOWN },
   avg: { input: { kind: 'Numeric' }, result: DECIMAL },
-  sort: { args: ['sort-key'], result: SAME },
+  sort: { args: ['sort-key'], result: SAME, resultOrder: 'ordered' },
 
   toBoolean: { input: { singleton: true }, result: BOOLEAN },
   toInteger: { input: { singleton: true }, result: INTEGER },

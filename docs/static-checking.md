@@ -206,12 +206,15 @@ The analyzer checks:
 - singleton requirements on inputs, operands, and arguments;
 - operand, argument, and function-input types;
 - comparisons that cannot match;
+- order-dependent operations on collections known to be unordered;
 - choice-key misuse such as `Observation.valueQuantity`;
 - regular expression literals that may have catastrophic backtracking.
 
-Unknown regions remain unknown until narrowed. Examples include `children()`,
-`descendants()`, an untyped `resolve()`, and undeclared `%vars`. This follows spec
-and prevents incorrect diagnostics.
+Each fact stays unknown until the analyzer can prove it. For example,
+`children()` and `descendants()` have unknown result types and cardinality but a
+known undefined order, while an untyped `resolve()` or undeclared `%var` also has
+unknown ordering. An order-dependent operation is rejected only for a collection
+known to be unordered.
 
 Declare host variables and functions so the analyzer can check their use:
 

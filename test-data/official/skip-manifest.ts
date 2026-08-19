@@ -82,20 +82,6 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     reason: 'the parameters-example-html fixture is only distributed as XML; htmlChecks() is covered by unit tests',
   },
   {
-    suite: 'r4',
-    group: 'testDollar',
-    test: 'testDollarOrderNotAllowed',
-    reason:
-      'ordered/unordered collection tracking is not implemented; strict evaluation shares this analyzer limit; tracked in #63',
-  },
-  {
-    suite: 'r5',
-    group: 'testDollar',
-    test: 'testDollarOrderNotAllowed',
-    reason:
-      'ordered/unordered collection tracking is not implemented; strict evaluation shares this analyzer limit; tracked in #63',
-  },
-  {
     suite: 'r5',
     mode: 'lenient/polymorphics',
     reason: 'lenient polymorphic access is profile-dependent behavior this engine does not offer',

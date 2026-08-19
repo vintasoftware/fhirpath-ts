@@ -57,8 +57,12 @@ export function assertStrictExpression(ast: AstNode, root: TypedValue[], options
         ? {
             ...(details.result.types !== undefined && { types: details.result.types }),
             ...(details.result.single !== undefined && { single: details.result.single }),
+            ...(details.result.ordered !== undefined && { ordered: details.result.ordered }),
           }
-        : analyzerVariable(declaration)
+        : {
+            ...analyzerVariable(declaration),
+            ...(details.result.ordered !== undefined && { ordered: details.result.ordered }),
+          }
   }
 
   for (const [name, declaration] of Object.entries(declarations)) {
@@ -91,6 +95,7 @@ function runtimeRoot(root: TypedValue[], model: ModelProvider | undefined): Anal
   return {
     types: variable.types,
     single: variable.single,
+    ordered: variable.ordered ?? true,
     exactTypes: variable.exactTypes,
   }
 }
