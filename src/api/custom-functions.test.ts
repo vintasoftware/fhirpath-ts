@@ -245,9 +245,9 @@ describe('custom functions in the analyzer', () => {
     const analyze = (expression: string) =>
       analyzeExpressionDetailed(expression, { model: r4Model, inputType: 'Condition', functions }).result
 
-    expect(analyze('code.displayText()')).toEqual({ types: ['FHIR.string', 'FHIR.code'], single: true })
-    expect(analyze('code.labelled()')).toEqual({ types: ['System.String'], single: true })
-    expect(analyze('code.holds()')).toEqual({ types: ['System.Boolean'], single: true })
+    expect(analyze('code.displayText()')).toEqual({ types: ['FHIR.string', 'FHIR.code'], single: true, ordered: true })
+    expect(analyze('code.labelled()')).toEqual({ types: ['System.String'], single: true, ordered: true })
+    expect(analyze('code.holds()')).toEqual({ types: ['System.Boolean'], single: true, ordered: true })
   })
 
   it('keeps custom function environment resources opaque to an unrelated model', () => {
@@ -267,7 +267,7 @@ describe('custom functions in the analyzer', () => {
     } as const satisfies Record<string, CustomFunction>
     const details = analyzeExpressionDetailed('Patient.isNamed()', { model: r4Model, functions })
 
-    expect(details.result).toEqual({ types: ['System.Boolean'], single: true })
+    expect(details.result).toEqual({ types: ['System.Boolean'], single: true, ordered: true })
     expect(details.elementDependencies).toEqual(['Patient.name', 'HumanName.given'])
   })
 
@@ -286,7 +286,7 @@ describe('custom functions in the analyzer', () => {
       functions,
     }).result
 
-    expect(result).toEqual({ types: ['System.String'], single: true })
+    expect(result).toEqual({ types: ['System.String'], single: true, ordered: true })
   })
 
   it('keeps recursive and malformed expression bodies opaque', () => {

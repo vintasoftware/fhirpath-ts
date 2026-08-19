@@ -405,9 +405,12 @@ Arguments are evaluated before `fn` is called. Plain JavaScript values cross the
 function boundary. Built-in names cannot be replaced.
 
 The native signature's result supplies both analyzer and TypeScript inference.
-Set `ordered` when a collection result has a defined or undefined order; omit it
-when ordering is unknown. Without a result signature, the result is unknown and
-checking resumes after a later `as()` or `ofType()` narrows it.
+Set the result's `ordered` when a collection result has a defined or undefined
+order; omit it when ordering is unknown. Set `input: { ordered: true }` when the
+function needs a defined input order, like the built-in `first()` and `skip()`;
+the analyzer then rejects calls on a collection known to be unordered. Without a
+result signature, the result is unknown and checking resumes after a later
+`as()` or `ofType()` narrows it.
 
 ### Expression-defined functions
 

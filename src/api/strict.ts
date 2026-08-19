@@ -52,17 +52,17 @@ export function assertStrictExpression(ast: AstNode, root: TypedValue[], options
         .filter(diagnostic => diagnostic.severity === 'error')
         .map(diagnostic => ({ diagnostic, subject: `vars.${name}` }))
     )
-    variables[name] =
-      declaration === undefined
+    // A declaration overrides the inferred types and cardinality, but ordering
+    // always comes from the analyzed expression — declarations cannot state it.
+    variables[name] = {
+      ...(declaration === undefined
         ? {
             ...(details.result.types !== undefined && { types: details.result.types }),
             ...(details.result.single !== undefined && { single: details.result.single }),
-            ...(details.result.ordered !== undefined && { ordered: details.result.ordered }),
           }
-        : {
-            ...analyzerVariable(declaration),
-            ...(details.result.ordered !== undefined && { ordered: details.result.ordered }),
-          }
+        : analyzerVariable(declaration)),
+      ...(details.result.ordered !== undefined && { ordered: details.result.ordered }),
+    }
   }
 
   for (const [name, declaration] of Object.entries(declarations)) {
@@ -95,7 +95,7 @@ function runtimeRoot(root: TypedValue[], model: ModelProvider | undefined): Anal
   return {
     types: variable.types,
     single: variable.single,
-    ordered: variable.ordered ?? true,
+    ordered: variable.ordered,
     exactTypes: variable.exactTypes,
   }
 }

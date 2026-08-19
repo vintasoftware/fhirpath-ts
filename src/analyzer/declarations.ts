@@ -14,6 +14,8 @@ export interface AnalyzerVariable {
 
 /** Internal variable state with the exact focus types used by runtime host-function dispatch. */
 export interface RuntimeAnalyzerVariable extends AnalyzerVariable {
+  /** A runtime collection is a real array, so its order is always defined. */
+  ordered: true
   exactTypes: string[]
 }
 

@@ -212,9 +212,11 @@ The analyzer checks:
 
 Each fact stays unknown until the analyzer can prove it. For example,
 `children()` and `descendants()` have unknown result types and cardinality but a
-known undefined order, while an untyped `resolve()` or undeclared `%var` also has
-unknown ordering. An order-dependent operation is rejected only for a collection
-known to be unordered.
+known undefined order, while an undeclared `%var` also has unknown ordering. The
+rejected operations are the ones that select items by position — the indexer,
+`first()`, `last()`, `tail()`, `skip()`, and `take()` — and only on a collection
+known to be unordered. Functions whose result merely varies with iteration
+order, such as `join()` and `aggregate()`, are not rejected.
 
 Declare host variables and functions so the analyzer can check their use:
 
@@ -228,6 +230,10 @@ analyzeExpression('%limit < value.count()', {
   functions,
 })
 ```
+
+A variable declaration may also set `ordered: false` when the host supplies a
+collection with no defined order; the analyzer then rejects positional
+operations on it. Omitting `ordered` keeps the ordering unknown.
 
 `analyzeDto()` checks one DTO with an engine or explicit analyzer options.
 `analyzeEngineDtos()` checks all DTOs registered on an engine.
