@@ -147,6 +147,22 @@ describe('typed host context', () => {
     expectTypeOf(bound.evaluate()).toEqualTypeOf<string[]>()
   })
 
+  it('accepts ordering declarations in function signatures', () => {
+    // `ordered` never reaches the typed parser; the context type must still
+    // accept every declaration `EvaluateOptions.functions` accepts.
+    const _context = {
+      functions: {
+        names: {
+          signature: {
+            input: { ordered: true },
+            result: { types: ['HumanName'], single: false, ordered: false },
+          },
+        },
+      },
+    } as const satisfies FhirpathTypeContext
+    expectTypeOf<FhirpathResult<'names().given', typeof _context>>().toEqualTypeOf<string[]>()
+  })
+
   it('infers the literal source of a compiled expression-function body', () => {
     const functions = {
       displayText: {

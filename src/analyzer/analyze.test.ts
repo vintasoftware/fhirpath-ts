@@ -207,6 +207,22 @@ describe('collection ordering', () => {
     expect(codes('Patient.name.pick()', { model: r4Model, inputType: 'Patient', functions })).toEqual([])
   })
 
+  it('keeps the ordered requirement when every overload requires it', () => {
+    const overload = (ordered: boolean) => ({
+      pick: {
+        overloads: [
+          { minArity: 0, maxArity: 0, signature: { input: { ordered: true } } },
+          { minArity: 1, maxArity: 1, signature: ordered ? { input: { ordered: true } } : {} },
+        ],
+      },
+    })
+    expect(codes('Patient.children().pick()', { model: r4Model, functions: overload(true) })).toEqual([
+      'order-dependent',
+    ])
+    // One overload without the requirement widens it away, like the type merge.
+    expect(codes('Patient.children().pick()', { model: r4Model, functions: overload(false) })).toEqual([])
+  })
+
   it('honors declared variable ordering', () => {
     const variables = { rows: { types: ['HumanName'], single: false, ordered: false } }
     expect(codes('%rows.skip(1)', { model: r4Model, variables })).toEqual(['order-dependent'])

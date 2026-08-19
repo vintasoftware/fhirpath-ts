@@ -1326,13 +1326,22 @@ function mergedDeclaration(candidates: readonly ResolvedDeclaration[]): Resolved
   }
 }
 
-/** Every type any declaration accepts, or undefined when one of them accepts anything. */
+/**
+ * Every type any declaration accepts, or no type constraint when one of them
+ * accepts anything. An ordered input stays required when every candidate
+ * requires it — whichever declaration the call resolves to would reject an
+ * unordered focus, so keeping the requirement cannot flag valid code.
+ */
 function mergedInput(candidates: readonly ResolvedDeclaration[]): InputSpec | undefined {
+  const ordered = candidates.every(candidate => candidate.signature?.input?.ordered === true)
   const declared = candidates.map(candidate => candidate.signature?.input?.types)
-  if (declared.some(types => types === undefined)) {
+  const types = declared.some(types => types === undefined)
+    ? undefined
+    : [...new Set(declared.flatMap(types => types ?? []))]
+  if (types === undefined && !ordered) {
     return undefined
   }
-  return { types: [...new Set(declared.flatMap(types => types ?? []))] }
+  return { ...(types !== undefined && { types }), ...(ordered && { ordered: true }) }
 }
 
 /** The union of the declarations' results, unknown as soon as one of them is. */
