@@ -32,9 +32,9 @@ export type FhirpathTypeDeclarations = Readonly<Record<string, FhirpathTypeDecla
 export type FhirpathFunctionDeclaration =
   | {
       readonly signature?: {
-        readonly input?: { readonly types?: readonly string[] }
+        readonly input?: { readonly types?: readonly string[]; readonly ordered?: boolean }
         readonly args?: readonly string[]
-        readonly result?: { readonly types?: readonly string[]; readonly single?: boolean }
+        readonly result?: { readonly types?: readonly string[]; readonly single?: boolean; readonly ordered?: boolean }
       }
       readonly expression?: string | { readonly source: string }
       readonly criteria?: boolean

@@ -51,6 +51,19 @@ describe('strict evaluation', () => {
     expect(strict.evaluate("'aaaa'.matches('(a+)+$')")).toEqual([true])
   })
 
+  it('rejects order-dependent operations on unordered collections', () => {
+    expect(() => strict.evaluate('Patient.children().skip(1)', patient)).toThrow(
+      /\[order-dependent\].*skip\(\).*no defined order/
+    )
+    expect(strict.evaluate('Patient.children().ofType(HumanName).sort(family).skip(1)', patient)).toEqual([])
+    expect(() =>
+      strict.evaluate('%children.skip(1)', patient, {
+        vars: { children: 'Patient.children()' },
+        varTypes: { children: { type: 'Element', collection: true } },
+      })
+    ).toThrow(/\[order-dependent\]/)
+  })
+
   it('uses the runtime input types and cardinality for analysis', () => {
     expect(() => strict.evaluate("Patient.name.given + '!'", patient)).toThrow(/\[singleton-required\]/)
     expect(() => strict.evaluate('Patient.name.active', [observation, patient])).toThrow(/\[unknown-element\]/)

@@ -149,13 +149,110 @@ describe('spec §11 rules', () => {
   it('unknown regions mute checks until narrowed, as the spec prescribes', () => {
     expect(codes('Patient.children().nope')).toEqual([])
     expect(codes("children().defineVariable('var').select(%var.anything.goes)")).toEqual([])
-    expect(codes('Patient.descendants().ofType(HumanName).given.first().length()')).toEqual([])
+    expect(codes('Patient.descendants().ofType(HumanName).given.single().length()')).toEqual([])
   })
 
   it('without a model, only structural checks run', () => {
     expect(codes('whatever.path', {})).toEqual([])
     expect(codes('whatever.frobnicate()', {})).toEqual(['unknown-function'])
     expect(codes("1 = 'one'", {})).toEqual(['equality-incompatible'])
+  })
+})
+
+describe('collection ordering', () => {
+  it.each(['first()', 'last()', 'tail()', 'skip(1)', 'take(1)'])(
+    'rejects %s on the unordered children() result',
+    operation => {
+      expect(codes(`Patient.children().${operation}`)).toEqual(['order-dependent'])
+    }
+  )
+
+  it('treats indexing as order-dependent', () => {
+    expect(codes('Patient.children()[0]')).toEqual(['order-dependent'])
+  })
+
+  it('marks every unordered tree traversal result', () => {
+    expect(codes('Patient.descendants().first()')).toEqual(['order-dependent'])
+    expect(codes('Patient.repeat(name).last()')).toEqual(['order-dependent'])
+  })
+
+  it.each([
+    'Patient.children().where($this.exists()).skip(1)',
+    'Patient.children().ofType(HumanName).given.first()',
+    'Patient.children().select($this).take(1)',
+    "Patient.children().extension('url').first()",
+    '(Patient.children() | Patient.name).last()',
+  ])('preserves unordered state through %s', expression => {
+    expect(codes(expression)).toEqual(['order-dependent'])
+  })
+
+  it('lets sort() and singleton narrowing establish a usable order', () => {
+    expect(codes('Patient.children().sort().skip(1)')).toEqual([])
+    expect(codes('Patient.children().single().first()')).toEqual([])
+    // Aggregates yield at most one item, so their results need no input order.
+    expect(codes('Patient.children().min().first()')).toEqual([])
+  })
+
+  it('unions alternative branches: unordered only when every branch is', () => {
+    expect(codes('iif(true, Patient.children(), Patient.descendants()).first()')).toEqual(['order-dependent'])
+    expect(codes('iif(true, Patient.children(), Patient.name).first()')).toEqual([])
+    expect(codes('iif(true, {}, {}).first()')).toEqual([])
+  })
+
+  it('lets custom functions require an ordered input', () => {
+    const functions = {
+      pick: { minArity: 0, maxArity: 0, signature: { input: { ordered: true } } },
+    }
+    expect(codes('Patient.children().pick()', { model: r4Model, functions })).toEqual(['order-dependent'])
+    expect(codes('Patient.name.pick()', { model: r4Model, inputType: 'Patient', functions })).toEqual([])
+  })
+
+  it('keeps the ordered requirement when every overload requires it', () => {
+    const overload = (ordered: boolean) => ({
+      pick: {
+        overloads: [
+          { minArity: 0, maxArity: 0, signature: { input: { ordered: true } } },
+          { minArity: 1, maxArity: 1, signature: ordered ? { input: { ordered: true } } : {} },
+        ],
+      },
+    })
+    expect(codes('Patient.children().pick()', { model: r4Model, functions: overload(true) })).toEqual([
+      'order-dependent',
+    ])
+    // One overload without the requirement widens it away, like the type merge.
+    expect(codes('Patient.children().pick()', { model: r4Model, functions: overload(false) })).toEqual([])
+  })
+
+  it('honors declared variable ordering', () => {
+    const variables = { rows: { types: ['HumanName'], single: false, ordered: false } }
+    expect(codes('%rows.skip(1)', { model: r4Model, variables })).toEqual(['order-dependent'])
+    expect(codes('%rows.sort().skip(1)', { model: r4Model, variables })).toEqual([])
+  })
+
+  it('does not reject unknown ordering and honors custom ordering declarations', () => {
+    const custom = (ordered?: boolean) => ({
+      model: r4Model,
+      functions: {
+        names: {
+          minArity: 0,
+          maxArity: 0,
+          signature: { result: { types: ['HumanName'], single: false, ...(ordered !== undefined && { ordered }) } },
+        },
+      },
+    })
+
+    expect(codes('names().skip(1)', custom())).toEqual([])
+    expect(codes('names().skip(1)', custom(true))).toEqual([])
+    expect(codes('names().skip(1)', custom(false))).toEqual(['order-dependent'])
+  })
+
+  it('propagates ordering inferred from expression-defined functions', () => {
+    expect(
+      codes('Patient.names().skip(1)', {
+        model: r4Model,
+        functions: { names: { expression: 'children()' } },
+      })
+    ).toEqual(['order-dependent'])
   })
 })
 
@@ -374,6 +471,7 @@ describe('lambda result typing', () => {
     expect(analyzeExpressionDetailed('Patient.name.aggregate($this.given.first(), 0)', options).result).toEqual({
       types: ['FHIR.string', 'System.Integer'],
       single: true,
+      ordered: true,
     })
   })
 

@@ -11,8 +11,8 @@ repository, converted to JSON offline, and run with Vitest.
 
 | Suite | Passing | Skipped with a reason | Failing |
 | --- | ---: | ---: | ---: |
-| R4 (`tests-fhir-r4.xml`) | 927 | 8 | 0 |
-| R5 (`tests-fhir-r5.xml`) | 1,031 | 20 | 0 |
+| R4 (`tests-fhir-r4.xml`) | 928 | 7 | 0 |
+| R5 (`tests-fhir-r5.xml`) | 1,032 | 19 | 0 |
 
 Every non-skipped official case passes.
 
@@ -40,7 +40,6 @@ fails when a skip no longer matches a suite case.
 | Terminology mode | Needs a terminology service |
 | CDA mode | Needs a CDA `ModelProvider` |
 | Lenient polymorphics | Profile-dependent mode that this engine does not offer |
-| Ordered strict operation | Tracking whether `children()` has defined order is not implemented |
 | R5-only elements | The package currently ships an R4 model |
 | Decimal boundary and dateTime millisecond cases | Expected values conflict with the mathematical bounds; recorded as upstream test issues |
 | `testIif6` and `testPlusDate19` in R4 | R5 changed ambiguous R4 behavior; the engine follows R5 |

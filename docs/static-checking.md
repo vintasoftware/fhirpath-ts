@@ -206,12 +206,17 @@ The analyzer checks:
 - singleton requirements on inputs, operands, and arguments;
 - operand, argument, and function-input types;
 - comparisons that cannot match;
+- order-dependent operations on collections known to be unordered;
 - choice-key misuse such as `Observation.valueQuantity`;
 - regular expression literals that may have catastrophic backtracking.
 
-Unknown regions remain unknown until narrowed. Examples include `children()`,
-`descendants()`, an untyped `resolve()`, and undeclared `%vars`. This follows spec
-and prevents incorrect diagnostics.
+Each fact stays unknown until the analyzer can prove it. For example,
+`children()` and `descendants()` have unknown result types and cardinality but a
+known undefined order, while an undeclared `%var` also has unknown ordering. The
+rejected operations are the ones that select items by position — the indexer,
+`first()`, `last()`, `tail()`, `skip()`, and `take()` — and only on a collection
+known to be unordered. Functions whose result merely varies with iteration
+order, such as `join()` and `aggregate()`, are not rejected.
 
 Declare host variables and functions so the analyzer can check their use:
 
@@ -225,6 +230,10 @@ analyzeExpression('%limit < value.count()', {
   functions,
 })
 ```
+
+A variable declaration may also set `ordered: false` when the host supplies a
+collection with no defined order; the analyzer then rejects positional
+operations on it. Omitting `ordered` keeps the ordering unknown.
 
 `analyzeDto()` checks one DTO with an engine or explicit analyzer options.
 `analyzeEngineDtos()` checks all DTOs registered on an engine.

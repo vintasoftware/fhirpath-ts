@@ -150,13 +150,15 @@ describe('type-inference capability registry', () => {
           : 'inputType' in capability && typeof capability.inputType === 'string'
             ? capability.inputType
             : undefined
-      const result = analyzeExpressionDetailed(capability.expression, {
+      // The registry records the type-level inference surface, which tracks
+      // types and cardinality only — ordering never reaches the typed parser.
+      const { types, single } = analyzeExpressionDetailed(capability.expression, {
         model: r4Model,
         ...(inputType !== undefined && { inputType }),
         ...(variables !== undefined && { variables }),
         ...(declaredFunctions !== undefined && { functions: declaredFunctions }),
       }).result
-      expect(result, id).toEqual(capability.analyzer)
+      expect({ types, single }, id).toEqual(capability.analyzer)
     }
   })
 

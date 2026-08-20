@@ -34,6 +34,8 @@ import {
   type FunctionSignature,
   type InputSpec,
   singleAnd,
+  singleState,
+  singletonOrder,
   unionStates,
   withSingle,
 } from './signatures.ts'
@@ -106,6 +108,8 @@ export interface RuntimeAnalyzeOptions extends Omit<AnalyzeOptions, 'variables'>
 interface StaticState {
   types: string[] | undefined
   single: boolean | undefined
+  /** True: ordered. False: unordered. Undefined: ordering is unknown. */
+  ordered: boolean | undefined
   /** Exact runtime focus types, present only while strict analysis can still prove them. */
   exactTypes?: string[]
   /**
@@ -118,14 +122,18 @@ interface StaticState {
   rawInput?: boolean
 }
 
-const UNKNOWN: StaticState = { types: undefined, single: undefined }
+const UNKNOWN: StaticState = { types: undefined, single: undefined, ordered: undefined }
 
 /** A runtime-analyzed function result no longer has exact facts about its input focus. */
-function callResult(state: Pick<StaticState, 'types' | 'single' | 'targets'>, runtime: boolean): StaticState {
+function callResult(
+  state: Pick<StaticState, 'types' | 'single' | 'ordered' | 'targets'>,
+  runtime: boolean
+): StaticState {
   return runtime
     ? {
         types: state.types,
         single: state.single,
+        ordered: state.ordered,
         ...(state.targets !== undefined && { targets: state.targets }),
       }
     : state
@@ -152,14 +160,14 @@ function forkScope(scope: VariableScope): VariableScope {
 export interface AnalysisDetails {
   diagnostics: AnalyzerDiagnostic[]
   /**
-   * The expression's inferred result: canonical type names and cardinality, the
-   * same StaticState the checks run on. `types: undefined` means the analyzer
-   * cannot see through the expression (an unknown region), and `single`
-   * undefined means the cardinality is unknown — neither is an error. Lets a
-   * caller cross-check a declared type against what the expression really
-   * yields (see `analyzeDto`).
+   * The expression's inferred result: canonical type names, cardinality, and
+   * ordering, the same StaticState the checks run on. `types: undefined` means
+   * the analyzer cannot see through the expression (an unknown region), and an
+   * undefined `single` or `ordered` means that fact is unknown — none of these
+   * is an error. Lets a caller cross-check a declared type against what the
+   * expression really yields (see `analyzeDto`).
    */
-  result: { types: string[] | undefined; single: boolean | undefined }
+  result: { types: string[] | undefined; single: boolean | undefined; ordered: boolean | undefined }
   /**
    * `Type.element` paths the expression reads (local type names), deduped in
    * first-visit order — HAPI's `elementDependencies`. Lets callers know which
@@ -172,6 +180,7 @@ export interface AnalysisDetails {
 export interface AnalyzerRoot {
   types: string[] | undefined
   single: boolean | undefined
+  ordered: boolean | undefined
   /** Canonical runtime types in focus order; an empty array means an exactly empty focus. */
   exactTypes?: string[]
 }
@@ -246,7 +255,7 @@ export function analyzeExpressionDetailed(expression: string, options?: AnalyzeO
     return {
       diagnostics: [{ severity: 'error', code: 'syntax', message: error.message, span: error.span }],
       elementDependencies: [],
-      result: { types: undefined, single: undefined },
+      result: { types: undefined, single: undefined, ordered: undefined },
     }
   }
   return analyzeAstDetailed(ast, options)
@@ -263,7 +272,7 @@ function analyzeAstDetailed(
   return {
     diagnostics: analyzer.diagnostics,
     elementDependencies: [...analyzer.dependencies],
-    result: { types: state.types, single: state.single },
+    result: { types: state.types, single: state.single, ordered: state.ordered },
   }
 }
 
@@ -292,11 +301,13 @@ class Analyzer {
     this.model = options?.model
     this.runtime = root !== undefined
     const inputType = options?.inputType
+    // The root focus is a real collection, so its order is defined even when
+    // its types and cardinality are not.
     this.root =
       root ??
       (inputType === undefined
-        ? { types: undefined, single: undefined }
-        : { types: [this.model?.resolveType(inputType) ?? inputType], single: true })
+        ? { types: undefined, single: undefined, ordered: true }
+        : singleState([this.model?.resolveType(inputType) ?? inputType]))
     this.customFunctions = new Map(
       Object.entries(options?.functions ?? {}).map(([name, declared]) => [
         name,
@@ -312,6 +323,7 @@ class Analyzer {
     return {
       types: this.root.types,
       single: this.root.single,
+      ordered: this.root.ordered,
       rawInput: true,
       ...(this.root.exactTypes !== undefined && { exactTypes: this.root.exactTypes }),
     }
@@ -322,24 +334,21 @@ class Analyzer {
       case 'null':
         // The empty literal `{}` is statically at most one item, so it satisfies
         // singleton operands (`{} + 1`, `{} and true` are spec-legal).
-        return { types: [], single: true }
+        return singleState([])
       case 'boolean':
-        return { types: ['System.Boolean'], single: true }
+        return singleState(['System.Boolean'])
       case 'string':
-        return { types: ['System.String'], single: true }
+        return singleState(['System.String'])
       case 'number':
-        return {
-          types: [node.isLong ? 'System.Long' : node.isDecimal ? 'System.Decimal' : 'System.Integer'],
-          single: true,
-        }
+        return singleState([node.isLong ? 'System.Long' : node.isDecimal ? 'System.Decimal' : 'System.Integer'])
       case 'date':
-        return { types: ['System.Date'], single: true }
+        return singleState(['System.Date'])
       case 'dateTime':
-        return { types: ['System.DateTime'], single: true }
+        return singleState(['System.DateTime'])
       case 'time':
-        return { types: ['System.Time'], single: true }
+        return singleState(['System.Time'])
       case 'quantity':
-        return { types: ['System.Quantity'], single: true }
+        return singleState(['System.Quantity'])
       case 'external':
         return this.walkExternal(node, scope)
       case 'special':
@@ -353,6 +362,7 @@ class Analyzer {
       case 'indexer': {
         const target = this.walk(node.target, input, scope)
         const index = this.walk(node.index, input, scope)
+        this.requireOrdered(target, node.target.span, 'The indexer')
         this.requireKind(index, 'Numeric', node.index.span, 'the indexer expects a single Integer')
         return withSingle(target, true)
       }
@@ -400,13 +410,13 @@ class Analyzer {
       case 'ucum':
       case 'sct':
       case 'loinc':
-        return { types: ['System.String'], single: true }
+        return singleState(['System.String'])
       default:
         break
     }
     // FHIR-defined families expand to HL7 urls: %`vs-[name]`, %`ext-[name]`.
     if (node.name.startsWith('vs-') || node.name.startsWith('ext-')) {
-      return { types: ['System.String'], single: true }
+      return singleState(['System.String'])
     }
     // A dynamically-named defineVariable() earlier in the chain may have bound
     // this name, so reporting it as undefined could be wrong — stay quiet.
@@ -420,7 +430,7 @@ class Analyzer {
     if (name === 'this') {
       return this.frames.at(-1) ?? this.rootState()
     }
-    return name === 'index' ? { types: ['System.Integer'], single: true } : UNKNOWN
+    return name === 'index' ? singleState(['System.Integer']) : UNKNOWN
   }
 
   /**
@@ -437,7 +447,7 @@ class Analyzer {
   private walkIdentifier(node: AstNode & { kind: 'identifier' }, input: StaticState): StaticState {
     // Navigating from a statically empty input yields empty — nothing to check.
     if (input.types !== undefined && input.types.length === 0) {
-      return { types: [], single: true }
+      return singleState([])
     }
     const exactTypes = input.exactTypes?.filter(type => rootTypeMatches(this.model, type, node.name))
     if (exactTypes !== undefined && exactTypes.length > 0) {
@@ -445,6 +455,7 @@ class Analyzer {
       return {
         types: types === undefined ? undefined : [...new Set(types)],
         single: input.single,
+        ordered: singletonOrder(input.single, input.ordered),
         exactTypes,
         ...(input.rawInput === true && { rawInput: true }),
       }
@@ -455,14 +466,13 @@ class Analyzer {
       const asType = this.model?.resolveType(node.name) ?? resolveSystemTypeName(node.name)
       if (asType !== undefined) {
         return {
-          types: [asType],
-          single: true,
+          ...singleState([asType]),
           ...(input.exactTypes !== undefined && {
             exactTypes: input.exactTypes.filter(type => this.model?.isSubtypeOf(type, asType) === true),
           }),
         }
       }
-      return UNKNOWN
+      return { ...UNKNOWN, ordered: input.ordered }
     }
     // Root rule: an identifier naming the (super)type of the context is the context.
     {
@@ -528,9 +538,14 @@ class Analyzer {
           node.name
         )
       }
-      return UNKNOWN
+      return { ...UNKNOWN, ordered: input.ordered }
     }
-    const state: StaticState = { types: [...new Set(found)], single: singleAnd(input.single, !isCollection) }
+    const single = singleAnd(input.single, !isCollection)
+    const state: StaticState = {
+      types: [...new Set(found)],
+      single,
+      ordered: singletonOrder(single, input.ordered),
+    }
     if (targets !== undefined && targets.length > 0) {
       state.targets = [...new Set(targets)]
     }
@@ -641,7 +656,11 @@ class Analyzer {
     // ofType(X) filters and as(X) casts: both narrow to the named type,
     // intersected with the known candidates.
     if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
-      return { types: this.narrowTypes(input, typeTarget, node.span), single: input.single }
+      return {
+        types: this.narrowTypes(input, typeTarget, node.span),
+        single: input.single,
+        ordered: singletonOrder(input.single, input.ordered),
+      }
     }
     const expressionResult = this.expressionFunctionResult(node.name, custom, input, scope)
     if (expressionResult !== undefined) {
@@ -675,7 +694,7 @@ class Analyzer {
     const bodyInput = this.expressionBodyInput(declaration, input)
     if (declaration.criteria === true) {
       this.walkExpressionFunction(name, expression, declaration.variables, bodyInput, scope)
-      return { types: ['System.Boolean'], single: true }
+      return singleState(['System.Boolean'])
     }
     if (declaration.signature?.result === undefined) {
       return this.walkExpressionFunction(name, expression, declaration.variables, bodyInput, scope)
@@ -703,6 +722,7 @@ class Analyzer {
     return {
       types: [...new Set(types)],
       single: callInput.single,
+      ordered: callInput.ordered,
       ...(callInput.targets !== undefined && { targets: callInput.targets }),
     }
   }
@@ -759,6 +779,7 @@ class Analyzer {
     return {
       types: declared.types?.map(type => this.canonicalize(type)),
       single: declared.single,
+      ordered: singletonOrder(declared.single, declared.ordered),
       ...(declared.targets !== undefined && { targets: declared.targets.map(type => this.canonicalize(type)) }),
       ...(exactTypes !== undefined && { exactTypes }),
     }
@@ -814,10 +835,13 @@ class Analyzer {
     }
   }
 
-  /** The signature's input constraints: cardinality, value kind, and declared types. */
+  /** The signature's input constraints: cardinality, ordering, value kind, and declared types. */
   private checkCallInput(node: AstNode & { kind: 'call' }, signature: FunctionSignature, input: StaticState): void {
     if (!signature.input) {
       return
+    }
+    if (signature.input.ordered === true) {
+      this.requireOrdered(input, node.span, `${node.name}()`)
     }
     // A function written for one type (a DTO's `@column`), called on a focus
     // that can never be that type. `unsatisfiedInput` holds the same rule the
@@ -840,7 +864,7 @@ class Analyzer {
     }
     if (signature.input.kind) {
       this.requireKind(
-        { types: input.types, single: true },
+        singleState(input.types),
         signature.input.kind,
         node.span,
         `${node.name}() expects a ${signature.input.kind} input`
@@ -970,14 +994,14 @@ class Analyzer {
       return undefined
     }
     const types = declared.result?.types?.map(type => this.canonicalize(type))
-    const single = declared.result?.single
     return {
       ...(declared.input !== undefined && { input: declared.input }),
       ...(declared.args !== undefined && { args: declared.args }),
       result: {
         kind: 'fixed',
         ...(types !== undefined && { types }),
-        ...(single !== undefined && { single }),
+        ...(declared.result?.single !== undefined && { single: declared.result.single }),
+        ...(declared.result?.ordered !== undefined && { ordered: declared.result.ordered }),
       },
     }
   }
@@ -1121,6 +1145,17 @@ class Analyzer {
   private requireSingle(state: StaticState, span: SourceSpan, message: string): void {
     if (isCollection(state)) {
       this.report('singleton-required', `${message}${NARROW_HINT}`, span)
+    }
+  }
+
+  /** Report an order-dependent operation only when the input is provably unordered. */
+  private requireOrdered(state: StaticState, span: SourceSpan, subject: string): void {
+    if (state.ordered === false && state.single !== true) {
+      this.report(
+        'order-dependent',
+        `${subject} depends on collection order, but the input collection has no defined order`,
+        span
+      )
     }
   }
 
@@ -1291,29 +1326,42 @@ function mergedDeclaration(candidates: readonly ResolvedDeclaration[]): Resolved
   }
 }
 
-/** Every type any declaration accepts, or undefined when one of them accepts anything. */
+/**
+ * Every type any declaration accepts, or no type constraint when one of them
+ * accepts anything. An ordered input stays required when every candidate
+ * requires it — whichever declaration the call resolves to would reject an
+ * unordered focus, so keeping the requirement cannot flag valid code.
+ */
 function mergedInput(candidates: readonly ResolvedDeclaration[]): InputSpec | undefined {
+  const ordered = candidates.every(candidate => candidate.signature?.input?.ordered === true)
   const declared = candidates.map(candidate => candidate.signature?.input?.types)
-  if (declared.some(types => types === undefined)) {
+  const types = declared.some(types => types === undefined)
+    ? undefined
+    : [...new Set(declared.flatMap(types => types ?? []))]
+  if (types === undefined && !ordered) {
     return undefined
   }
-  return { types: [...new Set(declared.flatMap(types => types ?? []))] }
+  return { ...(types !== undefined && { types }), ...(ordered && { ordered: true }) }
 }
 
 /** The union of the declarations' results, unknown as soon as one of them is. */
-function mergedResult(candidates: readonly ResolvedDeclaration[]): { types?: string[]; single?: boolean } | undefined {
+function mergedResult(
+  candidates: readonly ResolvedDeclaration[]
+): { types?: string[]; single?: boolean; ordered?: boolean } | undefined {
   const union = unionStates(
     candidates.map(candidate => ({
       types: candidate.signature?.result?.types === undefined ? undefined : [...candidate.signature.result.types],
       single: candidate.signature?.result?.single,
+      ordered: singletonOrder(candidate.signature?.result?.single, candidate.signature?.result?.ordered),
     }))
   )
-  if (union.types === undefined && union.single === undefined) {
+  if (union.types === undefined && union.single === undefined && union.ordered === undefined) {
     return undefined
   }
   return {
     ...(union.types !== undefined && { types: union.types }),
     ...(union.single !== undefined && { single: union.single }),
+    ...(union.ordered !== undefined && { ordered: union.ordered }),
   }
 }
 

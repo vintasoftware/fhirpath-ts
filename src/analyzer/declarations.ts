@@ -7,11 +7,15 @@ import { OBJECT_TYPE, toCollection, type TypedValue, typeLocalName } from '../va
 export interface AnalyzerVariable {
   types?: string[]
   single?: boolean
+  /** True: ordered. False: unordered. Omit when ordering is unknown. */
+  ordered?: boolean
   targets?: string[]
 }
 
 /** Internal variable state with the exact focus types used by runtime host-function dispatch. */
 export interface RuntimeAnalyzerVariable extends AnalyzerVariable {
+  /** A runtime collection is a real array, so its order is always defined. */
+  ordered: true
   exactTypes: string[]
 }
 
@@ -41,6 +45,7 @@ export function runtimeAnalyzerVariable(
   const inferred = analyzerVariableFromCollection(collection, model)
   return {
     ...(declaration === undefined ? inferred : analyzerVariable(declaration)),
+    ordered: true,
     exactTypes: collection.map(item => item.type),
   }
 }
@@ -54,6 +59,7 @@ function analyzerVariableFromCollection(
   return {
     ...(types !== undefined && types.length > 0 && { types }),
     single: collection.length <= 1,
+    ordered: true,
   }
 }
 
