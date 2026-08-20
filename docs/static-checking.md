@@ -123,6 +123,10 @@ and receivers whose engine type cannot be established. `--strict` promotes
 warnings to errors. A successful run with warnings says `no errors found`, not
 `no problems found`.
 
+Literal `vars` expressions in `EvaluateOptions` are checked in declaration
+order on every supported engine call. Each expression sees the call environment
+and earlier vars; projection vars also see `%rowIndex` and `%rowTotal`.
+
 The command exits with a non-zero status when it reports an error diagnostic.
 Warnings, such as possible regular expression backtracking, do not fail the run.
 

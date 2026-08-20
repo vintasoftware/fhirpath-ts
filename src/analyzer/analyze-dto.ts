@@ -11,7 +11,7 @@ import {
   type DeclaredFunction,
   type DeclaredVariable,
 } from './analyze.ts'
-import { analyzerEnvironmentVariables, analyzerVariables } from './declarations.ts'
+import { analyzerEnvironmentVariables, analyzerVariables, PROJECT_ROW_VARIABLES } from './declarations.ts'
 
 /** One `analyzeDto` finding: an analyzer diagnostic plus the class member it came from. */
 export interface DtoDiagnostic extends AnalyzerDiagnostic {
@@ -96,19 +96,11 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
   const definition = dtoDefinition(dto)
   const context = contextOf(options)
   const inputType = context.inputType ?? definition.fhirType
-  const declared: Record<string, DeclaredVariable> = {
-    rowIndex: { types: ['System.Integer'], single: true },
-    rowTotal: { types: ['System.Integer'], single: true },
-  }
-  const callerEnvNames = Array.isArray(definition.callerEnv)
-    ? definition.callerEnv
-    : Object.keys(definition.callerEnv ?? {})
-  for (const name of [...Object.keys(definition.env ?? {}), ...callerEnvNames]) {
+  const declared: Record<string, DeclaredVariable> = { ...PROJECT_ROW_VARIABLES }
+  for (const name of [...Object.keys(definition.env ?? {}), ...definition.callerEnvNames]) {
     declared[bareEnvironmentName(name)] = {}
   }
-  if (definition.callerEnv !== undefined && !Array.isArray(definition.callerEnv)) {
-    Object.assign(declared, analyzerVariables(undefined, definition.callerEnv as FhirpathTypeDeclarations))
-  }
+  Object.assign(declared, analyzerVariables(undefined, definition.callerEnvTypes))
   const diagnostics: DtoDiagnostic[] = []
   const analyze = (
     member: string,

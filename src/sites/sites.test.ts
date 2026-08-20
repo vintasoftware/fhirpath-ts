@@ -1,11 +1,12 @@
-import { readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
-import { createSiteFinder } from './index.ts'
+import { createSiteFinder, createSiteScanner } from './index.ts'
 
 const findExpressionSites = createSiteFinder(ts)
 
@@ -67,6 +68,36 @@ describe('expression site extraction', () => {
     expect(projectSite?.line).toBe(8)
     const constraintSite = sites.find(site => site.expression === 'contact.name.exists()')
     expect(constraintSite?.line).toBe(15)
+  })
+
+  it('finds ordered vars in every call that accepts EvaluateOptions', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "r4.evaluate('%a', patient, { vars: { a: 'Patient.name' } })",
+      "r4.evaluateTyped('%b', patient, { vars: { b: 'Patient.birthDate' } })",
+      "r4.first('%c', patient, { vars: { c: 'Patient.gender' } })",
+      "r4.test(patient, '%d.exists()', { vars: { d: 'Patient.active' } })",
+      "r4.filter(patients, '%e.exists()', { vars: { e: 'Patient.telecom' } })",
+      "r4.project(patients, { id: '%f' }, { vars: { f: 'Patient.id' } })",
+      "r4.checkConstraints(patient, [{ key: 'x', expression: '%g.exists()' }], { vars: { g: 'Patient.contact' } })",
+    ].join('\n')
+
+    expect(findExpressionSites(source, 'sample.ts').map(site => site.expression)).toEqual([
+      '%a',
+      'Patient.name',
+      '%b',
+      'Patient.birthDate',
+      '%c',
+      'Patient.gender',
+      '%d.exists()',
+      'Patient.active',
+      '%e.exists()',
+      'Patient.telecom',
+      '%f',
+      'Patient.id',
+      '%g.exists()',
+      'Patient.contact',
+    ])
   })
 
   it('leaves non-literal helper arguments and non-object shapes alone', () => {
@@ -419,6 +450,40 @@ describe('module options', () => {
       findExpressionSites(source, 'sample.ts', { packages: ['@acme/fhirpath'] }).map(site => site.expression)
     ).toEqual(['active = true'])
   })
+
+  it('uses extra package prefixes for type-resolved engines from another module', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-packages-'))
+    const packageDirectory = join(directory, 'node_modules', '@acme', 'fhirpath')
+    mkdirSync(packageDirectory, { recursive: true })
+    writeFileSync(
+      join(packageDirectory, 'package.json'),
+      JSON.stringify({ name: '@acme/fhirpath', type: 'module', types: 'index.d.ts' })
+    )
+    writeFileSync(
+      join(packageDirectory, 'index.d.ts'),
+      'export declare class FhirPathEngine { first(expression: string, input: unknown): unknown }'
+    )
+    writeFileSync(
+      join(directory, 'engine.ts'),
+      "import { FhirPathEngine } from '@acme/fhirpath'\nexport const fp = new FhirPathEngine()"
+    )
+    const file = join(directory, 'source.ts')
+    const source = "import { fp } from './engine.ts'\nfp.first('Patient.name', patient)"
+    writeFileSync(file, source)
+    const program = ts.createProgram({
+      rootNames: [file],
+      options: {
+        module: ts.ModuleKind.NodeNext,
+        moduleResolution: ts.ModuleResolutionKind.NodeNext,
+        noLib: true,
+      },
+    })
+
+    const scan = createSiteScanner(ts, program)
+    expect(scan(source, file, { packages: ['@acme/fhirpath'] }).sites.map(site => site.expression)).toEqual([
+      'Patient.name',
+    ])
+  }, 15_000)
 })
 
 describe('real source', () => {

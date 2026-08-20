@@ -12,6 +12,12 @@ export interface AnalyzerVariable {
   targets?: string[]
 }
 
+/** Projection variables supplied by the runtime for every row. */
+export const PROJECT_ROW_VARIABLES: Readonly<Record<'rowIndex' | 'rowTotal', AnalyzerVariable>> = {
+  rowIndex: { types: ['System.Integer'], single: true },
+  rowTotal: { types: ['System.Integer'], single: true },
+}
+
 /** Internal variable state with the exact focus types used by runtime host-function dispatch. */
 export interface RuntimeAnalyzerVariable extends AnalyzerVariable {
   /** A runtime collection is a real array, so its order is always defined. */

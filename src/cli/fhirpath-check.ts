@@ -55,6 +55,7 @@ if (args.files.length === 0 && !args.imports) {
   console.error('usage: fhirpath-check [--dtos <glob>]... [--no-import] [--local-imports] [--strict] <file...>')
   process.exit(2)
 }
+const dtoGlobs = args.dtoGlobs.length > 0 ? args.dtoGlobs : [DEFAULT_DTO_GLOB]
 
 /** A type-aware program lets the site finder follow imported and aliased engine receivers. */
 function sourceProgram(files: readonly string[]): ts.Program | undefined {
@@ -83,13 +84,14 @@ let scanExpressionSites = createSiteScanner(ts)
 let failures = 0
 let warnings = 0
 
-function report(location: string, diagnostic: { severity: string; code: string; message: string }): void {
-  if (diagnostic.severity === 'error') {
+function report(location: string, diagnostic: { severity: 'error' | 'warning'; code: string; message: string }): void {
+  const severity = args.strict && diagnostic.severity === 'warning' ? 'error' : diagnostic.severity
+  if (severity === 'error') {
     failures += 1
   } else {
     warnings += 1
   }
-  const prefix = diagnostic.severity === 'warning' ? 'warning:' : ''
+  const prefix = severity === 'warning' ? 'warning:' : ''
   console.error(`${location} [${prefix}${diagnostic.code}] ${diagnostic.message}`)
 }
 
@@ -149,12 +151,11 @@ if (
 
 let dtoResult: DtoCheckResult | undefined
 if (args.imports) {
-  const globs = args.dtoGlobs.length > 0 ? args.dtoGlobs : [DEFAULT_DTO_GLOB]
   try {
-    dtoResult = await checkDtoModules(globs, process.cwd())
+    dtoResult = await checkDtoModules(dtoGlobs, process.cwd())
   } catch (error) {
     console.error(
-      `fhirpath-check: cannot import DTO modules (${globs.join(', ')}): ${error instanceof Error ? error.message : String(error)}`
+      `fhirpath-check: cannot import DTO modules (${dtoGlobs.join(', ')}): ${error instanceof Error ? error.message : String(error)}`
     )
     process.exit(2)
   }
@@ -169,15 +170,12 @@ for (const file of args.files) {
       ...dtoResult?.sourceOptions,
       reportUnchecked: true,
     })) {
-      report(
-        `${file}:${positionIn(site, diagnostic.span)}`,
-        args.strict && diagnostic.severity === 'warning' ? { ...diagnostic, severity: 'error' } : diagnostic
-      )
+      report(`${file}:${positionIn(site, diagnostic.span)}`, diagnostic)
     }
   }
   for (const skipped of scanOf(file).skipped) {
     report(`${file}:${skipped.line}:${skipped.column}`, {
-      severity: args.strict ? 'error' : 'warning',
+      severity: 'warning',
       code: 'skipped',
       message: skipped.message,
     })
@@ -207,7 +205,6 @@ function locate(finding: DtoFinding): string {
 
 // --- 2. the project's DTO modules, imported ---
 if (dtoResult !== undefined) {
-  const globs = args.dtoGlobs.length > 0 ? args.dtoGlobs : [DEFAULT_DTO_GLOB]
   const result = dtoResult
   for (const file of result.files) {
     let scan: SiteScanResult
@@ -219,7 +216,7 @@ if (dtoResult !== undefined) {
     for (const dto of scan.dtoDeclarations) {
       if (!dto.loadable) {
         report(`${file}:${dto.line}:${dto.column}`, {
-          severity: args.strict ? 'error' : 'warning',
+          severity: 'warning',
           code: 'unloaded-dto',
           message: `DTO ${dto.name} is module-local and was not loaded for full analysis; export it or an extending class`,
         })
@@ -231,14 +228,11 @@ if (dtoResult !== undefined) {
     // than wrong, so it is reported without failing the run.
     const unresolvable = result.engines === 0 && finding.code === 'unknown-function'
     const reported = unresolvable ? { ...finding, severity: 'warning' as const } : finding
-    report(
-      locate(finding),
-      args.strict && reported.severity === 'warning' ? { ...reported, severity: 'error' } : reported
-    )
+    report(locate(finding), reported)
   }
   if (result.files.length === 0) {
     console.error(
-      `fhirpath-check: no DTO modules matched ${globs.join(', ')} — DTOs live in *.dto.ts, or pass --dtos <glob>`
+      `fhirpath-check: no DTO modules matched ${dtoGlobs.join(', ')} — DTOs live in *.dto.ts, or pass --dtos <glob>`
     )
   } else if (result.dtos.length === 0) {
     console.error(`fhirpath-check: ${result.files.length} DTO module(s) matched but export no DTO class`)

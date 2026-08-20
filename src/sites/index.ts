@@ -86,7 +86,7 @@ export type SiteScanner = (sourceText: string, fileName: string, options?: Local
  */
 export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): SiteScanner {
   const checker = program?.getTypeChecker()
-  const trustedEngineSymbols = collectTrustedEngineSymbols()
+  const engineSymbolsByOptions = new Map<string, ReadonlySet<TS.Symbol>>()
   /** How the shared shape extractor reads TypeScript AST nodes. */
   const tsAst: ExpressionAst<TS.Node> = {
     string: node => (ts.isStringLiteralLike(node) ? { node, expression: node.text } : undefined),
@@ -152,7 +152,8 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
   /** Collects imports, engine locals, rebound names, and DTO class roots before extracting sites. */
   function collectFile(
     source: TS.SourceFile,
-    options: LocalModuleOptions
+    options: LocalModuleOptions,
+    engineSymbols: ReadonlySet<TS.Symbol>
   ): {
     bindings: SourceBindings
     dtoRoots: ReadonlyMap<string, string>
@@ -198,7 +199,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
         ) {
           const set = constructsEngine(node.initializer.expression.text, bindings) ? trusted : rebound
           set.add(node.name.text)
-        } else if (ts.isIdentifier(node.name) && isEngineExpression(node.name)) {
+        } else if (ts.isIdentifier(node.name) && isEngineExpression(node.name, engineSymbols)) {
           trusted.add(node.name.text)
           foreign.delete(node.name.text)
         } else {
@@ -206,7 +207,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
           addBindingNames(node.name, rebound)
         }
       } else if (ts.isParameter(node)) {
-        if (ts.isIdentifier(node.name) && isEngineExpression(node.name)) {
+        if (ts.isIdentifier(node.name) && isEngineExpression(node.name, engineSymbols)) {
           trusted.add(node.name.text)
           foreign.delete(node.name.text)
         } else {
@@ -228,7 +229,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
   }
 
   /** Package engine declarations reached through a real `fhirpath-ts` import. */
-  function collectTrustedEngineSymbols(): ReadonlySet<TS.Symbol> {
+  function collectTrustedEngineSymbols(options: LocalModuleOptions): ReadonlySet<TS.Symbol> {
     const symbols = new Set<TS.Symbol>()
     if (checker === undefined || program === undefined) {
       return symbols
@@ -248,7 +249,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
         if (
           !ts.isImportDeclaration(statement) ||
           !ts.isStringLiteral(statement.moduleSpecifier) ||
-          isForeignModule(statement.moduleSpecifier.text)
+          isForeignModule(statement.moduleSpecifier.text, options)
         ) {
           continue
         }
@@ -280,9 +281,20 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     return symbols
   }
 
+  function engineSymbolsFor(options: LocalModuleOptions): ReadonlySet<TS.Symbol> {
+    const key = JSON.stringify({ packages: options.packages, localImports: options.localImports === true })
+    const cached = engineSymbolsByOptions.get(key)
+    if (cached !== undefined) {
+      return cached
+    }
+    const symbols = collectTrustedEngineSymbols(options)
+    engineSymbolsByOptions.set(key, symbols)
+    return symbols
+  }
+
   /** Whether TypeScript resolved an expression to this package's engine class. */
-  function isEngineExpression(node: TS.Expression): boolean {
-    if (checker === undefined || trustedEngineSymbols.size === 0 || node.getSourceFile().isDeclarationFile) {
+  function isEngineExpression(node: TS.Expression, engineSymbols: ReadonlySet<TS.Symbol>): boolean {
+    if (checker === undefined || engineSymbols.size === 0 || node.getSourceFile().isDeclarationFile) {
       return false
     }
     const hasEngineSymbol = (type: TS.Type, seen: Set<TS.Type>): boolean => {
@@ -297,7 +309,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
         return type.types.some(member => hasEngineSymbol(member, new Set(seen)))
       }
       const symbol = type.aliasSymbol ?? type.getSymbol()
-      if (symbol !== undefined && trustedEngineSymbols.has(symbol)) {
+      if (symbol !== undefined && engineSymbols.has(symbol)) {
         return true
       }
       const constraint = checker.getBaseConstraintOfType(type)
@@ -360,6 +372,27 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     return ts.isIdentifier(current) ? current.text : undefined
   }
 
+  function exportedNames(source: TS.SourceFile): ReadonlySet<string> {
+    const names = new Set<string>()
+    for (const statement of source.statements) {
+      if (ts.isClassDeclaration(statement) && statement.name !== undefined) {
+        const modifiers = ts.getModifiers(statement) ?? []
+        if (modifiers.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
+          names.add(statement.name.text)
+        }
+      } else if (ts.isExportDeclaration(statement) && statement.exportClause !== undefined) {
+        if (ts.isNamedExports(statement.exportClause)) {
+          for (const element of statement.exportClause.elements) {
+            names.add((element.propertyName ?? element.name).text)
+          }
+        }
+      } else if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
+        names.add(statement.expression.text)
+      }
+    }
+    return names
+  }
+
   return function scanExpressionSites(
     sourceText: string,
     fileName: string,
@@ -370,7 +403,8 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
       programSource !== undefined && programSource.text === sourceText
         ? programSource
         : ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
-    const { bindings, dtoRoots, heritage } = collectFile(source, options)
+    const engineSymbols = engineSymbolsFor(options)
+    const { bindings, dtoRoots, heritage } = collectFile(source, options, engineSymbols)
     const sites: ExpressionSite[] = []
     const skipped: SkippedExpressionSite[] = []
     const decoratedClasses = new Set<TS.ClassLikeDeclaration>()
@@ -412,60 +446,59 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
         const callee = nameOf(node.expression)
         const policy = callee === undefined ? undefined : CALL_SITES.get(callee)
         const argument = policy && (node.arguments[policy.argIndex] as TS.Expression | undefined)
-        const typedEngineReceiver =
-          ts.isPropertyAccessExpression(node.expression) && isEngineExpression(node.expression.expression)
-        const checked =
-          callee !== undefined &&
-          policy !== undefined &&
-          argument !== undefined &&
-          isCheckedCall(policy, callee, receiverRoot(node.expression), bindings, {
+        if (callee !== undefined && policy !== undefined && argument !== undefined) {
+          const typedEngineReceiver =
+            ts.isPropertyAccessExpression(node.expression) &&
+            isEngineExpression(node.expression.expression, engineSymbols)
+          const checked = isCheckedCall(policy, callee, receiverRoot(node.expression), bindings, {
             ...(typedEngineReceiver && { engine: true }),
           })
-        if (checked && callee !== undefined && policy !== undefined && argument !== undefined) {
-          const declares = policy.declaresField
-          const field = declares === undefined ? undefined : decoratedFieldName(node)
-          if (declares !== undefined && field !== undefined) {
-            if (enclosingClass !== undefined) {
-              decoratedClasses.add(enclosingClass)
-            }
-            functions[field] = declaredColumnOverloads(
-              functions[field],
-              columnFunctionDeclaration<TS.Node>(declares, node.arguments[1], tsAst, classRoot)
-            )
-          }
-          for (const candidate of callExpressionCandidates<TS.Node>(
-            policy,
-            index => node.arguments[index],
-            classRoot,
-            tsAst
-          )) {
-            if (candidate.expression === undefined) {
+          if (!checked) {
+            const receiver = receiverRoot(node.expression)
+            const receiverExpression = ts.isPropertyAccessExpression(node.expression)
+              ? node.expression.expression
+              : node.expression
+            if (shouldReportUnrecognized(receiverExpression)) {
               skip(
-                candidate.node,
-                'dynamic-expression',
-                candidate.source === 'project-var'
-                  ? 'project(...) var expression not analyzed: it is not a string literal'
-                  : `${callee}(...) expression not analyzed: it is not a string literal`
+                node.expression,
+                'unrecognized-receiver',
+                `${callee}(...) expression not analyzed: ${
+                  receiver === undefined
+                    ? `binding '${callee}' is not recognized as fhirpath-ts`
+                    : `receiver '${receiver}' is not recognized as a FhirPathEngine`
+                }`
               )
-            } else {
-              record(candidate.expression, candidate.node, candidate.context)
             }
-          }
-        } else if (callee !== undefined && policy !== undefined && argument !== undefined) {
-          const receiver = receiverRoot(node.expression)
-          const receiverExpression = ts.isPropertyAccessExpression(node.expression)
-            ? node.expression.expression
-            : node.expression
-          if (shouldReportUnrecognized(receiverExpression)) {
-            skip(
-              node.expression,
-              'unrecognized-receiver',
-              `${callee}(...) expression not analyzed: ${
-                receiver === undefined
-                  ? `binding '${callee}' is not recognized as fhirpath-ts`
-                  : `receiver '${receiver}' is not recognized as a FhirPathEngine`
-              }`
-            )
+          } else {
+            const declares = policy.declaresField
+            const field = declares === undefined ? undefined : decoratedFieldName(node)
+            if (declares !== undefined && field !== undefined) {
+              if (enclosingClass !== undefined) {
+                decoratedClasses.add(enclosingClass)
+              }
+              functions[field] = declaredColumnOverloads(
+                functions[field],
+                columnFunctionDeclaration<TS.Node>(declares, node.arguments[1], tsAst, classRoot)
+              )
+            }
+            for (const candidate of callExpressionCandidates<TS.Node>(
+              policy,
+              index => node.arguments[index],
+              classRoot,
+              tsAst
+            )) {
+              if (candidate.expression === undefined) {
+                skip(
+                  candidate.node,
+                  'dynamic-expression',
+                  candidate.source === 'option-var'
+                    ? `${callee}(...) var expression not analyzed: it is not a string literal`
+                    : `${callee}(...) expression not analyzed: it is not a string literal`
+                )
+              } else {
+                record(candidate.expression, candidate.node, candidate.context)
+              }
+            }
           }
         }
       }
@@ -495,14 +528,15 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
       return false
     }
     const dtoDeclarations = [...decoratedClasses].flatMap(node => {
-      const name = node.name?.text
+      const nameNode = node.name
       // Runtime module discovery can only miss top-level module-local classes.
       // A class inside a factory is reached through whatever class the factory
       // returns, rather than as a module export with its source name.
-      if (name === undefined || node.parent !== source) {
+      if (nameNode === undefined || node.parent !== source) {
         return []
       }
-      const { line, character } = source.getLineAndCharacterOfPosition(node.name!.getStart(source))
+      const name = nameNode.text
+      const { line, character } = source.getLineAndCharacterOfPosition(nameNode.getStart(source))
       return [{ name, line: line + 1, column: character + 1, loadable: reachesExport(name) }]
     })
     return {
@@ -510,27 +544,6 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
       skipped,
       dtoDeclarations,
     }
-  }
-
-  function exportedNames(source: TS.SourceFile): ReadonlySet<string> {
-    const names = new Set<string>()
-    for (const statement of source.statements) {
-      if (ts.isClassDeclaration(statement) && statement.name !== undefined) {
-        const modifiers = ts.getModifiers(statement) ?? []
-        if (modifiers.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
-          names.add(statement.name.text)
-        }
-      } else if (ts.isExportDeclaration(statement) && statement.exportClause !== undefined) {
-        if (ts.isNamedExports(statement.exportClause)) {
-          for (const element of statement.exportClause.elements) {
-            names.add((element.propertyName ?? element.name).text)
-          }
-        }
-      } else if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
-        names.add(statement.expression.text)
-      }
-    }
-    return names
   }
 }
 

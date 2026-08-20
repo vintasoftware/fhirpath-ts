@@ -9,6 +9,7 @@ import {
   type ColumnTypeClaim,
   criteriaSignature,
 } from '../api/column-signature.ts'
+import { type AnalyzerVariable, PROJECT_ROW_VARIABLES } from './declarations.ts'
 
 /** The supported expression argument shapes: one string, columns, constraints, or DTO variables. */
 export type CallSiteShape = 'expression' | 'columns' | 'constraints' | 'dto-vars'
@@ -40,8 +41,10 @@ export interface CallSitePolicy {
   rootFromClass?: true
   /** The EvaluateOptions argument whose inline env/vars declarations are visible to the expression. */
   optionsArg?: number
-  /** Additional expressions held by the options argument, such as project() row vars. */
+  /** Additional expressions held by the options argument. */
   optionsExpressions?: 'vars'
+  /** The call supplies projection-only `%rowIndex` and `%rowTotal`. */
+  rowVariables?: true
   /**
    * A DTO member site. Its `%variables` are never judged — they come from the
    * DTO's own `vars`/`env`, from a base class, or from the projecting call, none
@@ -62,15 +65,28 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   // evaluated somewhere else entirely — checkable.
   ['fhirpath', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
   ['compile', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
-  ['evaluate', { argIndex: 0, shape: 'expression', receiver: 'any', optionsArg: 2 }],
-  ['evaluateTyped', { argIndex: 0, shape: 'expression', receiver: 'any', optionsArg: 2 }],
-  ['first', { argIndex: 0, shape: 'expression', receiver: 'engine', optionsArg: 2 }],
+  ['evaluate', { argIndex: 0, shape: 'expression', receiver: 'any', optionsArg: 2, optionsExpressions: 'vars' }],
+  ['evaluateTyped', { argIndex: 0, shape: 'expression', receiver: 'any', optionsArg: 2, optionsExpressions: 'vars' }],
+  ['first', { argIndex: 0, shape: 'expression', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
   ['analyzeExpression', { argIndex: 0, shape: 'expression', receiver: 'any' }],
   // Subject-first FhirPathEngine helpers: the expression(s) come second.
-  ['test', { argIndex: 1, shape: 'expression', receiver: 'engine', optionsArg: 2 }],
-  ['filter', { argIndex: 1, shape: 'expression', receiver: 'engine', optionsArg: 2 }],
-  ['project', { argIndex: 1, shape: 'columns', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
-  ['checkConstraints', { argIndex: 1, shape: 'constraints', receiver: 'any', optionsArg: 2 }],
+  ['test', { argIndex: 1, shape: 'expression', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
+  ['filter', { argIndex: 1, shape: 'expression', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
+  [
+    'project',
+    {
+      argIndex: 1,
+      shape: 'columns',
+      receiver: 'engine',
+      optionsArg: 2,
+      optionsExpressions: 'vars',
+      rowVariables: true,
+    },
+  ],
+  [
+    'checkConstraints',
+    { argIndex: 1, shape: 'constraints', receiver: 'any', optionsArg: 2, optionsExpressions: 'vars' },
+  ],
   // DTO declarations: the column/criteria expressions of a `@column` field, and
   // the `vars` a DTO binds per row.
   [
@@ -137,20 +153,14 @@ export function isCheckedCall(
   bindings: SourceBindings,
   evidence: ReceiverEvidence = {}
 ): boolean {
-  if (policy.receiver === 'engine') {
-    return (
-      evidence.engine === true ||
-      (receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot))
-    )
-  }
   if (policy.receiver === 'import') {
     return receiverRoot === undefined && bindings.trusted.has(calleeName) && !bindings.rebound.has(calleeName)
   }
   if (evidence.engine === true) {
     return true
   }
-  if (bindings.trusted.has(receiverRoot ?? calleeName) && !bindings.rebound.has(receiverRoot ?? calleeName)) {
-    return true
+  if (policy.receiver === 'engine') {
+    return receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot)
   }
   return !bindings.foreign.has(receiverRoot ?? calleeName)
 }
@@ -217,12 +227,8 @@ export interface SiteContext {
   variables?: Readonly<Record<string, SiteVariable>>
 }
 
-/** The analyzer facts a source literal can declare without evaluating host code. */
-export interface SiteVariable {
-  types?: string[]
-  single?: boolean
-  targets?: string[]
-}
+/** Analyzer facts a source literal can declare; ordering requires runtime knowledge. */
+export type SiteVariable = Pick<AnalyzerVariable, 'types' | 'single' | 'targets'>
 
 /** One class of a file, as a walker reads its heritage clause. */
 export interface ClassHeritage {
@@ -305,7 +311,8 @@ export function siteContext<N>(
   policy: CallSitePolicy,
   argumentAt: (index: number) => N | undefined,
   classRoot: string | undefined,
-  ast: ExpressionAst<N>
+  ast: ExpressionAst<N>,
+  variables: Readonly<Record<string, SiteVariable>> | undefined
 ): SiteContext {
   const rootArgument = policy.rootArg === undefined ? undefined : argumentAt(policy.rootArg)
   const inputType =
@@ -314,71 +321,70 @@ export function siteContext<N>(
       : policy.rootFromClass === true
         ? classRoot
         : undefined
-  const optionsArgument = policy.optionsArg === undefined ? undefined : argumentAt(policy.optionsArg)
-  const variables = {
-    ...(optionsArgument === undefined ? undefined : variablesFromOptions(optionsArgument, ast, true)),
-    ...(policy.optionsExpressions === 'vars' && {
-      rowIndex: { types: ['System.Integer'], single: true },
-      rowTotal: { types: ['System.Integer'], single: true },
-    }),
-  }
   return {
     ...(policy.dto === true && { dto: true as const }),
     ...(inputType !== undefined && { inputType }),
-    ...(Object.keys(variables).length > 0 && { variables }),
+    ...(variables !== undefined && Object.keys(variables).length > 0 && { variables }),
   }
 }
 
-/** Variables declared by a literal EvaluateOptions object. */
-export function variablesFromOptions<N>(
-  options: N,
-  ast: ExpressionAst<N>,
-  includeVars: boolean
-): Record<string, SiteVariable> | undefined {
+export interface OptionScopes<N> {
+  env: Record<string, SiteVariable>
+  vars: Record<string, SiteVariable>
+  expressions: (ExpressionCandidate<N> & { name?: string })[]
+}
+
+/** Parse one literal EvaluateOptions object into environment and ordered var scopes. */
+export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes<N> | undefined {
   const properties = ast.properties(options)
   if (properties === undefined) {
     return undefined
   }
+  const envValues = optionValue(properties, 'env')
+  const envDeclarations = optionValue(properties, 'envTypes')
+  const varValues = optionValue(properties, 'vars')
+  const varDeclarations = optionValue(properties, 'varTypes')
+  const varsProperties = varValues === undefined ? [] : ast.properties(varValues)
   return {
-    ...optionVariablesFromProperties(properties, ast, 'env', 'envTypes').combined,
-    ...(includeVars && optionVariablesFromProperties(properties, ast, 'vars', 'varTypes').combined),
+    env: variablesFromPair(envValues, envDeclarations, ast),
+    vars: variablesFromPair(varValues, varDeclarations, ast),
+    expressions:
+      varValues === undefined
+        ? []
+        : varsProperties === undefined
+          ? [{ node: varValues }]
+          : varsProperties.map(property => {
+              const entry = ast.string(property.value)
+              return {
+                node: property.value,
+                ...(property.name !== undefined && { name: bareVariableName(property.name) }),
+                ...(entry !== undefined && { expression: entry.expression }),
+              }
+            }),
   }
 }
 
-function optionVariables<N>(
-  options: N,
-  ast: ExpressionAst<N>,
-  valuesName: 'env' | 'vars',
-  declarationsName: 'envTypes' | 'varTypes'
-): { combined: Record<string, SiteVariable>; declarations: Record<string, SiteVariable> } {
-  return optionVariablesFromProperties(ast.properties(options) ?? [], ast, valuesName, declarationsName)
-}
-
-function optionVariablesFromProperties<N>(
-  properties: readonly { name: string | undefined; value: N }[],
-  ast: ExpressionAst<N>,
-  valuesName: 'env' | 'vars',
-  declarationsName: 'envTypes' | 'varTypes'
-): { combined: Record<string, SiteVariable>; declarations: Record<string, SiteVariable> } {
-  const combined: Record<string, SiteVariable> = {}
-  const values = optionValue(properties, valuesName)
+function variablesFromPair<N>(
+  values: N | undefined,
+  declared: N | undefined,
+  ast: ExpressionAst<N>
+): Record<string, SiteVariable> {
+  const variables: Record<string, SiteVariable> = {}
   for (const property of values === undefined ? [] : (ast.properties(values) ?? [])) {
     if (property.name !== undefined) {
-      combined[bareVariableName(property.name)] = {}
+      variables[bareVariableName(property.name)] = {}
     }
   }
-  const declarations: Record<string, SiteVariable> = {}
-  const declared = optionValue(properties, declarationsName)
   for (const property of declared === undefined ? [] : (ast.properties(declared) ?? [])) {
     if (property.name === undefined) {
       continue
     }
     const declaration = typeDeclaration(property.value, ast)
     if (declaration !== undefined) {
-      declarations[bareVariableName(property.name)] = declaration
+      variables[bareVariableName(property.name)] = declaration
     }
   }
-  return { combined: { ...combined, ...declarations }, declarations }
+  return variables
 }
 
 /** Last statically named property, matching object-literal overwrite semantics. */
@@ -464,14 +470,15 @@ export interface ExpressionCandidate<N> {
 /** One call expression paired with the source facts visible at that exact point. */
 export interface ContextualExpressionCandidate<N> extends ExpressionCandidate<N> {
   context: SiteContext
-  source: 'argument' | 'project-var'
+  source: 'argument' | 'option-var'
 }
 
 /**
  * Expand one supported call into every expression-shaped node and its context.
- * Project vars bind in declaration order, after env and row variables; columns
- * see the completed var scope. Keeping this here gives both AST walkers one
- * state transition instead of parallel special cases.
+ * EvaluateOptions vars bind in declaration order after env. Project vars also
+ * see the row variables, and project columns see the completed var scope.
+ * Keeping this here gives both AST walkers one state transition instead of
+ * parallel special cases.
  */
 export function callExpressionCandidates<N>(
   policy: CallSitePolicy,
@@ -483,7 +490,14 @@ export function callExpressionCandidates<N>(
   if (argument === undefined) {
     return []
   }
-  const context = siteContext(policy, argumentAt, classRoot, ast)
+  const options = policy.optionsArg === undefined ? undefined : argumentAt(policy.optionsArg)
+  const scopes = options === undefined ? undefined : optionScopes(options, ast)
+  const rowVariables = policy.rowVariables === true ? PROJECT_ROW_VARIABLES : undefined
+  const context = siteContext(policy, argumentAt, classRoot, ast, {
+    ...scopes?.env,
+    ...scopes?.vars,
+    ...rowVariables,
+  })
   const candidates: ContextualExpressionCandidate<N>[] = expressionCandidates(argument, policy.shape, ast).map(
     candidate => ({
       ...candidate,
@@ -494,35 +508,22 @@ export function callExpressionCandidates<N>(
   if (policy.optionsExpressions !== 'vars' || policy.optionsArg === undefined) {
     return candidates
   }
-  const options = argumentAt(policy.optionsArg)
-  if (options === undefined) {
+  if (scopes === undefined) {
     return candidates
   }
   const variables: Record<string, SiteVariable> = {
-    ...variablesFromOptions(options, ast, false),
-    rowIndex: { types: ['System.Integer'], single: true },
-    rowTotal: { types: ['System.Integer'], single: true },
+    ...scopes.env,
+    ...rowVariables,
   }
-  const declarations = optionVariables(options, ast, 'vars', 'varTypes').declarations
-  const vars = optionValue(ast.properties(options), 'vars')
-  if (vars === undefined) {
-    return candidates
-  }
-  const properties = ast.properties(vars)
-  if (properties === undefined) {
-    return [...candidates, { node: vars, context: { ...context, variables: { ...variables } }, source: 'project-var' }]
-  }
-  for (const property of properties) {
-    const entry = ast.string(property.value)
+  for (const expression of scopes.expressions) {
     candidates.push({
-      node: property.value,
-      ...(entry !== undefined && { expression: entry.expression }),
+      node: expression.node,
+      ...(expression.expression !== undefined && { expression: expression.expression }),
       context: { ...context, variables: { ...variables } },
-      source: 'project-var',
+      source: 'option-var',
     })
-    if (property.name !== undefined) {
-      const name = bareVariableName(property.name)
-      variables[name] = declarations[name] ?? {}
+    if (expression.name !== undefined) {
+      variables[expression.name] = scopes.vars[expression.name] ?? {}
     }
   }
   return candidates

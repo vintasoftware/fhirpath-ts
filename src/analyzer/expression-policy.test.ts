@@ -11,8 +11,8 @@ import {
   type ExpressionAst,
   expressionCandidates,
   isCheckedCall,
+  optionScopes,
   type SiteVariable,
-  variablesFromOptions,
 } from './expression-policy.ts'
 
 const findExpressionSites = createSiteFinder(ts)
@@ -303,7 +303,8 @@ describe('literal call context extraction', () => {
       }
     )
 
-    expect(variablesFromOptions(options, miniAst, true)).toEqual({
+    const scopes = optionScopes(options, miniAst)
+    expect(scopes?.env).toEqual({
       plain: {},
       patient,
       choice: {
@@ -312,19 +313,12 @@ describe('literal call context extraction', () => {
         targets: ['Patient', 'Organization'],
       },
       ambiguous: { types: ['Patient'] },
+    })
+    expect(scopes?.vars).toEqual({
       row: { types: ['Observation'], single: true },
     })
-    expect(variablesFromOptions(options, miniAst, false)).toEqual({
-      plain: {},
-      patient,
-      choice: {
-        types: ['Condition', 'Observation'],
-        single: true,
-        targets: ['Patient', 'Organization'],
-      },
-      ambiguous: { types: ['Patient'] },
-    })
-    expect(variablesFromOptions(dynamicNode('options'), miniAst, true)).toBeUndefined()
+    expect(scopes?.expressions).toEqual([{ node: stringNode('%plain'), name: 'row', expression: '%plain' }])
+    expect(optionScopes(dynamicNode('options'), miniAst)).toBeUndefined()
   })
 
   it('identifies static and unread nodes in every supported expression container', () => {
@@ -445,6 +439,22 @@ describe('the walkers agree on a site’s context', () => {
         "    second: '%first',",
         "    premature: '%later',",
         "    later: '%second.combine(%rowTotal)',",
+        '  },',
+        '})',
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %later'],
+    },
+    {
+      name: 'ordinary call vars see env and only earlier vars',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%later', patient, {",
+        '  env: { external },',
+        '  vars: {',
+        "    first: '%external',",
+        "    second: '%first',",
+        "    premature: '%later',",
+        "    later: '%second',",
         '  },',
         '})',
       ].join('\n'),

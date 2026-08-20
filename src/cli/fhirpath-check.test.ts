@@ -303,6 +303,25 @@ describe('fhirpath-check CLI', () => {
     expect(result.output).toContain('warning:unchecked-navigation')
   })
 
+  it('checks var expressions on non-project EvaluateOptions calls', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-evaluate-vars-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "const patient = { resourceType: 'Patient' as const }",
+        "r4.evaluate('%v.exists()', patient, { vars: { v: 'Patient.nam1' } })",
+      ].join('\n')
+    )
+
+    const result = run(['--no-import', 'source.ts'], directory)
+    expect(result.status).toBe(1)
+    expect(result.output).toContain("Element 'nam1' is not defined on FHIR.Patient")
+    expect(result.output).not.toContain('[warning:skipped]')
+  })
+
   it('reports skipped dynamic expressions and module-local DTOs, with strict opt-in failure', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-coverage-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })

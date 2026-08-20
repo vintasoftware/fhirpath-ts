@@ -661,6 +661,28 @@ describe('analyzeDto', () => {
     ])
   })
 
+  it('normalizes caller environment declarations in DTO definitions', () => {
+    class Named extends defineDto('Observation', { callerEnv: ['reports'] }) {
+      @column('status')
+      status!: string | undefined
+    }
+    class Typed extends defineDto('Observation', {
+      callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
+    }) {
+      @column('status')
+      status!: string | undefined
+    }
+
+    expect(dtoDefinition(Named)).toMatchObject({
+      callerEnvNames: ['reports'],
+      callerEnvTypes: undefined,
+    })
+    expect(dtoDefinition(Typed)).toMatchObject({
+      callerEnvNames: ['reports'],
+      callerEnvTypes: { reports: { type: 'DiagnosticReport', collection: true } },
+    })
+  })
+
   it('analyzes a compiled var by its source, and only declares a pre-bound one', () => {
     class Bound extends defineDto('Observation', {
       vars: {
