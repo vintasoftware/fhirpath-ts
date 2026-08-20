@@ -117,6 +117,12 @@ export interface SourceBindings {
   rebound: ReadonlySet<string>
 }
 
+/** Semantic receiver facts a compiler-backed walker can prove. */
+export interface ReceiverEvidence {
+  /** The receiver resolves to this package's FhirPathEngine declaration. */
+  engine?: true
+}
+
 /**
  * Whether a call site should be checked, given its policy and the file's
  * bindings. `receiverRoot` is the leftmost identifier of a member-expression
@@ -128,13 +134,20 @@ export function isCheckedCall(
   policy: CallSitePolicy,
   calleeName: string,
   receiverRoot: string | undefined,
-  bindings: SourceBindings
+  bindings: SourceBindings,
+  evidence: ReceiverEvidence = {}
 ): boolean {
   if (policy.receiver === 'engine') {
-    return receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot)
+    return (
+      evidence.engine === true ||
+      (receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot))
+    )
   }
   if (policy.receiver === 'import') {
     return receiverRoot === undefined && bindings.trusted.has(calleeName) && !bindings.rebound.has(calleeName)
+  }
+  if (evidence.engine === true) {
+    return true
   }
   if (bindings.trusted.has(receiverRoot ?? calleeName) && !bindings.rebound.has(receiverRoot ?? calleeName)) {
     return true
@@ -326,34 +339,60 @@ export function variablesFromOptions<N>(
   if (properties === undefined) {
     return undefined
   }
-  const variables: Record<string, SiteVariable> = {}
-  const addNames = (propertyName: 'env' | 'vars'): void => {
-    const value = properties.find(property => property.name === propertyName)?.value
-    for (const property of value === undefined ? [] : (ast.properties(value) ?? [])) {
-      if (property.name !== undefined) {
-        variables[bareVariableName(property.name)] = {}
-      }
+  return {
+    ...optionVariablesFromProperties(properties, ast, 'env', 'envTypes').combined,
+    ...(includeVars && optionVariablesFromProperties(properties, ast, 'vars', 'varTypes').combined),
+  }
+}
+
+function optionVariables<N>(
+  options: N,
+  ast: ExpressionAst<N>,
+  valuesName: 'env' | 'vars',
+  declarationsName: 'envTypes' | 'varTypes'
+): { combined: Record<string, SiteVariable>; declarations: Record<string, SiteVariable> } {
+  return optionVariablesFromProperties(ast.properties(options) ?? [], ast, valuesName, declarationsName)
+}
+
+function optionVariablesFromProperties<N>(
+  properties: readonly { name: string | undefined; value: N }[],
+  ast: ExpressionAst<N>,
+  valuesName: 'env' | 'vars',
+  declarationsName: 'envTypes' | 'varTypes'
+): { combined: Record<string, SiteVariable>; declarations: Record<string, SiteVariable> } {
+  const combined: Record<string, SiteVariable> = {}
+  const values = optionValue(properties, valuesName)
+  for (const property of values === undefined ? [] : (ast.properties(values) ?? [])) {
+    if (property.name !== undefined) {
+      combined[bareVariableName(property.name)] = {}
     }
   }
-  const addDeclarations = (propertyName: 'envTypes' | 'varTypes'): void => {
-    const value = properties.find(property => property.name === propertyName)?.value
-    for (const property of value === undefined ? [] : (ast.properties(value) ?? [])) {
-      if (property.name === undefined) {
-        continue
-      }
-      const declaration = typeDeclaration(property.value, ast)
-      if (declaration !== undefined) {
-        variables[bareVariableName(property.name)] = declaration
-      }
+  const declarations: Record<string, SiteVariable> = {}
+  const declared = optionValue(properties, declarationsName)
+  for (const property of declared === undefined ? [] : (ast.properties(declared) ?? [])) {
+    if (property.name === undefined) {
+      continue
+    }
+    const declaration = typeDeclaration(property.value, ast)
+    if (declaration !== undefined) {
+      declarations[bareVariableName(property.name)] = declaration
     }
   }
-  addNames('env')
-  addDeclarations('envTypes')
-  if (includeVars) {
-    addNames('vars')
-    addDeclarations('varTypes')
+  return { combined: { ...combined, ...declarations }, declarations }
+}
+
+/** Last statically named property, matching object-literal overwrite semantics. */
+function optionValue<N>(
+  properties: readonly { name: string | undefined; value: N }[] | undefined,
+  name: string
+): N | undefined {
+  let value: N | undefined
+  for (const property of properties ?? []) {
+    if (property.name === name) {
+      value = property.value
+    }
   }
-  return variables
+  return value
 }
 
 function typeDeclaration<N>(node: N, ast: ExpressionAst<N>): SiteVariable | undefined {
@@ -416,60 +455,107 @@ export interface ExpressionAst<N> {
   elements(node: N): N[] | undefined
 }
 
-/**
- * Extract the expression literal(s) an argument holds, per the call site's shape.
- * Column keys are output names, not expressions, so a computed key does not stop
- * its value from being checked; `{ path }` / `{ expression }` lookups match
- * identifier and string-literal keys only.
- */
-export function expressionEntries<N>(argument: N, shape: CallSiteShape, ast: ExpressionAst<N>): ExpressionEntry<N>[] {
-  if (shape === 'expression') {
-    const entry = ast.string(argument)
-    return entry ? [entry] : []
-  }
-  if (shape === 'columns') {
-    // project() columns: { name: 'expr' }, { name: { path: 'expr', ... } }, or
-    // the boolean-criteria form { name: { test: 'expr' } }.
-    return (ast.properties(argument) ?? []).flatMap(({ value }) => {
-      const entry = ast.string(value)
-      return entry ? [entry] : [...namedStringEntries(value, 'path', ast), ...namedStringEntries(value, 'test', ast)]
-    })
-  }
-  if (shape === 'dto-vars') {
-    // defineDto() options: { vars: { name: 'expr' }, callerEnv: [...] }. Only
-    // vars hold expressions.
-    const vars = (ast.properties(argument) ?? []).filter(({ name }) => name === 'vars')
-    return vars.flatMap(({ value }) =>
-      (ast.properties(value) ?? []).flatMap(({ value: expression }) => {
-        const entry = ast.string(expression)
-        return entry ? [entry] : []
-      })
-    )
-  }
-  // checkConstraints() constraints: [{ key, expression: 'expr', ... }].
-  return (ast.elements(argument) ?? []).flatMap(element => namedStringEntries(element, 'expression', ast))
+/** One expression-shaped node, whether or not its value is a static string. */
+export interface ExpressionCandidate<N> {
+  node: N
+  expression?: string
 }
 
-/** Nodes in a supported expression container that are present but not static strings. */
-export function unreadExpressionNodes<N>(argument: N, shape: CallSiteShape, ast: ExpressionAst<N>): N[] {
+/** One call expression paired with the source facts visible at that exact point. */
+export interface ContextualExpressionCandidate<N> extends ExpressionCandidate<N> {
+  context: SiteContext
+  source: 'argument' | 'project-var'
+}
+
+/**
+ * Expand one supported call into every expression-shaped node and its context.
+ * Project vars bind in declaration order, after env and row variables; columns
+ * see the completed var scope. Keeping this here gives both AST walkers one
+ * state transition instead of parallel special cases.
+ */
+export function callExpressionCandidates<N>(
+  policy: CallSitePolicy,
+  argumentAt: (index: number) => N | undefined,
+  classRoot: string | undefined,
+  ast: ExpressionAst<N>
+): ContextualExpressionCandidate<N>[] {
+  const argument = argumentAt(policy.argIndex)
+  if (argument === undefined) {
+    return []
+  }
+  const context = siteContext(policy, argumentAt, classRoot, ast)
+  const candidates: ContextualExpressionCandidate<N>[] = expressionCandidates(argument, policy.shape, ast).map(
+    candidate => ({
+      ...candidate,
+      context,
+      source: 'argument' as const,
+    })
+  )
+  if (policy.optionsExpressions !== 'vars' || policy.optionsArg === undefined) {
+    return candidates
+  }
+  const options = argumentAt(policy.optionsArg)
+  if (options === undefined) {
+    return candidates
+  }
+  const variables: Record<string, SiteVariable> = {
+    ...variablesFromOptions(options, ast, false),
+    rowIndex: { types: ['System.Integer'], single: true },
+    rowTotal: { types: ['System.Integer'], single: true },
+  }
+  const declarations = optionVariables(options, ast, 'vars', 'varTypes').declarations
+  const vars = optionValue(ast.properties(options), 'vars')
+  if (vars === undefined) {
+    return candidates
+  }
+  const properties = ast.properties(vars)
+  if (properties === undefined) {
+    return [...candidates, { node: vars, context: { ...context, variables: { ...variables } }, source: 'project-var' }]
+  }
+  for (const property of properties) {
+    const entry = ast.string(property.value)
+    candidates.push({
+      node: property.value,
+      ...(entry !== undefined && { expression: entry.expression }),
+      context: { ...context, variables: { ...variables } },
+      source: 'project-var',
+    })
+    if (property.name !== undefined) {
+      const name = bareVariableName(property.name)
+      variables[name] = declarations[name] ?? {}
+    }
+  }
+  return candidates
+}
+
+/** Canonical traversal of every supported expression container. */
+export function expressionCandidates<N>(
+  argument: N,
+  shape: CallSiteShape,
+  ast: ExpressionAst<N>
+): ExpressionCandidate<N>[] {
   if (shape === 'expression') {
-    return ast.string(argument) === undefined ? [argument] : []
+    const entry = ast.string(argument)
+    return [{ node: argument, ...(entry !== undefined && { expression: entry.expression }) }]
   }
   if (shape === 'columns') {
     // A non-object may be a DTO class, which holds no source expressions.
     return (ast.properties(argument) ?? []).flatMap(({ value }) => {
-      if (ast.string(value) !== undefined) {
-        return []
+      const entry = ast.string(value)
+      if (entry !== undefined) {
+        return [{ node: value, expression: entry.expression }]
       }
       const nested = ast.properties(value)
       if (nested === undefined) {
-        return [value]
+        return [{ node: value }]
       }
-      return nested.flatMap(property =>
-        (property.name === 'path' || property.name === 'test') && ast.string(property.value) === undefined
-          ? [property.value]
-          : []
-      )
+      return nested.flatMap(property => {
+        if (property.name !== 'path' && property.name !== 'test') {
+          return []
+        }
+        const nestedEntry = ast.string(property.value)
+        return [{ node: property.value, ...(nestedEntry !== undefined && { expression: nestedEntry.expression }) }]
+      })
     })
   }
   if (shape === 'dto-vars') {
@@ -477,33 +563,29 @@ export function unreadExpressionNodes<N>(argument: N, shape: CallSiteShape, ast:
     return vars.flatMap(({ value }) => {
       const properties = ast.properties(value)
       return properties === undefined
-        ? [value]
-        : properties.flatMap(property => (ast.string(property.value) === undefined ? [property.value] : []))
+        ? [{ node: value }]
+        : properties.map(property => {
+            const entry = ast.string(property.value)
+            return { node: property.value, ...(entry !== undefined && { expression: entry.expression }) }
+          })
     })
   }
   const elements = ast.elements(argument)
   if (elements === undefined) {
-    return [argument]
+    return [{ node: argument }]
   }
   return elements.flatMap(element => {
     const properties = ast.properties(element)
     if (properties === undefined) {
-      return [element]
+      return [{ node: element }]
     }
-    return properties.flatMap(property =>
-      property.name === 'expression' && ast.string(property.value) === undefined ? [property.value] : []
-    )
-  })
-}
-
-/** The string-literal values of an object literal's `name` properties. */
-function namedStringEntries<N>(object: N, name: string, ast: ExpressionAst<N>): ExpressionEntry<N>[] {
-  return (ast.properties(object) ?? []).flatMap(({ name: key, value }) => {
-    if (key !== name) {
-      return []
-    }
-    const entry = ast.string(value)
-    return entry ? [entry] : []
+    return properties.flatMap(property => {
+      if (property.name !== 'expression') {
+        return []
+      }
+      const entry = ast.string(property.value)
+      return [{ node: property.value, ...(entry !== undefined && { expression: entry.expression }) }]
+    })
   })
 }
 

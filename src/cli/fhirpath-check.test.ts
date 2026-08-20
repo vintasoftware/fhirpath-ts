@@ -233,6 +233,27 @@ describe('fhirpath-check CLI', () => {
     expect(result.output).not.toContain('[warning:skipped]')
   })
 
+  it('does not trust an unrelated type merely named FhirPathEngine', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-foreign-engine-'))
+    writeFileSync(
+      join(directory, 'foreign.ts'),
+      [
+        'export class FhirPathEngine {',
+        '  first(_expression: string, _input: unknown): unknown { return undefined }',
+        '}',
+        'export const fp = new FhirPathEngine()',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'source.ts'),
+      ["import { fp } from './foreign.ts'", "fp.first('Patient.nam1', patient)"].join('\n')
+    )
+
+    const result = run(['--no-import', 'source.ts'], directory)
+    expect(result.status).toBe(0)
+    expect(result.output).toBe('fhirpath-check: no problems found\n')
+  })
+
   it('uses imported engine environment for source sites', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-source-env-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })

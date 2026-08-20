@@ -12,6 +12,7 @@ import type TS from 'typescript'
 
 import {
   CALL_SITES,
+  callExpressionCandidates,
   type ClassHeritage,
   columnFunctionDeclaration,
   constructsEngine,
@@ -20,7 +21,6 @@ import {
   dtoRootsOf,
   ENGINE_CLASS_NAME,
   type ExpressionAst,
-  expressionEntries,
   type FileColumnFunction,
   isCheckedCall,
   isCheckedTag,
@@ -28,11 +28,8 @@ import {
   type LocalModuleOptions,
   rootOf,
   type SiteContext,
-  siteContext,
   type SourceBindings,
   TAG_NAME,
-  unreadExpressionNodes,
-  variablesFromOptions,
 } from '../analyzer/expression-policy.ts'
 
 /** The TypeScript namespace accepted by `createSiteFinder`. */
@@ -89,6 +86,7 @@ export type SiteScanner = (sourceText: string, fileName: string, options?: Local
  */
 export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): SiteScanner {
   const checker = program?.getTypeChecker()
+  const trustedEngineSymbols = collectTrustedEngineSymbols()
   /** How the shared shape extractor reads TypeScript AST nodes. */
   const tsAst: ExpressionAst<TS.Node> = {
     string: node => (ts.isStringLiteralLike(node) ? { node, expression: node.text } : undefined),
@@ -229,22 +227,93 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     return { bindings, dtoRoots: dtoRootsOf([...heritage.values()]), heritage }
   }
 
-  /** Whether TypeScript resolved an expression to the package's engine class. */
+  /** Package engine declarations reached through a real `fhirpath-ts` import. */
+  function collectTrustedEngineSymbols(): ReadonlySet<TS.Symbol> {
+    const symbols = new Set<TS.Symbol>()
+    if (checker === undefined || program === undefined) {
+      return symbols
+    }
+    const resolvedSymbol = (initial: TS.Symbol | undefined): TS.Symbol | undefined => {
+      let symbol = initial
+      const seen = new Set<TS.Symbol>()
+      while (symbol !== undefined && (symbol.flags & ts.SymbolFlags.Alias) !== 0 && !seen.has(symbol)) {
+        seen.add(symbol)
+        symbol = checker.getAliasedSymbol(symbol)
+      }
+      return symbol
+    }
+    const resolved = (node: TS.Node): TS.Symbol | undefined => resolvedSymbol(checker.getSymbolAtLocation(node))
+    for (const source of program.getSourceFiles()) {
+      for (const statement of source.statements) {
+        if (
+          !ts.isImportDeclaration(statement) ||
+          !ts.isStringLiteral(statement.moduleSpecifier) ||
+          isForeignModule(statement.moduleSpecifier.text)
+        ) {
+          continue
+        }
+        const bindings = statement.importClause?.namedBindings
+        if (bindings === undefined) {
+          continue
+        }
+        if (ts.isNamedImports(bindings)) {
+          for (const element of bindings.elements) {
+            if ((element.propertyName ?? element.name).text === ENGINE_CLASS_NAME) {
+              const symbol = resolved(element.name)
+              if (symbol !== undefined) {
+                symbols.add(symbol)
+              }
+            }
+          }
+          continue
+        }
+        const module = resolved(bindings.name)
+        const symbol =
+          module === undefined
+            ? undefined
+            : checker.getExportsOfModule(module).find(entry => entry.name === ENGINE_CLASS_NAME)
+        if (symbol !== undefined) {
+          symbols.add(resolvedSymbol(symbol) ?? symbol)
+        }
+      }
+    }
+    return symbols
+  }
+
+  /** Whether TypeScript resolved an expression to this package's engine class. */
   function isEngineExpression(node: TS.Expression): boolean {
-    if (checker === undefined || node.getSourceFile().isDeclarationFile) {
+    if (checker === undefined || trustedEngineSymbols.size === 0 || node.getSourceFile().isDeclarationFile) {
       return false
     }
-    const hasEngineSymbol = (type: TS.Type): boolean => {
-      if (type.isUnionOrIntersection()) {
-        return type.types.some(hasEngineSymbol)
+    const hasEngineSymbol = (type: TS.Type, seen: Set<TS.Type>): boolean => {
+      if (seen.has(type)) {
+        return false
+      }
+      seen.add(type)
+      if (type.isUnion()) {
+        return type.types.length > 0 && type.types.every(member => hasEngineSymbol(member, new Set(seen)))
+      }
+      if (type.isIntersection()) {
+        return type.types.some(member => hasEngineSymbol(member, new Set(seen)))
       }
       const symbol = type.aliasSymbol ?? type.getSymbol()
-      if (symbol?.getName() === ENGINE_CLASS_NAME) {
+      if (symbol !== undefined && trustedEngineSymbols.has(symbol)) {
         return true
       }
-      return ((type as TS.InterfaceType).getBaseTypes?.() ?? []).some(hasEngineSymbol)
+      const constraint = checker.getBaseConstraintOfType(type)
+      if (constraint !== undefined && constraint !== type && hasEngineSymbol(constraint, seen)) {
+        return true
+      }
+      if ((type.flags & ts.TypeFlags.Object) === 0) {
+        return false
+      }
+      const object = type as TS.ObjectType
+      if ((object.objectFlags & (ts.ObjectFlags.Class | ts.ObjectFlags.Interface | ts.ObjectFlags.Reference)) === 0) {
+        return false
+      }
+      return checker.getBaseTypes(type as TS.InterfaceType).some(base => hasEngineSymbol(base, seen))
     }
-    return hasEngineSymbol(checker.getTypeAtLocation(node))
+    return hasEngineSymbol(checker.getTypeAtLocation(node), new Set())
   }
 
   /** An unresolved receiver may still be an engine; a resolved non-engine is not our call site. */
@@ -349,12 +418,10 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
           callee !== undefined &&
           policy !== undefined &&
           argument !== undefined &&
-          (typedEngineReceiver || isCheckedCall(policy, callee, receiverRoot(node.expression), bindings))
+          isCheckedCall(policy, callee, receiverRoot(node.expression), bindings, {
+            ...(typedEngineReceiver && { engine: true }),
+          })
         if (checked && callee !== undefined && policy !== undefined && argument !== undefined) {
-          const entries = expressionEntries<TS.Node>(argument, policy.shape, tsAst)
-          for (const unread of unreadExpressionNodes(argument, policy.shape, tsAst)) {
-            skip(unread, 'dynamic-expression', `${callee}(...) expression not analyzed: it is not a string literal`)
-          }
           const declares = policy.declaresField
           const field = declares === undefined ? undefined : decoratedFieldName(node)
           if (declares !== undefined && field !== undefined) {
@@ -366,29 +433,22 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
               columnFunctionDeclaration<TS.Node>(declares, node.arguments[1], tsAst, classRoot)
             )
           }
-          const context = siteContext<TS.Node>(policy, index => node.arguments[index], classRoot, tsAst)
-          for (const entry of entries) {
-            record(entry.expression, entry.node, context)
-          }
-          if (policy.optionsExpressions === 'vars' && policy.optionsArg !== undefined) {
-            const optionsArgument = node.arguments[policy.optionsArg]
-            if (optionsArgument !== undefined) {
-              const variables = variablesFromOptions(optionsArgument, tsAst, false)
-              const variableContext: SiteContext = {
-                ...context,
-                ...(variables !== undefined && Object.keys(variables).length > 0 && { variables }),
-              }
-              const variableEntries = expressionEntries<TS.Node>(optionsArgument, 'dto-vars', tsAst)
-              for (const unread of unreadExpressionNodes(optionsArgument, 'dto-vars', tsAst)) {
-                skip(
-                  unread,
-                  'dynamic-expression',
-                  'project(...) var expression not analyzed: it is not a string literal'
-                )
-              }
-              for (const entry of variableEntries) {
-                record(entry.expression, entry.node, variableContext)
-              }
+          for (const candidate of callExpressionCandidates<TS.Node>(
+            policy,
+            index => node.arguments[index],
+            classRoot,
+            tsAst
+          )) {
+            if (candidate.expression === undefined) {
+              skip(
+                candidate.node,
+                'dynamic-expression',
+                candidate.source === 'project-var'
+                  ? 'project(...) var expression not analyzed: it is not a string literal'
+                  : `${callee}(...) expression not analyzed: it is not a string literal`
+              )
+            } else {
+              record(candidate.expression, candidate.node, candidate.context)
             }
           }
         } else if (callee !== undefined && policy !== undefined && argument !== undefined) {

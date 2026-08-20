@@ -9,8 +9,9 @@ import { createSiteFinder } from '../sites/index.ts'
 import { analyzeSite } from './analyze.ts'
 import {
   type ExpressionAst,
+  expressionCandidates,
+  isCheckedCall,
   type SiteVariable,
-  unreadExpressionNodes,
   variablesFromOptions,
 } from './expression-policy.ts'
 
@@ -234,6 +235,21 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
 const linter = new Linter()
 
 describe('literal call context extraction', () => {
+  it('keeps semantic engine evidence inside the shared receiver policy', () => {
+    const bindings = { foreign: new Set<string>(), trusted: new Set<string>(), rebound: new Set<string>() }
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'engine' }, 'first', 'fp', bindings, { engine: true })
+    ).toBe(true)
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'any' }, 'evaluate', 'fp', bindings, { engine: true })
+    ).toBe(true)
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'import' }, 'column', 'fp', bindings, {
+        engine: true,
+      })
+    ).toBe(false)
+  })
+
   it('reads names and complete type declarations from EvaluateOptions', () => {
     const patient: SiteVariable = { types: ['Patient'], single: false, targets: ['Organization'] }
     const options = objectNode(
@@ -311,31 +327,41 @@ describe('literal call context extraction', () => {
     expect(variablesFromOptions(dynamicNode('options'), miniAst, true)).toBeUndefined()
   })
 
-  it('identifies unread nodes in every supported expression container', () => {
+  it('identifies static and unread nodes in every supported expression container', () => {
     const dynamic = dynamicNode('dynamic')
-    expect(unreadExpressionNodes(dynamic, 'expression', miniAst)).toEqual([dynamic])
-    expect(unreadExpressionNodes(stringNode('ok'), 'expression', miniAst)).toEqual([])
+    expect(expressionCandidates(dynamic, 'expression', miniAst)).toEqual([{ node: dynamic }])
+    const literal = stringNode('ok')
+    expect(expressionCandidates(literal, 'expression', miniAst)).toEqual([{ node: literal, expression: 'ok' }])
 
     const columns = objectNode(
       { name: 'literal', value: stringNode('Patient.name') },
       { name: 'dynamic', value: dynamic },
       { name: 'nested', value: objectNode({ name: 'path', value: dynamic }, { name: 'test', value: stringNode('ok') }) }
     )
-    expect(unreadExpressionNodes(columns, 'columns', miniAst)).toEqual([dynamic, dynamic])
-    expect(unreadExpressionNodes(dynamic, 'columns', miniAst)).toEqual([])
+    expect(expressionCandidates(columns, 'columns', miniAst)).toEqual([
+      { node: expect.objectContaining({ kind: 'string' }), expression: 'Patient.name' },
+      { node: dynamic },
+      { node: dynamic },
+      { node: expect.objectContaining({ kind: 'string' }), expression: 'ok' },
+    ])
+    expect(expressionCandidates(dynamic, 'columns', miniAst)).toEqual([])
 
     const vars = objectNode({ name: 'vars', value: objectNode({ name: 'a', value: dynamic }) })
-    expect(unreadExpressionNodes(vars, 'dto-vars', miniAst)).toEqual([dynamic])
+    expect(expressionCandidates(vars, 'dto-vars', miniAst)).toEqual([{ node: dynamic }])
     const dynamicVars = objectNode({ name: 'vars', value: dynamic })
-    expect(unreadExpressionNodes(dynamicVars, 'dto-vars', miniAst)).toEqual([dynamic])
+    expect(expressionCandidates(dynamicVars, 'dto-vars', miniAst)).toEqual([{ node: dynamic }])
 
-    expect(unreadExpressionNodes(dynamic, 'constraints', miniAst)).toEqual([dynamic])
+    expect(expressionCandidates(dynamic, 'constraints', miniAst)).toEqual([{ node: dynamic }])
     const constraints = arrayNode(
       dynamic,
       objectNode({ name: 'expression', value: dynamic }),
       objectNode({ name: 'expression', value: stringNode('ok') })
     )
-    expect(unreadExpressionNodes(constraints, 'constraints', miniAst)).toEqual([dynamic, dynamic])
+    expect(expressionCandidates(constraints, 'constraints', miniAst)).toEqual([
+      { node: dynamic },
+      { node: dynamic },
+      { node: expect.objectContaining({ kind: 'string' }), expression: 'ok' },
+    ])
   })
 })
 
@@ -407,6 +433,22 @@ describe('the walkers agree on a site’s context', () => {
         '}',
       ].join('\n'),
       expected: [],
+    },
+    {
+      name: 'project vars see env, row values, and only earlier vars',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.project(rows, { value: '%later' }, {",
+        '  env: { external },',
+        '  vars: {',
+        "    first: '%external.combine(%rowIndex)',",
+        "    second: '%first',",
+        "    premature: '%later',",
+        "    later: '%second.combine(%rowTotal)',",
+        '  },',
+        '})',
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %later'],
     },
     {
       name: 'a call into a column the same file declares resolves, and carries its type',
