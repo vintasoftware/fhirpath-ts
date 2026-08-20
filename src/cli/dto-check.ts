@@ -9,7 +9,9 @@ import { register } from 'node:module'
 import { relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import type { AnalyzeOptions } from '../analyzer/analyze.ts'
 import { type AnalyzedContext, analyzeDto, type DtoDiagnostic } from '../analyzer/analyze-dto.ts'
+import { analyzerEnvironmentVariables, analyzerVariables } from '../analyzer/declarations.ts'
 import { type DtoClass, isDtoClass } from '../api/dto.ts'
 import { type FhirPathEngine, recordEngines } from '../api/engine.ts'
 
@@ -34,6 +36,8 @@ export interface DtoCheckResult {
   engines: number
   /** Every DTO analyzed, by module. */
   dtos: { file: string; dto: string }[]
+  /** Merged engine declarations that make ordinary source-site checks complete. */
+  sourceOptions: AnalyzeOptions | undefined
 }
 
 /** Imports matching modules and checks their exported DTOs against recorded engines. */
@@ -56,7 +60,13 @@ export async function checkDtoModules(patterns: readonly string[], cwd: string):
   const findings = dtos.flatMap(({ file, dto, cls }) =>
     analyzeFor(cls, engines).map(finding => ({ ...finding, dto, file }))
   )
-  return { findings, files, engines: engines.length, dtos: dtos.map(({ file, dto }) => ({ file, dto })) }
+  return {
+    findings,
+    files,
+    engines: engines.length,
+    dtos: dtos.map(({ file, dto }) => ({ file, dto })),
+    sourceOptions: engines.length === 0 ? undefined : optionsForSource(merged(engines)),
+  }
 }
 
 /**
@@ -70,12 +80,12 @@ export async function checkDtoModules(patterns: readonly string[], cwd: string):
 function analyzeFor(dto: DtoClass, engines: readonly FhirPathEngine[]): DtoDiagnostic[] {
   const owner = engines.find(engine => engine.dtos.includes(dto))
   if (owner !== undefined) {
-    return analyzeDto(dto, { engine: owner })
+    return analyzeDto(dto, { engine: owner, reportUnchecked: true })
   }
   if (engines.length === 0) {
-    return analyzeDto(dto)
+    return analyzeDto(dto, { reportUnchecked: true })
   }
-  return analyzeDto(dto, { engine: merged(engines) })
+  return analyzeDto(dto, { engine: merged(engines), reportUnchecked: true })
 }
 
 /**
@@ -93,6 +103,19 @@ function merged(engines: readonly FhirPathEngine[]): AnalyzedContext {
       envTypes: Object.assign({}, ...engines.map(engine => engine.defaults.envTypes)),
       vars: Object.assign({}, ...engines.map(engine => engine.defaults.vars)),
       varTypes: Object.assign({}, ...engines.map(engine => engine.defaults.varTypes)),
+    },
+  }
+}
+
+/** Turn merged engine runtime defaults into the declarations accepted by analyzeSite(). */
+function optionsForSource(engine: AnalyzedContext): AnalyzeOptions {
+  const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
+  return {
+    ...(model !== undefined && { model }),
+    ...(functions !== undefined && { functions }),
+    variables: {
+      ...analyzerEnvironmentVariables(env, envTypes, model),
+      ...analyzerVariables(vars, varTypes),
     },
   }
 }

@@ -9,6 +9,7 @@ import {
   type ColumnTypeClaim,
   criteriaSignature,
 } from '../api/column-signature.ts'
+import { type AnalyzerVariable, PROJECT_ROW_VARIABLES } from './declarations.ts'
 
 /** The supported expression argument shapes: one string, columns, constraints, or DTO variables. */
 export type CallSiteShape = 'expression' | 'columns' | 'constraints' | 'dto-vars'
@@ -38,6 +39,12 @@ export interface CallSitePolicy {
    * the expression is analyzed without an input type.
    */
   rootFromClass?: true
+  /** The EvaluateOptions argument whose inline env/vars declarations are visible to the expression. */
+  optionsArg?: number
+  /** Additional expressions held by the options argument. */
+  optionsExpressions?: 'vars'
+  /** The call supplies projection-only `%rowIndex` and `%rowTotal`. */
+  rowVariables?: true
   /**
    * A DTO member site. Its `%variables` are never judged — they come from the
    * DTO's own `vars`/`env`, from a base class, or from the projecting call, none
@@ -58,15 +65,28 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   // evaluated somewhere else entirely — checkable.
   ['fhirpath', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
   ['compile', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
-  ['evaluate', { argIndex: 0, shape: 'expression', receiver: 'any' }],
-  ['evaluateTyped', { argIndex: 0, shape: 'expression', receiver: 'any' }],
-  ['first', { argIndex: 0, shape: 'expression', receiver: 'engine' }],
+  ['evaluate', { argIndex: 0, shape: 'expression', receiver: 'any', optionsArg: 2, optionsExpressions: 'vars' }],
+  ['evaluateTyped', { argIndex: 0, shape: 'expression', receiver: 'any', optionsArg: 2, optionsExpressions: 'vars' }],
+  ['first', { argIndex: 0, shape: 'expression', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
   ['analyzeExpression', { argIndex: 0, shape: 'expression', receiver: 'any' }],
   // Subject-first FhirPathEngine helpers: the expression(s) come second.
-  ['test', { argIndex: 1, shape: 'expression', receiver: 'engine' }],
-  ['filter', { argIndex: 1, shape: 'expression', receiver: 'engine' }],
-  ['project', { argIndex: 1, shape: 'columns', receiver: 'engine' }],
-  ['checkConstraints', { argIndex: 1, shape: 'constraints', receiver: 'any' }],
+  ['test', { argIndex: 1, shape: 'expression', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
+  ['filter', { argIndex: 1, shape: 'expression', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
+  [
+    'project',
+    {
+      argIndex: 1,
+      shape: 'columns',
+      receiver: 'engine',
+      optionsArg: 2,
+      optionsExpressions: 'vars',
+      rowVariables: true,
+    },
+  ],
+  [
+    'checkConstraints',
+    { argIndex: 1, shape: 'constraints', receiver: 'any', optionsArg: 2, optionsExpressions: 'vars' },
+  ],
   // DTO declarations: the column/criteria expressions of a `@column` field, and
   // the `vars` a DTO binds per row.
   [
@@ -113,6 +133,12 @@ export interface SourceBindings {
   rebound: ReadonlySet<string>
 }
 
+/** Semantic receiver facts a compiler-backed walker can prove. */
+export interface ReceiverEvidence {
+  /** The receiver resolves to this package's FhirPathEngine declaration. */
+  engine?: true
+}
+
 /**
  * Whether a call site should be checked, given its policy and the file's
  * bindings. `receiverRoot` is the leftmost identifier of a member-expression
@@ -124,13 +150,17 @@ export function isCheckedCall(
   policy: CallSitePolicy,
   calleeName: string,
   receiverRoot: string | undefined,
-  bindings: SourceBindings
+  bindings: SourceBindings,
+  evidence: ReceiverEvidence = {}
 ): boolean {
-  if (policy.receiver === 'engine') {
-    return receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot)
-  }
   if (policy.receiver === 'import') {
     return receiverRoot === undefined && bindings.trusted.has(calleeName) && !bindings.rebound.has(calleeName)
+  }
+  if (evidence.engine === true) {
+    return true
+  }
+  if (policy.receiver === 'engine') {
+    return receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot)
   }
   return !bindings.foreign.has(receiverRoot ?? calleeName)
 }
@@ -193,7 +223,12 @@ export interface SiteContext {
   inputType?: string
   /** A DTO member site, whose findings are weighed differently (see `CallSitePolicy.dto`). */
   dto?: true
+  /** Inline per-call environment and row-variable declarations visible to this site. */
+  variables?: Readonly<Record<string, SiteVariable>>
 }
+
+/** Analyzer facts a source literal can declare; ordering requires runtime knowledge. */
+export type SiteVariable = Pick<AnalyzerVariable, 'types' | 'single' | 'targets'>
 
 /** One class of a file, as a walker reads its heritage clause. */
 export interface ClassHeritage {
@@ -276,7 +311,8 @@ export function siteContext<N>(
   policy: CallSitePolicy,
   argumentAt: (index: number) => N | undefined,
   classRoot: string | undefined,
-  ast: ExpressionAst<N>
+  ast: ExpressionAst<N>,
+  variables: Readonly<Record<string, SiteVariable>> | undefined
 ): SiteContext {
   const rootArgument = policy.rootArg === undefined ? undefined : argumentAt(policy.rootArg)
   const inputType =
@@ -288,7 +324,119 @@ export function siteContext<N>(
   return {
     ...(policy.dto === true && { dto: true as const }),
     ...(inputType !== undefined && { inputType }),
+    ...(variables !== undefined && Object.keys(variables).length > 0 && { variables }),
   }
+}
+
+export interface OptionScopes<N> {
+  env: Record<string, SiteVariable>
+  vars: Record<string, SiteVariable>
+  expressions: (ExpressionCandidate<N> & { name?: string })[]
+}
+
+/** Parse one literal EvaluateOptions object into environment and ordered var scopes. */
+export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes<N> | undefined {
+  const properties = ast.properties(options)
+  if (properties === undefined) {
+    return undefined
+  }
+  const envValues = optionValue(properties, 'env')
+  const envDeclarations = optionValue(properties, 'envTypes')
+  const varValues = optionValue(properties, 'vars')
+  const varDeclarations = optionValue(properties, 'varTypes')
+  const varsProperties = varValues === undefined ? [] : ast.properties(varValues)
+  return {
+    env: variablesFromPair(envValues, envDeclarations, ast),
+    vars: variablesFromPair(varValues, varDeclarations, ast),
+    expressions:
+      varValues === undefined
+        ? []
+        : varsProperties === undefined
+          ? [{ node: varValues }]
+          : varsProperties.map(property => {
+              const entry = ast.string(property.value)
+              return {
+                node: property.value,
+                ...(property.name !== undefined && { name: bareVariableName(property.name) }),
+                ...(entry !== undefined && { expression: entry.expression }),
+              }
+            }),
+  }
+}
+
+function variablesFromPair<N>(
+  values: N | undefined,
+  declared: N | undefined,
+  ast: ExpressionAst<N>
+): Record<string, SiteVariable> {
+  const variables: Record<string, SiteVariable> = {}
+  for (const property of values === undefined ? [] : (ast.properties(values) ?? [])) {
+    if (property.name !== undefined) {
+      variables[bareVariableName(property.name)] = {}
+    }
+  }
+  for (const property of declared === undefined ? [] : (ast.properties(declared) ?? [])) {
+    if (property.name === undefined) {
+      continue
+    }
+    const declaration = typeDeclaration(property.value, ast)
+    if (declaration !== undefined) {
+      variables[bareVariableName(property.name)] = declaration
+    }
+  }
+  return variables
+}
+
+/** Last statically named property, matching object-literal overwrite semantics. */
+function optionValue<N>(
+  properties: readonly { name: string | undefined; value: N }[] | undefined,
+  name: string
+): N | undefined {
+  let value: N | undefined
+  for (const property of properties ?? []) {
+    if (property.name === name) {
+      value = property.value
+    }
+  }
+  return value
+}
+
+function typeDeclaration<N>(node: N, ast: ExpressionAst<N>): SiteVariable | undefined {
+  const properties = ast.properties(node)
+  if (properties === undefined) {
+    return undefined
+  }
+  const typeNode = properties.find(property => property.name === 'type')?.value
+  const types = typeNode === undefined ? undefined : literalStrings(typeNode, ast)
+  if (types === undefined || types.length === 0) {
+    return undefined
+  }
+  const collectionNode = properties.find(property => property.name === 'collection')?.value
+  const collection = collectionNode === undefined ? false : ast.boolean(collectionNode)
+  const targetsNode = properties.find(property => property.name === 'targets')?.value
+  const targets = targetsNode === undefined ? undefined : literalStrings(targetsNode, ast)
+  return {
+    types,
+    ...(collection !== undefined && { single: !collection }),
+    ...(targets !== undefined && targets.length > 0 && { targets }),
+  }
+}
+
+function literalStrings<N>(node: N, ast: ExpressionAst<N>): string[] | undefined {
+  const one = ast.string(node)?.expression
+  if (one !== undefined) {
+    return [one]
+  }
+  const elements = ast.elements(node)
+  if (elements === undefined) {
+    return undefined
+  }
+  const strings = elements.map(element => ast.string(element)?.expression)
+  return strings.every(value => value !== undefined) ? strings : undefined
+}
+
+function bareVariableName(name: string): string {
+  return name.startsWith('%') ? name.slice(1) : name
 }
 
 /**
@@ -303,7 +451,8 @@ export interface ExpressionAst<N> {
   /** The node's value as a `true`/`false` literal, or undefined when it is not one. */
   boolean(node: N): boolean | undefined
   /**
-   * The plain (non-spread, non-shorthand) properties of an object literal, or
+   * The plain (non-spread) properties of an object literal, including shorthand
+   * properties whose value is the identifier itself, or
    * undefined when the node is not an object literal. `name` is the property's
    * statically-known key — undefined for computed keys.
    */
@@ -312,48 +461,132 @@ export interface ExpressionAst<N> {
   elements(node: N): N[] | undefined
 }
 
+/** One expression-shaped node, whether or not its value is a static string. */
+export interface ExpressionCandidate<N> {
+  node: N
+  expression?: string
+}
+
+/** One call expression paired with the source facts visible at that exact point. */
+export interface ContextualExpressionCandidate<N> extends ExpressionCandidate<N> {
+  context: SiteContext
+  source: 'argument' | 'option-var'
+}
+
 /**
- * Extract the expression literal(s) an argument holds, per the call site's shape.
- * Column keys are output names, not expressions, so a computed key does not stop
- * its value from being checked; `{ path }` / `{ expression }` lookups match
- * identifier and string-literal keys only.
+ * Expand one supported call into every expression-shaped node and its context.
+ * EvaluateOptions vars bind in declaration order after env. Project vars also
+ * see the row variables, and project columns see the completed var scope.
+ * Keeping this here gives both AST walkers one state transition instead of
+ * parallel special cases.
  */
-export function expressionEntries<N>(argument: N, shape: CallSiteShape, ast: ExpressionAst<N>): ExpressionEntry<N>[] {
+export function callExpressionCandidates<N>(
+  policy: CallSitePolicy,
+  argumentAt: (index: number) => N | undefined,
+  classRoot: string | undefined,
+  ast: ExpressionAst<N>
+): ContextualExpressionCandidate<N>[] {
+  const argument = argumentAt(policy.argIndex)
+  if (argument === undefined) {
+    return []
+  }
+  const options = policy.optionsArg === undefined ? undefined : argumentAt(policy.optionsArg)
+  const scopes = options === undefined ? undefined : optionScopes(options, ast)
+  const rowVariables = policy.rowVariables === true ? PROJECT_ROW_VARIABLES : undefined
+  const context = siteContext(policy, argumentAt, classRoot, ast, {
+    ...scopes?.env,
+    ...scopes?.vars,
+    ...rowVariables,
+  })
+  const candidates: ContextualExpressionCandidate<N>[] = expressionCandidates(argument, policy.shape, ast).map(
+    candidate => ({
+      ...candidate,
+      context,
+      source: 'argument' as const,
+    })
+  )
+  if (policy.optionsExpressions !== 'vars' || policy.optionsArg === undefined) {
+    return candidates
+  }
+  if (scopes === undefined) {
+    return candidates
+  }
+  const variables: Record<string, SiteVariable> = {
+    ...scopes.env,
+    ...rowVariables,
+  }
+  for (const expression of scopes.expressions) {
+    candidates.push({
+      node: expression.node,
+      ...(expression.expression !== undefined && { expression: expression.expression }),
+      context: { ...context, variables: { ...variables } },
+      source: 'option-var',
+    })
+    if (expression.name !== undefined) {
+      variables[expression.name] = scopes.vars[expression.name] ?? {}
+    }
+  }
+  return candidates
+}
+
+/** Canonical traversal of every supported expression container. */
+export function expressionCandidates<N>(
+  argument: N,
+  shape: CallSiteShape,
+  ast: ExpressionAst<N>
+): ExpressionCandidate<N>[] {
   if (shape === 'expression') {
     const entry = ast.string(argument)
-    return entry ? [entry] : []
+    return [{ node: argument, ...(entry !== undefined && { expression: entry.expression }) }]
   }
   if (shape === 'columns') {
-    // project() columns: { name: 'expr' }, { name: { path: 'expr', ... } }, or
-    // the boolean-criteria form { name: { test: 'expr' } }.
+    // A non-object may be a DTO class, which holds no source expressions.
     return (ast.properties(argument) ?? []).flatMap(({ value }) => {
       const entry = ast.string(value)
-      return entry ? [entry] : [...namedStringEntries(value, 'path', ast), ...namedStringEntries(value, 'test', ast)]
+      if (entry !== undefined) {
+        return [{ node: value, expression: entry.expression }]
+      }
+      const nested = ast.properties(value)
+      if (nested === undefined) {
+        return [{ node: value }]
+      }
+      return nested.flatMap(property => {
+        if (property.name !== 'path' && property.name !== 'test') {
+          return []
+        }
+        const nestedEntry = ast.string(property.value)
+        return [{ node: property.value, ...(nestedEntry !== undefined && { expression: nestedEntry.expression }) }]
+      })
     })
   }
   if (shape === 'dto-vars') {
-    // defineDto() options: { vars: { name: 'expr' }, callerEnv: [...] }. Only
-    // vars hold expressions.
     const vars = (ast.properties(argument) ?? []).filter(({ name }) => name === 'vars')
-    return vars.flatMap(({ value }) =>
-      (ast.properties(value) ?? []).flatMap(({ value: expression }) => {
-        const entry = ast.string(expression)
-        return entry ? [entry] : []
-      })
-    )
+    return vars.flatMap(({ value }) => {
+      const properties = ast.properties(value)
+      return properties === undefined
+        ? [{ node: value }]
+        : properties.map(property => {
+            const entry = ast.string(property.value)
+            return { node: property.value, ...(entry !== undefined && { expression: entry.expression }) }
+          })
+    })
   }
-  // checkConstraints() constraints: [{ key, expression: 'expr', ... }].
-  return (ast.elements(argument) ?? []).flatMap(element => namedStringEntries(element, 'expression', ast))
-}
-
-/** The string-literal values of an object literal's `name` properties. */
-function namedStringEntries<N>(object: N, name: string, ast: ExpressionAst<N>): ExpressionEntry<N>[] {
-  return (ast.properties(object) ?? []).flatMap(({ name: key, value }) => {
-    if (key !== name) {
-      return []
+  const elements = ast.elements(argument)
+  if (elements === undefined) {
+    return [{ node: argument }]
+  }
+  return elements.flatMap(element => {
+    const properties = ast.properties(element)
+    if (properties === undefined) {
+      return [{ node: element }]
     }
-    const entry = ast.string(value)
-    return entry ? [entry] : []
+    return properties.flatMap(property => {
+      if (property.name !== 'expression') {
+        return []
+      }
+      const entry = ast.string(property.value)
+      return [{ node: property.value, ...(entry !== undefined && { expression: entry.expression }) }]
+    })
   })
 }
 

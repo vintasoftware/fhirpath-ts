@@ -112,6 +112,21 @@ Use `--no-import` for the source-only pass:
 pnpm exec fhirpath-check --no-import "src/**/*.ts"
 ```
 
+The CLI asks TypeScript for the resolved receiver type, so an engine imported,
+aliased, or re-exported through a local module is recognized as a
+`FhirPathEngine`. If a project cannot be type-resolved, `--local-imports` applies
+the broader syntax-only policy that trusts relative imports.
+
+Calls that look like supported expression sites but cannot be read are reported
+as `[warning:skipped]`. This includes dynamic strings, interpolated templates,
+and receivers whose engine type cannot be established. `--strict` promotes
+warnings to errors. A successful run with warnings says `no errors found`, not
+`no problems found`.
+
+Literal `vars` expressions in `EvaluateOptions` are checked in declaration
+order on every supported engine call. Each expression sees the call environment
+and earlier vars; projection vars also see `%rowIndex` and `%rowTotal`.
+
 The command exits with a non-zero status when it reports an error diagnostic.
 Warnings, such as possible regular expression backtracking, do not fail the run.
 
@@ -144,7 +159,9 @@ project code. Use `--no-import` when module execution is not appropriate.
 
 The loaded DTO check has the engine's real model, registered functions, and
 environment names. It can resolve calls between DTO columns and compare declared
-column types with the analyzer result.
+column types with the analyzer result. Those merged engine declarations also
+feed the source pass, so a misspelled environment variable is reported when the
+import pass knows the complete environment.
 
 When no engine is found, the CLI cannot resolve column-to-column calls. It
 reports that limit as a warning and keeps the run successful.
@@ -153,16 +170,29 @@ A DTO that is not registered with an engine is checked against the merged
 context of all discovered engines. This answers whether some engine in the
 project defines a name. The project does not need a `fhirpath.config.ts`.
 
-Declare per-call environment names on the DTO itself:
+Declare per-call environment names or types on the DTO itself:
 
 ```ts
 export class LabRow extends defineDto('ServiceRequest', {
-  callerEnv: ['reports'],
-  vars: { report: '%reports.where(orderId = %context.id).report' },
+  callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
+  vars: { report: "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()" },
 }) {
   // columns
 }
 ```
+
+Vars are checked in declaration order, and each var's inferred type carries
+into the vars and columns after it. Here `%reports` is declared as a
+`DiagnosticReport` collection, so `%report` is inferred as a single
+`DiagnosticReport` and every column path through it is checked.
+
+A name-only declaration (`callerEnv: ['reports']`) provides no type. Paths
+through such a value cannot be verified, and each one is reported as
+`[warning:unchecked-navigation]`.
+
+A DTO class that a matched module does not export is reported as
+`[warning:unloaded-dto]`. The import pass cannot load it, so its full check
+cannot run. Export the class, or a class that extends it.
 
 ## Source-only limits
 
@@ -177,8 +207,10 @@ information to prove an error.
 - A DTO needs a statically known `fhirType` for element and type checks. Its own
   `extends defineDto('Type')` or a base class declared in the same file provides
   that type. A factory call or imported base class receives syntax checks only.
-- An engine stored behind an untracked alias, such as `this.engine` or a function
-  parameter, is not recognized as a package API receiver.
+- An engine reached through an alias the file does not declare, such as
+  `this.engine` or a function parameter, needs TypeScript type information to be
+  recognized. The CLI builds a TypeScript program for this. Editors parse one
+  file at a time and skip such receivers.
 
 Use `analyzeDto()` in a test or the CLI import pass when full runtime context is
 needed.
@@ -230,6 +262,11 @@ analyzeExpression('%limit < value.count()', {
   functions,
 })
 ```
+
+Set `reportUnchecked: true` to receive warning diagnostics when navigation starts
+from a declared variable with no type. The CLI enables this coverage check. It
+is opt-in for direct analyzer callers because an untyped variable may
+intentionally hold arbitrary non-FHIR objects.
 
 A variable declaration may also set `ordered: false` when the host supplies a
 collection with no defined order; the analyzer then rejects positional

@@ -7,8 +7,37 @@ import eslintPlugin from '../eslint/index.ts'
 import { r4Model } from '../r4/index.ts'
 import { createSiteFinder } from '../sites/index.ts'
 import { analyzeSite } from './analyze.ts'
+import {
+  type ExpressionAst,
+  expressionCandidates,
+  isCheckedCall,
+  optionScopes,
+  type SiteVariable,
+} from './expression-policy.ts'
 
 const findExpressionSites = createSiteFinder(ts)
+
+type MiniNode =
+  | { kind: 'string'; value: string }
+  | { kind: 'boolean'; value: boolean }
+  | { kind: 'array'; values: MiniNode[] }
+  | { kind: 'object'; properties: { name: string | undefined; value: MiniNode }[] }
+  | { kind: 'dynamic'; label: string }
+
+const miniAst: ExpressionAst<MiniNode> = {
+  string: node => (node.kind === 'string' ? { node, expression: node.value } : undefined),
+  boolean: node => (node.kind === 'boolean' ? node.value : undefined),
+  properties: node => (node.kind === 'object' ? node.properties : undefined),
+  elements: node => (node.kind === 'array' ? node.values : undefined),
+}
+
+const stringNode = (value: string): MiniNode => ({ kind: 'string', value })
+const dynamicNode = (label: string): MiniNode => ({ kind: 'dynamic', label })
+const arrayNode = (...values: MiniNode[]): MiniNode => ({ kind: 'array', values })
+const objectNode = (...properties: { name: string | undefined; value: MiniNode }[]): MiniNode => ({
+  kind: 'object',
+  properties,
+})
 
 /**
  * Runs one invalid-expression corpus through the TypeScript and ESTree walkers.
@@ -57,6 +86,14 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
       "function f(p) { return engine.test(p, 'x..1') }",
       'const engine = new FhirPathEngine({})',
       "const a = engine.first('x..2', patient)",
+    ].join('\n'),
+    expected: 2,
+  },
+  {
+    name: 'project columns and inline vars are both expression sites',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "r4.project(input, { value: 'x..1' }, { env: { reports }, vars: { report: 'x..2' } })",
     ].join('\n'),
     expected: 2,
   },
@@ -197,6 +234,131 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
 
 const linter = new Linter()
 
+describe('literal call context extraction', () => {
+  it('keeps semantic engine evidence inside the shared receiver policy', () => {
+    const bindings = { foreign: new Set<string>(), trusted: new Set<string>(), rebound: new Set<string>() }
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'engine' }, 'first', 'fp', bindings, { engine: true })
+    ).toBe(true)
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'any' }, 'evaluate', 'fp', bindings, { engine: true })
+    ).toBe(true)
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'import' }, 'column', 'fp', bindings, {
+        engine: true,
+      })
+    ).toBe(false)
+  })
+
+  it('reads names and complete type declarations from EvaluateOptions', () => {
+    const patient: SiteVariable = { types: ['Patient'], single: false, targets: ['Organization'] }
+    const options = objectNode(
+      {
+        name: 'env',
+        value: objectNode(
+          { name: '%plain', value: dynamicNode('plain') },
+          { name: undefined, value: dynamicNode('computed') }
+        ),
+      },
+      {
+        name: 'envTypes',
+        value: objectNode(
+          {
+            name: 'patient',
+            value: objectNode(
+              { name: 'type', value: stringNode('Patient') },
+              { name: 'collection', value: { kind: 'boolean', value: true } },
+              { name: 'targets', value: stringNode('Organization') }
+            ),
+          },
+          {
+            name: 'choice',
+            value: objectNode(
+              { name: 'type', value: arrayNode(stringNode('Condition'), stringNode('Observation')) },
+              { name: 'collection', value: { kind: 'boolean', value: false } },
+              { name: 'targets', value: arrayNode(stringNode('Patient'), stringNode('Organization')) }
+            ),
+          },
+          { name: 'invalid', value: dynamicNode('invalid declaration') },
+          {
+            name: 'ambiguous',
+            value: objectNode(
+              { name: 'type', value: stringNode('Patient') },
+              { name: 'collection', value: dynamicNode('collection') },
+              { name: 'targets', value: arrayNode(stringNode('Patient'), dynamicNode('target')) }
+            ),
+          },
+          {
+            name: 'partlyDynamic',
+            value: objectNode({ name: 'type', value: arrayNode(stringNode('Condition'), dynamicNode('type')) }),
+          },
+          { name: 'missingType', value: objectNode({ name: 'collection', value: { kind: 'boolean', value: true } }) },
+          { name: undefined, value: objectNode({ name: 'type', value: stringNode('Observation') }) }
+        ),
+      },
+      { name: 'vars', value: objectNode({ name: 'row', value: stringNode('%plain') }) },
+      {
+        name: 'varTypes',
+        value: objectNode({ name: 'row', value: objectNode({ name: 'type', value: stringNode('Observation') }) }),
+      }
+    )
+
+    const scopes = optionScopes(options, miniAst)
+    expect(scopes?.env).toEqual({
+      plain: {},
+      patient,
+      choice: {
+        types: ['Condition', 'Observation'],
+        single: true,
+        targets: ['Patient', 'Organization'],
+      },
+      ambiguous: { types: ['Patient'] },
+    })
+    expect(scopes?.vars).toEqual({
+      row: { types: ['Observation'], single: true },
+    })
+    expect(scopes?.expressions).toEqual([{ node: stringNode('%plain'), name: 'row', expression: '%plain' }])
+    expect(optionScopes(dynamicNode('options'), miniAst)).toBeUndefined()
+  })
+
+  it('identifies static and unread nodes in every supported expression container', () => {
+    const dynamic = dynamicNode('dynamic')
+    expect(expressionCandidates(dynamic, 'expression', miniAst)).toEqual([{ node: dynamic }])
+    const literal = stringNode('ok')
+    expect(expressionCandidates(literal, 'expression', miniAst)).toEqual([{ node: literal, expression: 'ok' }])
+
+    const columns = objectNode(
+      { name: 'literal', value: stringNode('Patient.name') },
+      { name: 'dynamic', value: dynamic },
+      { name: 'nested', value: objectNode({ name: 'path', value: dynamic }, { name: 'test', value: stringNode('ok') }) }
+    )
+    expect(expressionCandidates(columns, 'columns', miniAst)).toEqual([
+      { node: expect.objectContaining({ kind: 'string' }), expression: 'Patient.name' },
+      { node: dynamic },
+      { node: dynamic },
+      { node: expect.objectContaining({ kind: 'string' }), expression: 'ok' },
+    ])
+    expect(expressionCandidates(dynamic, 'columns', miniAst)).toEqual([])
+
+    const vars = objectNode({ name: 'vars', value: objectNode({ name: 'a', value: dynamic }) })
+    expect(expressionCandidates(vars, 'dto-vars', miniAst)).toEqual([{ node: dynamic }])
+    const dynamicVars = objectNode({ name: 'vars', value: dynamic })
+    expect(expressionCandidates(dynamicVars, 'dto-vars', miniAst)).toEqual([{ node: dynamic }])
+
+    expect(expressionCandidates(dynamic, 'constraints', miniAst)).toEqual([{ node: dynamic }])
+    const constraints = arrayNode(
+      dynamic,
+      objectNode({ name: 'expression', value: dynamic }),
+      objectNode({ name: 'expression', value: stringNode('ok') })
+    )
+    expect(expressionCandidates(constraints, 'constraints', miniAst)).toEqual([
+      { node: dynamic },
+      { node: dynamic },
+      { node: expect.objectContaining({ kind: 'string' }), expression: 'ok' },
+    ])
+  })
+})
+
 function eslintPositions(code: string, typescript: boolean): [number, number][] {
   const messages = linter.verify(code, {
     plugins: { fhirpath: eslintPlugin },
@@ -265,6 +427,38 @@ describe('the walkers agree on a site’s context', () => {
         '}',
       ].join('\n'),
       expected: [],
+    },
+    {
+      name: 'project vars see env, row values, and only earlier vars',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.project(rows, { value: '%later' }, {",
+        '  env: { external },',
+        '  vars: {',
+        "    first: '%external.combine(%rowIndex)',",
+        "    second: '%first',",
+        "    premature: '%later',",
+        "    later: '%second.combine(%rowTotal)',",
+        '  },',
+        '})',
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %later'],
+    },
+    {
+      name: 'ordinary call vars see env and only earlier vars',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%later', patient, {",
+        '  env: { external },',
+        '  vars: {',
+        "    first: '%external',",
+        "    second: '%first',",
+        "    premature: '%later',",
+        "    later: '%second',",
+        '  },',
+        '})',
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %later'],
     },
     {
       name: 'a call into a column the same file declares resolves, and carries its type',

@@ -6,6 +6,7 @@ import type * as ESTree from 'estree'
 import { analyzeSite, type DeclaredFunction, type DeclaredVariable } from '../analyzer/analyze.ts'
 import {
   CALL_SITES,
+  callExpressionCandidates,
   type CallSitePolicy,
   type ClassHeritage,
   columnFunctionDeclaration,
@@ -14,7 +15,6 @@ import {
   DTO_BASE_NAME,
   dtoRootsOf,
   type ExpressionAst,
-  expressionEntries,
   type FileColumnFunction,
   isCheckedCall,
   isCheckedTag,
@@ -22,7 +22,6 @@ import {
   type LocalModuleOptions,
   rootOf,
   type SiteContext,
-  siteContext,
   type SourceBindings,
   TAG_NAME,
 } from '../analyzer/expression-policy.ts'
@@ -198,7 +197,6 @@ const noInvalidExpressions: Rule.RuleModule = {
       policy: CallSitePolicy
       name: string
       receiverRoot: string | undefined
-      argument: ESTree.Node
       /** The call itself, for the argument that may name the type it runs against. */
       node: ESTree.CallExpression
       /** The class the call sits in, resolved to a root once the whole file is known. */
@@ -325,7 +323,6 @@ const noInvalidExpressions: Rule.RuleModule = {
           policy,
           name,
           receiverRoot: receiverRoot(callee),
-          argument,
           node,
           enclosing: policy.rootFromClass === true ? enclosingClass(ancestors) : undefined,
         })
@@ -359,14 +356,15 @@ const noInvalidExpressions: Rule.RuleModule = {
           if (!isCheckedCall(call.policy, call.name, call.receiverRoot, bindings)) {
             continue
           }
-          const site = siteContext<ESTree.Node>(
+          for (const candidate of callExpressionCandidates<ESTree.Node>(
             call.policy,
             index => call.node.arguments[index],
             rootOf(call.enclosing, dtoRoots),
             estreeAst
-          )
-          for (const entry of expressionEntries(call.argument, call.policy.shape, estreeAst)) {
-            checkAt(entry.node, entry.expression, site)
+          )) {
+            if (candidate.expression !== undefined) {
+              checkAt(candidate.node, candidate.expression, candidate.context)
+            }
           }
         }
       },

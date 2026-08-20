@@ -11,7 +11,7 @@ import {
   type DeclaredFunction,
   type DeclaredVariable,
 } from './analyze.ts'
-import { analyzerEnvironmentVariables, analyzerVariables } from './declarations.ts'
+import { analyzerEnvironmentVariables, analyzerVariables, PROJECT_ROW_VARIABLES } from './declarations.ts'
 
 /** One `analyzeDto` finding: an analyzer diagnostic plus the class member it came from. */
 export interface DtoDiagnostic extends AnalyzerDiagnostic {
@@ -96,15 +96,17 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
   const definition = dtoDefinition(dto)
   const context = contextOf(options)
   const inputType = context.inputType ?? definition.fhirType
-  const declared: Record<string, DeclaredVariable> = {
-    rowIndex: { types: ['System.Integer'], single: true },
-    rowTotal: { types: ['System.Integer'], single: true },
-  }
-  for (const name of [...Object.keys(definition.env ?? {}), ...(definition.callerEnv ?? [])]) {
+  const declared: Record<string, DeclaredVariable> = { ...PROJECT_ROW_VARIABLES }
+  for (const name of [...Object.keys(definition.env ?? {}), ...definition.callerEnvNames]) {
     declared[bareEnvironmentName(name)] = {}
   }
+  Object.assign(declared, analyzerVariables(undefined, definition.callerEnvTypes))
   const diagnostics: DtoDiagnostic[] = []
-  const analyze = (member: string, expression: string, column?: ColumnSpec): void => {
+  const analyze = (
+    member: string,
+    expression: string,
+    column?: ColumnSpec
+  ): { types: string[] | undefined; single: boolean | undefined; ordered: boolean | undefined } => {
     const perExpression: AnalyzeOptions = {
       ...context,
       ...(inputType !== undefined && { inputType }),
@@ -126,12 +128,20 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
         span: { start: 0, end: expression.length, line: 1, column: 1 },
       })
     }
+    return result
   }
   for (const [name, value] of Object.entries(definition.vars ?? {})) {
     const source = typeof value === 'string' ? value : sourceOf(value)
     if (source !== undefined) {
-      // A var declares no type, so there is nothing to cross-check against.
-      analyze(`vars.${bareEnvironmentName(name)}`, source)
+      // A var has no declared result to cross-check, but its inferred result is
+      // the input state for later vars and columns.
+      const result = analyze(`vars.${bareEnvironmentName(name)}`, source)
+      declared[bareEnvironmentName(name)] = {
+        ...(result.types !== undefined && { types: result.types }),
+        ...(result.single !== undefined && { single: result.single }),
+        ...(result.ordered !== undefined && { ordered: result.ordered }),
+      }
+      continue
     }
     declared[bareEnvironmentName(name)] = {}
   }

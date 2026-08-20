@@ -202,12 +202,12 @@ statusRows // [{ label: 'Active', tone: 'info' }, ..., { label: 'Unknown', tone:
 
 ### Join related resources
 
-Pass lookup data through `env`. Use `vars` to find the related item once per
-row. `%context` is the resource for the current row.
+Pass the related resources through `env` and declare their types with
+`envTypes`. Use `vars` to find the related item once per row. `%context` is the
+resource for the current row. With the types declared, `fhirpath-check`
+verifies every path, including the join itself.
 
 ```ts
-const reports = [...reportsByOrderId].map(([orderId, report]) => ({ orderId, report }))
-
 r4.project(
   orders,
   {
@@ -219,10 +219,17 @@ r4.project(
   },
   {
     env: { reports },
-    vars: { report: '%reports.where(orderId = %context.id).report' },
+    envTypes: { reports: { type: 'DiagnosticReport', collection: true } },
+    vars: { report: "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()" },
+    varTypes: { report: { type: 'DiagnosticReport' } },
   },
 )
 ```
+
+When the join key is not on the resource, join in TypeScript instead and keep
+each expression rooted in its own typed resource. Untyped values in `env`
+cannot be verified: paths through them are reported as `unchecked-navigation`
+warnings. See [Static checking](docs/static-checking.md).
 
 ### Follow references in a Bundle
 

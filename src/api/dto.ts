@@ -4,7 +4,7 @@ import { mergeEnvKeys, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import type { FhirTypeName } from '../typed/infer.ts'
+import type { FhirpathTypeDeclarations, FhirTypeName } from '../typed/infer.ts'
 import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
@@ -80,8 +80,11 @@ export type DtoRow<C extends DtoClass> = InstanceType<C>
 export interface DtoOptions {
   /** Per-row bindings the columns read (EvaluateOptions.vars semantics; may reference per-call env). */
   vars?: Record<string, AnyExpression | readonly TypedValue[]>
-  /** Environment names supplied by `project()`, declared so DTO checks can resolve them. */
-  callerEnv?: readonly string[]
+  /**
+   * Environment supplied by `project()`. Use names when only presence is known,
+   * or declarations when DTO vars navigate through those values.
+   */
+  callerEnv?: readonly string[] | FhirpathTypeDeclarations
 }
 
 /** Everything a DTO class was declared with; `project()`, the engine, and `analyzeDto` all read it from here. */
@@ -93,11 +96,20 @@ export interface DtoDefinition {
   readonly env: Record<string, unknown> | undefined
   readonly vars: Record<string, AnyExpression | readonly TypedValue[]> | undefined
   /** Env names the projecting call supplies (see DtoOptions.callerEnv). */
-  readonly callerEnv: readonly string[] | undefined
+  readonly callerEnvNames: readonly string[]
+  /** Static types for the caller environment, when declared. */
+  readonly callerEnvTypes: FhirpathTypeDeclarations | undefined
 }
 
-/** The `fhirType`/`vars` a `defineDto()` base was created with, by that base class. */
-const bases = new WeakMap<object, { fhirType: string } & DtoOptions>()
+interface DtoBaseDefinition {
+  fhirType: string
+  vars: DtoOptions['vars']
+  callerEnvNames: readonly string[]
+  callerEnvTypes: FhirpathTypeDeclarations | undefined
+}
+
+/** The normalized options a `defineDto()` base was created with. */
+const bases = new WeakMap<object, DtoBaseDefinition>()
 
 /**
  * Columns by the class that declared them. A field decorator runs before its
@@ -128,8 +140,21 @@ export function defineDto<const Root extends FhirTypeName>(fhirType: Root, optio
   // A readable name for project()/registration errors; a subclass replaces it.
   Object.defineProperty(base, 'name', { value: `${fhirType}Dto` })
   Object.defineProperty(base, 'fhirType', { value: fhirType, enumerable: true })
-  bases.set(base, { fhirType, ...options })
+  const callerEnv = options.callerEnv
+  const callerEnvIsNames = isCallerEnvNames(callerEnv)
+  bases.set(base, {
+    fhirType,
+    vars: options.vars,
+    callerEnvNames: callerEnvIsNames ? callerEnv : Object.keys(callerEnv ?? {}),
+    callerEnvTypes: callerEnvIsNames ? undefined : callerEnv,
+  })
   return base as unknown as DtoBase<Root>
+}
+
+function isCallerEnvNames(
+  callerEnv: readonly string[] | FhirpathTypeDeclarations | undefined
+): callerEnv is readonly string[] {
+  return Array.isArray(callerEnv)
 }
 
 /** Records one column against the class being collected, and does nothing at any other time. */
@@ -191,7 +216,7 @@ function* classChain(cls: object): Generator<{ readonly name: string }> {
 }
 
 /** The `defineDto()` base a class descends from, with the fhirType/vars it fixed. */
-function baseOf(cls: object): ({ fhirType: string } & DtoOptions) | undefined {
+function baseOf(cls: object): DtoBaseDefinition | undefined {
   for (const current of classChain(cls)) {
     const base = bases.get(current)
     if (base !== undefined) {
@@ -286,7 +311,8 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
     columns,
     env: declaredEnv(cls),
     vars: base.vars,
-    callerEnv: base.callerEnv,
+    callerEnvNames: base.callerEnvNames,
+    callerEnvTypes: base.callerEnvTypes,
   }
   definitions.set(cls, definition)
   return definition

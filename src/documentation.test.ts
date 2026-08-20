@@ -55,7 +55,11 @@ const documentation: readonly DocumentExpectation[] = [
         "Observation.value.ofType(Quantity).toQuantity('kg').value"
       ),
       valid('Condition.clinicalStatus.coding.first().code', 'Condition.clinicalStatus.coding.first().code'),
-      valid('(%report.effective.ofType(dateTime) | %report.issued).first()', '%report.exists()'),
+      valid(
+        '(%report.effective.ofType(dateTime) | %report.issued).first()',
+        '%report.exists()',
+        "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()"
+      ),
       valid('Bundle.entry.resource.ofType(Observation).subject.resolve().name.family'),
       valid('Questionnaire.repeat(item).linkId'),
       valid('birthDate <= today()', "Patient.name.trace('names').given"),
@@ -101,7 +105,7 @@ const documentation: readonly DocumentExpectation[] = [
       ),
       valid('(text | coding.display.first() | coding.first().code).first()', 'Condition.code.displayText()'),
       valid('code.coding.where(system = %system).first().code'),
-      valid('%reports.where(orderId = %context.id).report', '%report.status'),
+      valid("%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()", '%report.status'),
       valid(),
       valid('$this is Patient'),
       valid(),
@@ -117,7 +121,7 @@ const documentation: readonly DocumentExpectation[] = [
       invalid('Patient', ['unknown-element'], 'Patient.name.givenn'),
       valid('Patient.name.given'),
       valid(),
-      valid('%reports.where(orderId = %context.id).report'),
+      valid("%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()"),
       invalid('Patient', ['unknown-element'], 'name.givenn'),
       valid('%limit < value.count()'),
     ],

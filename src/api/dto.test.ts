@@ -647,6 +647,42 @@ describe('analyzeDto', () => {
     expect(analyzeDto(OrderRow, { model: r4Model, variables: { reports: {} } })).toEqual([])
   })
 
+  it('propagates typed caller environment through DTO vars into columns', () => {
+    class VisitNoteRow extends defineDto('ClinicalImpression', {
+      callerEnv: { carePlans: { type: 'CarePlan', collection: true } },
+      vars: { visitPlans: '%carePlans.where(encounter.reference = %context.encounter.reference)' },
+    }) {
+      @column('%visitPlans.activityz.detail.description', { collection: true, type: 'string' })
+      focusItems!: string[]
+    }
+
+    expect(analyzeDto(VisitNoteRow, { model: r4Model }).map(finding => [finding.member, finding.code])).toEqual([
+      ['focusItems', 'unknown-element'],
+    ])
+  })
+
+  it('normalizes caller environment declarations in DTO definitions', () => {
+    class Named extends defineDto('Observation', { callerEnv: ['reports'] }) {
+      @column('status')
+      status!: string | undefined
+    }
+    class Typed extends defineDto('Observation', {
+      callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
+    }) {
+      @column('status')
+      status!: string | undefined
+    }
+
+    expect(dtoDefinition(Named)).toMatchObject({
+      callerEnvNames: ['reports'],
+      callerEnvTypes: undefined,
+    })
+    expect(dtoDefinition(Typed)).toMatchObject({
+      callerEnvNames: ['reports'],
+      callerEnvTypes: { reports: { type: 'DiagnosticReport', collection: true } },
+    })
+  })
+
   it('analyzes a compiled var by its source, and only declares a pre-bound one', () => {
     class Bound extends defineDto('Observation', {
       vars: {
