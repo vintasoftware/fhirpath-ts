@@ -277,10 +277,10 @@ operations on it. Omitting `ordered` keeps the ordering unknown.
 
 ## Shared expression-site rules
 
-The ESLint rule walks ESLint's ESTree. The CLI, playground, and other tools use
-`createSiteFinder(ts)` from `fhirpath-ts/sites` to walk the TypeScript AST. The
-TypeScript namespace is supplied by the caller, so importing the package does
-not add a runtime TypeScript dependency.
+The ESLint rule walks ESLint's ESTree. The CLI, playground, and other tools walk
+the TypeScript AST through `fhirpath-ts/sites`. The TypeScript namespace is
+supplied by the caller, so importing the package does not add a runtime
+TypeScript dependency.
 
 Both walkers use the same expression-site policy and send sites through
 `analyzeSite()`. A shared test corpus compares their positions, context, and
