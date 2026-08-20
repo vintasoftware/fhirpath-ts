@@ -4,7 +4,7 @@ import { mergeEnvKeys, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import type { FhirTypeName } from '../typed/infer.ts'
+import type { FhirpathTypeDeclarations, FhirTypeName } from '../typed/infer.ts'
 import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
@@ -80,8 +80,11 @@ export type DtoRow<C extends DtoClass> = InstanceType<C>
 export interface DtoOptions {
   /** Per-row bindings the columns read (EvaluateOptions.vars semantics; may reference per-call env). */
   vars?: Record<string, AnyExpression | readonly TypedValue[]>
-  /** Environment names supplied by `project()`, declared so DTO checks can resolve them. */
-  callerEnv?: readonly string[]
+  /**
+   * Environment supplied by `project()`. Use names when only presence is known,
+   * or declarations when DTO vars navigate through those values.
+   */
+  callerEnv?: readonly string[] | FhirpathTypeDeclarations
 }
 
 /** Everything a DTO class was declared with; `project()`, the engine, and `analyzeDto` all read it from here. */
@@ -93,7 +96,7 @@ export interface DtoDefinition {
   readonly env: Record<string, unknown> | undefined
   readonly vars: Record<string, AnyExpression | readonly TypedValue[]> | undefined
   /** Env names the projecting call supplies (see DtoOptions.callerEnv). */
-  readonly callerEnv: readonly string[] | undefined
+  readonly callerEnv: readonly string[] | FhirpathTypeDeclarations | undefined
 }
 
 /** The `fhirType`/`vars` a `defineDto()` base was created with, by that base class. */

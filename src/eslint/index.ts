@@ -25,6 +25,7 @@ import {
   siteContext,
   type SourceBindings,
   TAG_NAME,
+  variablesFromOptions,
 } from '../analyzer/expression-policy.ts'
 import { r4Model } from '../r4/index.ts'
 
@@ -367,6 +368,19 @@ const noInvalidExpressions: Rule.RuleModule = {
           )
           for (const entry of expressionEntries(call.argument, call.policy.shape, estreeAst)) {
             checkAt(entry.node, entry.expression, site)
+          }
+          if (call.policy.optionsExpressions === 'vars' && call.policy.optionsArg !== undefined) {
+            const optionsArgument = call.node.arguments[call.policy.optionsArg]
+            if (optionsArgument !== undefined) {
+              const variables = variablesFromOptions(optionsArgument, estreeAst, false)
+              const variableSite: SiteContext = {
+                ...site,
+                ...(variables !== undefined && Object.keys(variables).length > 0 && { variables }),
+              }
+              for (const entry of expressionEntries(optionsArgument, 'dto-vars', estreeAst)) {
+                checkAt(entry.node, entry.expression, variableSite)
+              }
+            }
           }
         }
       },

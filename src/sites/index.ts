@@ -18,6 +18,7 @@ import {
   declaredColumnOverloads,
   DTO_BASE_NAME,
   dtoRootsOf,
+  ENGINE_CLASS_NAME,
   type ExpressionAst,
   expressionEntries,
   type FileColumnFunction,
@@ -30,6 +31,8 @@ import {
   siteContext,
   type SourceBindings,
   TAG_NAME,
+  unreadExpressionNodes,
+  variablesFromOptions,
 } from '../analyzer/expression-policy.ts'
 
 /** The TypeScript namespace accepted by `createSiteFinder`. */
@@ -45,19 +48,47 @@ export interface ExpressionSite {
   inputType?: string
   /** A DTO member site, which `analyzeSite` checks with source-only limits. */
   dto?: true
+  /** Inline per-call environment and row-variable declarations visible to this expression. */
+  variables?: NonNullable<SiteContext['variables']>
   /** Callable DTO columns declared in the same file. */
   functions?: Readonly<Record<string, FileColumnFunction>>
 }
 
+export interface SkippedExpressionSite {
+  /** Stable reason suitable for CLI/editor policy. */
+  reason: 'dynamic-expression' | 'unrecognized-receiver'
+  message: string
+  line: number
+  column: number
+}
+
+export interface DtoSourceDeclaration {
+  name: string
+  line: number
+  column: number
+  /** True when importing the module can enumerate this class, directly or through an exported subclass. */
+  loadable: boolean
+}
+
+export interface SiteScanResult {
+  sites: ExpressionSite[]
+  skipped: SkippedExpressionSite[]
+  dtoDeclarations: DtoSourceDeclaration[]
+}
+
 /** Finds every static FHIRPath expression in one source file. */
 export type SiteFinder = (sourceText: string, fileName: string, options?: LocalModuleOptions) => ExpressionSite[]
+
+/** Scans expressions plus coverage gaps that a caller may choose to report. */
+export type SiteScanner = (sourceText: string, fileName: string, options?: LocalModuleOptions) => SiteScanResult
 
 /**
  * Creates a finder for the calls and tags in `CALL_SITES`. DTO fields include a
  * root type when the class declares one, and each column is exposed as a local
  * function declaration. Dynamic expressions are skipped.
  */
-export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
+export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): SiteScanner {
+  const checker = program?.getTypeChecker()
   /** How the shared shape extractor reads TypeScript AST nodes. */
   const tsAst: ExpressionAst<TS.Node> = {
     string: node => (ts.isStringLiteralLike(node) ? { node, expression: node.text } : undefined),
@@ -65,9 +96,14 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
       node.kind === ts.SyntaxKind.TrueKeyword ? true : node.kind === ts.SyntaxKind.FalseKeyword ? false : undefined,
     properties: node =>
       ts.isObjectLiteralExpression(node)
-        ? node.properties
-            .filter(ts.isPropertyAssignment)
-            .map(property => ({ name: propertyKeyName(property.name), value: property.initializer }))
+        ? node.properties.flatMap(property => {
+            if (ts.isPropertyAssignment(property)) {
+              return [{ name: propertyKeyName(property.name), value: property.initializer }]
+            }
+            return ts.isShorthandPropertyAssignment(property)
+              ? [{ name: property.name.text, value: property.name }]
+              : []
+          })
         : undefined,
     elements: node => (ts.isArrayLiteralExpression(node) ? [...node.elements] : undefined),
   }
@@ -164,12 +200,20 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
         ) {
           const set = constructsEngine(node.initializer.expression.text, bindings) ? trusted : rebound
           set.add(node.name.text)
+        } else if (ts.isIdentifier(node.name) && isEngineExpression(node.name)) {
+          trusted.add(node.name.text)
+          foreign.delete(node.name.text)
         } else {
           // Catch clauses reach here too: `catch (r4)` is a VariableDeclaration.
           addBindingNames(node.name, rebound)
         }
       } else if (ts.isParameter(node)) {
-        addBindingNames(node.name, rebound)
+        if (ts.isIdentifier(node.name) && isEngineExpression(node.name)) {
+          trusted.add(node.name.text)
+          foreign.delete(node.name.text)
+        } else {
+          addBindingNames(node.name, rebound)
+        }
       } else if (
         (ts.isFunctionDeclaration(node) ||
           ts.isFunctionExpression(node) ||
@@ -183,6 +227,33 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
     }
     collectLocals(source)
     return { bindings, dtoRoots: dtoRootsOf([...heritage.values()]), heritage }
+  }
+
+  /** Whether TypeScript resolved an expression to the package's engine class. */
+  function isEngineExpression(node: TS.Expression): boolean {
+    if (checker === undefined || node.getSourceFile().isDeclarationFile) {
+      return false
+    }
+    const hasEngineSymbol = (type: TS.Type): boolean => {
+      if (type.isUnionOrIntersection()) {
+        return type.types.some(hasEngineSymbol)
+      }
+      const symbol = type.aliasSymbol ?? type.getSymbol()
+      if (symbol?.getName() === ENGINE_CLASS_NAME) {
+        return true
+      }
+      return ((type as TS.InterfaceType).getBaseTypes?.() ?? []).some(hasEngineSymbol)
+    }
+    return hasEngineSymbol(checker.getTypeAtLocation(node))
+  }
+
+  /** An unresolved receiver may still be an engine; a resolved non-engine is not our call site. */
+  function shouldReportUnrecognized(node: TS.Expression): boolean {
+    if (checker === undefined || node.getSourceFile().isDeclarationFile) {
+      return true
+    }
+    const flags = checker.getTypeAtLocation(node).flags
+    return (flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) !== 0
   }
 
   /** Add every identifier a binding name declares (`x`, `{ r4 }`, `[a, ...rest]`). */
@@ -220,14 +291,20 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
     return ts.isIdentifier(current) ? current.text : undefined
   }
 
-  return function findExpressionSites(
+  return function scanExpressionSites(
     sourceText: string,
     fileName: string,
     options: LocalModuleOptions = {}
-  ): ExpressionSite[] {
-    const source = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
+  ): SiteScanResult {
+    const programSource = program?.getSourceFile(fileName)
+    const source =
+      programSource !== undefined && programSource.text === sourceText
+        ? programSource
+        : ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
     const { bindings, dtoRoots, heritage } = collectFile(source, options)
     const sites: ExpressionSite[] = []
+    const skipped: SkippedExpressionSite[] = []
+    const decoratedClasses = new Set<TS.ClassLikeDeclaration>()
     const functions: Record<string, FileColumnFunction> = {}
     // A site points at the first character inside the quote/backtick (node start
     // + 1), so fhirpath-check can add a diagnostic's span offsets directly. The
@@ -243,43 +320,162 @@ export function createSiteFinder(ts: TypeScriptApi): SiteFinder {
         ...context,
       })
     }
-    const visit = (node: TS.Node, classRoot: string | undefined): void => {
-      if (
-        ts.isTaggedTemplateExpression(node) &&
-        nameOf(node.tag) === TAG_NAME &&
-        isCheckedTag(receiverRoot(node.tag), bindings)
-      ) {
-        if (ts.isNoSubstitutionTemplateLiteral(node.template)) {
+    const skip = (node: TS.Node, reason: SkippedExpressionSite['reason'], message: string): void => {
+      const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source))
+      skipped.push({ reason, message, line: line + 1, column: character + 1 })
+    }
+    const visit = (
+      node: TS.Node,
+      classRoot: string | undefined,
+      enclosingClass: TS.ClassLikeDeclaration | undefined
+    ): void => {
+      if (ts.isTaggedTemplateExpression(node) && nameOf(node.tag) === TAG_NAME) {
+        if (!isCheckedTag(receiverRoot(node.tag), bindings)) {
+          if (shouldReportUnrecognized(node.tag)) {
+            skip(node.tag, 'unrecognized-receiver', 'FHIRPath tag not analyzed: its binding is not from fhirpath-ts')
+          }
+        } else if (ts.isNoSubstitutionTemplateLiteral(node.template)) {
           record(node.template.text, node.template)
+        } else {
+          skip(node.template, 'dynamic-expression', 'FHIRPath template not analyzed: substitutions make it dynamic')
         }
       } else if (ts.isCallExpression(node)) {
         const callee = nameOf(node.expression)
         const policy = callee === undefined ? undefined : CALL_SITES.get(callee)
         const argument = policy && (node.arguments[policy.argIndex] as TS.Expression | undefined)
-        if (
+        const typedEngineReceiver =
+          ts.isPropertyAccessExpression(node.expression) && isEngineExpression(node.expression.expression)
+        const checked =
           callee !== undefined &&
           policy !== undefined &&
           argument !== undefined &&
-          isCheckedCall(policy, callee, receiverRoot(node.expression), bindings)
-        ) {
+          (typedEngineReceiver || isCheckedCall(policy, callee, receiverRoot(node.expression), bindings))
+        if (checked && callee !== undefined && policy !== undefined && argument !== undefined) {
+          const entries = expressionEntries<TS.Node>(argument, policy.shape, tsAst)
+          for (const unread of unreadExpressionNodes(argument, policy.shape, tsAst)) {
+            skip(unread, 'dynamic-expression', `${callee}(...) expression not analyzed: it is not a string literal`)
+          }
           const declares = policy.declaresField
           const field = declares === undefined ? undefined : decoratedFieldName(node)
           if (declares !== undefined && field !== undefined) {
+            if (enclosingClass !== undefined) {
+              decoratedClasses.add(enclosingClass)
+            }
             functions[field] = declaredColumnOverloads(
               functions[field],
               columnFunctionDeclaration<TS.Node>(declares, node.arguments[1], tsAst, classRoot)
             )
           }
           const context = siteContext<TS.Node>(policy, index => node.arguments[index], classRoot, tsAst)
-          for (const entry of expressionEntries<TS.Node>(argument, policy.shape, tsAst)) {
+          for (const entry of entries) {
             record(entry.expression, entry.node, context)
+          }
+          if (policy.optionsExpressions === 'vars' && policy.optionsArg !== undefined) {
+            const optionsArgument = node.arguments[policy.optionsArg]
+            if (optionsArgument !== undefined) {
+              const variables = variablesFromOptions(optionsArgument, tsAst, false)
+              const variableContext: SiteContext = {
+                ...context,
+                ...(variables !== undefined && Object.keys(variables).length > 0 && { variables }),
+              }
+              const variableEntries = expressionEntries<TS.Node>(optionsArgument, 'dto-vars', tsAst)
+              for (const unread of unreadExpressionNodes(optionsArgument, 'dto-vars', tsAst)) {
+                skip(
+                  unread,
+                  'dynamic-expression',
+                  'project(...) var expression not analyzed: it is not a string literal'
+                )
+              }
+              for (const entry of variableEntries) {
+                record(entry.expression, entry.node, variableContext)
+              }
+            }
+          }
+        } else if (callee !== undefined && policy !== undefined && argument !== undefined) {
+          const receiver = receiverRoot(node.expression)
+          const receiverExpression = ts.isPropertyAccessExpression(node.expression)
+            ? node.expression.expression
+            : node.expression
+          if (shouldReportUnrecognized(receiverExpression)) {
+            skip(
+              node.expression,
+              'unrecognized-receiver',
+              `${callee}(...) expression not analyzed: ${
+                receiver === undefined
+                  ? `binding '${callee}' is not recognized as fhirpath-ts`
+                  : `receiver '${receiver}' is not recognized as a FhirPathEngine`
+              }`
+            )
           }
         }
       }
       const nested = ts.isClassLike(node) ? rootOf(heritage.get(node), dtoRoots) : classRoot
-      ts.forEachChild(node, child => visit(child, nested))
+      const nestedClass = ts.isClassLike(node) ? node : enclosingClass
+      ts.forEachChild(node, child => visit(child, nested, nestedClass))
     }
-    visit(source, undefined)
-    return Object.keys(functions).length === 0 ? sites : sites.map(site => ({ ...site, functions }))
+    visit(source, undefined, undefined)
+    const exported = exportedNames(source)
+    const classByName = new Map(
+      [...heritage.entries()].flatMap(([node, value]) =>
+        ts.isClassLike(node) && value.name !== undefined ? [[value.name, value] as const] : []
+      )
+    )
+    const reachesExport = (name: string): boolean => {
+      for (const exportedName of exported) {
+        let current: string | undefined = exportedName
+        const seen = new Set<string>()
+        while (current !== undefined && !seen.has(current)) {
+          if (current === name) {
+            return true
+          }
+          seen.add(current)
+          current = classByName.get(current)?.baseName
+        }
+      }
+      return false
+    }
+    const dtoDeclarations = [...decoratedClasses].flatMap(node => {
+      const name = node.name?.text
+      // Runtime module discovery can only miss top-level module-local classes.
+      // A class inside a factory is reached through whatever class the factory
+      // returns, rather than as a module export with its source name.
+      if (name === undefined || node.parent !== source) {
+        return []
+      }
+      const { line, character } = source.getLineAndCharacterOfPosition(node.name!.getStart(source))
+      return [{ name, line: line + 1, column: character + 1, loadable: reachesExport(name) }]
+    })
+    return {
+      sites: Object.keys(functions).length === 0 ? sites : sites.map(site => ({ ...site, functions })),
+      skipped,
+      dtoDeclarations,
+    }
   }
+
+  function exportedNames(source: TS.SourceFile): ReadonlySet<string> {
+    const names = new Set<string>()
+    for (const statement of source.statements) {
+      if (ts.isClassDeclaration(statement) && statement.name !== undefined) {
+        const modifiers = ts.getModifiers(statement) ?? []
+        if (modifiers.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
+          names.add(statement.name.text)
+        }
+      } else if (ts.isExportDeclaration(statement) && statement.exportClause !== undefined) {
+        if (ts.isNamedExports(statement.exportClause)) {
+          for (const element of statement.exportClause.elements) {
+            names.add((element.propertyName ?? element.name).text)
+          }
+        }
+      } else if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
+        names.add(statement.expression.text)
+      }
+    }
+    return names
+  }
+}
+
+/** Creates the compatibility finder that returns only expressions successfully extracted. */
+export function createSiteFinder(ts: TypeScriptApi, program?: TS.Program): SiteFinder {
+  const scan = createSiteScanner(ts, program)
+  return (sourceText, fileName, options) => scan(sourceText, fileName, options).sites
 }

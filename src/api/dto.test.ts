@@ -647,6 +647,20 @@ describe('analyzeDto', () => {
     expect(analyzeDto(OrderRow, { model: r4Model, variables: { reports: {} } })).toEqual([])
   })
 
+  it('propagates typed caller environment through DTO vars into columns', () => {
+    class VisitNoteRow extends defineDto('ClinicalImpression', {
+      callerEnv: { carePlans: { type: 'CarePlan', collection: true } },
+      vars: { visitPlans: '%carePlans.where(encounter.reference = %context.encounter.reference)' },
+    }) {
+      @column('%visitPlans.activityz.detail.description', { collection: true, type: 'string' })
+      focusItems!: string[]
+    }
+
+    expect(analyzeDto(VisitNoteRow, { model: r4Model }).map(finding => [finding.member, finding.code])).toEqual([
+      ['focusItems', 'unknown-element'],
+    ])
+  })
+
   it('analyzes a compiled var by its source, and only declares a pre-bound one', () => {
     class Bound extends defineDto('Observation', {
       vars: {

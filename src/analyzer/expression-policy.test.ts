@@ -7,8 +7,36 @@ import eslintPlugin from '../eslint/index.ts'
 import { r4Model } from '../r4/index.ts'
 import { createSiteFinder } from '../sites/index.ts'
 import { analyzeSite } from './analyze.ts'
+import {
+  type ExpressionAst,
+  type SiteVariable,
+  unreadExpressionNodes,
+  variablesFromOptions,
+} from './expression-policy.ts'
 
 const findExpressionSites = createSiteFinder(ts)
+
+type MiniNode =
+  | { kind: 'string'; value: string }
+  | { kind: 'boolean'; value: boolean }
+  | { kind: 'array'; values: MiniNode[] }
+  | { kind: 'object'; properties: { name: string | undefined; value: MiniNode }[] }
+  | { kind: 'dynamic'; label: string }
+
+const miniAst: ExpressionAst<MiniNode> = {
+  string: node => (node.kind === 'string' ? { node, expression: node.value } : undefined),
+  boolean: node => (node.kind === 'boolean' ? node.value : undefined),
+  properties: node => (node.kind === 'object' ? node.properties : undefined),
+  elements: node => (node.kind === 'array' ? node.values : undefined),
+}
+
+const stringNode = (value: string): MiniNode => ({ kind: 'string', value })
+const dynamicNode = (label: string): MiniNode => ({ kind: 'dynamic', label })
+const arrayNode = (...values: MiniNode[]): MiniNode => ({ kind: 'array', values })
+const objectNode = (...properties: { name: string | undefined; value: MiniNode }[]): MiniNode => ({
+  kind: 'object',
+  properties,
+})
 
 /**
  * Runs one invalid-expression corpus through the TypeScript and ESTree walkers.
@@ -57,6 +85,14 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
       "function f(p) { return engine.test(p, 'x..1') }",
       'const engine = new FhirPathEngine({})',
       "const a = engine.first('x..2', patient)",
+    ].join('\n'),
+    expected: 2,
+  },
+  {
+    name: 'project columns and inline vars are both expression sites',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "r4.project(input, { value: 'x..1' }, { env: { reports }, vars: { report: 'x..2' } })",
     ].join('\n'),
     expected: 2,
   },
@@ -196,6 +232,112 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
 ]
 
 const linter = new Linter()
+
+describe('literal call context extraction', () => {
+  it('reads names and complete type declarations from EvaluateOptions', () => {
+    const patient: SiteVariable = { types: ['Patient'], single: false, targets: ['Organization'] }
+    const options = objectNode(
+      {
+        name: 'env',
+        value: objectNode(
+          { name: '%plain', value: dynamicNode('plain') },
+          { name: undefined, value: dynamicNode('computed') }
+        ),
+      },
+      {
+        name: 'envTypes',
+        value: objectNode(
+          {
+            name: 'patient',
+            value: objectNode(
+              { name: 'type', value: stringNode('Patient') },
+              { name: 'collection', value: { kind: 'boolean', value: true } },
+              { name: 'targets', value: stringNode('Organization') }
+            ),
+          },
+          {
+            name: 'choice',
+            value: objectNode(
+              { name: 'type', value: arrayNode(stringNode('Condition'), stringNode('Observation')) },
+              { name: 'collection', value: { kind: 'boolean', value: false } },
+              { name: 'targets', value: arrayNode(stringNode('Patient'), stringNode('Organization')) }
+            ),
+          },
+          { name: 'invalid', value: dynamicNode('invalid declaration') },
+          {
+            name: 'ambiguous',
+            value: objectNode(
+              { name: 'type', value: stringNode('Patient') },
+              { name: 'collection', value: dynamicNode('collection') },
+              { name: 'targets', value: arrayNode(stringNode('Patient'), dynamicNode('target')) }
+            ),
+          },
+          {
+            name: 'partlyDynamic',
+            value: objectNode({ name: 'type', value: arrayNode(stringNode('Condition'), dynamicNode('type')) }),
+          },
+          { name: 'missingType', value: objectNode({ name: 'collection', value: { kind: 'boolean', value: true } }) },
+          { name: undefined, value: objectNode({ name: 'type', value: stringNode('Observation') }) }
+        ),
+      },
+      { name: 'vars', value: objectNode({ name: 'row', value: stringNode('%plain') }) },
+      {
+        name: 'varTypes',
+        value: objectNode({ name: 'row', value: objectNode({ name: 'type', value: stringNode('Observation') }) }),
+      }
+    )
+
+    expect(variablesFromOptions(options, miniAst, true)).toEqual({
+      plain: {},
+      patient,
+      choice: {
+        types: ['Condition', 'Observation'],
+        single: true,
+        targets: ['Patient', 'Organization'],
+      },
+      ambiguous: { types: ['Patient'] },
+      row: { types: ['Observation'], single: true },
+    })
+    expect(variablesFromOptions(options, miniAst, false)).toEqual({
+      plain: {},
+      patient,
+      choice: {
+        types: ['Condition', 'Observation'],
+        single: true,
+        targets: ['Patient', 'Organization'],
+      },
+      ambiguous: { types: ['Patient'] },
+    })
+    expect(variablesFromOptions(dynamicNode('options'), miniAst, true)).toBeUndefined()
+  })
+
+  it('identifies unread nodes in every supported expression container', () => {
+    const dynamic = dynamicNode('dynamic')
+    expect(unreadExpressionNodes(dynamic, 'expression', miniAst)).toEqual([dynamic])
+    expect(unreadExpressionNodes(stringNode('ok'), 'expression', miniAst)).toEqual([])
+
+    const columns = objectNode(
+      { name: 'literal', value: stringNode('Patient.name') },
+      { name: 'dynamic', value: dynamic },
+      { name: 'nested', value: objectNode({ name: 'path', value: dynamic }, { name: 'test', value: stringNode('ok') }) }
+    )
+    expect(unreadExpressionNodes(columns, 'columns', miniAst)).toEqual([dynamic, dynamic])
+    expect(unreadExpressionNodes(dynamic, 'columns', miniAst)).toEqual([])
+
+    const vars = objectNode({ name: 'vars', value: objectNode({ name: 'a', value: dynamic }) })
+    expect(unreadExpressionNodes(vars, 'dto-vars', miniAst)).toEqual([dynamic])
+    const dynamicVars = objectNode({ name: 'vars', value: dynamic })
+    expect(unreadExpressionNodes(dynamicVars, 'dto-vars', miniAst)).toEqual([dynamic])
+
+    expect(unreadExpressionNodes(dynamic, 'constraints', miniAst)).toEqual([dynamic])
+    const constraints = arrayNode(
+      dynamic,
+      objectNode({ name: 'expression', value: dynamic }),
+      objectNode({ name: 'expression', value: stringNode('ok') })
+    )
+    expect(unreadExpressionNodes(constraints, 'constraints', miniAst)).toEqual([dynamic, dynamic])
+  })
+})
 
 function eslintPositions(code: string, typescript: boolean): [number, number][] {
   const messages = linter.verify(code, {

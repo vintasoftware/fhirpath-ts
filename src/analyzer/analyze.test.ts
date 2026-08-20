@@ -612,6 +612,21 @@ describe('analyzeSite', () => {
     expect(analyzeSite({ expression: "(statuss in ('draft')).not()" }, options)).toEqual([])
   })
 
+  it('reports unknown variables when a caller supplied the complete variable context', () => {
+    const site = { expression: '%known = %misspelled', inputType: 'Patient' }
+    expect(analyzeSite(site, { ...options, variables: { known: {} } }).map(d => d.code)).toEqual(['unknown-variable'])
+  })
+
+  it('can report navigation hidden behind an explicitly untyped variable', () => {
+    expect(
+      analyzeExpression('%plans.activityz.detail', {
+        model: r4Model,
+        variables: { plans: {} },
+        reportUnchecked: true,
+      }).map(diagnostic => diagnostic.code)
+    ).toEqual(['unchecked-navigation'])
+  })
+
   it('analyzes a DTO column against its fhirType', () => {
     expect(
       analyzeSite({ expression: 'clinicalStatus.coding.first().code', inputType: 'Condition', dto: true }, options)

@@ -112,6 +112,17 @@ Use `--no-import` for the source-only pass:
 pnpm exec fhirpath-check --no-import "src/**/*.ts"
 ```
 
+The CLI asks TypeScript for the resolved receiver type, so an engine imported,
+aliased, or re-exported through a local module is recognized as a
+`FhirPathEngine`. If a project cannot be type-resolved, `--local-imports` applies
+the broader syntax-only policy that trusts relative imports.
+
+Calls that look like supported expression sites but cannot be read are reported
+as `[warning:skipped]`. This includes dynamic strings, interpolated templates,
+and receivers whose engine type cannot be established. `--strict` promotes
+warnings to errors. A successful run with warnings says `no errors found`, not
+`no problems found`.
+
 The command exits with a non-zero status when it reports an error diagnostic.
 Warnings, such as possible regular expression backtracking, do not fail the run.
 
@@ -144,7 +155,9 @@ project code. Use `--no-import` when module execution is not appropriate.
 
 The loaded DTO check has the engine's real model, registered functions, and
 environment names. It can resolve calls between DTO columns and compare declared
-column types with the analyzer result.
+column types with the analyzer result. Those merged engine declarations also
+feed the source pass, so a misspelled environment variable is reported when the
+import pass knows the complete environment.
 
 When no engine is found, the CLI cannot resolve column-to-column calls. It
 reports that limit as a warning and keeps the run successful.
@@ -153,16 +166,23 @@ A DTO that is not registered with an engine is checked against the merged
 context of all discovered engines. This answers whether some engine in the
 project defines a name. The project does not need a `fhirpath.config.ts`.
 
-Declare per-call environment names on the DTO itself:
+Declare per-call environment names or types on the DTO itself:
 
 ```ts
 export class LabRow extends defineDto('ServiceRequest', {
-  callerEnv: ['reports'],
-  vars: { report: '%reports.where(orderId = %context.id).report' },
+  callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
+  vars: { report: '%reports.first()' },
 }) {
   // columns
 }
 ```
+
+The inferred result of each DTO `vars` expression becomes the input type for
+later vars and columns. Navigation from a name-only declaration stays valid but
+is reported as `[warning:unchecked-navigation]`; add a `callerEnv` declaration
+map when the value is a FHIR type. DTO classes that a matched module does not
+export are reported as `[warning:unloaded-dto]`, because the import pass cannot
+perform their full check.
 
 ## Source-only limits
 
@@ -177,8 +197,9 @@ information to prove an error.
 - A DTO needs a statically known `fhirType` for element and type checks. Its own
   `extends defineDto('Type')` or a base class declared in the same file provides
   that type. A factory call or imported base class receives syntax checks only.
-- An engine stored behind an untracked alias, such as `this.engine` or a function
-  parameter, is not recognized as a package API receiver.
+- Editors that use the syntax-only `createSiteFinder(ts)` cannot resolve an
+  engine stored behind an untracked alias. The CLI supplies a TypeScript program
+  and resolves these receivers by type.
 
 Use `analyzeDto()` in a test or the CLI import pass when full runtime context is
 needed.
@@ -231,6 +252,11 @@ analyzeExpression('%limit < value.count()', {
 })
 ```
 
+Set `reportUnchecked: true` to receive warning diagnostics when navigation starts
+from a declared variable with no type. The CLI enables this coverage check. It
+is opt-in for direct analyzer callers because an untyped variable may
+intentionally hold arbitrary non-FHIR objects.
+
 A variable declaration may also set `ordered: false` when the host supplies a
 collection with no defined order; the analyzer then rejects positional
 operations on it. Omitting `ordered` keeps the ordering unknown.
@@ -248,6 +274,10 @@ not add a runtime TypeScript dependency.
 Both walkers use the same expression-site policy and send sites through
 `analyzeSite()`. A shared test corpus compares their positions, context, and
 diagnostics.
+
+`createSiteScanner(ts, program?)` returns the checked sites plus skipped-site and
+module-local DTO coverage information. `createSiteFinder(ts, program?)` is the
+compatibility form that returns only successfully extracted expressions.
 
 ## Conformance of the checker
 

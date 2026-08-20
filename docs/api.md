@@ -558,20 +558,23 @@ These values are available only while evaluating that DTO's columns. Registering
 the DTO does not publish them to other engine expressions. A DTO value has higher
 priority than the engine and per-call environment values with the same name.
 
-Declare data supplied by each projection with `callerEnv`:
+Declare data supplied by each projection with `callerEnv`. A declaration map
+lets DTO vars carry the supplied type into later columns:
 
 ```ts
 class LabResultRow extends defineDto('ServiceRequest', {
-  callerEnv: ['reports'],
-  vars: { report: '%reports.where(orderId = %context.id).report' },
+  callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
+  vars: { report: '%reports.first()' },
 }) {
   @column('%report.status', { type: 'string', default: 'waiting' })
   status!: string
 }
 ```
 
-`callerEnv` tells the analyzer which names the call provides. It does not create
-values. Pass them to `project()` through `env`.
+`callerEnv` tells the analyzer which names the call provides. Use an array of
+names when their structure is intentionally opaque, or a declaration map when
+FHIRPath navigates through them. It does not create values. Pass them to
+`project()` through `env`.
 
 DTO `vars` apply only when the DTO is projected. They are row expressions and do
 not travel with a registered function call, which has a focus but no projection

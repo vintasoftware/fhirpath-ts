@@ -38,6 +38,10 @@ export interface CallSitePolicy {
    * the expression is analyzed without an input type.
    */
   rootFromClass?: true
+  /** The EvaluateOptions argument whose inline env/vars declarations are visible to the expression. */
+  optionsArg?: number
+  /** Additional expressions held by the options argument, such as project() row vars. */
+  optionsExpressions?: 'vars'
   /**
    * A DTO member site. Its `%variables` are never judged — they come from the
    * DTO's own `vars`/`env`, from a base class, or from the projecting call, none
@@ -58,15 +62,15 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   // evaluated somewhere else entirely — checkable.
   ['fhirpath', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
   ['compile', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
-  ['evaluate', { argIndex: 0, shape: 'expression', receiver: 'any' }],
-  ['evaluateTyped', { argIndex: 0, shape: 'expression', receiver: 'any' }],
-  ['first', { argIndex: 0, shape: 'expression', receiver: 'engine' }],
+  ['evaluate', { argIndex: 0, shape: 'expression', receiver: 'any', optionsArg: 2 }],
+  ['evaluateTyped', { argIndex: 0, shape: 'expression', receiver: 'any', optionsArg: 2 }],
+  ['first', { argIndex: 0, shape: 'expression', receiver: 'engine', optionsArg: 2 }],
   ['analyzeExpression', { argIndex: 0, shape: 'expression', receiver: 'any' }],
   // Subject-first FhirPathEngine helpers: the expression(s) come second.
-  ['test', { argIndex: 1, shape: 'expression', receiver: 'engine' }],
-  ['filter', { argIndex: 1, shape: 'expression', receiver: 'engine' }],
-  ['project', { argIndex: 1, shape: 'columns', receiver: 'engine' }],
-  ['checkConstraints', { argIndex: 1, shape: 'constraints', receiver: 'any' }],
+  ['test', { argIndex: 1, shape: 'expression', receiver: 'engine', optionsArg: 2 }],
+  ['filter', { argIndex: 1, shape: 'expression', receiver: 'engine', optionsArg: 2 }],
+  ['project', { argIndex: 1, shape: 'columns', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
+  ['checkConstraints', { argIndex: 1, shape: 'constraints', receiver: 'any', optionsArg: 2 }],
   // DTO declarations: the column/criteria expressions of a `@column` field, and
   // the `vars` a DTO binds per row.
   [
@@ -132,6 +136,9 @@ export function isCheckedCall(
   if (policy.receiver === 'import') {
     return receiverRoot === undefined && bindings.trusted.has(calleeName) && !bindings.rebound.has(calleeName)
   }
+  if (bindings.trusted.has(receiverRoot ?? calleeName) && !bindings.rebound.has(receiverRoot ?? calleeName)) {
+    return true
+  }
   return !bindings.foreign.has(receiverRoot ?? calleeName)
 }
 
@@ -193,6 +200,15 @@ export interface SiteContext {
   inputType?: string
   /** A DTO member site, whose findings are weighed differently (see `CallSitePolicy.dto`). */
   dto?: true
+  /** Inline per-call environment and row-variable declarations visible to this site. */
+  variables?: Readonly<Record<string, SiteVariable>>
+}
+
+/** The analyzer facts a source literal can declare without evaluating host code. */
+export interface SiteVariable {
+  types?: string[]
+  single?: boolean
+  targets?: string[]
 }
 
 /** One class of a file, as a walker reads its heritage clause. */
@@ -285,10 +301,97 @@ export function siteContext<N>(
       : policy.rootFromClass === true
         ? classRoot
         : undefined
+  const optionsArgument = policy.optionsArg === undefined ? undefined : argumentAt(policy.optionsArg)
+  const variables = {
+    ...(optionsArgument === undefined ? undefined : variablesFromOptions(optionsArgument, ast, true)),
+    ...(policy.optionsExpressions === 'vars' && {
+      rowIndex: { types: ['System.Integer'], single: true },
+      rowTotal: { types: ['System.Integer'], single: true },
+    }),
+  }
   return {
     ...(policy.dto === true && { dto: true as const }),
     ...(inputType !== undefined && { inputType }),
+    ...(Object.keys(variables).length > 0 && { variables }),
   }
+}
+
+/** Variables declared by a literal EvaluateOptions object. */
+export function variablesFromOptions<N>(
+  options: N,
+  ast: ExpressionAst<N>,
+  includeVars: boolean
+): Record<string, SiteVariable> | undefined {
+  const properties = ast.properties(options)
+  if (properties === undefined) {
+    return undefined
+  }
+  const variables: Record<string, SiteVariable> = {}
+  const addNames = (propertyName: 'env' | 'vars'): void => {
+    const value = properties.find(property => property.name === propertyName)?.value
+    for (const property of value === undefined ? [] : (ast.properties(value) ?? [])) {
+      if (property.name !== undefined) {
+        variables[bareVariableName(property.name)] = {}
+      }
+    }
+  }
+  const addDeclarations = (propertyName: 'envTypes' | 'varTypes'): void => {
+    const value = properties.find(property => property.name === propertyName)?.value
+    for (const property of value === undefined ? [] : (ast.properties(value) ?? [])) {
+      if (property.name === undefined) {
+        continue
+      }
+      const declaration = typeDeclaration(property.value, ast)
+      if (declaration !== undefined) {
+        variables[bareVariableName(property.name)] = declaration
+      }
+    }
+  }
+  addNames('env')
+  addDeclarations('envTypes')
+  if (includeVars) {
+    addNames('vars')
+    addDeclarations('varTypes')
+  }
+  return variables
+}
+
+function typeDeclaration<N>(node: N, ast: ExpressionAst<N>): SiteVariable | undefined {
+  const properties = ast.properties(node)
+  if (properties === undefined) {
+    return undefined
+  }
+  const typeNode = properties.find(property => property.name === 'type')?.value
+  const types = typeNode === undefined ? undefined : literalStrings(typeNode, ast)
+  if (types === undefined || types.length === 0) {
+    return undefined
+  }
+  const collectionNode = properties.find(property => property.name === 'collection')?.value
+  const collection = collectionNode === undefined ? false : ast.boolean(collectionNode)
+  const targetsNode = properties.find(property => property.name === 'targets')?.value
+  const targets = targetsNode === undefined ? undefined : literalStrings(targetsNode, ast)
+  return {
+    types,
+    ...(collection !== undefined && { single: !collection }),
+    ...(targets !== undefined && targets.length > 0 && { targets }),
+  }
+}
+
+function literalStrings<N>(node: N, ast: ExpressionAst<N>): string[] | undefined {
+  const one = ast.string(node)?.expression
+  if (one !== undefined) {
+    return [one]
+  }
+  const elements = ast.elements(node)
+  if (elements === undefined) {
+    return undefined
+  }
+  const strings = elements.map(element => ast.string(element)?.expression)
+  return strings.every(value => value !== undefined) ? strings : undefined
+}
+
+function bareVariableName(name: string): string {
+  return name.startsWith('%') ? name.slice(1) : name
 }
 
 /**
@@ -303,7 +406,8 @@ export interface ExpressionAst<N> {
   /** The node's value as a `true`/`false` literal, or undefined when it is not one. */
   boolean(node: N): boolean | undefined
   /**
-   * The plain (non-spread, non-shorthand) properties of an object literal, or
+   * The plain (non-spread) properties of an object literal, including shorthand
+   * properties whose value is the identifier itself, or
    * undefined when the node is not an object literal. `name` is the property's
    * statically-known key — undefined for computed keys.
    */
@@ -344,6 +448,52 @@ export function expressionEntries<N>(argument: N, shape: CallSiteShape, ast: Exp
   }
   // checkConstraints() constraints: [{ key, expression: 'expr', ... }].
   return (ast.elements(argument) ?? []).flatMap(element => namedStringEntries(element, 'expression', ast))
+}
+
+/** Nodes in a supported expression container that are present but not static strings. */
+export function unreadExpressionNodes<N>(argument: N, shape: CallSiteShape, ast: ExpressionAst<N>): N[] {
+  if (shape === 'expression') {
+    return ast.string(argument) === undefined ? [argument] : []
+  }
+  if (shape === 'columns') {
+    // A non-object may be a DTO class, which holds no source expressions.
+    return (ast.properties(argument) ?? []).flatMap(({ value }) => {
+      if (ast.string(value) !== undefined) {
+        return []
+      }
+      const nested = ast.properties(value)
+      if (nested === undefined) {
+        return [value]
+      }
+      return nested.flatMap(property =>
+        (property.name === 'path' || property.name === 'test') && ast.string(property.value) === undefined
+          ? [property.value]
+          : []
+      )
+    })
+  }
+  if (shape === 'dto-vars') {
+    const vars = (ast.properties(argument) ?? []).filter(({ name }) => name === 'vars')
+    return vars.flatMap(({ value }) => {
+      const properties = ast.properties(value)
+      return properties === undefined
+        ? [value]
+        : properties.flatMap(property => (ast.string(property.value) === undefined ? [property.value] : []))
+    })
+  }
+  const elements = ast.elements(argument)
+  if (elements === undefined) {
+    return [argument]
+  }
+  return elements.flatMap(element => {
+    const properties = ast.properties(element)
+    if (properties === undefined) {
+      return [element]
+    }
+    return properties.flatMap(property =>
+      property.name === 'expression' && ast.string(property.value) === undefined ? [property.value] : []
+    )
+  })
 }
 
 /** The string-literal values of an object literal's `name` properties. */

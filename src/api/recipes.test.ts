@@ -430,6 +430,7 @@ describe('README usage recipes', () => {
         env: { reports: [{ orderId: 'order-1', report }] },
       })
     ).toEqual([report])
+    expect(r4.evaluate('%reports.first()', order, { env: { reports: [report] } })).toEqual([report])
     expect(r4.evaluate('%report.status', order, { env: { report } })).toEqual(['final'])
     expect(r4.test(patient, '$this is Patient')).toBe(true)
 

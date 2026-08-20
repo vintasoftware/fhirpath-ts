@@ -93,6 +93,8 @@ export interface AnalyzeOptions {
   functions?: Record<string, DeclaredFunction>
   /** Host-supplied environment variables by name (with or without the leading `%`). */
   variables?: Record<string, DeclaredVariable>
+  /** Report navigation that remains unchecked because a declared host variable has no type. */
+  reportUnchecked?: boolean
 }
 
 /** Internal strict-analysis options whose variables may retain exact runtime focus types. */
@@ -120,6 +122,8 @@ interface StaticState {
   targets?: string[]
   /** True until the raw input has been narrowed or navigated through the model. */
   rawInput?: boolean
+  /** Untyped host variable whose first element navigation cannot be checked. */
+  opaqueVariable?: string
 }
 
 const UNKNOWN: StaticState = { types: undefined, single: undefined, ordered: undefined }
@@ -209,6 +213,8 @@ export function analyzeSite(
     expression: string
     inputType?: string
     dto?: true
+    /** Variables declared by the expression's call site, such as inline env/vars options. */
+    variables?: Readonly<Record<string, DeclaredVariable>>
     /** Functions the site's file declares — a DTO's `@column` fields (see `columnFunctionDeclaration`). */
     functions?: Readonly<Record<string, DeclaredFunction>>
   },
@@ -219,10 +225,13 @@ export function analyzeSite(
     ...options,
     ...(site.inputType !== undefined && { inputType: site.inputType }),
     ...(Object.keys(declared).length > 0 && { functions: declared }),
+    ...((site.variables !== undefined || options?.variables !== undefined) && {
+      variables: { ...options?.variables, ...site.variables },
+    }),
   }
   const diagnostics = analyzeExpression(site.expression, merged)
   if (site.dto !== true) {
-    return site.inputType === undefined
+    return site.inputType === undefined || options?.variables !== undefined
       ? diagnostics
       : diagnostics.filter(diagnostic => diagnostic.code !== 'unknown-variable')
   }
@@ -296,10 +305,12 @@ class Analyzer {
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
   private readonly declaredVariables: ReadonlyMap<string, AnalyzerVariableState>
   private readonly activeExpressionFunctions = new Set<string>()
+  private readonly reportUnchecked: boolean
 
   constructor(options: AnalyzeOptions | RuntimeAnalyzeOptions | undefined, root: AnalyzerRoot | undefined) {
     this.model = options?.model
     this.runtime = root !== undefined
+    this.reportUnchecked = options?.reportUnchecked === true
     const inputType = options?.inputType
     // The root focus is a real collection, so its order is defined even when
     // its types and cardinality are not.
@@ -399,7 +410,7 @@ class Analyzer {
     }
     const declared = this.declaredVariables.get(node.name)
     if (declared !== undefined) {
-      return this.declaredVariableState(declared)
+      return this.declaredVariableState(declared, node.name)
     }
     switch (node.name) {
       case 'context':
@@ -471,6 +482,15 @@ class Analyzer {
             exactTypes: input.exactTypes.filter(type => this.model?.isSubtypeOf(type, asType) === true),
           }),
         }
+      }
+      if (input.opaqueVariable !== undefined && this.reportUnchecked) {
+        this.report(
+          'unchecked-navigation',
+          `Element '${node.name}' after untyped environment variable %${input.opaqueVariable} was not checked; declare the variable's type`,
+          node.span,
+          'warning',
+          node.name
+        )
       }
       return { ...UNKNOWN, ordered: input.ordered }
     }
@@ -751,7 +771,7 @@ class Analyzer {
       const bare = bareEnvironmentName(declaredName)
       // defineVariable() values have priority over environment overlays at runtime.
       if (!functionScope.vars.has(bare)) {
-        functionScope.vars.set(bare, this.declaredVariableState(variable))
+        functionScope.vars.set(bare, this.declaredVariableState(variable, bare))
       }
     }
     const diagnosticCount = this.diagnostics.length
@@ -774,7 +794,7 @@ class Analyzer {
   }
 
   /** Convert one declared environment value into the same state used for scoped variables. */
-  private declaredVariableState(declared: AnalyzerVariableState): StaticState {
+  private declaredVariableState(declared: AnalyzerVariableState, name?: string): StaticState {
     const exactTypes = this.runtime && isRuntimeAnalyzerVariable(declared) ? declared.exactTypes : undefined
     return {
       types: declared.types?.map(type => this.canonicalize(type)),
@@ -782,6 +802,7 @@ class Analyzer {
       ordered: singletonOrder(declared.single, declared.ordered),
       ...(declared.targets !== undefined && { targets: declared.targets.map(type => this.canonicalize(type)) }),
       ...(exactTypes !== undefined && { exactTypes }),
+      ...(declared.types === undefined && name !== undefined && { opaqueVariable: name }),
     }
   }
 
