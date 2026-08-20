@@ -220,9 +220,17 @@ r4.project(
   {
     env: { reports },
     vars: { report: '%reports.where(orderId = %context.id).report' },
+    varTypes: { report: { type: 'DiagnosticReport' } },
   },
 )
 ```
+
+The wrapper objects in `%reports` are plain lookup data with no FHIR type, so
+`fhirpath-check` cannot verify the `where(orderId = ...)` lookup. It reports
+that line as an `unchecked-navigation` warning, which `--strict` turns into an
+error. The `varTypes` declaration is what lets the column paths be checked.
+When `env` holds FHIR resources directly, declare their types with `envTypes`
+and every path is checked. See [Static checking](docs/static-checking.md).
 
 ### Follow references in a Bundle
 
