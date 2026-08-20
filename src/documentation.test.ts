@@ -58,7 +58,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid(
         '(%report.effective.ofType(dateTime) | %report.issued).first()',
         '%report.exists()',
-        '%reports.where(orderId = %context.id).report'
+        "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()"
       ),
       valid('Bundle.entry.resource.ofType(Observation).subject.resolve().name.family'),
       valid('Questionnaire.repeat(item).linkId'),
@@ -105,7 +105,7 @@ const documentation: readonly DocumentExpectation[] = [
       ),
       valid('(text | coding.display.first() | coding.first().code).first()', 'Condition.code.displayText()'),
       valid('code.coding.where(system = %system).first().code'),
-      valid('%reports.first()', '%report.status'),
+      valid("%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()", '%report.status'),
       valid(),
       valid('$this is Patient'),
       valid(),
@@ -121,7 +121,7 @@ const documentation: readonly DocumentExpectation[] = [
       invalid('Patient', ['unknown-element'], 'Patient.name.givenn'),
       valid('Patient.name.given'),
       valid(),
-      valid('%reports.first()'),
+      valid("%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()"),
       invalid('Patient', ['unknown-element'], 'name.givenn'),
       valid('%limit < value.count()'),
     ],

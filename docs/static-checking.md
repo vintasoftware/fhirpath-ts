@@ -175,18 +175,24 @@ Declare per-call environment names or types on the DTO itself:
 ```ts
 export class LabRow extends defineDto('ServiceRequest', {
   callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
-  vars: { report: '%reports.first()' },
+  vars: { report: "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()" },
 }) {
   // columns
 }
 ```
 
-The inferred result of each DTO `vars` expression becomes the input type for
-later vars and columns. Navigation from a name-only declaration stays valid but
-is reported as `[warning:unchecked-navigation]`; add a `callerEnv` declaration
-map when the value is a FHIR type. DTO classes that a matched module does not
-export are reported as `[warning:unloaded-dto]`, because the import pass cannot
-perform their full check.
+Vars are checked in declaration order, and each var's inferred type carries
+into the vars and columns after it. Here `%reports` is declared as a
+`DiagnosticReport` collection, so `%report` is inferred as a single
+`DiagnosticReport` and every column path through it is checked.
+
+A name-only declaration (`callerEnv: ['reports']`) provides no type. Paths
+through such a value cannot be verified, and each one is reported as
+`[warning:unchecked-navigation]`.
+
+A DTO class that a matched module does not export is reported as
+`[warning:unloaded-dto]`. The import pass cannot load it, so its full check
+cannot run. Export the class, or a class that extends it.
 
 ## Source-only limits
 
@@ -201,9 +207,10 @@ information to prove an error.
 - A DTO needs a statically known `fhirType` for element and type checks. Its own
   `extends defineDto('Type')` or a base class declared in the same file provides
   that type. A factory call or imported base class receives syntax checks only.
-- Editors that use the syntax-only `createSiteFinder(ts)` cannot resolve an
-  engine stored behind an untracked alias. The CLI supplies a TypeScript program
-  and resolves these receivers by type.
+- An engine reached through an alias the file does not declare, such as
+  `this.engine` or a function parameter, needs TypeScript type information to be
+  recognized. The CLI builds a TypeScript program for this. Editors parse one
+  file at a time and skip such receivers.
 
 Use `analyzeDto()` in a test or the CLI import pass when full runtime context is
 needed.
@@ -278,10 +285,6 @@ not add a runtime TypeScript dependency.
 Both walkers use the same expression-site policy and send sites through
 `analyzeSite()`. A shared test corpus compares their positions, context, and
 diagnostics.
-
-`createSiteScanner(ts, program?)` returns the checked sites plus skipped-site and
-module-local DTO coverage information. `createSiteFinder(ts, program?)` is the
-compatibility form that returns only successfully extracted expressions.
 
 ## Conformance of the checker
 

@@ -564,7 +564,7 @@ lets DTO vars carry the supplied type into later columns:
 ```ts
 class LabResultRow extends defineDto('ServiceRequest', {
   callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
-  vars: { report: '%reports.first()' },
+  vars: { report: "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()" },
 }) {
   @column('%report.status', { type: 'string', default: 'waiting' })
   status!: string

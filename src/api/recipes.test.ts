@@ -224,12 +224,15 @@ describe('README usage recipes', () => {
   })
 
   it('join related resources', () => {
-    const reportsByOrderId = new Map<string, DiagnosticReport>([
-      [
-        'sr1',
-        { resourceType: 'DiagnosticReport', status: 'final', code: { text: 'CBC' }, effectiveDateTime: '2026-01-06' },
-      ],
-    ])
+    const reports: DiagnosticReport[] = [
+      {
+        resourceType: 'DiagnosticReport',
+        status: 'final',
+        code: { text: 'CBC' },
+        effectiveDateTime: '2026-01-06',
+        basedOn: [{ reference: 'ServiceRequest/sr1' }],
+      },
+    ]
     const orders: ServiceRequest[] = [
       {
         resourceType: 'ServiceRequest',
@@ -246,7 +249,6 @@ describe('README usage recipes', () => {
         id: 'sr2',
       },
     ]
-    const reports = [...reportsByOrderId].map(([orderId, report]) => ({ orderId, report }))
     const rows = r4.project(
       orders,
       {
@@ -258,7 +260,9 @@ describe('README usage recipes', () => {
       },
       {
         env: { reports },
-        vars: { report: '%reports.where(orderId = %context.id).report' },
+        envTypes: { reports: { type: 'DiagnosticReport', collection: true } },
+        vars: { report: "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()" },
+        varTypes: { report: { type: 'DiagnosticReport' } },
       }
     )
     expectTypeOf(rows).toEqualTypeOf<{ resultDate: string | null; hasResult: boolean }[]>()
@@ -430,7 +434,6 @@ describe('README usage recipes', () => {
         env: { reports: [{ orderId: 'order-1', report }] },
       })
     ).toEqual([report])
-    expect(r4.evaluate('%reports.first()', order, { env: { reports: [report] } })).toEqual([report])
     expect(r4.evaluate('%report.status', order, { env: { report } })).toEqual(['final'])
     expect(r4.test(patient, '$this is Patient')).toBe(true)
 
