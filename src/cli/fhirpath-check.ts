@@ -16,7 +16,13 @@ import ts from 'typescript'
 import { analyzeSite } from '../analyzer/analyze.ts'
 import { r4Model } from '../r4/index.ts'
 import { createSiteScanner, type ExpressionSite, type SiteScanResult } from '../sites/index.ts'
-import { checkDtoModules, DEFAULT_DTO_GLOB, type DtoCheckResult, type DtoFinding } from './dto-check.ts'
+import {
+  checkDtoModules,
+  DEFAULT_DTO_GLOB,
+  type DtoCheckResult,
+  type DtoFinding,
+  EngineMergeError,
+} from './dto-check.ts'
 
 interface Args {
   files: string[]
@@ -171,9 +177,13 @@ if (args.imports) {
   try {
     dtoResult = await checkDtoModules(dtoGlobs, process.cwd())
   } catch (error) {
-    console.error(
-      `fhirpath-check: cannot import DTO modules (${dtoGlobs.join(', ')}): ${error instanceof Error ? error.message : String(error)}`
-    )
+    if (error instanceof EngineMergeError) {
+      console.error(`fhirpath-check: ${error.message}`)
+    } else {
+      console.error(
+        `fhirpath-check: cannot import DTO modules (${dtoGlobs.join(', ')}): ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
     process.exit(2)
   }
 }

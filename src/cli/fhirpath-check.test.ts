@@ -417,6 +417,38 @@ describe('fhirpath-check CLI', () => {
     expect(result.output).not.toContain('[warning:skipped]')
   })
 
+  it('rejects engines constructed over different models as a configuration error', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-mixed-models-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'mixed.dto.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'new FhirPathEngine({ model: r4Model })',
+        'new FhirPathEngine({})',
+      ].join('\n')
+    )
+
+    const result = run([], directory)
+    expect(result.status).toBe(2)
+    expect(result.output).toContain('different ModelProvider instances')
+    expect(result.output).not.toContain('cannot import DTO modules')
+
+    // Two wrappers around the same logical model have no provable equivalence.
+    writeFileSync(
+      join(directory, 'mixed.dto.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'new FhirPathEngine({ model: r4Model })',
+        'new FhirPathEngine({ model: { ...r4Model } })',
+      ].join('\n')
+    )
+    expect(run([], directory).status).toBe(2)
+  })
+
   it('reports skipped dynamic expressions and module-local DTOs, with strict opt-in failure', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-coverage-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })

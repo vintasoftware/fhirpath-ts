@@ -184,6 +184,14 @@ A DTO that is not registered with an engine is checked against the merged
 context of all discovered engines. This answers whether some engine in the
 project defines a name. The project does not need a `fhirpath.config.ts`.
 
+Multiple engines are supported, but merged analysis requires them to share one
+`ModelProvider` instance — a source literal does not say which engine will run
+it, so declarations analyzed under another engine's type hierarchy would
+produce wrong findings. Engines with different models, or one with a model and
+one without, make the CLI exit with a configuration error; check projects with
+genuinely different model families in separate runs. A DTO registered to an
+engine is always analyzed against its own engine's model.
+
 Declare per-call environment names or types on the DTO itself:
 
 ```ts
