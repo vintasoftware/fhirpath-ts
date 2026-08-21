@@ -131,8 +131,8 @@ Literal `vars` expressions in `EvaluateOptions` are checked in final object
 order when every key is statically known. Each expression sees the call
 environment and earlier vars; projection vars also see `%rowIndex` and
 `%rowTotal`. A dynamic key or spread can overwrite a value without moving its
-key's object order, so individual var bodies in such an object are reported as
-`[warning:skipped]` instead of being checked against an order the source cannot
+key's object order, so the object gets one `[warning:skipped]` diagnostic and
+its individual var bodies are not checked against an order the source cannot
 prove.
 
 Inline `env` and `vars` keys declare the variable names an expression may use.
