@@ -39,6 +39,7 @@ import {
   unionStates,
   withSingle,
 } from './signatures.ts'
+import { SOURCE_VARIABLE_DEFAULTS, type SourceVariableDefaults, type SourceVariablePlan } from './source-options.ts'
 
 export interface AnalyzerDiagnostic {
   severity: 'error' | 'warning'
@@ -225,14 +226,17 @@ export function analyzeSite(
   },
   options?: AnalyzeOptions
 ): AnalyzerDiagnostic[] {
+  const sourceVariables = (options as { [SOURCE_VARIABLE_DEFAULTS]?: SourceVariableDefaults } | undefined)?.[
+    SOURCE_VARIABLE_DEFAULTS
+  ]
+  const variablePlan = (site as typeof site & { variablePlan?: SourceVariablePlan }).variablePlan
   const declared = { ...site.functions, ...options?.functions }
+  const variables = sourceSiteVariables(site.variables, variablePlan, options?.variables, sourceVariables)
   const merged: AnalyzeOptions = {
     ...options,
     ...(site.inputType !== undefined && { inputType: site.inputType }),
     ...(Object.keys(declared).length > 0 && { functions: declared }),
-    ...((site.variables !== undefined || options?.variables !== undefined) && {
-      variables: { ...options?.variables, ...site.variables },
-    }),
+    ...(variables !== undefined && { variables }),
   }
   const diagnostics = analyzeExpression(site.expression, merged)
   if (site.dto !== true) {
@@ -271,6 +275,42 @@ export function analyzeSite(
     }
     return diagnostic.name !== undefined && nearestName(diagnostic.name, columns) !== undefined
   })
+}
+
+/** Recreate strict evaluation's vars prefix without flattening away engine/default insertion order. */
+function sourceSiteVariables(
+  siteEnvironment: Readonly<Record<string, DeclaredVariable>> | undefined,
+  plan: SourceVariablePlan | undefined,
+  engineEnvironment: Readonly<Record<string, DeclaredVariable>> | undefined,
+  defaults: SourceVariableDefaults | undefined
+): Record<string, DeclaredVariable> | undefined {
+  if (
+    siteEnvironment === undefined &&
+    engineEnvironment === undefined &&
+    defaults === undefined &&
+    plan === undefined
+  ) {
+    return undefined
+  }
+  const variables: Record<string, DeclaredVariable> = { ...engineEnvironment, ...siteEnvironment }
+  const declarations =
+    plan?.inheritsDeclarations === false ? plan.declarations : { ...defaults?.declarations, ...plan?.declarations }
+  const valueNames = [...(defaults?.values ?? [])]
+  for (const name of plan?.values ?? []) {
+    if (!valueNames.includes(name)) {
+      valueNames.push(name)
+    }
+  }
+  const end = plan?.before === undefined ? valueNames.length : valueNames.indexOf(plan.before)
+  for (const name of valueNames.slice(0, end < 0 ? valueNames.length : end)) {
+    variables[name] = declarations[name] ?? {}
+  }
+  if (plan?.before === undefined) {
+    for (const [name, declaration] of Object.entries(declarations)) {
+      variables[name] ??= declaration
+    }
+  }
+  return variables
 }
 
 /** `analyzeExpression` plus the element paths the expression touches and its inferred result type. */

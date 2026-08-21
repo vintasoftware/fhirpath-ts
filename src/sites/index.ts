@@ -21,6 +21,7 @@ import {
   dtoRootsOf,
   ENGINE_CLASS_NAME,
   type ExpressionAst,
+  type ExpressionProperty,
   type FileColumnFunction,
   isCheckedCall,
   isCheckedTag,
@@ -47,6 +48,8 @@ export interface ExpressionSite {
   dto?: true
   /** Inline per-call environment and row-variable declarations visible to this expression. */
   variables?: NonNullable<SiteContext['variables']>
+  /** Ordered per-call vars, interpreted together with loaded engine defaults by analyzeSite. */
+  variablePlan?: NonNullable<SiteContext['variablePlan']>
   /** The call binds variables the source cannot name (a computed key or spread) — see `SiteContext`. */
   openVariables?: true
   /** Callable DTO columns declared in the same file. */
@@ -96,16 +99,20 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
       node.kind === ts.SyntaxKind.TrueKeyword ? true : node.kind === ts.SyntaxKind.FalseKeyword ? false : undefined,
     properties: node =>
       ts.isObjectLiteralExpression(node)
-        ? node.properties.flatMap(property => {
+        ? node.properties.flatMap<ExpressionProperty<TS.Node>>(property => {
             if (ts.isPropertyAssignment(property)) {
               return [{ name: propertyKeyName(property.name), value: property.initializer }]
             }
             if (ts.isShorthandPropertyAssignment(property)) {
               return [{ name: property.name.text, value: property.name }]
             }
-            return ts.isSpreadAssignment(property)
-              ? [{ name: undefined, value: property.expression, spread: true as const }]
-              : []
+            if (ts.isSpreadAssignment(property)) {
+              return [{ name: undefined, value: property.expression, spread: true as const }]
+            }
+            // Methods and accessors create enumerable own properties too. Their
+            // values are dynamic to source analysis, but their names still make
+            // env/vars scopes complete when every key is known.
+            return 'name' in property ? [{ name: propertyKeyName(property.name), value: property }] : []
           })
         : undefined,
     elements: node => (ts.isArrayLiteralExpression(node) ? [...node.elements] : undefined),
@@ -411,8 +418,10 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     if (!ts.isClassExpression(target)) {
       return []
     }
-    const { name, baseName } = heritageOf(target)
-    return [...(name === undefined ? [] : [name]), ...(baseName === undefined ? [] : [baseName])]
+    // A class expression's own name is scoped to its body, not a reference to a
+    // same-named top-level class. Only its base can expose another declaration.
+    const { baseName } = heritageOf(target)
+    return baseName === undefined ? [] : [baseName]
   }
 
   /**
@@ -467,10 +476,17 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
             }
           }
         }
-      } else if (ts.isExportDeclaration(statement) && statement.exportClause !== undefined) {
+      } else if (
+        ts.isExportDeclaration(statement) &&
+        statement.moduleSpecifier === undefined &&
+        statement.isTypeOnly === false &&
+        statement.exportClause !== undefined
+      ) {
         if (ts.isNamedExports(statement.exportClause)) {
           for (const element of statement.exportClause.elements) {
-            exported.add((element.propertyName ?? element.name).text)
+            if (!element.isTypeOnly) {
+              exported.add((element.propertyName ?? element.name).text)
+            }
           }
         }
       } else if (ts.isExportAssignment(statement)) {

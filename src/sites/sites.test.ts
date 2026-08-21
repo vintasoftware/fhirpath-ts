@@ -442,6 +442,20 @@ describe('DTO export reachability', () => {
       )
     ).toEqual({ ProblemRow: false })
   })
+
+  it('does not confuse class-expression names with top-level DTOs', () => {
+    expect(loadableOf([...dto, 'export const Row = class ProblemRow {}'].join('\n'))).toEqual({
+      ProblemRow: false,
+    })
+  })
+
+  it('does not treat re-exports or type-only exports as local runtime bindings', () => {
+    expect(loadableOf([...dto, 'const Alias = ProblemRow', "export { Alias } from './other.js'"].join('\n'))).toEqual({
+      ProblemRow: false,
+    })
+    expect(loadableOf([...dto, 'export type { ProblemRow }'].join('\n'))).toEqual({ ProblemRow: false })
+    expect(loadableOf([...dto, 'export { type ProblemRow }'].join('\n'))).toEqual({ ProblemRow: false })
+  })
 })
 
 describe('DTO context and declared roots', () => {

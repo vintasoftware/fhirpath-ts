@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url'
 import type { AnalyzeOptions } from '../analyzer/analyze.ts'
 import { type AnalyzedContext, analyzeDto, type DtoDiagnostic } from '../analyzer/analyze-dto.ts'
 import { analyzerEnvironmentVariables, analyzerVariables } from '../analyzer/declarations.ts'
+import { SOURCE_VARIABLE_DEFAULTS } from '../analyzer/source-options.ts'
 import { type DtoClass, isDtoClass } from '../api/dto.ts'
 import { type FhirPathEngine, recordEngines } from '../api/engine.ts'
 
@@ -134,12 +135,14 @@ function merged(engines: readonly FhirPathEngine[]): AnalyzedContext {
 /** Turn merged engine runtime defaults into the declarations accepted by analyzeSite(). */
 function optionsForSource(engine: AnalyzedContext): AnalyzeOptions {
   const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
-  return {
+  const options = {
     ...(model !== undefined && { model }),
     ...(functions !== undefined && { functions }),
-    variables: {
-      ...analyzerEnvironmentVariables(env, envTypes, model),
-      ...analyzerVariables(vars, varTypes),
+    variables: analyzerEnvironmentVariables(env, envTypes, model),
+    [SOURCE_VARIABLE_DEFAULTS]: {
+      values: Object.keys(analyzerVariables(vars, undefined)),
+      declarations: analyzerVariables(undefined, varTypes),
     },
   }
+  return options
 }

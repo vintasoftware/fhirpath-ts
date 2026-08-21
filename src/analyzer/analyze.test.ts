@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { r4Model } from '../r4/index.ts'
 import { analyzeExpression, analyzeExpressionDetailed, type AnalyzerDiagnostic, analyzeSite } from './analyze.ts'
+import { SOURCE_VARIABLE_DEFAULTS } from './source-options.ts'
 
 const options = { model: r4Model, inputType: 'Patient' }
 
@@ -632,6 +633,32 @@ describe('analyzeSite', () => {
         options
       )
     ).toEqual([])
+  })
+
+  it('preserves engine-default var order when per-call vars replace a declaration', () => {
+    const sourceVariables = {
+      values: ['a'],
+      declarations: { a: { types: ['Patient'], single: true } },
+    }
+    const sourceOptions = { ...options, [SOURCE_VARIABLE_DEFAULTS]: sourceVariables }
+    const site = {
+      expression: '%a.status',
+      variablePlan: {
+        values: ['b', 'a'],
+        declarations: { a: { types: ['Observation'], single: true } },
+        inheritsDeclarations: false,
+        before: 'b',
+      },
+    }
+
+    // Overriding a default value does not move its insertion position. Runtime
+    // therefore evaluates a before b, using the per-call varTypes declaration.
+    expect(analyzeSite(site, sourceOptions)).toEqual([])
+    const inherited = {
+      ...site,
+      variablePlan: { ...site.variablePlan, inheritsDeclarations: true, declarations: {} },
+    }
+    expect(analyzeSite(inherited, sourceOptions).map(diagnostic => diagnostic.code)).toEqual(['unknown-element'])
   })
 
   it('treats unresolved variables at an open-scope site as unchecked, not unknown', () => {

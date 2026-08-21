@@ -9,7 +9,9 @@ import {
   type ColumnTypeClaim,
   criteriaSignature,
 } from '../api/column-signature.ts'
+import { bareEnvironmentName } from '../engine/context.ts'
 import { type AnalyzerVariable, PROJECT_ROW_VARIABLES } from './declarations.ts'
+import type { SourceVariablePlan } from './source-options.ts'
 
 /** The supported expression argument shapes: one string, columns, constraints, or DTO variables. */
 export type CallSiteShape = 'expression' | 'columns' | 'constraints' | 'dto-vars'
@@ -225,6 +227,8 @@ export interface SiteContext {
   dto?: true
   /** Inline per-call environment and row-variable declarations visible to this site. */
   variables?: Readonly<Record<string, SiteVariable>>
+  /** Ordered per-call vars, kept separate so loaded engine defaults can be merged without losing runtime order. */
+  variablePlan?: SiteVariablePlan
   /**
    * The call binds variables the source cannot name: a computed key, a spread,
    * or a non-literal env/vars object. An unresolved `%variable` at such a site
@@ -236,6 +240,9 @@ export interface SiteContext {
 
 /** Analyzer facts a source literal can declare; ordering requires runtime knowledge. */
 export type SiteVariable = Pick<AnalyzerVariable, 'types' | 'single' | 'targets'>
+
+/** The vars state at one expression: declarations apply as each value runs, then to the completed scope. */
+export type SiteVariablePlan = SourceVariablePlan
 
 /** One class of a file, as a walker reads its heritage clause. */
 export interface ClassHeritage {
@@ -338,13 +345,17 @@ export function siteContext<N>(
 export interface OptionScopes<N> {
   env: Record<string, SiteVariable>
   vars: Record<string, SiteVariable>
+  /** Final declarations only, without value-only names. */
+  varDeclarations: Record<string, SiteVariable>
+  /** Whether this closed options object definitely omits varTypes. */
+  inheritsVarDeclarations: boolean
   /**
    * The options bind variables whose names the source cannot enumerate before
-   * any var expression runs: an unresolvable options property, or an open
-   * `env`/`envTypes`/`varTypes` object.
+   * any var expression runs: an open `env`/`envTypes` object, or an unresolved
+   * options write that may supply either one.
    */
   openBeforeVars: boolean
-  /** Whether the completed vars object may bind additional names. */
+  /** Whether the completed env/vars/type declarations may bind additional names. */
   openAfterVars: boolean
   /** Final ordered `vars` entries, or one coverage gap when their order is dynamic. */
   expressions: (ExpressionCandidate<N> & { name?: string })[]
@@ -357,22 +368,33 @@ export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes
     return undefined
   }
   const lastUnknown = properties.findLastIndex(property => property.name === undefined)
-  const envValues = optionValue(properties, 'env', lastUnknown)
-  const envDeclarations = optionValue(properties, 'envTypes', lastUnknown)
-  const varValues = optionValue(properties, 'vars', lastUnknown)
-  const varDeclarations = optionValue(properties, 'varTypes', lastUnknown)
+  const envValues = finalKnownProperty(properties, 'env', lastUnknown)
+  const envDeclarations = finalKnownProperty(properties, 'envTypes', lastUnknown)
+  const varValues = finalKnownProperty(properties, 'vars', lastUnknown)
+  const varDeclarations = finalKnownProperty(properties, 'varTypes', lastUnknown)
   const varsProperties = varValues === undefined ? [] : ast.properties(varValues)
   const envScope = variablesFromPair(envValues, envDeclarations, ast)
   const varScope = variablesFromPair(varValues, varDeclarations, ast)
-  const optionsOpen =
-    lastUnknown >= 0 && [envValues, envDeclarations, varValues, varDeclarations].some(value => value === undefined)
-  const openBeforeVars = optionsOpen || envScope.valuesOpen || envScope.declarationsOpen || varScope.declarationsOpen
+  const unknownOptions = lastUnknown >= 0
+  // env/envTypes exist while var bodies run. vars/varTypes only finish binding
+  // after those bodies have run, so an unknown varTypes name must not hide a
+  // real error inside a var expression.
+  const openBeforeVars =
+    envScope.valuesOpen ||
+    envScope.declarationsOpen ||
+    (unknownOptions && (envValues === undefined || envDeclarations === undefined))
   const dynamicVars = varsProperties === undefined || varsProperties.some(property => property.name === undefined)
   return {
     env: envScope.variables,
     vars: varScope.variables,
+    varDeclarations: varScope.declarations,
+    inheritsVarDeclarations: !unknownOptions && varDeclarations === undefined,
     openBeforeVars,
-    openAfterVars: openBeforeVars || dynamicVars,
+    openAfterVars:
+      openBeforeVars ||
+      dynamicVars ||
+      varScope.declarationsOpen ||
+      (unknownOptions && (varValues === undefined || varDeclarations === undefined)),
     expressions:
       varValues === undefined
         ? []
@@ -384,29 +406,57 @@ export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes
 
 /** Final values in Object.entries order when every vars key is statically known. */
 function finalVarExpressions<N>(
-  properties: readonly { name: string | undefined; value: N }[],
+  properties: readonly ExpressionProperty<N>[],
   ast: ExpressionAst<N>
 ): (ExpressionCandidate<N> & { name: string })[] {
-  const order: string[] = []
-  const values = new Map<string, N>()
-  for (const property of properties) {
-    if (property.name === undefined) {
-      continue
-    }
-    const name = bareVariableName(property.name)
-    if (!values.has(name)) {
-      order.push(name)
-    }
-    values.set(name, property.value)
-  }
-  return order.flatMap(name => {
-    const node = values.get(name)
-    if (node === undefined) {
-      return []
-    }
+  return finalNormalizedEntries(properties).flatMap(({ name, value: node }) => {
     const entry = ast.string(node)
     return [{ node, name, ...(entry !== undefined && { expression: entry.expression }) }]
   })
+}
+
+/** Runtime entries after Object.entries(), bare-name normalization, and Object.entries() again. */
+function finalNormalizedEntries<N>(properties: readonly ExpressionProperty<N>[]): { name: string; value: N }[] {
+  const raw: Record<string, N> = Object.create(null)
+  for (const property of properties) {
+    if (property.name !== undefined) {
+      raw[property.name] = property.value
+    }
+  }
+  const normalized: Record<string, N> = Object.create(null)
+  for (const [rawName, value] of Object.entries(raw)) {
+    normalized[bareEnvironmentName(rawName)] = value
+  }
+  return Object.entries(normalized).map(([name, value]) => ({ name, value }))
+}
+
+/** Known names and provably final values of one normalized host map. */
+function normalizedObjectWrites<N>(
+  node: N | undefined,
+  ast: ExpressionAst<N>
+): {
+  names: string[]
+  final: { name: string; value: N }[]
+  open: boolean
+} {
+  if (node === undefined) {
+    return { names: [], final: [], open: false }
+  }
+  const properties = ast.properties(node)
+  if (properties === undefined) {
+    return { names: [], final: [], open: true }
+  }
+  const names = [
+    ...new Set(
+      properties.flatMap(property => (property.name === undefined ? [] : [bareEnvironmentName(property.name)]))
+    ),
+  ]
+  const open = properties.some(property => property.name === undefined)
+  // An unknown raw key can establish either `%x` or `x` first. Overwriting a
+  // property does not move that insertion position, so no normalized value is
+  // provably final once the map is open.
+  const final = open ? [] : finalNormalizedEntries(properties)
+  return { names, final, open }
 }
 
 function variablesFromPair<N>(
@@ -415,44 +465,31 @@ function variablesFromPair<N>(
   ast: ExpressionAst<N>
 ): {
   variables: Record<string, SiteVariable>
+  declarations: Record<string, SiteVariable>
   valuesOpen: boolean
   declarationsOpen: boolean
 } {
-  const variables: Record<string, SiteVariable> = {}
-  const valueProperties = values === undefined ? [] : ast.properties(values)
-  const declarationProperties = declared === undefined ? [] : ast.properties(declared)
-  for (const property of valueProperties ?? []) {
-    if (property.name !== undefined) {
-      variables[bareVariableName(property.name)] = {}
-    }
-  }
+  const valueWrites = normalizedObjectWrites(values, ast)
+  const declarationWrites = normalizedObjectWrites(declared, ast)
+  const variables = Object.fromEntries(valueWrites.names.map(name => [name, {}]))
   const declarations: Record<string, SiteVariable> = {}
-  for (const property of declarationProperties ?? []) {
-    if (property.name === undefined) {
-      for (const name of Object.keys(declarations)) {
-        declarations[name] = {}
-      }
-      continue
-    }
-    const name = bareVariableName(property.name)
-    const declaration = typeDeclaration(property.value, ast)
+  for (const { name, value } of declarationWrites.final) {
+    const declaration = typeDeclaration(value, ast)
     if (declaration !== undefined) {
       declarations[name] = declaration
-    } else if (declarations[name] !== undefined) {
-      declarations[name] = {}
     }
   }
   return {
     variables: { ...variables, ...declarations },
-    valuesOpen: valueProperties === undefined || valueProperties.some(property => property.name === undefined),
-    declarationsOpen:
-      declarationProperties === undefined || declarationProperties.some(property => property.name === undefined),
+    declarations,
+    valuesOpen: valueWrites.open,
+    declarationsOpen: declarationWrites.open,
   }
 }
 
-/** Last named property after an unknown write that could replace the option. */
-function optionValue<N>(
-  properties: readonly { name: string | undefined; value: N }[] | undefined,
+/** Last named property after an unknown write that could replace its value. */
+function finalKnownProperty<N>(
+  properties: readonly ExpressionProperty<N>[] | undefined,
   name: string,
   after: number
 ): N | undefined {
@@ -470,14 +507,15 @@ function typeDeclaration<N>(node: N, ast: ExpressionAst<N>): SiteVariable | unde
   if (properties === undefined) {
     return undefined
   }
-  const typeNode = properties.find(property => property.name === 'type')?.value
+  const lastUnknown = properties.findLastIndex(property => property.name === undefined)
+  const typeNode = finalKnownProperty(properties, 'type', lastUnknown)
   const types = typeNode === undefined ? undefined : literalStrings(typeNode, ast)
   if (types === undefined || types.length === 0) {
     return undefined
   }
-  const collectionNode = properties.find(property => property.name === 'collection')?.value
-  const collection = collectionNode === undefined ? false : ast.boolean(collectionNode)
-  const targetsNode = properties.find(property => property.name === 'targets')?.value
+  const collectionNode = finalKnownProperty(properties, 'collection', lastUnknown)
+  const collection = collectionNode === undefined ? (lastUnknown < 0 ? false : undefined) : ast.boolean(collectionNode)
+  const targetsNode = finalKnownProperty(properties, 'targets', lastUnknown)
   const targets = targetsNode === undefined ? undefined : literalStrings(targetsNode, ast)
   return {
     types,
@@ -499,10 +537,6 @@ function literalStrings<N>(node: N, ast: ExpressionAst<N>): string[] | undefined
   return strings.every(value => value !== undefined) ? strings : undefined
 }
 
-function bareVariableName(name: string): string {
-  return name.startsWith('%') ? name.slice(1) : name
-}
-
 /**
  * The AST accessors a walker provides so shape extraction can be written once.
  * Each returns undefined when the node is not of the asked-for kind, which the
@@ -522,9 +556,16 @@ export interface ExpressionAst<N> {
    * other computed keys. A spread carries `spread: true`, no name, and the
    * spread expression as its value.
    */
-  properties(node: N): { name: string | undefined; value: N; spread?: true }[] | undefined
+  properties(node: N): ExpressionProperty<N>[] | undefined
   /** The elements of an array literal, or undefined when the node is not one. */
   elements(node: N): N[] | undefined
+}
+
+/** One object-literal write as exposed by either source walker. */
+export interface ExpressionProperty<N> {
+  name: string | undefined
+  value: N
+  spread?: true
 }
 
 /** One expression-shaped node, whether or not its value is a static string. */
@@ -567,10 +608,22 @@ export function callExpressionCandidates<N>(
   const openAfterVars = options !== undefined && (scopes === undefined || scopes.openAfterVars)
   const base = siteContext(policy, argumentAt, classRoot, ast, {
     ...scopes?.env,
-    ...scopes?.vars,
     ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
   })
-  const context: SiteContext = openAfterVars ? { ...base, openVariables: true } : base
+  const values = scopes?.expressions.flatMap(entry => (entry.name === undefined ? [] : [entry.name])) ?? []
+  const plan =
+    options === undefined
+      ? undefined
+      : {
+          values,
+          declarations: scopes?.varDeclarations ?? {},
+          inheritsDeclarations: scopes?.inheritsVarDeclarations ?? false,
+        }
+  const context: SiteContext = {
+    ...base,
+    ...(plan !== undefined && { variablePlan: plan }),
+    ...(openAfterVars && { openVariables: true }),
+  }
   const candidates: ContextualExpressionCandidate<N>[] = expressionCandidates(argument, policy.shape, ast).map(
     candidate => ({
       ...candidate,
@@ -584,10 +637,6 @@ export function callExpressionCandidates<N>(
   if (scopes === undefined) {
     return candidates
   }
-  const variables: Record<string, SiteVariable> = {
-    ...scopes.env,
-    ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
-  }
   for (const entry of scopes.expressions) {
     candidates.push({
       node: entry.node,
@@ -595,14 +644,16 @@ export function callExpressionCandidates<N>(
       ...(entry.uncheckable !== undefined && { uncheckable: entry.uncheckable }),
       context: {
         ...base,
-        variables: { ...variables },
+        variablePlan: {
+          values,
+          declarations: scopes.varDeclarations,
+          inheritsDeclarations: scopes.inheritsVarDeclarations,
+          ...(entry.name !== undefined && { before: entry.name }),
+        },
         ...(openBeforeVars && { openVariables: true as const }),
       },
       source: 'option-var',
     })
-    if (entry.name !== undefined) {
-      variables[entry.name] = scopes.vars[entry.name] ?? {}
-    }
   }
   return candidates
 }
@@ -735,9 +786,16 @@ function columnClaim<N>(options: N | undefined, ast: ExpressionAst<N>): ColumnTy
   if (properties === undefined) {
     return {}
   }
-  const named = (name: string): N | undefined => properties.find(property => property.name === name)?.value
+  const lastUnknown = properties.findLastIndex(property => property.name === undefined)
+  if (lastUnknown >= 0) {
+    // A spread/computed key can introduce `as` or `choices`; later type and
+    // collection writes do not remove those conversion modes. Keep only the
+    // independently known input signature.
+    return {}
+  }
+  const named = (name: string): N | undefined => finalKnownProperty(properties, name, lastUnknown)
   const collection = named('collection')
-  const isCollection = collection === undefined ? false : ast.boolean(collection)
+  const isCollection = collection === undefined ? (lastUnknown < 0 ? false : undefined) : ast.boolean(collection)
   if (isCollection === undefined) {
     return {}
   }

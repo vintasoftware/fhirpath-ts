@@ -4,16 +4,10 @@ import tseslint from 'typescript-eslint'
 import { describe, expect, it } from 'vitest'
 
 import eslintPlugin from '../eslint/index.ts'
-import { r4Model } from '../r4/index.ts'
+import { r4, r4Model } from '../r4/index.ts'
 import { createSiteFinder } from '../sites/index.ts'
 import { analyzeSite } from './analyze.ts'
-import {
-  type ExpressionAst,
-  expressionCandidates,
-  isCheckedCall,
-  optionScopes,
-  type SiteVariable,
-} from './expression-policy.ts'
+import { type ExpressionAst, expressionCandidates, isCheckedCall, optionScopes } from './expression-policy.ts'
 
 const findExpressionSites = createSiteFinder(ts)
 
@@ -269,8 +263,7 @@ describe('literal call context extraction', () => {
     ).toBe(true)
   })
 
-  it('reads names and complete type declarations from EvaluateOptions', () => {
-    const patient: SiteVariable = { types: ['Patient'], single: false, targets: ['Organization'] }
+  it('reads known names and closed type declarations from EvaluateOptions', () => {
     const options = objectNode(
       {
         name: 'env',
@@ -325,13 +318,6 @@ describe('literal call context extraction', () => {
     const scopes = optionScopes(options, miniAst)
     expect(scopes?.env).toEqual({
       plain: {},
-      patient,
-      choice: {
-        types: ['Condition', 'Observation'],
-        single: true,
-        targets: ['Patient', 'Organization'],
-      },
-      ambiguous: { types: ['Patient'] },
     })
     expect(scopes?.vars).toEqual({
       row: { types: ['Observation'], single: true },
@@ -342,6 +328,28 @@ describe('literal call context extraction', () => {
     expect(scopes?.openBeforeVars).toBe(true)
     expect(scopes?.openAfterVars).toBe(true)
     expect(optionScopes(dynamicNode('options'), miniAst)).toBeUndefined()
+
+    const closed = optionScopes(
+      objectNode({
+        name: 'envTypes',
+        value: objectNode({
+          name: 'choice',
+          value: objectNode(
+            { name: 'type', value: arrayNode(stringNode('Condition'), stringNode('Observation')) },
+            { name: 'collection', value: { kind: 'boolean', value: false } },
+            { name: 'targets', value: arrayNode(stringNode('Patient'), stringNode('Organization')) }
+          ),
+        }),
+      }),
+      miniAst
+    )
+    expect(closed?.env).toEqual({
+      choice: {
+        types: ['Condition', 'Observation'],
+        single: true,
+        targets: ['Patient', 'Organization'],
+      },
+    })
   })
 
   it('marks scopes open only for constructs that bind unknown names', () => {
@@ -373,6 +381,16 @@ describe('literal call context extraction', () => {
     expect(
       optionScopes(objectNode({ name: undefined, value: dynamicNode('rest'), spread: true }), miniAst)?.openBeforeVars
     ).toBe(true)
+
+    const dynamicVarTypes = optionScopes(
+      objectNode(
+        { name: 'vars', value: objectNode({ name: 'v', value: stringNode('%typo') }) },
+        { name: 'varTypes', value: objectNode({ name: undefined, value: dynamicNode('types') }) }
+      ),
+      miniAst
+    )
+    expect(dynamicVarTypes?.openBeforeVars).toBe(false)
+    expect(dynamicVarTypes?.openAfterVars).toBe(true)
   })
 
   it('does not keep declarations that an unknown object write may replace', () => {
@@ -401,6 +419,39 @@ describe('literal call context extraction', () => {
     )
     expect(hiddenByTypeSpread?.env).toEqual({ x: {} })
     expect(hiddenByTypeSpread?.openBeforeVars).toBe(true)
+
+    const hiddenInsideDeclaration = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: 'x', value: dynamicNode('patient') }) },
+        {
+          name: 'envTypes',
+          value: objectNode({
+            name: 'x',
+            value: objectNode(
+              { name: 'type', value: stringNode('Patient') },
+              { name: undefined, value: dynamicNode('claim'), spread: true }
+            ),
+          }),
+        }
+      ),
+      miniAst
+    )
+    expect(hiddenInsideDeclaration?.env).toEqual({ x: {} })
+
+    const hiddenByPrefixSpread = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: 'x', value: dynamicNode('observation') }) },
+        {
+          name: 'envTypes',
+          value: objectNode(
+            { name: undefined, value: dynamicNode('aliases'), spread: true },
+            { name: 'x', value: patientType }
+          ),
+        }
+      ),
+      miniAst
+    )
+    expect(hiddenByPrefixSpread?.env).toEqual({ x: {} })
   })
 
   it('checks only the final value of a fully static vars object', () => {
@@ -408,6 +459,57 @@ describe('literal call context extraction', () => {
     expect(optionScopes(objectNode({ name: 'vars', value: vars }), miniAst)?.expressions).toEqual([
       { node: stringNode('true'), name: 'v', expression: 'true' },
     ])
+  })
+
+  it('checks vars in the same normalized Object.entries order as runtime', () => {
+    const vars = objectNode({ name: 'x', value: stringNode('%`2`') }, { name: '2', value: stringNode('true') })
+    expect(optionScopes(objectNode({ name: 'vars', value: vars }), miniAst)?.expressions).toEqual([
+      { node: stringNode('true'), name: '2', expression: 'true' },
+      { node: stringNode('%`2`'), name: 'x', expression: '%`2`' },
+    ])
+    expect(r4.evaluate('%x', {}, { vars: { x: '%`2`', '2': 'true' } })).toEqual([true])
+  })
+
+  it('uses normalized Object.entries precedence for type declarations', () => {
+    const observationType = objectNode({ name: 'type', value: stringNode('Observation') })
+    const patientType = objectNode({ name: 'type', value: stringNode('Patient') })
+    const scopes = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: '2', value: dynamicNode('observation') }) },
+        {
+          name: 'envTypes',
+          value: objectNode({ name: '%2', value: observationType }, { name: '2', value: patientType }),
+        }
+      ),
+      miniAst
+    )
+    expect(scopes?.env).toEqual({ 2: { types: ['Observation'], single: true } })
+
+    const observation = { resourceType: 'Observation' as const, status: 'final' as const }
+    expect(
+      r4.evaluate(
+        '%`2`.status',
+        {},
+        {
+          strict: true,
+          env: { 2: observation },
+          envTypes: { '%2': { type: 'Observation' }, 2: { type: 'Patient' } },
+        }
+      )
+    ).toEqual(['final'])
+
+    const aliases = { x: { type: 'Condition' as const }, '%x': { type: 'Observation' as const } }
+    expect(
+      r4.evaluate(
+        '%x.status',
+        {},
+        {
+          strict: true,
+          env: { x: observation },
+          envTypes: { ...aliases, x: { type: 'Patient' } },
+        }
+      )
+    ).toEqual(['final'])
   })
 
   it('identifies static and unread nodes in every supported expression container', () => {
@@ -786,6 +888,14 @@ describe('the walkers agree on a site’s context', () => {
       expected: ['unknown-variable: Undefined environment variable %knownn'],
     },
     {
+      name: 'a getter-backed env key is visible to both walkers',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%known.exists()', patient, { env: { get known() { return value } } })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
       name: 'a spread in env opens the scope',
       code: [
         "import { r4 } from 'fhirpath-ts/r4'",
@@ -823,6 +933,48 @@ describe('the walkers agree on a site’s context', () => {
         "r4.evaluate('%x.status', patient, {",
         "  env: { x: observation }, envTypes: { x: { type: 'Patient' } }, ...unknownOptions,",
         '})',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a spread inside one type declaration does not leave a stale claim',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%x.status', patient, {",
+        "  env: { x: observation }, envTypes: { x: { type: 'Patient', ...unknownClaim } },",
+        '})',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a declaration spread before a known alias leaves no stale claim',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "const aliases = { x: { type: 'Condition' }, '%x': { type: 'Observation' } }",
+        "r4.evaluate('%x.status', patient, {",
+        "  env: { x: observation }, envTypes: { ...aliases, x: { type: 'Patient' } },",
+        '})',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'dynamic varTypes do not hide errors inside var bodies',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%v', patient, { vars: { v: '%typo' }, varTypes: { [name]: { type: 'string' } } })",
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %typo'],
+    },
+    {
+      name: 'a dynamic column claim does not leak a stale result type',
+      code: [
+        "import { column, defineDto } from 'fhirpath-ts'",
+        "class Concept extends defineDto('CodeableConcept') {",
+        "  @column('coding.count()', { ...unknownClaim, type: 'integer', collection: false }) label!: unknown",
+        '}',
+        "class Row extends defineDto('Condition') {",
+        "  @column('code.label().length()') size!: unknown",
+        '}',
       ].join('\n'),
       expected: [],
     },

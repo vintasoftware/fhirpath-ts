@@ -277,6 +277,84 @@ describe('fhirpath-check CLI', () => {
     expect(result.output).not.toContain('Undefined environment variable %known')
   })
 
+  it('keeps loaded default vars ordered when per-call vars replace their declarations', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-source-var-order-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'engine.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'export const fp = new FhirPathEngine({',
+        '  model: r4Model, strict: true,',
+        "  vars: { a: '%resource' },",
+        "  varTypes: { a: { type: 'Patient' } },",
+        '})',
+        "const observation = { resourceType: 'Observation', status: 'final' }",
+        "fp.evaluate('%b', observation, {",
+        "  vars: { b: '%a.status', a: '%resource' },",
+        "  varTypes: { a: { type: 'Observation' } },",
+        '})',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { fp } from './engine.ts'",
+        "fp.evaluate('%b', observation, {",
+        "  vars: { b: '%a.status', a: '%resource' },",
+        "  varTypes: { a: { type: 'Observation' } },",
+        '})',
+      ].join('\n')
+    )
+
+    const result = run(['--dtos', 'engine.ts', 'source.ts'], directory)
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('no problems found')
+    expect(result.output).not.toContain('unknown-element')
+  })
+
+  it('drops stale default varTypes when an options spread may replace them', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-source-var-spread-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'engine.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'export const fp = new FhirPathEngine({',
+        '  model: r4Model, strict: true,',
+        "  vars: { a: '%resource' },",
+        "  varTypes: { a: { type: 'Patient' } },",
+        '})',
+        "const observation = { resourceType: 'Observation', status: 'final' }",
+        "const shared = { varTypes: { a: { type: 'Observation' } } }",
+        "fp.evaluate('%b', observation, {",
+        '  ...shared,',
+        "  vars: { a: '%resource', b: '%a.status' },",
+        '})',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { fp } from './engine.ts'",
+        "const shared = { varTypes: { a: { type: 'Observation' } } }",
+        "fp.evaluate('%b', observation, {",
+        '  ...shared,',
+        "  vars: { a: '%resource', b: '%a.status' },",
+        '})',
+      ].join('\n')
+    )
+
+    const result = run(['--dtos', 'engine.ts', 'source.ts'], directory)
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('warning:unchecked-navigation')
+    expect(result.output).not.toContain('unknown-element')
+  })
+
   it('associates project columns with inline env and vars without false unknown-variable errors', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-project-vars-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })
