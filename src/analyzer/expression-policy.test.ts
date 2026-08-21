@@ -98,15 +98,15 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
     expected: 2,
   },
   {
-    // Computed string-literal keys read like plain ones; other computed keys and
-    // spreads open the scope but never hide the literal expressions around them.
+    // Computed string-literal keys read like plain ones. Other computed vars
+    // keys make the final values/order dynamic, so their bodies are not sites.
     name: 'computed and spread keys in EvaluateOptions',
     code: [
       "import { r4 } from 'fhirpath-ts/r4'",
       "r4.evaluate('x..1', patient, { env: { ['known']: 1 }, vars: { ['v']: 'x..2', [computed]: 'x..3' } })",
       "r4.evaluate('x..4', patient, { ...spreadOptions })",
     ].join('\n'),
-    expected: 4,
+    expected: 2,
   },
   {
     name: 'common-name helpers without an engine binding are skipped',
@@ -282,6 +282,7 @@ describe('literal call context extraction', () => {
       {
         name: 'envTypes',
         value: objectNode(
+          { name: undefined, value: objectNode({ name: 'type', value: stringNode('Observation') }) },
           {
             name: 'patient',
             value: objectNode(
@@ -311,8 +312,7 @@ describe('literal call context extraction', () => {
             name: 'partlyDynamic',
             value: objectNode({ name: 'type', value: arrayNode(stringNode('Condition'), dynamicNode('type')) }),
           },
-          { name: 'missingType', value: objectNode({ name: 'collection', value: { kind: 'boolean', value: true } }) },
-          { name: undefined, value: objectNode({ name: 'type', value: stringNode('Observation') }) }
+          { name: 'missingType', value: objectNode({ name: 'collection', value: { kind: 'boolean', value: true } }) }
         ),
       },
       { name: 'vars', value: objectNode({ name: 'row', value: stringNode('%plain') }) },
@@ -339,7 +339,8 @@ describe('literal call context extraction', () => {
     expect(scopes?.expressions).toEqual([{ node: stringNode('%plain'), name: 'row', expression: '%plain' }])
     // The computed keys in env and envTypes may declare more names than the
     // source can list.
-    expect(scopes?.open).toBe(true)
+    expect(scopes?.openBeforeVars).toBe(true)
+    expect(scopes?.openAfterVars).toBe(true)
     expect(optionScopes(dynamicNode('options'), miniAst)).toBeUndefined()
   })
 
@@ -351,32 +352,62 @@ describe('literal call context extraction', () => {
       ),
       miniAst
     )
-    expect(closed?.open).toBe(false)
+    expect(closed?.openBeforeVars).toBe(false)
+    expect(closed?.openAfterVars).toBe(false)
     expect(closed?.expressions).toEqual([{ node: stringNode('%a'), name: 'v', expression: '%a' }])
 
-    // A spread in vars is a scope event at its own position, not an expression.
-    const spreadVars = optionScopes(
-      objectNode({
-        name: 'vars',
-        value: objectNode(
-          { name: 'v', value: stringNode('%a') },
-          { name: undefined, value: dynamicNode('rest'), spread: true }
-        ),
-      }),
-      miniAst
+    // A spread can overwrite an earlier value without moving its key, so no var
+    // body has a provable final value/order.
+    const dynamicVarValues = objectNode(
+      { name: 'v', value: stringNode('%a') },
+      { name: undefined, value: dynamicNode('rest'), spread: true }
     )
-    expect(spreadVars?.open).toBe(false)
-    expect(spreadVars?.expressions).toEqual([
-      { node: stringNode('%a'), name: 'v', expression: '%a' },
-      { node: dynamicNode('rest'), spread: true },
-    ])
+    const spreadVars = optionScopes(objectNode({ name: 'vars', value: dynamicVarValues }), miniAst)
+    expect(spreadVars?.openBeforeVars).toBe(false)
+    expect(spreadVars?.openAfterVars).toBe(true)
+    expect(spreadVars?.expressions).toEqual([{ node: dynamicVarValues, uncheckable: 'dynamic-vars' }])
 
     // An env that is not an object literal, and a spread in the options object
     // itself, both bind names the source cannot list.
-    expect(optionScopes(objectNode({ name: 'env', value: dynamicNode('bag') }), miniAst)?.open).toBe(true)
-    expect(optionScopes(objectNode({ name: undefined, value: dynamicNode('rest'), spread: true }), miniAst)?.open).toBe(
-      true
+    expect(optionScopes(objectNode({ name: 'env', value: dynamicNode('bag') }), miniAst)?.openBeforeVars).toBe(true)
+    expect(
+      optionScopes(objectNode({ name: undefined, value: dynamicNode('rest'), spread: true }), miniAst)?.openBeforeVars
+    ).toBe(true)
+  })
+
+  it('does not keep declarations that an unknown object write may replace', () => {
+    const patientType = objectNode({ name: 'type', value: stringNode('Patient') })
+    const hiddenByOptionsSpread = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: 'x', value: dynamicNode('patient') }) },
+        { name: 'envTypes', value: objectNode({ name: 'x', value: patientType }) },
+        { name: undefined, value: dynamicNode('options'), spread: true }
+      ),
+      miniAst
     )
+    expect(hiddenByOptionsSpread?.env).toEqual({})
+    expect(hiddenByOptionsSpread?.openBeforeVars).toBe(true)
+
+    const envTypes = objectNode(
+      { name: 'x', value: patientType },
+      { name: undefined, value: dynamicNode('types'), spread: true }
+    )
+    const hiddenByTypeSpread = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: 'x', value: dynamicNode('patient') }) },
+        { name: 'envTypes', value: envTypes }
+      ),
+      miniAst
+    )
+    expect(hiddenByTypeSpread?.env).toEqual({ x: {} })
+    expect(hiddenByTypeSpread?.openBeforeVars).toBe(true)
+  })
+
+  it('checks only the final value of a fully static vars object', () => {
+    const vars = objectNode({ name: 'v', value: stringNode('%overwritten') }, { name: 'v', value: stringNode('true') })
+    expect(optionScopes(objectNode({ name: 'vars', value: vars }), miniAst)?.expressions).toEqual([
+      { node: stringNode('true'), name: 'v', expression: 'true' },
+    ])
   })
 
   it('identifies static and unread nodes in every supported expression container', () => {
@@ -768,22 +799,40 @@ describe('the walkers agree on a site’s context', () => {
       expected: [],
     },
     {
-      name: 'a computed vars entry opens the scope only from its own position',
+      name: 'a computed vars entry makes every var body uncheckable',
       code: [
         "import { r4 } from 'fhirpath-ts/r4'",
         "r4.evaluate('%late.exists()', patient, {",
         "  vars: { early: '%typo.exists()', [dynamicName]: '%early.exists()', after: '%maybe.exists()' },",
         '})',
       ].join('\n'),
-      expected: ['unknown-variable: Undefined environment variable %typo'],
+      expected: [],
     },
     {
-      name: 'a spread in vars opens the scope only from its own position',
+      name: 'a spread in vars makes every var body uncheckable',
       code: [
         "import { r4 } from 'fhirpath-ts/r4'",
         "r4.evaluate('%late.exists()', patient, { vars: { early: '%typo.exists()', ...shared, after: '%maybe.exists()' } })",
       ].join('\n'),
-      expected: ['unknown-variable: Undefined environment variable %typo'],
+      expected: [],
+    },
+    {
+      name: 'an options spread does not leave a stale type claim',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%x.status', patient, {",
+        "  env: { x: observation }, envTypes: { x: { type: 'Patient' } }, ...unknownOptions,",
+        '})',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a vars spread does not analyze an overwritten expression',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%bad', patient, { vars: { bad: '%typo', ...{ bad: 'true' } } })",
+      ].join('\n'),
+      expected: [],
     },
   ]
 

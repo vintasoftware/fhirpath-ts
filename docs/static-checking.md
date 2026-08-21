@@ -127,17 +127,21 @@ and receivers whose engine type cannot be established. `--strict` promotes
 warnings to errors. A successful run with warnings says `no errors found`, not
 `no problems found`.
 
-Literal `vars` expressions in `EvaluateOptions` are checked in declaration
-order on every supported engine call. Each expression sees the call environment
-and earlier vars; projection vars also see `%rowIndex` and `%rowTotal`.
+Literal `vars` expressions in `EvaluateOptions` are checked in final object
+order when every key is statically known. Each expression sees the call
+environment and earlier vars; projection vars also see `%rowIndex` and
+`%rowTotal`. A dynamic key or spread can overwrite a value without moving its
+key's object order, so individual var bodies in such an object are reported as
+`[warning:skipped]` instead of being checked against an order the source cannot
+prove.
 
 Inline `env` and `vars` keys declare the variable names an expression may use.
 A computed string-literal key (`['name']: …`) reads like a plain one. A
 construct that binds names the source cannot list — another computed key, a
-spread, or a non-literal options object — opens the call's variable scope from
-where it binds. An unresolved `%variable` at an open-scope site may exist at
-runtime, so it is reported as `[warning:unchecked-variable]` instead of an
-unknown-variable error; `--strict` promotes it like any other warning.
+spread, or a non-literal options object — opens the call's variable scope. An
+unresolved `%variable` at an open-scope site may exist at runtime, so it is
+reported as `[warning:unchecked-variable]` instead of an unknown-variable
+error; `--strict` promotes it like any other warning.
 
 The command exits with a non-zero status when it reports an error diagnostic.
 Warnings, such as possible regular expression backtracking, do not fail the run.

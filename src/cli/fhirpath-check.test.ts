@@ -344,6 +344,27 @@ describe('fhirpath-check CLI', () => {
     expect(strict.output).toContain('[unchecked-variable]')
   })
 
+  it('does not trust declarations or var bodies that a spread may overwrite', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-overwritten-options-'))
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%x.status', patient, {",
+        "  env: { x: observation }, envTypes: { x: { type: 'Patient' } }, ...unknownOptions,",
+        '})',
+        "r4.evaluate('%bad', patient, { vars: { bad: '%typo', ...{ bad: 'true' } } })",
+      ].join('\n')
+    )
+
+    const result = run(['--no-import', 'source.ts'], directory)
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('warning:unchecked-variable')
+    expect(result.output).toContain('warning:skipped')
+    expect(result.output).not.toContain('unknown-element')
+    expect(result.output).not.toContain('%typo')
+  })
+
   it('resolves tsconfig paths from the config file directory, not the working directory', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-tsconfig-paths-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })

@@ -383,16 +383,36 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     return ts.isIdentifier(current) ? current.text : undefined
   }
 
-  /** Strips wrappers that keep an initializer's identity: parens, `as`, `satisfies`. */
+  /** Strips source wrappers that keep an expression's runtime identity. */
   function unwrapped(node: TS.Expression | undefined): TS.Expression | undefined {
     let current = node
     while (
       current !== undefined &&
-      (ts.isParenthesizedExpression(current) || ts.isAsExpression(current) || ts.isSatisfiesExpression(current))
+      (ts.isParenthesizedExpression(current) ||
+        ts.isAsExpression(current) ||
+        ts.isSatisfiesExpression(current) ||
+        ts.isTypeAssertionExpression(current) ||
+        ts.isNonNullExpression(current))
     ) {
       current = current.expression
     }
     return current
+  }
+
+  /** Class bindings made reachable by one immutable initializer or default export. */
+  function bindingTargets(node: TS.Expression | undefined): string[] {
+    const target = unwrapped(node)
+    if (target === undefined) {
+      return []
+    }
+    if (ts.isIdentifier(target)) {
+      return [target.text]
+    }
+    if (!ts.isClassExpression(target)) {
+      return []
+    }
+    const { name, baseName } = heritageOf(target)
+    return [...(name === undefined ? [] : [name]), ...(baseName === undefined ? [] : [baseName])]
   }
 
   /**
@@ -432,6 +452,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
           }
         }
       } else if (ts.isVariableStatement(statement)) {
+        const immutable = (statement.declarationList.flags & ts.NodeFlags.Const) !== 0
         for (const declaration of statement.declarationList.declarations) {
           if (!ts.isIdentifier(declaration.name)) {
             continue
@@ -440,19 +461,9 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
           if (isExported(statement)) {
             exported.add(name)
           }
-          const initializer = unwrapped(declaration.initializer)
-          if (initializer === undefined) {
-            continue
-          }
-          if (ts.isIdentifier(initializer)) {
-            addAlias(name, initializer.text)
-          } else if (ts.isClassExpression(initializer)) {
-            const heritage = heritageOf(initializer)
-            if (heritage.name !== undefined) {
-              addAlias(name, heritage.name)
-            }
-            if (heritage.baseName !== undefined) {
-              addAlias(name, heritage.baseName)
+          if (immutable) {
+            for (const target of bindingTargets(declaration.initializer)) {
+              addAlias(name, target)
             }
           }
         }
@@ -462,8 +473,10 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
             exported.add((element.propertyName ?? element.name).text)
           }
         }
-      } else if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
-        exported.add(statement.expression.text)
+      } else if (ts.isExportAssignment(statement)) {
+        for (const target of bindingTargets(statement.expression)) {
+          exported.add(target)
+        }
       }
     }
     return { exported, aliases }
@@ -563,7 +576,13 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
               classRoot,
               tsAst
             )) {
-              if (candidate.expression === undefined) {
+              if (candidate.uncheckable === 'dynamic-vars') {
+                skip(
+                  candidate.node,
+                  'dynamic-expression',
+                  `${callee}(...) var expressions not analyzed: their final names, values, or order are dynamic`
+                )
+              } else if (candidate.expression === undefined) {
                 skip(
                   candidate.node,
                   'dynamic-expression',

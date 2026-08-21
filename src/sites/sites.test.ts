@@ -115,6 +115,21 @@ describe('expression site extraction', () => {
     ])
   })
 
+  it('reports one coverage gap when dynamic vars make their final order unknowable', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "r4.evaluate('%value', patient, { vars: { value: '%typo', ...shared } })",
+    ].join('\n')
+    const result = createSiteScanner(ts)(source, 'sample.ts')
+    expect(result.sites.map(site => site.expression)).toEqual(['%value'])
+    expect(result.skipped.map(site => [site.reason, site.message])).toEqual([
+      [
+        'dynamic-expression',
+        'evaluate(...) var expressions not analyzed: their final names, values, or order are dynamic',
+      ],
+    ])
+  })
+
   it('leaves non-literal helper arguments and non-object shapes alone', () => {
     const source = [
       "import { r4 } from 'fhirpath-ts/r4'", // r4 is a known engine, so only the argument shapes decide
@@ -393,6 +408,9 @@ describe('DTO export reachability', () => {
     expect(
       loadableOf([...dto, 'const Alias = ProblemRow', 'const Out = Alias', 'export default Out'].join('\n'))
     ).toEqual({ ProblemRow: true })
+    expect(loadableOf([...dto, 'const Alias = ProblemRow', 'export default (Alias as unknown)'].join('\n'))).toEqual({
+      ProblemRow: true,
+    })
   })
 
   it('reads a DTO reached through an exported subclass expression as loadable', () => {
@@ -402,12 +420,27 @@ describe('DTO export reachability', () => {
     expect(loadableOf([...dto, 'export default class extends ProblemRow {}'].join('\n'))).toEqual({
       ProblemRow: true,
     })
+    expect(loadableOf([...dto, 'export default (class extends ProblemRow {})'].join('\n'))).toEqual({
+      ProblemRow: true,
+    })
   })
 
   it('still reads a genuinely module-private DTO as unloadable', () => {
     expect(loadableOf(dto.join('\n'))).toEqual({ ProblemRow: false })
     // A local alias that never reaches an export does not make it loadable.
     expect(loadableOf([...dto, 'const Private = ProblemRow'].join('\n'))).toEqual({ ProblemRow: false })
+    // A mutable binding may no longer hold its initializer when the loader
+    // enumerates the module, so it cannot prove reachability.
+    expect(
+      loadableOf(
+        [
+          ...dto,
+          "class OtherRow extends defineDto('Condition') {}",
+          'export let Row = ProblemRow',
+          'Row = OtherRow',
+        ].join('\n')
+      )
+    ).toEqual({ ProblemRow: false })
   })
 })
 

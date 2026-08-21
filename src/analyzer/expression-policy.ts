@@ -340,17 +340,14 @@ export interface OptionScopes<N> {
   vars: Record<string, SiteVariable>
   /**
    * The options bind variables whose names the source cannot enumerate before
-   * any var expression runs: a spread or unresolvable key in the options object
-   * itself, in `env`/`envTypes`/`varTypes`, or an `env` that is not an object
-   * literal. A `vars` entry with no `name` opens the scope at its own position
-   * instead (see `callExpressionCandidates`).
+   * any var expression runs: an unresolvable options property, or an open
+   * `env`/`envTypes`/`varTypes` object.
    */
-  open: boolean
-  /**
-   * Ordered `vars` entries. An entry with no `name` binds names the source
-   * cannot know; a `spread` entry additionally holds no expression of its own.
-   */
-  expressions: (ExpressionCandidate<N> & { name?: string; spread?: true })[]
+  openBeforeVars: boolean
+  /** Whether the completed vars object may bind additional names. */
+  openAfterVars: boolean
+  /** Final ordered `vars` entries, or one coverage gap when their order is dynamic. */
+  expressions: (ExpressionCandidate<N> & { name?: string })[]
 }
 
 /** Parse one literal EvaluateOptions object into environment and ordered var scopes. */
@@ -359,77 +356,108 @@ export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes
   if (properties === undefined) {
     return undefined
   }
-  const envValues = optionValue(properties, 'env')
-  const envDeclarations = optionValue(properties, 'envTypes')
-  const varValues = optionValue(properties, 'vars')
-  const varDeclarations = optionValue(properties, 'varTypes')
+  const lastUnknown = properties.findLastIndex(property => property.name === undefined)
+  const envValues = optionValue(properties, 'env', lastUnknown)
+  const envDeclarations = optionValue(properties, 'envTypes', lastUnknown)
+  const varValues = optionValue(properties, 'vars', lastUnknown)
+  const varDeclarations = optionValue(properties, 'varTypes', lastUnknown)
   const varsProperties = varValues === undefined ? [] : ast.properties(varValues)
+  const envScope = variablesFromPair(envValues, envDeclarations, ast)
+  const varScope = variablesFromPair(varValues, varDeclarations, ast)
+  const optionsOpen =
+    lastUnknown >= 0 && [envValues, envDeclarations, varValues, varDeclarations].some(value => value === undefined)
+  const openBeforeVars = optionsOpen || envScope.valuesOpen || envScope.declarationsOpen || varScope.declarationsOpen
+  const dynamicVars = varsProperties === undefined || varsProperties.some(property => property.name === undefined)
   return {
-    env: variablesFromPair(envValues, envDeclarations, ast),
-    vars: variablesFromPair(varValues, varDeclarations, ast),
-    open:
-      properties.some(property => property.name === undefined) ||
-      bindsUnknownNames(envValues, ast) ||
-      bindsUnknownNames(envDeclarations, ast) ||
-      bindsUnknownNames(varDeclarations, ast),
+    env: envScope.variables,
+    vars: varScope.variables,
+    openBeforeVars,
+    openAfterVars: openBeforeVars || dynamicVars,
     expressions:
       varValues === undefined
         ? []
-        : varsProperties === undefined
-          ? [{ node: varValues }]
-          : varsProperties.map(property => {
-              if (property.spread === true) {
-                return { node: property.value, spread: true as const }
-              }
-              const entry = ast.string(property.value)
-              return {
-                node: property.value,
-                ...(property.name !== undefined && { name: bareVariableName(property.name) }),
-                ...(entry !== undefined && { expression: entry.expression }),
-              }
-            }),
+        : dynamicVars
+          ? [{ node: varValues, uncheckable: 'dynamic-vars' as const }]
+          : finalVarExpressions(varsProperties, ast),
   }
 }
 
-/** Whether an option object may bind variable names the source cannot list. */
-function bindsUnknownNames<N>(node: N | undefined, ast: ExpressionAst<N>): boolean {
-  if (node === undefined) {
-    return false
+/** Final values in Object.entries order when every vars key is statically known. */
+function finalVarExpressions<N>(
+  properties: readonly { name: string | undefined; value: N }[],
+  ast: ExpressionAst<N>
+): (ExpressionCandidate<N> & { name: string })[] {
+  const order: string[] = []
+  const values = new Map<string, N>()
+  for (const property of properties) {
+    if (property.name === undefined) {
+      continue
+    }
+    const name = bareVariableName(property.name)
+    if (!values.has(name)) {
+      order.push(name)
+    }
+    values.set(name, property.value)
   }
-  const properties = ast.properties(node)
-  return properties === undefined || properties.some(property => property.name === undefined)
+  return order.flatMap(name => {
+    const node = values.get(name)
+    if (node === undefined) {
+      return []
+    }
+    const entry = ast.string(node)
+    return [{ node, name, ...(entry !== undefined && { expression: entry.expression }) }]
+  })
 }
 
 function variablesFromPair<N>(
   values: N | undefined,
   declared: N | undefined,
   ast: ExpressionAst<N>
-): Record<string, SiteVariable> {
+): {
+  variables: Record<string, SiteVariable>
+  valuesOpen: boolean
+  declarationsOpen: boolean
+} {
   const variables: Record<string, SiteVariable> = {}
-  for (const property of values === undefined ? [] : (ast.properties(values) ?? [])) {
+  const valueProperties = values === undefined ? [] : ast.properties(values)
+  const declarationProperties = declared === undefined ? [] : ast.properties(declared)
+  for (const property of valueProperties ?? []) {
     if (property.name !== undefined) {
       variables[bareVariableName(property.name)] = {}
     }
   }
-  for (const property of declared === undefined ? [] : (ast.properties(declared) ?? [])) {
+  const declarations: Record<string, SiteVariable> = {}
+  for (const property of declarationProperties ?? []) {
     if (property.name === undefined) {
+      for (const name of Object.keys(declarations)) {
+        declarations[name] = {}
+      }
       continue
     }
+    const name = bareVariableName(property.name)
     const declaration = typeDeclaration(property.value, ast)
     if (declaration !== undefined) {
-      variables[bareVariableName(property.name)] = declaration
+      declarations[name] = declaration
+    } else if (declarations[name] !== undefined) {
+      declarations[name] = {}
     }
   }
-  return variables
+  return {
+    variables: { ...variables, ...declarations },
+    valuesOpen: valueProperties === undefined || valueProperties.some(property => property.name === undefined),
+    declarationsOpen:
+      declarationProperties === undefined || declarationProperties.some(property => property.name === undefined),
+  }
 }
 
-/** Last statically named property, matching object-literal overwrite semantics. */
+/** Last named property after an unknown write that could replace the option. */
 function optionValue<N>(
   properties: readonly { name: string | undefined; value: N }[] | undefined,
-  name: string
+  name: string,
+  after: number
 ): N | undefined {
   let value: N | undefined
-  for (const property of properties ?? []) {
+  for (const property of properties?.slice(after + 1) ?? []) {
     if (property.name === name) {
       value = property.value
     }
@@ -503,6 +531,8 @@ export interface ExpressionAst<N> {
 export interface ExpressionCandidate<N> {
   node: N
   expression?: string
+  /** The node contains expressions, but their final names/order cannot be proven. */
+  uncheckable?: 'dynamic-vars'
 }
 
 /** One call expression paired with the source facts visible at that exact point. */
@@ -515,12 +545,11 @@ export interface ContextualExpressionCandidate<N> extends ExpressionCandidate<N>
  * Expand one supported call into every expression-shaped node and its context.
  * EvaluateOptions vars bind in declaration order after env. Project vars also
  * see the row variables, and project columns see the completed var scope.
- * A construct that binds names the source cannot list — a non-literal options
- * argument, a spread, a computed key — marks the scope open from where it
- * binds: env-level openness reaches every expression, while a dynamic `vars`
- * entry reaches only the entries after it and the main expression. Keeping
- * this here gives both AST walkers one state transition instead of parallel
- * special cases.
+ * A construct that binds names the source cannot list marks the relevant scope
+ * open. Dynamic `vars` keys also make the final expression values and
+ * Object.entries order unknowable: a later spread can overwrite an earlier
+ * value while retaining its original key position. Such var bodies become one
+ * explicit coverage gap instead of producing false diagnostics.
  */
 export function callExpressionCandidates<N>(
   policy: CallSitePolicy,
@@ -534,14 +563,14 @@ export function callExpressionCandidates<N>(
   }
   const options = policy.optionsArg === undefined ? undefined : argumentAt(policy.optionsArg)
   const scopes = options === undefined ? undefined : optionScopes(options, ast)
-  const envOpen = options !== undefined && (scopes === undefined || scopes.open)
-  const open = envOpen || (scopes?.expressions.some(entry => entry.name === undefined) ?? false)
+  const openBeforeVars = options !== undefined && (scopes === undefined || scopes.openBeforeVars)
+  const openAfterVars = options !== undefined && (scopes === undefined || scopes.openAfterVars)
   const base = siteContext(policy, argumentAt, classRoot, ast, {
     ...scopes?.env,
     ...scopes?.vars,
     ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
   })
-  const context: SiteContext = open ? { ...base, openVariables: true } : base
+  const context: SiteContext = openAfterVars ? { ...base, openVariables: true } : base
   const candidates: ContextualExpressionCandidate<N>[] = expressionCandidates(argument, policy.shape, ast).map(
     candidate => ({
       ...candidate,
@@ -559,24 +588,20 @@ export function callExpressionCandidates<N>(
     ...scopes.env,
     ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
   }
-  let boundUnknown = envOpen
   for (const entry of scopes.expressions) {
-    if (entry.spread !== true) {
-      candidates.push({
-        node: entry.node,
-        ...(entry.expression !== undefined && { expression: entry.expression }),
-        context: {
-          ...base,
-          variables: { ...variables },
-          ...(boundUnknown && { openVariables: true as const }),
-        },
-        source: 'option-var',
-      })
-    }
+    candidates.push({
+      node: entry.node,
+      ...(entry.expression !== undefined && { expression: entry.expression }),
+      ...(entry.uncheckable !== undefined && { uncheckable: entry.uncheckable }),
+      context: {
+        ...base,
+        variables: { ...variables },
+        ...(openBeforeVars && { openVariables: true as const }),
+      },
+      source: 'option-var',
+    })
     if (entry.name !== undefined) {
       variables[entry.name] = scopes.vars[entry.name] ?? {}
-    } else {
-      boundUnknown = true
     }
   }
   return candidates

@@ -249,7 +249,7 @@ export function analyzeSite(
             ...diagnostic,
             severity: 'warning' as const,
             code: 'unchecked-variable',
-            message: `Environment variable %${diagnostic.name} was not checked: a computed key or spread hides some of the call's env/vars names`,
+            message: `Environment variable %${diagnostic.name} was not checked: the call's env/vars names are not fully visible in source`,
           },
         ]
       })
