@@ -9,7 +9,7 @@
  */
 /* v8 ignore file -- covered end-to-end as a subprocess in fhirpath-check.test.ts */
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 
 import ts from 'typescript'
 
@@ -62,18 +62,35 @@ function sourceProgram(files: readonly string[]): ts.Program | undefined {
   if (files.length === 0) {
     return undefined
   }
-  const configPath = ts.findConfigFile(process.cwd(), ts.sys.fileExists)
-  let options: ts.CompilerOptions = {
+  const defaults: ts.CompilerOptions = {
     allowJs: true,
-    module: ts.ModuleKind.NodeNext,
-    moduleResolution: ts.ModuleResolutionKind.NodeNext,
     skipLibCheck: true,
     target: ts.ScriptTarget.Latest,
   }
+  const nodeNext: ts.CompilerOptions = {
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+  }
+  let options: ts.CompilerOptions = { ...defaults, ...nodeNext }
+  const configPath = ts.findConfigFile(process.cwd(), ts.sys.fileExists)
   if (configPath !== undefined) {
     const config = ts.readConfigFile(configPath, ts.sys.readFile)
     if (config.error === undefined) {
-      options = ts.parseJsonConfigFileContent(config.config, ts.sys, process.cwd()).options
+      // Resolve `extends`/`paths` from the config's own directory, and layer
+      // the declared options over the defaults instead of replacing them —
+      // a `strict`-only tsconfig must not lose the module resolution the
+      // checker needs to follow package exports. The NodeNext pair applies
+      // only when the config declares neither half, so an explicit
+      // module/moduleResolution keeps TypeScript's own pairing rules.
+      const declared = ts.parseJsonConfigFileContent(
+        config.config,
+        ts.sys,
+        dirname(configPath),
+        undefined,
+        configPath
+      ).options
+      const resolution = declared.module === undefined && declared.moduleResolution === undefined ? nodeNext : {}
+      options = { ...defaults, ...resolution, ...declared }
     }
   }
   return ts.createProgram({ rootNames: files.map(file => resolve(file)), options })

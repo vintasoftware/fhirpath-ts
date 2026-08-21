@@ -617,6 +617,32 @@ describe('analyzeSite', () => {
     expect(analyzeSite(site, { ...options, variables: { known: {} } }).map(d => d.code)).toEqual(['unknown-variable'])
   })
 
+  it('merges inline site variables with the caller-supplied ones', () => {
+    expect(
+      analyzeSite(
+        { expression: '%inline = %loaded', variables: { inline: {} } },
+        { ...options, variables: { loaded: {} } }
+      )
+    ).toEqual([])
+    // Inline site variables are not a complete engine context: with a declared
+    // root and no loaded engine variables, an unknown name stays inconclusive.
+    expect(
+      analyzeSite(
+        { expression: '%inline = %possibleEngineDefault', inputType: 'Patient', variables: { inline: {} } },
+        options
+      )
+    ).toEqual([])
+  })
+
+  it('treats unresolved variables at an open-scope site as unchecked, not unknown', () => {
+    const site = { expression: '%known = %maybe', openVariables: true as const }
+    // Without reportUnchecked (the ESLint rule) the gap stays quiet.
+    expect(analyzeSite(site, { ...options, variables: { known: {} } })).toEqual([])
+    const warned = analyzeSite(site, { ...options, variables: { known: {} }, reportUnchecked: true })
+    expect(warned.map(d => [d.severity, d.code])).toEqual([['warning', 'unchecked-variable']])
+    expect(warned[0]?.message).toContain('%maybe')
+  })
+
   it('can report navigation hidden behind an explicitly untyped variable', () => {
     expect(
       analyzeExpression('%plans.activityz.detail', {
@@ -625,6 +651,8 @@ describe('analyzeSite', () => {
         reportUnchecked: true,
       }).map(diagnostic => diagnostic.code)
     ).toEqual(['unchecked-navigation'])
+    // Off by default: consumers that do not opt in keep getting no warnings.
+    expect(analyzeExpression('%plans.activityz.detail', { model: r4Model, variables: { plans: {} } })).toEqual([])
   })
 
   it('analyzes a DTO column against its fhirType', () => {

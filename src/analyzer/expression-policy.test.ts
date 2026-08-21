@@ -21,7 +21,7 @@ type MiniNode =
   | { kind: 'string'; value: string }
   | { kind: 'boolean'; value: boolean }
   | { kind: 'array'; values: MiniNode[] }
-  | { kind: 'object'; properties: { name: string | undefined; value: MiniNode }[] }
+  | { kind: 'object'; properties: { name: string | undefined; value: MiniNode; spread?: true }[] }
   | { kind: 'dynamic'; label: string }
 
 const miniAst: ExpressionAst<MiniNode> = {
@@ -34,7 +34,7 @@ const miniAst: ExpressionAst<MiniNode> = {
 const stringNode = (value: string): MiniNode => ({ kind: 'string', value })
 const dynamicNode = (label: string): MiniNode => ({ kind: 'dynamic', label })
 const arrayNode = (...values: MiniNode[]): MiniNode => ({ kind: 'array', values })
-const objectNode = (...properties: { name: string | undefined; value: MiniNode }[]): MiniNode => ({
+const objectNode = (...properties: { name: string | undefined; value: MiniNode; spread?: true }[]): MiniNode => ({
   kind: 'object',
   properties,
 })
@@ -96,6 +96,17 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
       "r4.project(input, { value: 'x..1' }, { env: { reports }, vars: { report: 'x..2' } })",
     ].join('\n'),
     expected: 2,
+  },
+  {
+    // Computed string-literal keys read like plain ones; other computed keys and
+    // spreads open the scope but never hide the literal expressions around them.
+    name: 'computed and spread keys in EvaluateOptions',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "r4.evaluate('x..1', patient, { env: { ['known']: 1 }, vars: { ['v']: 'x..2', [computed]: 'x..3' } })",
+      "r4.evaluate('x..4', patient, { ...spreadOptions })",
+    ].join('\n'),
+    expected: 4,
   },
   {
     name: 'common-name helpers without an engine binding are skipped',
@@ -248,6 +259,14 @@ describe('literal call context extraction', () => {
         engine: true,
       })
     ).toBe(false)
+    // Foreign/rebound are conservative file-wide facts, while compiler evidence
+    // proves the exact receiver node — so evidence wins for a name both sets hold.
+    const ambiguous = { foreign: new Set(['fp']), trusted: new Set<string>(), rebound: new Set(['fp']) }
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'engine' }, 'first', 'fp', ambiguous, {
+        engine: true,
+      })
+    ).toBe(true)
   })
 
   it('reads names and complete type declarations from EvaluateOptions', () => {
@@ -318,7 +337,46 @@ describe('literal call context extraction', () => {
       row: { types: ['Observation'], single: true },
     })
     expect(scopes?.expressions).toEqual([{ node: stringNode('%plain'), name: 'row', expression: '%plain' }])
+    // The computed keys in env and envTypes may declare more names than the
+    // source can list.
+    expect(scopes?.open).toBe(true)
     expect(optionScopes(dynamicNode('options'), miniAst)).toBeUndefined()
+  })
+
+  it('marks scopes open only for constructs that bind unknown names', () => {
+    const closed = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: 'a', value: dynamicNode('a') }) },
+        { name: 'vars', value: objectNode({ name: 'v', value: stringNode('%a') }) }
+      ),
+      miniAst
+    )
+    expect(closed?.open).toBe(false)
+    expect(closed?.expressions).toEqual([{ node: stringNode('%a'), name: 'v', expression: '%a' }])
+
+    // A spread in vars is a scope event at its own position, not an expression.
+    const spreadVars = optionScopes(
+      objectNode({
+        name: 'vars',
+        value: objectNode(
+          { name: 'v', value: stringNode('%a') },
+          { name: undefined, value: dynamicNode('rest'), spread: true }
+        ),
+      }),
+      miniAst
+    )
+    expect(spreadVars?.open).toBe(false)
+    expect(spreadVars?.expressions).toEqual([
+      { node: stringNode('%a'), name: 'v', expression: '%a' },
+      { node: dynamicNode('rest'), spread: true },
+    ])
+
+    // An env that is not an object literal, and a spread in the options object
+    // itself, both bind names the source cannot list.
+    expect(optionScopes(objectNode({ name: 'env', value: dynamicNode('bag') }), miniAst)?.open).toBe(true)
+    expect(optionScopes(objectNode({ name: undefined, value: dynamicNode('rest'), spread: true }), miniAst)?.open).toBe(
+      true
+    )
   })
 
   it('identifies static and unread nodes in every supported expression container', () => {
@@ -679,6 +737,53 @@ describe('the walkers agree on a site’s context', () => {
         '}',
       ].join('\n'),
       expected: [],
+    },
+    {
+      name: 'a computed env key opens the scope, so an unresolved variable is not judged',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%hidden.exists()', patient, { env: { [name]: value } })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a computed string-literal env key declares its name like a plain one',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%knownn.exists()', patient, { env: { ['known']: value } })",
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %knownn'],
+    },
+    {
+      name: 'a spread in env opens the scope',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%maybe.exists()', patient, { env: { ...shared } })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a non-literal options argument opens the scope',
+      code: ["import { r4 } from 'fhirpath-ts/r4'", "r4.evaluate('%maybe.exists()', patient, options)"].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a computed vars entry opens the scope only from its own position',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%late.exists()', patient, {",
+        "  vars: { early: '%typo.exists()', [dynamicName]: '%early.exists()', after: '%maybe.exists()' },",
+        '})',
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %typo'],
+    },
+    {
+      name: 'a spread in vars opens the scope only from its own position',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%late.exists()', patient, { vars: { early: '%typo.exists()', ...shared, after: '%maybe.exists()' } })",
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %typo'],
     },
   ]
 

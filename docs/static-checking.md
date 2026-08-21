@@ -114,8 +114,12 @@ pnpm exec fhirpath-check --no-import "src/**/*.ts"
 
 The CLI asks TypeScript for the resolved receiver type, so an engine imported,
 aliased, or re-exported through a local module is recognized as a
-`FhirPathEngine`. If a project cannot be type-resolved, `--local-imports` applies
-the broader syntax-only policy that trusts relative imports.
+`FhirPathEngine`. It reads the nearest `tsconfig.json`, resolves `extends` and
+`paths` from the config file's own directory, and layers the declared options
+over its defaults — `allowJs`, `skipLibCheck`, and NodeNext module resolution
+unless the config declares its own `module` or `moduleResolution`. If a project
+cannot be type-resolved, `--local-imports` applies the broader syntax-only
+policy that trusts relative imports.
 
 Calls that look like supported expression sites but cannot be read are reported
 as `[warning:skipped]`. This includes dynamic strings, interpolated templates,
@@ -126,6 +130,14 @@ warnings to errors. A successful run with warnings says `no errors found`, not
 Literal `vars` expressions in `EvaluateOptions` are checked in declaration
 order on every supported engine call. Each expression sees the call environment
 and earlier vars; projection vars also see `%rowIndex` and `%rowTotal`.
+
+Inline `env` and `vars` keys declare the variable names an expression may use.
+A computed string-literal key (`['name']: …`) reads like a plain one. A
+construct that binds names the source cannot list — another computed key, a
+spread, or a non-literal options object — opens the call's variable scope from
+where it binds. An unresolved `%variable` at an open-scope site may exist at
+runtime, so it is reported as `[warning:unchecked-variable]` instead of an
+unknown-variable error; `--strict` promotes it like any other warning.
 
 The command exits with a non-zero status when it reports an error diagnostic.
 Warnings, such as possible regular expression backtracking, do not fail the run.
@@ -147,7 +159,9 @@ The CLI finds DTOs by convention:
 
 - DTO modules use the `*.dto.ts` suffix by default. Repeat `--dtos "<glob>"` to
   use another location.
-- DTO classes must be exported because a module loader can inspect only exports.
+- DTO classes must be exported because a module loader can inspect only
+  exports — directly, through an exported alias (`export const Row =
+  ProblemRow`), or through an exported subclass.
 - Engines do not need to be exported. The checker records engines created while
   it imports the selected DTO modules.
 - Put engines in the selected modules or include their modules in `--dtos`.
@@ -192,7 +206,7 @@ through such a value cannot be verified, and each one is reported as
 
 A DTO class that a matched module does not export is reported as
 `[warning:unloaded-dto]`. The import pass cannot load it, so its full check
-cannot run. Export the class, or a class that extends it.
+cannot run. Export the class, an alias to it, or a class that extends it.
 
 ## Source-only limits
 

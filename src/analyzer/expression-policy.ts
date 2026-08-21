@@ -225,6 +225,13 @@ export interface SiteContext {
   dto?: true
   /** Inline per-call environment and row-variable declarations visible to this site. */
   variables?: Readonly<Record<string, SiteVariable>>
+  /**
+   * The call binds variables the source cannot name: a computed key, a spread,
+   * or a non-literal env/vars object. An unresolved `%variable` at such a site
+   * may exist at runtime, so it is a coverage gap rather than an error — see
+   * `analyzeSite`.
+   */
+  openVariables?: true
 }
 
 /** Analyzer facts a source literal can declare; ordering requires runtime knowledge. */
@@ -331,7 +338,19 @@ export function siteContext<N>(
 export interface OptionScopes<N> {
   env: Record<string, SiteVariable>
   vars: Record<string, SiteVariable>
-  expressions: (ExpressionCandidate<N> & { name?: string })[]
+  /**
+   * The options bind variables whose names the source cannot enumerate before
+   * any var expression runs: a spread or unresolvable key in the options object
+   * itself, in `env`/`envTypes`/`varTypes`, or an `env` that is not an object
+   * literal. A `vars` entry with no `name` opens the scope at its own position
+   * instead (see `callExpressionCandidates`).
+   */
+  open: boolean
+  /**
+   * Ordered `vars` entries. An entry with no `name` binds names the source
+   * cannot know; a `spread` entry additionally holds no expression of its own.
+   */
+  expressions: (ExpressionCandidate<N> & { name?: string; spread?: true })[]
 }
 
 /** Parse one literal EvaluateOptions object into environment and ordered var scopes. */
@@ -348,12 +367,20 @@ export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes
   return {
     env: variablesFromPair(envValues, envDeclarations, ast),
     vars: variablesFromPair(varValues, varDeclarations, ast),
+    open:
+      properties.some(property => property.name === undefined) ||
+      bindsUnknownNames(envValues, ast) ||
+      bindsUnknownNames(envDeclarations, ast) ||
+      bindsUnknownNames(varDeclarations, ast),
     expressions:
       varValues === undefined
         ? []
         : varsProperties === undefined
           ? [{ node: varValues }]
           : varsProperties.map(property => {
+              if (property.spread === true) {
+                return { node: property.value, spread: true as const }
+              }
               const entry = ast.string(property.value)
               return {
                 node: property.value,
@@ -362,6 +389,15 @@ export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes
               }
             }),
   }
+}
+
+/** Whether an option object may bind variable names the source cannot list. */
+function bindsUnknownNames<N>(node: N | undefined, ast: ExpressionAst<N>): boolean {
+  if (node === undefined) {
+    return false
+  }
+  const properties = ast.properties(node)
+  return properties === undefined || properties.some(property => property.name === undefined)
 }
 
 function variablesFromPair<N>(
@@ -451,12 +487,14 @@ export interface ExpressionAst<N> {
   /** The node's value as a `true`/`false` literal, or undefined when it is not one. */
   boolean(node: N): boolean | undefined
   /**
-   * The plain (non-spread) properties of an object literal, including shorthand
-   * properties whose value is the identifier itself, or
-   * undefined when the node is not an object literal. `name` is the property's
-   * statically-known key — undefined for computed keys.
+   * The properties of an object literal in source order, including shorthand
+   * properties whose value is the identifier itself, or undefined when the node
+   * is not an object literal. `name` is the property's statically-known key —
+   * a plain or computed string literal, or an identifier — and undefined for
+   * other computed keys. A spread carries `spread: true`, no name, and the
+   * spread expression as its value.
    */
-  properties(node: N): { name: string | undefined; value: N }[] | undefined
+  properties(node: N): { name: string | undefined; value: N; spread?: true }[] | undefined
   /** The elements of an array literal, or undefined when the node is not one. */
   elements(node: N): N[] | undefined
 }
@@ -477,8 +515,12 @@ export interface ContextualExpressionCandidate<N> extends ExpressionCandidate<N>
  * Expand one supported call into every expression-shaped node and its context.
  * EvaluateOptions vars bind in declaration order after env. Project vars also
  * see the row variables, and project columns see the completed var scope.
- * Keeping this here gives both AST walkers one state transition instead of
- * parallel special cases.
+ * A construct that binds names the source cannot list — a non-literal options
+ * argument, a spread, a computed key — marks the scope open from where it
+ * binds: env-level openness reaches every expression, while a dynamic `vars`
+ * entry reaches only the entries after it and the main expression. Keeping
+ * this here gives both AST walkers one state transition instead of parallel
+ * special cases.
  */
 export function callExpressionCandidates<N>(
   policy: CallSitePolicy,
@@ -492,12 +534,14 @@ export function callExpressionCandidates<N>(
   }
   const options = policy.optionsArg === undefined ? undefined : argumentAt(policy.optionsArg)
   const scopes = options === undefined ? undefined : optionScopes(options, ast)
-  const rowVariables = policy.rowVariables === true ? PROJECT_ROW_VARIABLES : undefined
-  const context = siteContext(policy, argumentAt, classRoot, ast, {
+  const envOpen = options !== undefined && (scopes === undefined || scopes.open)
+  const open = envOpen || (scopes?.expressions.some(entry => entry.name === undefined) ?? false)
+  const base = siteContext(policy, argumentAt, classRoot, ast, {
     ...scopes?.env,
     ...scopes?.vars,
-    ...rowVariables,
+    ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
   })
+  const context: SiteContext = open ? { ...base, openVariables: true } : base
   const candidates: ContextualExpressionCandidate<N>[] = expressionCandidates(argument, policy.shape, ast).map(
     candidate => ({
       ...candidate,
@@ -513,17 +557,26 @@ export function callExpressionCandidates<N>(
   }
   const variables: Record<string, SiteVariable> = {
     ...scopes.env,
-    ...rowVariables,
+    ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
   }
-  for (const expression of scopes.expressions) {
-    candidates.push({
-      node: expression.node,
-      ...(expression.expression !== undefined && { expression: expression.expression }),
-      context: { ...context, variables: { ...variables } },
-      source: 'option-var',
-    })
-    if (expression.name !== undefined) {
-      variables[expression.name] = scopes.vars[expression.name] ?? {}
+  let boundUnknown = envOpen
+  for (const entry of scopes.expressions) {
+    if (entry.spread !== true) {
+      candidates.push({
+        node: entry.node,
+        ...(entry.expression !== undefined && { expression: entry.expression }),
+        context: {
+          ...base,
+          variables: { ...variables },
+          ...(boundUnknown && { openVariables: true as const }),
+        },
+        source: 'option-var',
+      })
+    }
+    if (entry.name !== undefined) {
+      variables[entry.name] = scopes.vars[entry.name] ?? {}
+    } else {
+      boundUnknown = true
     }
   }
   return candidates
@@ -540,8 +593,12 @@ export function expressionCandidates<N>(
     return [{ node: argument, ...(entry !== undefined && { expression: entry.expression }) }]
   }
   if (shape === 'columns') {
-    // A non-object may be a DTO class, which holds no source expressions.
-    return (ast.properties(argument) ?? []).flatMap(({ value }) => {
+    // A non-object may be a DTO class, which holds no source expressions. A
+    // spread holds no column literal of its own.
+    return (ast.properties(argument) ?? []).flatMap(({ value, spread }) => {
+      if (spread === true) {
+        return []
+      }
       const entry = ast.string(value)
       if (entry !== undefined) {
         return [{ node: value, expression: entry.expression }]
@@ -565,9 +622,12 @@ export function expressionCandidates<N>(
       const properties = ast.properties(value)
       return properties === undefined
         ? [{ node: value }]
-        : properties.map(property => {
+        : properties.flatMap(property => {
+            if (property.spread === true) {
+              return []
+            }
             const entry = ast.string(property.value)
-            return { node: property.value, ...(entry !== undefined && { expression: entry.expression }) }
+            return [{ node: property.value, ...(entry !== undefined && { expression: entry.expression }) }]
           })
     })
   }

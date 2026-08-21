@@ -201,12 +201,15 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
 
 /**
  * Analyzes one source site with only facts visible in that file. A declared root
- * does not prove which variables the later call provides. DTO sites may also
- * receive variables and functions from base classes, other modules, or
- * `project()`. Such sites omit unknown-variable diagnostics and report an
- * unknown function only when it resembles a local column. A DTO without a known
- * root receives syntax checks only. Use `analyzeDto` when the class and engine
- * are loaded.
+ * does not prove which variables the later call provides. A site whose call
+ * binds variables the source cannot name (`openVariables`) may resolve any
+ * `%variable` at runtime, so an unresolved one is reported as an
+ * `unchecked-variable` warning under `reportUnchecked` instead of an error.
+ * DTO sites may also receive variables and functions from base classes, other
+ * modules, or `project()`. Such sites omit unknown-variable diagnostics and
+ * report an unknown function only when it resembles a local column. A DTO
+ * without a known root receives syntax checks only. Use `analyzeDto` when the
+ * class and engine are loaded.
  */
 export function analyzeSite(
   site: {
@@ -215,6 +218,8 @@ export function analyzeSite(
     dto?: true
     /** Variables declared by the expression's call site, such as inline env/vars options. */
     variables?: Readonly<Record<string, DeclaredVariable>>
+    /** The call also binds variables the source cannot name — a computed key or spread in env/vars. */
+    openVariables?: true
     /** Functions the site's file declares — a DTO's `@column` fields (see `columnFunctionDeclaration`). */
     functions?: Readonly<Record<string, DeclaredFunction>>
   },
@@ -231,6 +236,24 @@ export function analyzeSite(
   }
   const diagnostics = analyzeExpression(site.expression, merged)
   if (site.dto !== true) {
+    if (site.openVariables === true) {
+      return diagnostics.flatMap(diagnostic => {
+        if (diagnostic.code !== 'unknown-variable') {
+          return [diagnostic]
+        }
+        if (options?.reportUnchecked !== true) {
+          return []
+        }
+        return [
+          {
+            ...diagnostic,
+            severity: 'warning' as const,
+            code: 'unchecked-variable',
+            message: `Environment variable %${diagnostic.name} was not checked: a computed key or spread hides some of the call's env/vars names`,
+          },
+        ]
+      })
+    }
     return site.inputType === undefined || options?.variables !== undefined
       ? diagnostics
       : diagnostics.filter(diagnostic => diagnostic.code !== 'unknown-variable')

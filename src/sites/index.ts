@@ -47,6 +47,8 @@ export interface ExpressionSite {
   dto?: true
   /** Inline per-call environment and row-variable declarations visible to this expression. */
   variables?: NonNullable<SiteContext['variables']>
+  /** The call binds variables the source cannot name (a computed key or spread) — see `SiteContext`. */
+  openVariables?: true
   /** Callable DTO columns declared in the same file. */
   functions?: Readonly<Record<string, FileColumnFunction>>
 }
@@ -98,16 +100,25 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
             if (ts.isPropertyAssignment(property)) {
               return [{ name: propertyKeyName(property.name), value: property.initializer }]
             }
-            return ts.isShorthandPropertyAssignment(property)
-              ? [{ name: property.name.text, value: property.name }]
+            if (ts.isShorthandPropertyAssignment(property)) {
+              return [{ name: property.name.text, value: property.name }]
+            }
+            return ts.isSpreadAssignment(property)
+              ? [{ name: undefined, value: property.expression, spread: true as const }]
               : []
           })
         : undefined,
     elements: node => (ts.isArrayLiteralExpression(node) ? [...node.elements] : undefined),
   }
 
-  /** Statically-known property key (`path` in `{ path: ... }` or `{ 'path': ... }`), undefined when computed. */
+  /**
+   * Statically-known property key: `path` in `{ path: ... }`, `{ 'path': ... }`,
+   * or `{ ['path']: ... }`; undefined for other computed keys.
+   */
   function propertyKeyName(name: TS.PropertyName): string | undefined {
+    if (ts.isComputedPropertyName(name)) {
+      return ts.isStringLiteral(name.expression) ? name.expression.text : undefined
+    }
     return ts.isIdentifier(name) || ts.isStringLiteral(name) ? name.text : undefined
   }
 
@@ -372,25 +383,90 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     return ts.isIdentifier(current) ? current.text : undefined
   }
 
-  function exportedNames(source: TS.SourceFile): ReadonlySet<string> {
-    const names = new Set<string>()
+  /** Strips wrappers that keep an initializer's identity: parens, `as`, `satisfies`. */
+  function unwrapped(node: TS.Expression | undefined): TS.Expression | undefined {
+    let current = node
+    while (
+      current !== undefined &&
+      (ts.isParenthesizedExpression(current) || ts.isAsExpression(current) || ts.isSatisfiesExpression(current))
+    ) {
+      current = current.expression
+    }
+    return current
+  }
+
+  /**
+   * The module's exported names, plus what each top-level `const` binding stands
+   * for: `export const Row = ProblemRow` makes the loader enumerate `Row`, so
+   * `ProblemRow` is reachable through it — directly, through an alias chain, or
+   * as the base of an exported anonymous class expression.
+   */
+  function moduleBindings(source: TS.SourceFile): {
+    exported: ReadonlySet<string>
+    aliases: ReadonlyMap<string, readonly string[]>
+  } {
+    const exported = new Set<string>()
+    const aliases = new Map<string, string[]>()
+    const addAlias = (from: string, to: string): void => {
+      const edges = aliases.get(from)
+      if (edges === undefined) {
+        aliases.set(from, [to])
+      } else {
+        edges.push(to)
+      }
+    }
+    const isExported = (statement: TS.Statement): boolean =>
+      (ts.canHaveModifiers(statement) ? (ts.getModifiers(statement) ?? []) : []).some(
+        modifier => modifier.kind === ts.SyntaxKind.ExportKeyword
+      )
     for (const statement of source.statements) {
-      if (ts.isClassDeclaration(statement) && statement.name !== undefined) {
-        const modifiers = ts.getModifiers(statement) ?? []
-        if (modifiers.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
-          names.add(statement.name.text)
+      if (ts.isClassDeclaration(statement) && isExported(statement)) {
+        if (statement.name !== undefined) {
+          exported.add(statement.name.text)
+        } else {
+          // `export default class extends Base {}`: the loader gets the class,
+          // so its base is reachable even though neither has a bound name here.
+          const base = heritageOf(statement).baseName
+          if (base !== undefined) {
+            exported.add(base)
+          }
+        }
+      } else if (ts.isVariableStatement(statement)) {
+        for (const declaration of statement.declarationList.declarations) {
+          if (!ts.isIdentifier(declaration.name)) {
+            continue
+          }
+          const name = declaration.name.text
+          if (isExported(statement)) {
+            exported.add(name)
+          }
+          const initializer = unwrapped(declaration.initializer)
+          if (initializer === undefined) {
+            continue
+          }
+          if (ts.isIdentifier(initializer)) {
+            addAlias(name, initializer.text)
+          } else if (ts.isClassExpression(initializer)) {
+            const heritage = heritageOf(initializer)
+            if (heritage.name !== undefined) {
+              addAlias(name, heritage.name)
+            }
+            if (heritage.baseName !== undefined) {
+              addAlias(name, heritage.baseName)
+            }
+          }
         }
       } else if (ts.isExportDeclaration(statement) && statement.exportClause !== undefined) {
         if (ts.isNamedExports(statement.exportClause)) {
           for (const element of statement.exportClause.elements) {
-            names.add((element.propertyName ?? element.name).text)
+            exported.add((element.propertyName ?? element.name).text)
           }
         }
       } else if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
-        names.add(statement.expression.text)
+        exported.add(statement.expression.text)
       }
     }
-    return names
+    return { exported, aliases }
   }
 
   return function scanExpressionSites(
@@ -507,23 +583,31 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
       ts.forEachChild(node, child => visit(child, nested, nestedClass))
     }
     visit(source, undefined, undefined)
-    const exported = exportedNames(source)
+    const { exported, aliases } = moduleBindings(source)
     const classByName = new Map(
       [...heritage.entries()].flatMap(([node, value]) =>
         ts.isClassLike(node) && value.name !== undefined ? [[value.name, value] as const] : []
       )
     )
+    // From every exported binding, follow alias and extends edges: what the
+    // loader enumerates under any name makes every class behind it analyzable.
     const reachesExport = (name: string): boolean => {
-      for (const exportedName of exported) {
-        let current: string | undefined = exportedName
-        const seen = new Set<string>()
-        while (current !== undefined && !seen.has(current)) {
-          if (current === name) {
-            return true
-          }
-          seen.add(current)
-          current = classByName.get(current)?.baseName
+      const seen = new Set<string>()
+      const frontier = [...exported]
+      while (frontier.length > 0) {
+        const current = frontier.pop() as string
+        if (current === name) {
+          return true
         }
+        if (seen.has(current)) {
+          continue
+        }
+        seen.add(current)
+        const base = classByName.get(current)?.baseName
+        if (base !== undefined) {
+          frontier.push(base)
+        }
+        frontier.push(...(aliases.get(current) ?? []))
       }
       return false
     }

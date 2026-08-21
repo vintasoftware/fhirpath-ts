@@ -322,6 +322,101 @@ describe('fhirpath-check CLI', () => {
     expect(result.output).not.toContain('[warning:skipped]')
   })
 
+  it('reports variables hidden by computed env keys as unchecked, not unknown', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-open-vars-'))
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "const patient = { resourceType: 'Patient' as const }",
+        "r4.evaluate('%hidden.exists()', patient, { env: { [key]: 1 } })",
+      ].join('\n')
+    )
+
+    const result = run(['--no-import', 'source.ts'], directory)
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('warning:unchecked-variable')
+    expect(result.output).toContain('%hidden')
+    expect(result.output).not.toContain('unknown-variable')
+
+    const strict = run(['--strict', '--no-import', 'source.ts'], directory)
+    expect(strict.status).toBe(1)
+    expect(strict.output).toContain('[unchecked-variable]')
+  })
+
+  it('resolves tsconfig paths from the config file directory, not the working directory', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-tsconfig-paths-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    mkdirSync(join(directory, 'lib'))
+    mkdirSync(join(directory, 'app'))
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: {
+          strict: true,
+          allowImportingTsExtensions: true,
+          noEmit: true,
+          baseUrl: '.',
+          paths: { '@app/*': ['./lib/*'] },
+        },
+      })
+    )
+    writeFileSync(
+      join(directory, 'lib', 'engine.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'export const fp = new FhirPathEngine({ model: r4Model })',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'app', 'shared.ts'),
+      [
+        "import { fp } from '@app/engine.ts'",
+        "const patient = { resourceType: 'Patient' as const }",
+        "fp.first('Patient.nam1', patient)",
+      ].join('\n')
+    )
+
+    // The tsconfig sits in an ancestor of the working directory, so its paths
+    // only resolve when parsed relative to its own directory.
+    const result = run(['--no-import', 'shared.ts'], join(directory, 'app'))
+    expect(result.status).toBe(1)
+    expect(result.output).toContain("Element 'nam1' is not defined on FHIR.Patient")
+    expect(result.output).not.toContain('[warning:skipped]')
+  })
+
+  it('keeps its resolution defaults under a partial tsconfig', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-tsconfig-partial-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    // A config declaring neither module nor moduleResolution must not discard
+    // the NodeNext pair the checker needs to follow package exports.
+    writeFileSync(join(directory, 'tsconfig.json'), JSON.stringify({ compilerOptions: { strict: true } }))
+    writeFileSync(
+      join(directory, 'engine.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'export const fp = new FhirPathEngine({ model: r4Model })',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'shared.ts'),
+      [
+        "import { fp } from './engine.ts'",
+        "const patient = { resourceType: 'Patient' as const }",
+        "fp.first('Patient.nam1', patient)",
+      ].join('\n')
+    )
+
+    const result = run(['--no-import', 'shared.ts'], directory)
+    expect(result.status).toBe(1)
+    expect(result.output).toContain("Element 'nam1' is not defined on FHIR.Patient")
+    expect(result.output).not.toContain('[warning:skipped]')
+  })
+
   it('reports skipped dynamic expressions and module-local DTOs, with strict opt-in failure', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-coverage-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })

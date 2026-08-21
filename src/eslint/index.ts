@@ -31,10 +31,13 @@ function isStringLiteral(node: ESTree.Node): node is ESTree.SimpleLiteral & { va
   return node.type === 'Literal' && typeof node.value === 'string'
 }
 
-/** Statically-known property key (`path` in `{ path: ... }` or `{ 'path': ... }`), undefined when computed. */
+/**
+ * Statically-known property key: `path` in `{ path: ... }`, `{ 'path': ... }`,
+ * or `{ ['path']: ... }`; undefined for other computed keys.
+ */
 function propertyKeyName(property: ESTree.Property): string | undefined {
   if (property.computed) {
-    return undefined
+    return isStringLiteral(property.key) ? property.key.value : undefined
   }
   if (property.key.type === 'Identifier') {
     return property.key.name
@@ -48,8 +51,10 @@ const estreeAst: ExpressionAst<ESTree.Node> = {
   boolean: node => (node.type === 'Literal' && typeof node.value === 'boolean' ? node.value : undefined),
   properties: node =>
     node.type === 'ObjectExpression'
-      ? node.properties.flatMap(property =>
-          property.type === 'Property' ? [{ name: propertyKeyName(property), value: property.value }] : []
+      ? node.properties.map(property =>
+          property.type === 'Property'
+            ? { name: propertyKeyName(property), value: property.value }
+            : { name: undefined, value: property.argument, spread: true as const }
         )
       : undefined,
   elements: node => (node.type === 'ArrayExpression' ? node.elements.filter(element => element !== null) : undefined),
