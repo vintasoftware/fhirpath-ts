@@ -114,9 +114,10 @@ pnpm exec fhirpath-check --no-import "src/**/*.ts"
 
 The CLI asks TypeScript for the resolved receiver type, so an engine imported,
 aliased, or re-exported through a local module is recognized as a
-`FhirPathEngine`. It uses the nearest `tsconfig.json` for module resolution,
-including inherited settings and path aliases. If a project cannot be
-type-resolved, `--local-imports` trusts relative imports.
+`FhirPathEngine`. Each selected source file uses its nearest `tsconfig.json` for
+module resolution, including inherited settings and path aliases. One monorepo
+command can therefore check packages with different configurations. If a file
+cannot be type-resolved, `--local-imports` trusts relative imports.
 
 Calls that look like supported expression sites but cannot be read are reported
 as `[warning:skipped]`. This includes dynamic strings, interpolated templates,
