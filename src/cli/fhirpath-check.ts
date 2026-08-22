@@ -15,7 +15,7 @@ import ts from 'typescript'
 
 import { analyzeSite } from '../analyzer/analyze.ts'
 import { r4Model } from '../r4/index.ts'
-import { createSiteScanner, type ExpressionSite, type SiteScanResult } from '../sites/index.ts'
+import { createSiteScanner, type ExpressionSite, type SiteScanner, type SiteScanResult } from '../sites/index.ts'
 import {
   checkDtoModules,
   DEFAULT_DTO_GLOB,
@@ -64,10 +64,7 @@ if (args.files.length === 0 && !args.imports) {
 const dtoGlobs = args.dtoGlobs.length > 0 ? args.dtoGlobs : [DEFAULT_DTO_GLOB]
 
 /** A type-aware program lets the site finder follow imported and aliased engine receivers. */
-function sourceProgram(files: readonly string[]): ts.Program | undefined {
-  if (files.length === 0) {
-    return undefined
-  }
+function sourceProgram(files: readonly string[], configPath: string | undefined): ts.Program {
   const defaults: ts.CompilerOptions = {
     allowJs: true,
     skipLibCheck: true,
@@ -78,7 +75,6 @@ function sourceProgram(files: readonly string[]): ts.Program | undefined {
     moduleResolution: ts.ModuleResolutionKind.NodeNext,
   }
   let options: ts.CompilerOptions = { ...defaults, ...nodeNext }
-  const configPath = ts.findConfigFile(process.cwd(), ts.sys.fileExists)
   if (configPath !== undefined) {
     const config = ts.readConfigFile(configPath, ts.sys.readFile)
     if (config.error === undefined) {
@@ -102,7 +98,37 @@ function sourceProgram(files: readonly string[]): ts.Program | undefined {
   return ts.createProgram({ rootNames: files.map(file => resolve(file)), options })
 }
 
-let scanExpressionSites = createSiteScanner(ts)
+/**
+ * One semantic scanner per tsconfig project. A monorepo command may select
+ * files from packages whose aliases and module settings differ, so each file
+ * starts its config search in its own directory. Files sharing a config share
+ * one Program and TypeChecker.
+ */
+function sourceScanners(files: readonly string[]): ReadonlyMap<string, SiteScanner> {
+  const filesByConfig = new Map<string | undefined, string[]>()
+  for (const file of files) {
+    const absolute = resolve(file)
+    const configPath = ts.findConfigFile(dirname(absolute), ts.sys.fileExists)
+    const grouped = filesByConfig.get(configPath)
+    if (grouped === undefined) {
+      filesByConfig.set(configPath, [absolute])
+    } else {
+      grouped.push(absolute)
+    }
+  }
+
+  const scannersByFile = new Map<string, SiteScanner>()
+  for (const [configPath, groupedFiles] of filesByConfig) {
+    const scanner = createSiteScanner(ts, sourceProgram(groupedFiles, configPath))
+    for (const file of groupedFiles) {
+      scannersByFile.set(file, scanner)
+    }
+  }
+  return scannersByFile
+}
+
+const syntaxScanner = createSiteScanner(ts)
+let semanticScannersByFile: ReadonlyMap<string, SiteScanner> = new Map()
 
 let failures = 0
 let warnings = 0
@@ -138,7 +164,9 @@ function scanOf(file: string): SiteScanResult {
   if (cached !== undefined) {
     return cached
   }
-  const scan = scanExpressionSites(readFileSync(file, 'utf8'), resolve(file), {
+  const absolute = resolve(file)
+  const scanner = semanticScannersByFile.get(absolute) ?? syntaxScanner
+  const scan = scanner(readFileSync(file, 'utf8'), absolute, {
     ...(args.localImports && { localImports: true }),
   })
   scansByFile.set(file, scan)
@@ -159,13 +187,13 @@ for (const file of args.files) {
     process.exit(2)
   }
 }
-if (
-  !args.localImports &&
-  [...scansByFile.values()].some(scan => scan.skipped.some(skipped => skipped.reason === 'unrecognized-receiver'))
-) {
+const unresolvedFiles = args.localImports
+  ? []
+  : args.files.filter(file => scanOf(file).skipped.some(skipped => skipped.reason === 'unrecognized-receiver'))
+if (unresolvedFiles.length > 0) {
   // Pay the Program/TypeChecker cost only when the syntax-only pass found a
   // receiver it could not prove. Most source files need no compiler graph.
-  scanExpressionSites = createSiteScanner(ts, sourceProgram(args.files))
+  semanticScannersByFile = sourceScanners(unresolvedFiles)
   scansByFile.clear()
   for (const file of args.files) {
     scanOf(file)

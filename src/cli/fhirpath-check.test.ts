@@ -486,6 +486,62 @@ describe('fhirpath-check CLI', () => {
     expect(result.output).not.toContain('[warning:skipped]')
   })
 
+  it("uses each selected source file's nearest tsconfig in a monorepo", () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-monorepo-tsconfigs-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: { strict: true, module: 'esnext', moduleResolution: 'bundler' },
+      })
+    )
+
+    const sources: string[] = []
+    for (const packageName of ['one', 'two']) {
+      const packageDirectory = join(directory, 'packages', packageName)
+      mkdirSync(join(packageDirectory, 'src'), { recursive: true })
+      writeFileSync(
+        join(packageDirectory, 'tsconfig.json'),
+        JSON.stringify({
+          extends: '../../tsconfig.json',
+          compilerOptions: {
+            allowImportingTsExtensions: true,
+            noEmit: true,
+            baseUrl: '.',
+            paths: { [`@${packageName}-engine`]: ['./src/engine.ts'] },
+          },
+        })
+      )
+      writeFileSync(
+        join(packageDirectory, 'src', 'engine.ts'),
+        [
+          "import { FhirPathEngine } from 'fhirpath-ts'",
+          "import { r4Model } from 'fhirpath-ts/r4'",
+          'export const fp = new FhirPathEngine({ model: r4Model })',
+        ].join('\n')
+      )
+      const source = join('packages', packageName, 'src', 'source.ts')
+      sources.push(source)
+      writeFileSync(
+        join(directory, source),
+        [
+          `import { fp } from '@${packageName}-engine'`,
+          "const patient = { resourceType: 'Patient' as const }",
+          `fp.first('Patient.${packageName}Typo', patient)`,
+        ].join('\n')
+      )
+    }
+
+    // The command runs at the workspace root, but each package owns the paths
+    // needed to prove that its locally imported receiver is a FhirPathEngine.
+    const result = run(['--no-import', ...sources], directory)
+    expect(result.status).toBe(1)
+    expect(result.output).toContain("packages/one/src/source.ts:3:19 [unknown-element] Element 'oneTypo'")
+    expect(result.output).toContain("packages/two/src/source.ts:3:19 [unknown-element] Element 'twoTypo'")
+    expect(result.output).not.toContain('[warning:skipped]')
+  })
+
   it('keeps its resolution defaults under a partial tsconfig', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-tsconfig-partial-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })
