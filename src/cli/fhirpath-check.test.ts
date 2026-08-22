@@ -509,7 +509,7 @@ describe('fhirpath-check CLI', () => {
             allowImportingTsExtensions: true,
             noEmit: true,
             baseUrl: '.',
-            paths: { '@engine': ['./src/engine.ts'] },
+            paths: { [`@${packageName}-engine`]: ['./src/engine.ts'] },
           },
         })
       )
@@ -526,7 +526,7 @@ describe('fhirpath-check CLI', () => {
       writeFileSync(
         join(directory, source),
         [
-          "import { fp } from '@engine'",
+          `import { fp } from '@${packageName}-engine'`,
           "const patient = { resourceType: 'Patient' as const }",
           `fp.first('Patient.${packageName}Typo', patient)`,
         ].join('\n')
@@ -537,7 +537,8 @@ describe('fhirpath-check CLI', () => {
     // needed to prove that its locally imported receiver is a FhirPathEngine.
     const result = run(['--no-import', ...sources], directory)
     expect(result.status).toBe(1)
-    expect(result.output.match(/\[unknown-element\]/g)).toHaveLength(2)
+    expect(result.output).toContain("packages/one/src/source.ts:3:19 [unknown-element] Element 'oneTypo'")
+    expect(result.output).toContain("packages/two/src/source.ts:3:19 [unknown-element] Element 'twoTypo'")
     expect(result.output).not.toContain('[warning:skipped]')
   })
 
