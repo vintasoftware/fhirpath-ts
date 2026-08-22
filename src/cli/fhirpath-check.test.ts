@@ -277,6 +277,84 @@ describe('fhirpath-check CLI', () => {
     expect(result.output).not.toContain('Undefined environment variable %known')
   })
 
+  it('keeps loaded default vars ordered when per-call vars replace their declarations', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-source-var-order-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'engine.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'export const fp = new FhirPathEngine({',
+        '  model: r4Model, strict: true,',
+        "  vars: { a: '%resource' },",
+        "  varTypes: { a: { type: 'Patient' } },",
+        '})',
+        "const observation = { resourceType: 'Observation', status: 'final' }",
+        "fp.evaluate('%b', observation, {",
+        "  vars: { b: '%a.status', a: '%resource' },",
+        "  varTypes: { a: { type: 'Observation' } },",
+        '})',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { fp } from './engine.ts'",
+        "fp.evaluate('%b', observation, {",
+        "  vars: { b: '%a.status', a: '%resource' },",
+        "  varTypes: { a: { type: 'Observation' } },",
+        '})',
+      ].join('\n')
+    )
+
+    const result = run(['--dtos', 'engine.ts', 'source.ts'], directory)
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('no problems found')
+    expect(result.output).not.toContain('unknown-element')
+  })
+
+  it('drops stale default varTypes when an options spread may replace them', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-source-var-spread-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'engine.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'export const fp = new FhirPathEngine({',
+        '  model: r4Model, strict: true,',
+        "  vars: { a: '%resource' },",
+        "  varTypes: { a: { type: 'Patient' } },",
+        '})',
+        "const observation = { resourceType: 'Observation', status: 'final' }",
+        "const shared = { varTypes: { a: { type: 'Observation' } } }",
+        "fp.evaluate('%b', observation, {",
+        '  ...shared,',
+        "  vars: { a: '%resource', b: '%a.status' },",
+        '})',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { fp } from './engine.ts'",
+        "const shared = { varTypes: { a: { type: 'Observation' } } }",
+        "fp.evaluate('%b', observation, {",
+        '  ...shared,',
+        "  vars: { a: '%resource', b: '%a.status' },",
+        '})',
+      ].join('\n')
+    )
+
+    const result = run(['--dtos', 'engine.ts', 'source.ts'], directory)
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('warning:unchecked-navigation')
+    expect(result.output).not.toContain('unknown-element')
+  })
+
   it('associates project columns with inline env and vars without false unknown-variable errors', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-project-vars-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })
@@ -320,6 +398,154 @@ describe('fhirpath-check CLI', () => {
     expect(result.status).toBe(1)
     expect(result.output).toContain("Element 'nam1' is not defined on FHIR.Patient")
     expect(result.output).not.toContain('[warning:skipped]')
+  })
+
+  it('reports variables hidden by computed env keys as unchecked, not unknown', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-open-vars-'))
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "const patient = { resourceType: 'Patient' as const }",
+        "r4.evaluate('%hidden.exists()', patient, { env: { [key]: 1 } })",
+      ].join('\n')
+    )
+
+    const result = run(['--no-import', 'source.ts'], directory)
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('warning:unchecked-variable')
+    expect(result.output).toContain('%hidden')
+    expect(result.output).not.toContain('unknown-variable')
+
+    const strict = run(['--strict', '--no-import', 'source.ts'], directory)
+    expect(strict.status).toBe(1)
+    expect(strict.output).toContain('[unchecked-variable]')
+  })
+
+  it('does not trust declarations or var bodies that a spread may overwrite', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-overwritten-options-'))
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%x.status', patient, {",
+        "  env: { x: observation }, envTypes: { x: { type: 'Patient' } }, ...unknownOptions,",
+        '})',
+        "r4.evaluate('%bad', patient, { vars: { bad: '%typo', ...{ bad: 'true' } } })",
+      ].join('\n')
+    )
+
+    const result = run(['--no-import', 'source.ts'], directory)
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('warning:unchecked-variable')
+    expect(result.output).toContain('warning:skipped')
+    expect(result.output).not.toContain('unknown-element')
+    expect(result.output).not.toContain('%typo')
+  })
+
+  it('resolves tsconfig paths from the config file directory, not the working directory', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-tsconfig-paths-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    mkdirSync(join(directory, 'lib'))
+    mkdirSync(join(directory, 'app'))
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: {
+          strict: true,
+          allowImportingTsExtensions: true,
+          noEmit: true,
+          baseUrl: '.',
+          paths: { '@app/*': ['./lib/*'] },
+        },
+      })
+    )
+    writeFileSync(
+      join(directory, 'lib', 'engine.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'export const fp = new FhirPathEngine({ model: r4Model })',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'app', 'shared.ts'),
+      [
+        "import { fp } from '@app/engine.ts'",
+        "const patient = { resourceType: 'Patient' as const }",
+        "fp.first('Patient.nam1', patient)",
+      ].join('\n')
+    )
+
+    // The tsconfig sits in an ancestor of the working directory, so its paths
+    // only resolve when parsed relative to its own directory.
+    const result = run(['--no-import', 'shared.ts'], join(directory, 'app'))
+    expect(result.status).toBe(1)
+    expect(result.output).toContain("Element 'nam1' is not defined on FHIR.Patient")
+    expect(result.output).not.toContain('[warning:skipped]')
+  })
+
+  it('keeps its resolution defaults under a partial tsconfig', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-tsconfig-partial-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    // A config declaring neither module nor moduleResolution must not discard
+    // the NodeNext pair the checker needs to follow package exports.
+    writeFileSync(join(directory, 'tsconfig.json'), JSON.stringify({ compilerOptions: { strict: true } }))
+    writeFileSync(
+      join(directory, 'engine.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'export const fp = new FhirPathEngine({ model: r4Model })',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'shared.ts'),
+      [
+        "import { fp } from './engine.ts'",
+        "const patient = { resourceType: 'Patient' as const }",
+        "fp.first('Patient.nam1', patient)",
+      ].join('\n')
+    )
+
+    const result = run(['--no-import', 'shared.ts'], directory)
+    expect(result.status).toBe(1)
+    expect(result.output).toContain("Element 'nam1' is not defined on FHIR.Patient")
+    expect(result.output).not.toContain('[warning:skipped]')
+  })
+
+  it('rejects engines constructed over different models as a configuration error', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-mixed-models-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'mixed.dto.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'new FhirPathEngine({ model: r4Model })',
+        'new FhirPathEngine({})',
+      ].join('\n')
+    )
+
+    const result = run([], directory)
+    expect(result.status).toBe(2)
+    expect(result.output).toContain('different ModelProvider instances')
+    expect(result.output).not.toContain('cannot import DTO modules')
+
+    // Two wrappers around the same logical model have no provable equivalence.
+    writeFileSync(
+      join(directory, 'mixed.dto.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'new FhirPathEngine({ model: r4Model })',
+        'new FhirPathEngine({ model: { ...r4Model } })',
+      ].join('\n')
+    )
+    expect(run([], directory).status).toBe(2)
   })
 
   it('reports skipped dynamic expressions and module-local DTOs, with strict opt-in failure', () => {

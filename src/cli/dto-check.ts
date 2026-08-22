@@ -12,11 +12,18 @@ import { pathToFileURL } from 'node:url'
 import type { AnalyzeOptions } from '../analyzer/analyze.ts'
 import { type AnalyzedContext, analyzeDto, type DtoDiagnostic } from '../analyzer/analyze-dto.ts'
 import { analyzerEnvironmentVariables, analyzerVariables } from '../analyzer/declarations.ts'
+import { SOURCE_VARIABLE_DEFAULTS } from '../analyzer/source-options.ts'
 import { type DtoClass, isDtoClass } from '../api/dto.ts'
 import { type FhirPathEngine, recordEngines } from '../api/engine.ts'
 
 /** Where DTO classes live unless `--dtos` says otherwise. */
 export const DEFAULT_DTO_GLOB = '**/*.dto.ts'
+
+/**
+ * A checker configuration problem, not an expression finding: the imported
+ * modules constructed engines whose contexts cannot be merged.
+ */
+export class EngineMergeError extends Error {}
 
 const IGNORED = ['**/node_modules/**', '**/dist/**', '**/build/**', '**/coverage/**']
 
@@ -57,6 +64,7 @@ export async function checkDtoModules(patterns: readonly string[], cwd: string):
     }
   }
   const engines = recorded()
+  assertSharedModel(engines)
   const findings = dtos.flatMap(({ file, dto, cls }) =>
     analyzeFor(cls, engines).map(finding => ({ ...finding, dto, file }))
   )
@@ -89,10 +97,27 @@ function analyzeFor(dto: DtoClass, engines: readonly FhirPathEngine[]): DtoDiagn
 }
 
 /**
+ * Merged analysis (unregistered DTOs, `sourceOptions`) uses the first engine's
+ * model for every declaration, so all engines must share one `ModelProvider`
+ * instance — a declaration analyzed under another engine's type hierarchy would
+ * produce wrong element, subtype, and Reference-target findings. Identity is
+ * the only equivalence a `ModelProvider` offers, so two wrappers around the
+ * same logical model are still rejected; check such projects in separate runs.
+ */
+function assertSharedModel(engines: readonly FhirPathEngine[]): void {
+  const model = engines[0]?.defaults.model
+  if (engines.some(engine => engine.defaults.model !== model)) {
+    throw new EngineMergeError(
+      'the imported modules constructed engines with different ModelProvider instances; ' +
+        'source and unregistered-DTO analysis needs one shared model — check projects with different models in separate runs'
+    )
+  }
+}
+
+/**
  * Every engine's context as one: the union of their registered functions,
  * environment declarations, and vars. The first engine's `model` stands for
- * all of them — a project binds one FHIR version, and an unregistered DTO names
- * no engine that could pick another.
+ * all of them — `assertSharedModel` has proven they all carry the same one.
  */
 function merged(engines: readonly FhirPathEngine[]): AnalyzedContext {
   return {
@@ -110,12 +135,14 @@ function merged(engines: readonly FhirPathEngine[]): AnalyzedContext {
 /** Turn merged engine runtime defaults into the declarations accepted by analyzeSite(). */
 function optionsForSource(engine: AnalyzedContext): AnalyzeOptions {
   const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
-  return {
+  const options = {
     ...(model !== undefined && { model }),
     ...(functions !== undefined && { functions }),
-    variables: {
-      ...analyzerEnvironmentVariables(env, envTypes, model),
-      ...analyzerVariables(vars, varTypes),
+    variables: analyzerEnvironmentVariables(env, envTypes, model),
+    [SOURCE_VARIABLE_DEFAULTS]: {
+      values: Object.keys(analyzerVariables(vars, undefined)),
+      declarations: analyzerVariables(undefined, varTypes),
     },
   }
+  return options
 }

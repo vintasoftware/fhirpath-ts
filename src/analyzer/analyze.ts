@@ -39,6 +39,7 @@ import {
   unionStates,
   withSingle,
 } from './signatures.ts'
+import { SOURCE_VARIABLE_DEFAULTS, type SourceVariableDefaults, type SourceVariablePlan } from './source-options.ts'
 
 export interface AnalyzerDiagnostic {
   severity: 'error' | 'warning'
@@ -201,12 +202,15 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
 
 /**
  * Analyzes one source site with only facts visible in that file. A declared root
- * does not prove which variables the later call provides. DTO sites may also
- * receive variables and functions from base classes, other modules, or
- * `project()`. Such sites omit unknown-variable diagnostics and report an
- * unknown function only when it resembles a local column. A DTO without a known
- * root receives syntax checks only. Use `analyzeDto` when the class and engine
- * are loaded.
+ * does not prove which variables the later call provides. A site whose call
+ * binds variables the source cannot name (`openVariables`) may resolve any
+ * `%variable` at runtime, so an unresolved one is reported as an
+ * `unchecked-variable` warning under `reportUnchecked` instead of an error.
+ * DTO sites may also receive variables and functions from base classes, other
+ * modules, or `project()`. Such sites omit unknown-variable diagnostics and
+ * report an unknown function only when it resembles a local column. A DTO
+ * without a known root receives syntax checks only. Use `analyzeDto` when the
+ * class and engine are loaded.
  */
 export function analyzeSite(
   site: {
@@ -215,22 +219,45 @@ export function analyzeSite(
     dto?: true
     /** Variables declared by the expression's call site, such as inline env/vars options. */
     variables?: Readonly<Record<string, DeclaredVariable>>
+    /** The call also binds variables the source cannot name — a computed key or spread in env/vars. */
+    openVariables?: true
     /** Functions the site's file declares — a DTO's `@column` fields (see `columnFunctionDeclaration`). */
     functions?: Readonly<Record<string, DeclaredFunction>>
   },
   options?: AnalyzeOptions
 ): AnalyzerDiagnostic[] {
+  const sourceVariables = (options as { [SOURCE_VARIABLE_DEFAULTS]?: SourceVariableDefaults } | undefined)?.[
+    SOURCE_VARIABLE_DEFAULTS
+  ]
+  const variablePlan = (site as typeof site & { variablePlan?: SourceVariablePlan }).variablePlan
   const declared = { ...site.functions, ...options?.functions }
+  const variables = sourceSiteVariables(site.variables, variablePlan, options?.variables, sourceVariables)
   const merged: AnalyzeOptions = {
     ...options,
     ...(site.inputType !== undefined && { inputType: site.inputType }),
     ...(Object.keys(declared).length > 0 && { functions: declared }),
-    ...((site.variables !== undefined || options?.variables !== undefined) && {
-      variables: { ...options?.variables, ...site.variables },
-    }),
+    ...(variables !== undefined && { variables }),
   }
   const diagnostics = analyzeExpression(site.expression, merged)
   if (site.dto !== true) {
+    if (site.openVariables === true) {
+      return diagnostics.flatMap(diagnostic => {
+        if (diagnostic.code !== 'unknown-variable') {
+          return [diagnostic]
+        }
+        if (options?.reportUnchecked !== true) {
+          return []
+        }
+        return [
+          {
+            ...diagnostic,
+            severity: 'warning' as const,
+            code: 'unchecked-variable',
+            message: `Environment variable %${diagnostic.name} was not checked: the call's env/vars names are not fully visible in source`,
+          },
+        ]
+      })
+    }
     return site.inputType === undefined || options?.variables !== undefined
       ? diagnostics
       : diagnostics.filter(diagnostic => diagnostic.code !== 'unknown-variable')
@@ -248,6 +275,42 @@ export function analyzeSite(
     }
     return diagnostic.name !== undefined && nearestName(diagnostic.name, columns) !== undefined
   })
+}
+
+/** Recreate strict evaluation's vars prefix without flattening away engine/default insertion order. */
+function sourceSiteVariables(
+  siteEnvironment: Readonly<Record<string, DeclaredVariable>> | undefined,
+  plan: SourceVariablePlan | undefined,
+  engineEnvironment: Readonly<Record<string, DeclaredVariable>> | undefined,
+  defaults: SourceVariableDefaults | undefined
+): Record<string, DeclaredVariable> | undefined {
+  if (
+    siteEnvironment === undefined &&
+    engineEnvironment === undefined &&
+    defaults === undefined &&
+    plan === undefined
+  ) {
+    return undefined
+  }
+  const variables: Record<string, DeclaredVariable> = { ...engineEnvironment, ...siteEnvironment }
+  const declarations =
+    plan?.inheritsDeclarations === false ? plan.declarations : { ...defaults?.declarations, ...plan?.declarations }
+  const valueNames = [...(defaults?.values ?? [])]
+  for (const name of plan?.values ?? []) {
+    if (!valueNames.includes(name)) {
+      valueNames.push(name)
+    }
+  }
+  const end = plan?.before === undefined ? valueNames.length : valueNames.indexOf(plan.before)
+  for (const name of valueNames.slice(0, end < 0 ? valueNames.length : end)) {
+    variables[name] = declarations[name] ?? {}
+  }
+  if (plan?.before === undefined) {
+    for (const [name, declaration] of Object.entries(declarations)) {
+      variables[name] ??= declaration
+    }
+  }
+  return variables
 }
 
 /** `analyzeExpression` plus the element paths the expression touches and its inferred result type. */
