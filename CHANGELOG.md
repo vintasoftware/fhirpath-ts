@@ -8,6 +8,32 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+## 0.2.2 - 2026-08-22
+
+### Added
+
+- Added collection-order inference to analyzer results and custom function
+  declarations. Strict analysis now rejects position-dependent operations on
+  collections known to be unordered.
+
+### Changed
+
+- Expanded `fhirpath-check` source analysis to resolve imported, aliased, and
+  re-exported engines; carry environment and variable context into expressions;
+  and report dynamic expressions or unloaded DTOs that could not be checked.
+- Made `fhirpath-check` use the nearest `tsconfig.json` for each selected source
+  file, so packages with different path mappings can be checked together.
+- Updated GitHub Actions to their current Node 24-based major versions.
+
+### Fixed
+
+- Fixed false checker diagnostics around computed keys, object spreads, dynamic
+  options, variable precedence, aliased DTO exports, and partial TypeScript
+  configurations.
+- Fixed loaded analysis combining engines backed by different model providers;
+  the checker now reports the incompatible configuration instead of using the
+  wrong model.
+
 ## 0.2.1 - 2026-08-18
 
 ### Changed
