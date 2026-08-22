@@ -114,12 +114,9 @@ pnpm exec fhirpath-check --no-import "src/**/*.ts"
 
 The CLI asks TypeScript for the resolved receiver type, so an engine imported,
 aliased, or re-exported through a local module is recognized as a
-`FhirPathEngine`. It reads the nearest `tsconfig.json`, resolves `extends` and
-`paths` from the config file's own directory, and layers the declared options
-over its defaults — `allowJs`, `skipLibCheck`, and NodeNext module resolution
-unless the config declares its own `module` or `moduleResolution`. If a project
-cannot be type-resolved, `--local-imports` applies the broader syntax-only
-policy that trusts relative imports.
+`FhirPathEngine`. It uses the nearest `tsconfig.json` for module resolution,
+including inherited settings and path aliases. If a project cannot be
+type-resolved, `--local-imports` trusts relative imports.
 
 Calls that look like supported expression sites but cannot be read are reported
 as `[warning:skipped]`. This includes dynamic strings, interpolated templates,
@@ -127,21 +124,14 @@ and receivers whose engine type cannot be established. `--strict` promotes
 warnings to errors. A successful run with warnings says `no errors found`, not
 `no problems found`.
 
-Literal `vars` expressions in `EvaluateOptions` are checked in final object
-order when every key is statically known. Each expression sees the call
-environment and earlier vars; projection vars also see `%rowIndex` and
-`%rowTotal`. A dynamic key or spread can overwrite a value without moving its
-key's object order, so the object gets one `[warning:skipped]` diagnostic and
-its individual var bodies are not checked against an order the source cannot
-prove.
+Literal `vars` expressions in `EvaluateOptions` are checked in runtime order.
+Each expression sees the call environment and earlier vars; projection vars
+also see `%rowIndex` and `%rowTotal`. If a dynamic key or spread makes the order
+uncertain, the CLI reports one `[warning:skipped]` for the `vars` object.
 
-Inline `env` and `vars` keys declare the variable names an expression may use.
-A computed string-literal key (`['name']: …`) reads like a plain one. A
-construct that binds names the source cannot list — another computed key, a
-spread, or a non-literal options object — opens the call's variable scope. An
-unresolved `%variable` at an open-scope site may exist at runtime, so it is
-reported as `[warning:unchecked-variable]` instead of an unknown-variable
-error; `--strict` promotes it like any other warning.
+Inline `env` and `vars` names are available to expression checks. If dynamic
+options may add more names, unresolved variables are reported as
+`[warning:unchecked-variable]` instead of errors.
 
 The command exits with a non-zero status when it reports an error diagnostic.
 Warnings, such as possible regular expression backtracking, do not fail the run.
@@ -163,9 +153,8 @@ The CLI finds DTOs by convention:
 
 - DTO modules use the `*.dto.ts` suffix by default. Repeat `--dtos "<glob>"` to
   use another location.
-- DTO classes must be exported because a module loader can inspect only
-  exports — directly, through an exported alias (`export const Row =
-  ProblemRow`), or through an exported subclass.
+- DTO classes must be available through a module export. Direct exports,
+  aliases, and exported subclasses are supported.
 - Engines do not need to be exported. The checker records engines created while
   it imports the selected DTO modules.
 - Put engines in the selected modules or include their modules in `--dtos`.
@@ -188,13 +177,8 @@ A DTO that is not registered with an engine is checked against the merged
 context of all discovered engines. This answers whether some engine in the
 project defines a name. The project does not need a `fhirpath.config.ts`.
 
-Multiple engines are supported, but merged analysis requires them to share one
-`ModelProvider` instance — a source literal does not say which engine will run
-it, so declarations analyzed under another engine's type hierarchy would
-produce wrong findings. Engines with different models, or one with a model and
-one without, make the CLI exit with a configuration error; check projects with
-genuinely different model families in separate runs. A DTO registered to an
-engine is always analyzed against its own engine's model.
+All discovered engines must use the same `ModelProvider` instance. If a project
+uses different models, check them in separate runs.
 
 Declare per-call environment names or types on the DTO itself:
 
@@ -218,7 +202,7 @@ through such a value cannot be verified, and each one is reported as
 
 A DTO class that a matched module does not export is reported as
 `[warning:unloaded-dto]`. The import pass cannot load it, so its full check
-cannot run. Export the class, an alias to it, or a class that extends it.
+cannot run. Export the class to enable the full check.
 
 ## Source-only limits
 
