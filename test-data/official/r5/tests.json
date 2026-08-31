@@ -11505,6 +11505,107 @@
     ]
   },
   {
+    "name": "primitivesWithoutValue",
+    "tests": [
+      {
+        "name": "testNoValueExists",
+        "expression": "Patient.name.given.first().exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-name-extensions.json"
+      },
+      {
+        "name": "testNoValueExistsElement",
+        "expression": "Patient.name.given.first().exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-name-extensions.json",
+        "mode": "element"
+      },
+      {
+        "name": "testNoValueHasValue",
+        "expression": "Patient.name.given.first().hasValue()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-name-extensions.json"
+      },
+      {
+        "name": "testNoValueLength",
+        "expression": "Patient.name.given.first().length()",
+        "outputs": [],
+        "inputfile": "patient-name-extensions.json"
+      },
+      {
+        "name": "testNoValueLengthElement",
+        "expression": "Patient.name.given.first().length()",
+        "outputs": [],
+        "inputfile": "patient-name-extensions.json",
+        "mode": "element"
+      },
+      {
+        "name": "testValueLength",
+        "expression": "Patient.name.given.last().length()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "5"
+          }
+        ],
+        "inputfile": "patient-name-extensions.json"
+      },
+      {
+        "name": "testNoValueToChars",
+        "expression": "Patient.name.given.first().toChars()",
+        "outputs": [],
+        "inputfile": "patient-name-extensions.json"
+      },
+      {
+        "name": "testNoValueSubstring",
+        "expression": "Patient.name.given.first().substring(0, 1)",
+        "outputs": [],
+        "inputfile": "patient-name-extensions.json"
+      },
+      {
+        "name": "testNoValueUpper",
+        "expression": "Patient.name.given.first().upper()",
+        "outputs": [],
+        "inputfile": "patient-name-extensions.json"
+      },
+      {
+        "name": "testNoValueComparison",
+        "expression": "Patient.name.given.first() < 'x'",
+        "outputs": [],
+        "inputfile": "patient-name-extensions.json"
+      },
+      {
+        "name": "testNoValueInvariant",
+        "expression": "Patient.name.given.first().exists() and Patient.name.given.first().length() = 1",
+        "outputs": [],
+        "inputfile": "patient-name-extensions.json"
+      },
+      {
+        "name": "testNoValueInvariantElement",
+        "expression": "Patient.name.given.first().exists() and Patient.name.given.first().length() = 1",
+        "outputs": [],
+        "inputfile": "patient-name-extensions.json",
+        "mode": "element"
+      }
+    ],
+    "description": "FHIR primitive elements that carry extensions but no value (e.g. the data-absent-reason extension). Such an element is present in the tree, but it has no system value, so functions that need the value get an empty collection as input, and return empty (see hasValue()/getValue() in the FHIR spec)"
+  },
+  {
     "name": "cdaTests",
     "tests": [
       {

@@ -61,6 +61,15 @@ describe('model navigation branches', () => {
     expect(evaluate('Patient.name.given.extension.url', resource, options)).toEqual(['http://x'])
   })
 
+  it('comparing a valueless primitive is comparing with empty', () => {
+    const resource = {
+      resourceType: 'Patient',
+      name: [{ given: [null, 'James'], _given: [{ extension: [{ url: 'http://x', valueCode: 'masked' }] }, null] }],
+    }
+    expect(evaluate("Patient.name.given.first() < 'x'", resource, options)).toEqual([])
+    expect(evaluate("Patient.name.given.last() < 'x'", resource, options)).toEqual([true])
+  })
+
   it('a collection element holding a single JSON value still yields one item', () => {
     const resource = { resourceType: 'Patient', name: { family: 'Solo' } }
     expect(evaluate('Patient.name.family', resource, options)).toEqual(['Solo'])

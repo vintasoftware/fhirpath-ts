@@ -11,9 +11,13 @@ type ComparisonOperator = '<' | '>' | '<=' | '>='
 
 /**
  * Order two singleton values (spec §6.2). Undefined means empty: an empty operand,
- * a date/time precision mismatch, or units that cannot be compared.
+ * a valueless primitive, a date/time precision mismatch, or units that cannot be compared.
  */
 export function compareValues(a: TypedValue, b: TypedValue): number | undefined {
+  if (a.value === undefined || b.value === undefined) {
+    // A primitive present only through its _field sibling has no value to order by.
+    return undefined
+  }
   const numericA = asNumeric(a)
   const numericB = asNumeric(b)
   if (numericA && numericB) {
