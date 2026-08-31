@@ -87,13 +87,6 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     reason: 'lenient polymorphic access is profile-dependent behavior this engine does not offer',
   },
   {
-    suite: 'r4',
-    group: 'testIif',
-    test: 'testIif6',
-    reason:
-      'R4 expected a semantic error for a non-boolean iif criterion; R5 revised this to the singleton rule, which this engine follows',
-  },
-  {
     suite: 'r5',
     group: 'miscEngineTests',
     test: 'testMultipleResolve',
