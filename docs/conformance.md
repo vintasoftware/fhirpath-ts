@@ -42,7 +42,7 @@ fails when a skip no longer matches a suite case.
 | Lenient polymorphics | Profile-dependent mode that this engine does not offer |
 | R5-only elements | The package currently ships an R4 model |
 | Decimal boundary and dateTime millisecond cases | Expected values conflict with the mathematical bounds; recorded as upstream test issues |
-| `testIif6` and `testPlusDate19` in R4 | R5 changed ambiguous R4 behavior; the engine follows R5 |
+| `testPlusDate19` in R4 | R5 changed ambiguous R4 behavior; the engine follows R5 |
 
 The manifest contains the exact case names and evidence.
 
