@@ -41,7 +41,7 @@ describe('string functions', () => {
     ["'a'.split(',')", ['a']],
     ["('a' | 'b' | 'c').join(',')", ['a,b,c']],
     ["('a' | 'b').join()", ['ab']],
-    ["{}.join(',')", ['']],
+    ["{}.join(',')", []],
     ["'abc'.encode('base64')", ['YWJj']],
     ["'YWJj'.decode('base64')", ['abc']],
     ["'ab?'.encode('urlbase64')", ['YWI_']],

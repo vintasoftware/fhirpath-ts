@@ -196,11 +196,15 @@ stringFunction('split', { min: 1, max: 1 }, (value, [separator]) =>
   separator === undefined ? [] : value.split(separator).map(part => ({ type: SYSTEM_STRING, value: part }))
 )
 
-// join() works on a collection of strings, not a singleton.
+// join() works on a collection of strings, not a singleton. An empty input
+// joins to empty rather than to an empty string.
 registerFunction('join', {
   minArity: 0,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
+    if (input.length === 0) {
+      return []
+    }
     const separator = args.length === 1 ? stringArgument('join', context, input, argAt(args, 0), evaluateNode) : ''
     const parts: string[] = []
     for (const item of input) {

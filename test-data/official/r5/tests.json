@@ -5284,6 +5284,50 @@
           }
         ],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSplit5",
+        "expression": "'fr-BE'.split('-').first() = 'fr'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSplit6",
+        "expression": "'fr-BE'.split('-').last() = 'BE'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSplit7",
+        "expression": "'a-b-c'.split('-').skip(1).first() = 'b'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSplit8",
+        "expression": "'a-b-c'.split('-').take(2).join('-') = 'a-b'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -5299,6 +5343,12 @@
             "value": "Peter,James,Jim,Peter,James"
           }
         ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testJoinEmpty",
+        "expression": "name.prefix.join(',')",
+        "outputs": [],
         "inputfile": "patient-example.xml"
       }
     ]
