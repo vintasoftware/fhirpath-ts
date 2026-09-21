@@ -8,6 +8,20 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+## 0.2.3 - 2026-09-21
+
+### Fixed
+
+- Fixed ordering comparisons involving FHIR primitives without values to return
+  an empty collection.
+- Fixed `join()` on an empty collection to return an empty collection.
+
+### Changed
+
+- Updated the official R5 conformance suite with tests for primitives without
+  values and restored the passing R4 `testIif6` case under strict mode.
+- Updated the official R4 and R5 suites with `split()` and `join()` edge cases.
+
 ## 0.2.2 - 2026-08-22
 
 ### Added
