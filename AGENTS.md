@@ -192,10 +192,16 @@ rules together; each protects the types:
   is no `with()`: a derived engine that could redefine an env name or the model
   would break the types of DTOs defined on its parent.
 - A DTO projects on its engine or an engine derived from it (`derivesFrom`), and
-  `register()` accepts only DTOs of that lineage. `project()` refuses per-call
-  `env`, `vars`, or `functions` names the engine binds, and `defineDto()` /
-  `defineView()` refuse a `callerEnv` name the engine's env binds. Keep the
-  runtime checks and `DtoProjectOptions` in step.
+  `register()` accepts only DTOs of that lineage.
+- A column body reads `DtoDefinition.columnEnv`: the defining engine's env with
+  the DTO's own env over it. The registered function's overlay and
+  `dtoCallOptions` both apply it over the caller's env, so per-call env never
+  changes what a column's type was inferred from. `defineDto()` /
+  `defineView()` refuse a `callerEnv` name that env binds. Engine `vars` stay
+  out of the column context (`EngineColumnContext`): they are evaluated against
+  the caller's root.
+- `project()` refuses a per-call function the engine binds. Keep that runtime
+  check and `DtoProjectOptions` in step.
 - `DtoFunctions` types registered columns from the class's field types. That is
   sound only because `assertRegistrable` rejects views, getters, and plain fields,
   and `dtoDefinition` rejects `as`/`choices` on DTO columns: a registered
@@ -204,8 +210,11 @@ rules together; each protects the types:
   TypeScript form (`TypeNamesOf`). Naming one type would let `ofType()` infer
   empty where the runtime returns a value. A member no FHIR type represents
   makes the whole result undeclared; dropping it would narrow the call.
-- `EngineContext` skips the function merge for an engine with no registered
-  DTOs, which keeps ordinary engine calls at their previous type cost.
+- Registered functions live in the engine's options type (`RegisteredOptions`),
+  not in a second engine type parameter: measuring that parameter's variance
+  taxed every engine call. Type aliases in `dto.ts` take the model maps as type
+  parameters, because a concrete map in an alias body is resolved whenever the
+  file is checked.
 
 ## DTO column collection
 

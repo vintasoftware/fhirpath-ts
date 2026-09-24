@@ -276,6 +276,21 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
     typescript: true,
   },
   {
+    name: 'a factory that casts the class it returns still builds a DTO',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      'function keyed(fhirType: string) {',
+      "  class Keyed extends r4.defineView(fhirType) { id = this.column('x..1') }",
+      '  return Keyed as unknown as typeof Keyed',
+      '}',
+      'const checked = (fhirType: string) => r4.defineView(fhirType) satisfies object',
+      "class Row extends keyed('Condition') { code = this.column('x..2') }",
+      "class Other extends checked('Patient') { name = this.column('x..3') }",
+    ].join('\n'),
+    expected: 3,
+    typescript: true,
+  },
+  {
     name: 'only the whole initializer of a public instance field is a column',
     code: [
       "import { r4 } from 'fhirpath-ts/r4'",

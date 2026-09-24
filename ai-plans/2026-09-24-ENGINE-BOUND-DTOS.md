@@ -136,3 +136,10 @@ sibling value in TypeScript (a getter).
   call of a view defined on a registered engine; 5.9 caches it. A plain object
   type for the same functions costs nothing extra on 5.8, so a future TypeScript
   feature that detaches a computed type from its generic source could remove it.
+- **Column bodies read the engine env their types came from.** A registered
+  column called with a per-call `env` value of an engine name returned that
+  value while its type came from the engine's. `DtoDefinition.columnEnv` (the
+  defining engine's env under the DTO's own) now overlays the caller's env on
+  both routes, replacing the per-call env and vars refusal. Engine `vars` are
+  left out of the column context, since they are evaluated against the
+  caller's root.

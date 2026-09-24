@@ -164,13 +164,34 @@ function heritageOfBase(name: string | undefined, base: ESTree.Expression | null
   }
 }
 
+/**
+ * Strips TypeScript wrappers that keep an expression's runtime identity (`as`,
+ * `satisfies`, `!`, `<T>x`), as the TypeScript walker does. The TypeScript ESLint
+ * parser adds these node kinds, which ESTree's types do not list.
+ */
+function unwrapped(node: ESTree.Node | null | undefined): ESTree.Node | undefined {
+  let current = node ?? undefined
+  while (current !== undefined && TYPESCRIPT_WRAPPERS.has((current as { type: string }).type)) {
+    current = (current as unknown as { expression: ESTree.Node }).expression
+  }
+  return current
+}
+
+const TYPESCRIPT_WRAPPERS: ReadonlySet<string> = new Set([
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSTypeAssertion',
+])
+
 /** What a function named `name` returns, when that is a class, a class name, or a class-building call. */
 function factoryOf(name: string, body: ESTree.BlockStatement | ESTree.Expression): ClassFactory | undefined {
-  const returned =
+  const returned = unwrapped(
     body.type === 'BlockStatement'
       ? body.body.find((statement): statement is ESTree.ReturnStatement => statement.type === 'ReturnStatement')
           ?.argument
       : body
+  )
   if (returned?.type === 'ClassExpression') {
     return { name, builds: heritageOf(returned) }
   }

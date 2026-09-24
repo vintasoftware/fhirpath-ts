@@ -601,12 +601,16 @@ export class ProblemRow extends fp.defineView('Condition') {
 
 A custom engine works the same way as `r4`: build it with
 `new FhirPathEngine(options)`, define DTOs on it, and register them. Columns see
-the engine's `env` and typed functions.
+the engine's `env` and typed functions. Engine `vars` stay untyped in columns,
+because a registered column called inside another expression evaluates them
+against that expression's resource.
 
 A DTO or view projects on the engine it was defined on and on engines derived
-from it with `register()`. `project()` on any other engine throws. A per-call
-option may not replace an `env`, `vars`, or `functions` name the engine binds,
-because the columns' types came from the engine's values.
+from it with `register()`. `project()` on any other engine throws. A column body
+always reads the engine's `env`, projected or called, so a per-call value of the
+same name does not reach it. A per-call function may not replace one the engine
+binds when projecting, because the columns' types came from the engine's
+declarations.
 
 ### DTO environment and variables
 
@@ -645,7 +649,8 @@ map when FHIRPath navigates through them. It does not create values. Pass them t
 it cannot be a name the engine's `env` binds.
 
 DTO `env` and `vars` take priority over engine and per-call values with the same
-name, so a column means the same thing however it is reached. `%rowIndex` and
+name, and the engine's `env` takes priority over per-call values, so a column
+means the same thing however it is reached. `%rowIndex` and
 `%rowTotal` are also available to every column.
 
 DTO `vars` apply only when the DTO is projected. They are row expressions and do

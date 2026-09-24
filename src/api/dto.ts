@@ -365,6 +365,12 @@ export interface DtoDefinition {
   readonly columns: Readonly<Record<string, ColumnSpec>>
   /** The DTO's own environment values, with bare names. */
   readonly env: Record<string, unknown> | undefined
+  /**
+   * What a column body reads: the defining engine's env with the DTO's own env
+   * over it. Column types were inferred from these values, so both routes to a
+   * column apply them over the caller's.
+   */
+  readonly columnEnv: Record<string, unknown> | undefined
   readonly vars: Record<string, AnyExpression | readonly TypedValue[]> | undefined
   /** Env names the projecting call supplies (see DtoOptions.callerEnv). */
   readonly callerEnvNames: readonly string[]
@@ -384,7 +390,7 @@ const definitions = new WeakMap<object, DtoDefinition>()
  * Creates the base class behind `engine.defineDto()` and `engine.defineView()`.
  * The type becomes the context for relative column paths, and the options
  * become the variables the columns can read. The engine's own env names are
- * refused as `callerEnv`, because a per-call value may not replace them.
+ * refused as `callerEnv`, because a column always reads the engine's value.
  */
 export function createDtoBase(
   engine: FhirPathEngine,
@@ -424,14 +430,16 @@ function baseDefinition(
   const engineOwned = callerEnvNames.find(name => Object.hasOwn(engineEnv, name))
   if (engineOwned !== undefined) {
     throw new FhirPathTypeError(
-      `${call}: callerEnv names '${engineOwned}', which the engine's env binds; a projection may not replace it`
+      `${call}: callerEnv names '${engineOwned}', which the engine's env binds; a column always reads the engine's value`
     )
   }
+  const columnEnv = { ...engineEnv, ...normalizedEnv }
   return {
     engine,
     kind,
     fhirType,
     env: normalizedEnv !== undefined && Object.keys(normalizedEnv).length > 0 ? normalizedEnv : undefined,
+    columnEnv: Object.keys(columnEnv).length > 0 ? columnEnv : undefined,
     vars,
     callerEnvNames,
     callerEnvTypes: callerEnvIsNames ? undefined : callerEnv,
@@ -643,12 +651,12 @@ function canonicalTypes(model: ModelProvider, types: readonly string[] | undefin
 }
 
 /**
- * Converts a DTO column into a typed expression function with the DTO's local
- * environment. Criteria functions also carry the criteria Boolean rule. DTO
+ * Converts a DTO column into a typed expression function that reads its
+ * definition's env (see `DtoDefinition.columnEnv`). Criteria functions also carry the criteria Boolean rule. DTO
  * variables remain projection-only because function calls have no row.
  */
 function columnFunction(spec: ColumnSpec, compile: Compiler, dto: DtoDefinition): SingleCustomFunction {
-  const { fhirType, env } = dto
+  const { fhirType, columnEnv: env } = dto
   if ('test' in spec) {
     return {
       expression: compile(spec.test),
@@ -683,12 +691,12 @@ export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
 }
 
 /**
- * Merges DTO options with call options. DTO values win, so projected and
+ * Merges DTO options with call options. Definition values win, so projected and
  * registered columns read the same environment, and a column's inferred type
- * cannot be changed by a caller's variable of the same name.
+ * cannot be changed by a caller's value of the same name.
  */
 export function dtoCallOptions(dto: DtoClass, options: EvaluateOptions | undefined): EvaluateOptions | undefined {
-  const { env, vars } = dtoDefinition(dto)
+  const { columnEnv: env, vars } = dtoDefinition(dto)
   if (env === undefined && vars === undefined) {
     return options
   }

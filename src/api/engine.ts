@@ -1,4 +1,4 @@
-import { mergeEnvKeys, normalizeEnvKeys } from '../engine/context.ts'
+import { mergeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type {
@@ -96,9 +96,19 @@ export type EngineProjection<Columns extends ProjectionColumns, Input, Defaults,
 
 /** What columns of a DTO or view defined on an engine see: the engine's context, then the DTO's own. */
 export type EngineDtoContext<Defaults, Options> = MergeFhirpathTypeContexts<
-  FhirpathTypeContextOf<Defaults>,
+  EngineColumnContext<FhirpathTypeContextOf<Defaults>>,
   DtoContext<Options>
 >
+
+/**
+ * The engine declarations a column body can rely on: env, which its definition
+ * fixes, and functions. Engine `vars` are left out: they are evaluated against
+ * the caller's root, which is another resource when a registered column is
+ * called mid-expression.
+ */
+type EngineColumnContext<Context> = Context extends { env: infer Env; functions: infer Functions }
+  ? { env: Env; vars: EmptyFhirpathTypeContext; functions: Functions }
+  : never
 
 /**
  * The base class `engine.defineView(root, options)` returns, with `Fields` for
@@ -116,26 +126,19 @@ export type ViewBaseClass<
     ? DtoBaseClass<Root, EngineDtoContext<Defaults, Options>, Fields, 'view'>
     : never
 
-/** The names an engine's options bind under one key, spelled with and without `%`. */
-type BoundNames<Defaults, Key extends 'env' | 'vars' | 'functions'> = Defaults extends {
-  readonly [K in Key]?: infer Record
-}
-  ? string extends keyof Exclude<Record, undefined>
+/** The function names an engine's options bind. */
+type BoundFunctionNames<Defaults> = Defaults extends { readonly functions?: infer Functions }
+  ? string extends keyof Exclude<Functions, undefined>
     ? never
-    : keyof Exclude<Record, undefined> & string extends infer Name extends string
-      ? Name | `%${Name}`
-      : never
+    : keyof Exclude<Functions, undefined> & string
   : never
 
 /**
- * Per-call options for projecting a DTO or view. A name the engine binds in
- * `env`, `vars`, or `functions` cannot be replaced, because the columns' types
- * were inferred from the engine's value.
+ * Per-call options for projecting a DTO or view. A function the engine binds
+ * cannot be replaced, because the columns' types were inferred from it.
  */
-export type DtoProjectOptions<Defaults> = Omit<EvaluateOptions, 'env' | 'vars' | 'functions'> & {
-  env?: EvaluateOptions['env'] & { readonly [Name in BoundNames<Defaults, 'env'>]?: never }
-  vars?: EvaluateOptions['vars'] & { readonly [Name in BoundNames<Defaults, 'vars'>]?: never }
-  functions?: EvaluateOptions['functions'] & { readonly [Name in BoundNames<Defaults, 'functions'>]?: never }
+export type DtoProjectOptions<Defaults> = Omit<EvaluateOptions, 'functions'> & {
+  functions?: EvaluateOptions['functions'] & { readonly [Name in BoundFunctionNames<Defaults>]?: never }
 }
 
 /** Engines created during the current recording session. */
@@ -282,7 +285,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   }
 
   /** Whether this engine is `engine` or was derived from it through `register()`. */
-  derivesFrom(engine: FhirPathEngine): boolean {
+  private derivesFrom(engine: FhirPathEngine): boolean {
     for (let current: FhirPathEngine | undefined = this.untyped(); current !== undefined; current = current.parent) {
       if (current === engine) {
         return true
@@ -425,8 +428,8 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
 
   /**
    * A DTO projects on the engine that defined it or one derived from it, and a
-   * per-call option may not replace a name the engine binds: the columns' types
-   * came from the engine's own values.
+   * per-call option may not replace a function the engine binds: the columns'
+   * types came from the engine's own declarations.
    */
   private assertProjectable(dto: DtoClass, options: EvaluateOptions | undefined): void {
     const { engine } = dtoDefinition(dto)
@@ -435,13 +438,10 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
         `project(): ${dto.name} was defined on another engine; project it with that engine or one derived from it`
       )
     }
-    const replaced = (['env', 'vars', 'functions'] as const).flatMap(key => {
-      const bound = key === 'functions' ? (this.defaults.functions ?? {}) : normalizeEnvKeys(this.defaults[key])
-      const given = key === 'functions' ? (options?.functions ?? {}) : normalizeEnvKeys(options?.[key])
-      return Object.keys(given)
-        .filter(name => Object.hasOwn(bound, name))
-        .map(name => `${key}.${name}`)
-    })
+    const bound = this.defaults.functions ?? {}
+    const replaced = Object.keys(options?.functions ?? {})
+      .filter(name => Object.hasOwn(bound, name))
+      .map(name => `functions.${name}`)
     if (replaced.length > 0) {
       throw new FhirPathTypeError(
         `project(): ${replaced.join(', ')} would replace a name the engine binds, which ${dto.name}'s column types rely on`

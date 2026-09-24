@@ -185,20 +185,43 @@ describe('DTO projection', () => {
     )
   })
 
-  it('refuses per-call options that would replace what the engine binds', () => {
-    const sited = new FhirPathEngine({ model: r4Model, env: { site: 'engine' }, vars: { unit: "'kg'" } })
-    class Sited extends sited.defineView('Observation') {
+  it('reads the engine env a column was typed from, whatever the caller passes', () => {
+    const sited = new FhirPathEngine({ model: r4Model, env: { site: 'engine' } })
+    class SiteDto extends sited.defineDto('Observation') {
       site = this.column('%site', { default: '' })
     }
+    const fp = sited.register(SiteDto)
+    class Sited extends fp.defineView('Observation') {
+      site = this.column('%site', { default: '' })
+
+      viaCall = this.column('site()', { default: '' })
+    }
     expectTypeOf(new Sited().site).toEqualTypeOf<string>()
-    // Names the engine does not bind are the caller's to supply.
-    expect(sited.project(weighed, Sited, { env: { requestId: 'r-1' } }).site).toBe('engine')
+    // Projected or called, the column reads the engine's value, not the caller's.
+    expect(fp.project(weighed, Sited, { env: { '%site': 42, requestId: 'r-1' } })).toMatchObject({
+      site: 'engine',
+      viaCall: 'engine',
+    })
+    const called = () => fp.evaluate('site()', weighed, { env: { site: 42 } })
+    expectTypeOf(called).returns.toEqualTypeOf<string[]>()
+    expect(called()).toEqual(['engine'])
+    // Outside a column body, a per-call value still replaces the engine's.
+    expect(fp.evaluate('%site', weighed, { env: { site: 42 } })).toEqual([42])
+  })
+
+  it('refuses a per-call function that would replace one the engine binds', () => {
+    const hosted = new FhirPathEngine({
+      model: r4Model,
+      functions: { shout: { expression: 'upper()', signature: { result: { types: ['string'] } } } },
+    })
+    class Loud extends hosted.defineView('Observation') {
+      status = this.column('status.shout()')
+    }
+    expectTypeOf(new Loud().status).toEqualTypeOf<string | undefined>()
     expect(() =>
-      // @ts-expect-error -- the column's type came from the engine's %site
-      sited.project(weighed, Sited, { env: { '%site': 42 }, vars: { unit: "'lb'" } })
-    ).toThrow(
-      "project(): env.site, vars.unit would replace a name the engine binds, which Sited's column types rely on"
-    )
+      // @ts-expect-error -- the column's type came from the engine's shout()
+      hosted.project(weighed, Loud, { functions: { shout: { expression: 'length()' } } })
+    ).toThrow("project(): functions.shout would replace a name the engine binds, which Loud's column types rely on")
   })
 
   it('collects every column when a field initializer collects another DTO', () => {
@@ -515,7 +538,7 @@ describe('engines, registration, and typed column calls', () => {
     expect(configured.project(weighed, CodedRow)).toMatchObject({ system: undefined, loud: 'FINAL' })
     // A projection cannot supply a name the engine already binds.
     expect(() => configured.defineView('Observation', { callerEnv: ['loinc'] })).toThrow(
-      "defineView('Observation'): callerEnv names 'loinc', which the engine's env binds; a projection may not replace it"
+      "defineView('Observation'): callerEnv names 'loinc', which the engine's env binds; a column always reads the engine's value"
     )
   })
 
@@ -601,14 +624,27 @@ describe('engines, registration, and typed column calls', () => {
       loud = this.column('conclusionTxt().upper()', { type: 'string' })
     }
     expect(analyzeDto(Misspelled).map(finding => finding.code)).toEqual(['unknown-function'])
-    // A column name the engine already uses cannot join its functions; register()
-    // reports that, and the analysis still runs against the engine alone.
+    // A column name the engine already uses cannot join its functions: the
+    // analysis reports the same error register() would.
     const hosted = new FhirPathEngine({ model: r4Model, functions: { conclusionText: { fn: () => 'x' } } })
     class Clashing extends hosted.defineDto('DiagnosticReport') {
       conclusionText = this.column('conclusionn')
     }
     expect(() => hosted.register(Clashing)).toThrow("DTO Clashing redefines the function 'conclusionText'")
-    expect(analyzeDto(Clashing).map(finding => finding.code)).toEqual(['unknown-element'])
+    expect(() => analyzeDto(Clashing)).toThrow("DTO Clashing redefines the function 'conclusionText'")
+    // A column calling a DTO registered in the same call: its defining engine
+    // does not have that function, and neither entry point pretends it does.
+    class Concepts extends r4.defineDto('CodeableConcept') {
+      displayText = this.column('text')
+    }
+    class Conditions extends r4.defineDto('Condition') {
+      name = this.column('code.displayText()', { type: 'string' })
+    }
+    const both = r4.register(Concepts, Conditions)
+    expect(analyzeDto(Conditions).map(finding => finding.code)).toEqual(['unknown-function'])
+    expect(analyzeEngineDtos(both).map(finding => [finding.dto, finding.code])).toEqual([
+      ['Conditions', 'unknown-function'],
+    ])
   })
 })
 

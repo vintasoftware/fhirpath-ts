@@ -34,8 +34,8 @@ export interface AnalyzedContext {
   }
 }
 
-/** A context that also knows which DTOs it registered, which is what a sweep needs. */
-export interface AnalyzedEngine extends AnalyzedContext {
+/** An engine as the sweep reads it: the DTOs it registered. */
+export interface AnalyzedEngine {
   readonly dtos: readonly DtoClass[]
 }
 
@@ -48,18 +48,15 @@ export interface AnalyzeDtoOptions extends AnalyzeOptions {
 /**
  * The engine a DTO was defined on. A registered DTO's columns may call each
  * other, so its own columns join the functions when that engine has not
- * registered it yet; `register()` reports any name conflict.
+ * registered it yet. A DTO that cannot register there throws the same error
+ * `register()` would.
  */
 function definingContext(dto: DtoClass, definition: DtoDefinition): AnalyzedContext {
   const { engine } = definition
   if (definition.kind === 'view' || engine.dtos.includes(dto)) {
     return engine
   }
-  try {
-    return { defaults: withDtos(engine.defaults, [dto], createCachedCompiler(0)) }
-  } catch {
-    return engine
-  }
+  return { defaults: withDtos(engine.defaults, [dto], createCachedCompiler(0)) }
 }
 
 /**
@@ -85,18 +82,16 @@ function contextOf(engine: AnalyzedContext, caller: AnalyzeOptions): AnalyzeOpti
 }
 
 /**
- * Every DTO an engine registered, checked against that engine's own context —
- * the sweep a project's checker runs, with no list to maintain. Each finding
- * names the class it came from. Views are not registered, so pass those to
- * `analyzeDto` yourself.
+ * Every DTO an engine registered, each checked by `analyzeDto` against the
+ * engine it was defined on — the sweep a project's checker runs, with no list
+ * to maintain. Each finding names the class it came from. Views are not
+ * registered, so pass those to `analyzeDto` yourself.
  */
 export function analyzeEngineDtos(
   engine: AnalyzedEngine,
   options?: AnalyzeOptions
 ): (DtoDiagnostic & { dto: string })[] {
-  return engine.dtos.flatMap(dto =>
-    analyzeDto(dto, { ...options, engine }).map(finding => ({ ...finding, dto: dto.name }))
-  )
+  return engine.dtos.flatMap(dto => analyzeDto(dto, options).map(finding => ({ ...finding, dto: dto.name })))
 }
 
 /**
