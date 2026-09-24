@@ -1,6 +1,6 @@
 import { columnResultType } from '../api/column-signature.ts'
 import { createCachedCompiler } from '../api/compile.ts'
-import { type ColumnSpec, type DtoClass, type DtoDefinition, dtoDefinition, withDtos } from '../api/dto.ts'
+import { columnFunctionTable, type ColumnSpec, type DtoClass, type DtoDefinition, dtoDefinition } from '../api/dto.ts'
 import { bareEnvironmentName } from '../engine/context.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
@@ -46,17 +46,13 @@ export interface AnalyzeDtoOptions extends AnalyzeOptions {
 }
 
 /**
- * The engine a DTO was defined on. A registered DTO's columns may call each
- * other, so its own columns join the functions when that engine has not
- * registered it yet. A DTO that cannot register there throws the same error
+ * The engine a DTO was defined on, calling the functions its column bodies call
+ * at runtime (see `columnFunctionTable`): the engine's, plus a registered DTO's
+ * own columns. A DTO whose columns cannot join them throws the error
  * `register()` would.
  */
 function definingContext(dto: DtoClass, definition: DtoDefinition): AnalyzedContext {
-  const { engine } = definition
-  if (definition.kind === 'view' || engine.dtos.includes(dto)) {
-    return engine
-  }
-  return { defaults: withDtos(engine.defaults, [dto], createCachedCompiler(0)) }
+  return { defaults: { ...definition.engine.defaults, functions: columnFunctionTable(dto, createCachedCompiler(0)) } }
 }
 
 /**

@@ -232,6 +232,30 @@ describe('DTO projection', () => {
     expect(fp.evaluate('status.shout()', weighed, replaced)).toEqual([5])
   })
 
+  it("keeps another DTO's same-name column callable inside a column body", () => {
+    const base = new FhirPathEngine({ model: r4Model })
+    class CodingDto extends base.defineDto('Coding') {
+      displayText = this.column('display')
+    }
+    const withCoding = base.register(CodingDto)
+    class ConceptDto extends withCoding.defineDto('CodeableConcept') {
+      displayText = this.column('text')
+
+      // The Coding overload, reached from a body whose own table also holds
+      // the CodeableConcept one: the focus picks between them.
+      firstCoding = this.column('coding.first().displayText()')
+    }
+    const fp = withCoding.register(ConceptDto)
+    const condition: Condition = {
+      resourceType: 'Condition',
+      subject: { reference: 'Patient/p1' },
+      code: { text: 'T', coding: [{ display: 'D' }] },
+    }
+    expect(fp.evaluate('Condition.code.firstCoding()', condition)).toEqual(['D'])
+    expect(fp.project([condition.code], ConceptDto)).toEqual([expect.objectContaining({ firstCoding: 'D' })])
+    expect(analyzeDto(ConceptDto)).toEqual([])
+  })
+
   it('collects every column when a field initializer collects another DTO', () => {
     // A plain field can run arbitrary code, including code that asks for another
     // DTO's definition — registering one on an engine is enough. The inner
@@ -880,6 +904,15 @@ describe('DTOs registered engine-wide', () => {
     // Projecting still works without either. A DTO nobody calls into needs no
     // registration and no model.
     expect(modelless.project({ text: 'Weight' }, LooseConcept).displayText).toBe('Weight')
+    // A column sharing a name with an engine function is an overload only the
+    // model can tell apart, so without one even projecting refuses it.
+    const hosted = new FhirPathEngine({ functions: { displayText: { fn: () => 'x' } } })
+    class Shadowing extends hosted.defineDto('CodeableConcept') {
+      displayText = this.column('text')
+    }
+    expect(() => hosted.project({ text: 'Weight' }, Shadowing)).toThrow(
+      "DTO Shadowing redefines the function 'displayText': telling same-name functions apart by focus type needs a model"
+    )
   })
 
   it('several DTOs may register per fhirType; only a shared column name is a conflict', () => {

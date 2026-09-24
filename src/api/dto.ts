@@ -586,59 +586,87 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
   }
   const functions: Record<string, CustomFunction> = { ...defaults.functions }
   for (const dto of dtos) {
-    const definition = dtoDefinition(dto)
-    for (const name of Object.keys(definition.columns)) {
-      // Without this, createContext fails later and names the function rather
-      // than the field that caused it.
-      if (builtinFunctions.has(name)) {
-        throw new FhirPathTypeError(
-          `DTO ${dto.name} declares a column named '${name}', which is a built-in function; rename the field`
-        )
-      }
-      functions[name] = declaredWith(
-        functions[name],
-        columnFunctions(definition, compile)[name] as SingleCustomFunction,
-        model,
-        () => `DTO ${dto.name} redefines the function '${name}'`
-      )
-    }
+    addColumns(functions, dto, columnFunctionSet(dto, compile).own, model)
   }
   return { ...defaults, functions }
 }
 
-/** Function tables already built, one per definition. */
-const functionTables = new WeakMap<DtoDefinition, Record<string, CustomFunction>>()
+/** A DTO's own column functions, and the function table their bodies call. */
+interface ColumnFunctionSet {
+  readonly own: Readonly<Record<string, ColumnCustomFunction>>
+  readonly table: Readonly<Record<string, CustomFunction>>
+}
+
+/** Function sets already built, one per definition. */
+const functionSets = new WeakMap<DtoDefinition, ColumnFunctionSet>()
 
 /**
- * The functions a DTO's column bodies call: its defining engine's, and a
- * registered DTO's own columns. Fixed with the definition, like `columnEnv`, so
- * a caller's function of the same name cannot change what a column's type
- * describes. Each column function carries the table it belongs to.
+ * The functions a DTO's column bodies call: its defining engine's, with a
+ * registered DTO's own columns added the way `register()` adds them. Fixed with
+ * the definition, like `columnEnv`, so a caller's function of the same name
+ * cannot change what a column's type describes. Each column function carries
+ * the table it belongs to.
  */
-function columnFunctions(definition: DtoDefinition, compile: Compiler): Record<string, CustomFunction> {
-  const cached = functionTables.get(definition)
+function columnFunctionSet(dto: DtoClass, compile: Compiler): ColumnFunctionSet {
+  const definition = dtoDefinition(dto)
+  const cached = functionSets.get(definition)
   if (cached !== undefined) {
     return cached
   }
   const table: Record<string, CustomFunction> = { ...definition.engine.defaults.functions }
-  functionTables.set(definition, table)
+  const own: Record<string, ColumnCustomFunction> = {}
   if (definition.kind === 'dto') {
     for (const [name, spec] of Object.entries(definition.columns)) {
-      table[name] = columnFunction(spec, compile, definition, table)
+      own[name] = columnFunction(spec, compile, definition, table)
     }
+    addColumns(table, dto, own, definition.engine.defaults.model)
   }
-  return table
+  // Recorded only once complete, so a DTO that cannot join its engine's
+  // functions fails the same way on every route.
+  const set = { own, table }
+  functionSets.set(definition, set)
+  return set
+}
+
+/** The function table a DTO's column bodies call (see `columnFunctionSet`). */
+export function columnFunctionTable(dto: DtoClass, compile: Compiler): Readonly<Record<string, CustomFunction>> {
+  return columnFunctionSet(dto, compile).table
+}
+
+/**
+ * Adds a DTO's columns to a function table. A name another declaration already
+ * uses becomes an overload when the focus type tells them apart.
+ */
+function addColumns(
+  into: Record<string, CustomFunction>,
+  dto: DtoClass,
+  own: Readonly<Record<string, ColumnCustomFunction>>,
+  model: ModelProvider | undefined
+): void {
+  for (const [name, column] of Object.entries(own)) {
+    // Without this, createContext fails later and names the function rather
+    // than the field that caused it.
+    if (builtinFunctions.has(name)) {
+      throw new FhirPathTypeError(
+        `DTO ${dto.name} declares a column named '${name}', which is a built-in function; rename the field`
+      )
+    }
+    into[name] = declaredWith(into[name], column, model, () => `DTO ${dto.name} redefines the function '${name}'`)
+  }
 }
 
 /** Adds a column declaration when its focus type distinguishes it from every existing declaration. */
 function declaredWith(
   existing: CustomFunction | undefined,
   column: SingleCustomFunction,
-  model: ModelProvider,
+  model: ModelProvider | undefined,
   blamed: () => string
 ): CustomFunction {
   if (existing === undefined) {
     return column
+  }
+  if (model === undefined) {
+    throw new FhirPathTypeError(`${blamed()}: telling same-name functions apart by focus type needs a model`)
   }
   const declared = 'overloads' in existing ? existing.overloads : [existing]
   for (const other of declared) {
@@ -743,7 +771,7 @@ export function dtoCallOptions(
   const { columnEnv: env, vars } = definition
   const merged: EvaluateOptions = {
     ...options,
-    functions: { ...options?.functions, ...columnFunctions(definition, compile) },
+    functions: { ...options?.functions, ...columnFunctionTable(dto, compile) },
   }
   if (env !== undefined) {
     merged.env = mergeEnvKeys(options?.env, env)

@@ -194,8 +194,11 @@ rules together; each protects the types:
 - A DTO projects on its engine or an engine derived from it (`derivesFrom`), and
   `register()` accepts only DTOs of that lineage.
 - A column body reads what its definition fixed: `DtoDefinition.columnEnv` (the
-  defining engine's env with the DTO's own env over it) and `columnFunctions`
-  (the defining engine's functions plus a registered DTO's own columns). The
+  defining engine's env with the DTO's own env over it) and `columnFunctionTable`
+  (the defining engine's functions with a registered DTO's own columns added
+  through `declaredWith`, as `register()` adds them). `withDtos`, projection,
+  and `analyzeDto` all read that one table, so a same-name column of another
+  DTO stays an overload everywhere. The
   registered function carries both as overlays, and `dtoCallOptions` applies
   both over the caller's options, so per-call values never change what a
   column's type was inferred from. The function table rides under the internal
