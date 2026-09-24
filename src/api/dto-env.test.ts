@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import type { Observation } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
-import { column, criteria, defineDto, dtoDefinition, type DtoEnv } from './dto.ts'
+import { defineDto, dtoDefinition, type DtoOptions } from './dto.ts'
 import { FhirPathEngine } from './engine.ts'
 
 const weighed: Observation = {
@@ -17,15 +17,11 @@ describe('a DTO env reaches its own columns and stops there', () => {
   /** The engine variable every case below checks a DTO env against. */
   const withEngineEnv = { model: r4Model, env: { site: 'engine' } }
 
-  it('is collected from the class, with either key spelling', () => {
-    class Spelled extends defineDto('Observation') {
-      static env = { '%prefixed': 'yes', bare: 'also' }
+  it('is read from the defineDto options, with either key spelling', () => {
+    class Spelled extends defineDto('Observation', { env: { '%prefixed': 'yes', bare: 'also' } }) {
+      prefixed = this.column('%prefixed', { type: 'string', default: '' })
 
-      @column('%prefixed', { type: 'string', default: '' })
-      prefixed!: string
-
-      @column('%bare', { type: 'string', default: '' })
-      bare!: string
+      bare = this.column('%bare', { type: 'string', default: '' })
     }
     // Both spellings name one variable, as everywhere else env is accepted.
     expect(dtoDefinition(Spelled).env).toEqual({ prefixed: 'yes', bare: 'also' })
@@ -33,29 +29,9 @@ describe('a DTO env reaches its own columns and stops there', () => {
     expect(engine.evaluate('prefixed() | bare()', weighed)).toEqual(['yes', 'also'])
   })
 
-  it('reads a static getter, once, for a table built rather than written out', () => {
-    let built = 0
-    class Computed extends defineDto('Observation') {
-      static get env(): DtoEnv {
-        built += 1
-        return { codes: ['final', 'amended'] }
-      }
-
-      @column('%codes.where($this = %context.status).exists()', { type: 'boolean', default: false })
-      known!: boolean
-    }
-    // The definition is collected once per class, so the getter runs once
-    // however many rows or calls follow.
-    expect(r4.project([weighed, weighed], Computed).map(row => row.known)).toEqual([true, true])
-    expect(built).toBe(1)
-  })
-
   it('declaring nothing and declaring an empty record are the same answer', () => {
-    class Empty extends defineDto('Observation') {
-      static env = {}
-
-      @column('status', { type: 'string', default: '' })
-      status!: string
+    class Empty extends defineDto('Observation', { env: {} }) {
+      status = this.column('status', { type: 'string', default: '' })
     }
     // An empty record would otherwise attach an overlay that costs a copy of
     // the whole env on every call and can never change an answer.
@@ -77,11 +53,8 @@ describe('a DTO env reaches its own columns and stops there', () => {
         return Reflect.get(target, key)
       },
     })
-    class Counted extends defineDto('Observation') {
-      static env = { table: counted }
-
-      @column('%table.first()', { type: 'string', default: '' })
-      head!: string
+    class Counted extends defineDto('Observation', { env: { table: counted } }) {
+      head = this.column('%table.first()', { type: 'string', default: '' })
     }
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Counted] })
     engine.evaluate('head()', weighed)
@@ -94,88 +67,56 @@ describe('a DTO env reaches its own columns and stops there', () => {
     expect(reads).toBe(wrapped)
   })
 
-  it('merges down the class chain, most derived winning per name', () => {
-    // Annotating the base `DtoEnv` is what lets a subclass name one entry: an
-    // inferred literal type would make TypeScript demand the whole record back.
-    class Base extends defineDto('Observation') {
-      static env: DtoEnv = { unit: 'kg', label: 'Reading' }
-
-      @column('%label', { type: 'string', default: '' })
-      label!: string
+  it('reaches the columns of every subclass', () => {
+    class Base extends defineDto('Observation', { env: { unit: 'kg', label: 'Reading' } }) {
+      label = this.column('%label', { default: '' })
     }
     class Derived extends Base {
-      static override env = { unit: 'lb' }
-
-      @column('%unit', { type: 'string', default: '' })
-      unit!: string
+      unit = this.column('%unit', { default: '' })
     }
-    // The base keeps its own view: a subclass overriding one entry changes
-    // nothing for the class it extends.
-    expect(dtoDefinition(Derived).env).toEqual({ unit: 'lb', label: 'Reading' })
-    expect(dtoDefinition(Base).env).toEqual({ unit: 'kg', label: 'Reading' })
-    expect(r4.project(weighed, Derived)).toMatchObject({ unit: 'lb', label: 'Reading' })
+    expect(dtoDefinition(Derived).env).toEqual({ unit: 'kg', label: 'Reading' })
+    expect(r4.project(weighed, Derived)).toMatchObject({ unit: 'kg', label: 'Reading' })
+    expectTypeOf(r4.project(weighed, Derived).unit).toEqualTypeOf<string>()
   })
 
-  it('overriding a table in a subclass swaps it for that subclass, not for calls into the registered DTO', () => {
-    class Registered extends defineDto('Observation') {
-      static env = { unit: 'kg' }
-
-      @column('%unit', { type: 'string', default: '' })
-      unit!: string
-
-      @column('unit()', { type: 'string', default: '' })
-      viaCall!: string
+  it('varies per class through a factory that forwards its options', () => {
+    // A subclass cannot change the env its base columns were inferred against,
+    // so variants of one row shape come from a function that calls defineDto.
+    function unitRow<const Options extends DtoOptions>(options: Options) {
+      return class UnitRow extends defineDto('Observation', options) {}
     }
-    class Stubbed extends Registered {
-      static override env = { unit: 'lb' }
+    class Kilograms extends unitRow({ env: { unit: 'kg' } }) {
+      unit = this.column('%unit', { default: '' })
     }
-    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Registered] })
-    // A call resolves to whichever DTO the engine registered, and runs with that
-    // DTO's env — the subclass is not the one registered, so `unit()` is still
-    // the original's. Register the subclass in its place to swap both.
-    expect(engine.project(weighed, Stubbed)).toMatchObject({ unit: 'lb', viaCall: 'kg' })
-    expect(engine.project(weighed, Registered)).toMatchObject({ unit: 'kg', viaCall: 'kg' })
+    class Pounds extends unitRow({ env: { unit: '[lb_av]', factor: 2.2 } }) {
+      unit = this.column('%unit', { default: '' })
+
+      factor = this.column('%factor', { default: 1 })
+    }
+    const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Kilograms] })
+    expect(engine.project(weighed, Kilograms).unit).toBe('kg')
+    expect(engine.project(weighed, Pounds)).toMatchObject({ unit: '[lb_av]', factor: 2.2 })
+    expectTypeOf(engine.project(weighed, Pounds).factor).toEqualTypeOf<number>()
   })
 
-  it('refuses a static env that is not a record of variables', () => {
-    class NotARecord extends defineDto('Observation') {
-      static env = ['kg']
-
-      @column('status', { type: 'string', default: '' })
-      status!: string
-    }
-    expect(() => r4.project(weighed, NotARecord)).toThrow(
-      "DTO NotARecord declares a static 'env' that is not a record of variables"
+  it('refuses options it could never apply', () => {
+    // A JavaScript caller or a cast can still pass a list.
+    expect(() => defineDto('Observation', { env: ['kg'] as unknown as Record<string, unknown> })).toThrow(
+      "defineDto('Observation'): 'env' must be a record of variables, the same shape as EvaluateOptions.env"
     )
-
-    // The blame follows the declaration, not the class being projected: naming
-    // the subclass would point at the file with nothing to fix in it.
-    class Inherited extends NotARecord {
-      @column('id', { type: 'string', default: '' })
-      id!: string
-    }
-    expect(() => r4.project(weighed, Inherited)).toThrow(
-      "DTO NotARecord declares a static 'env' that is not a record of variables"
+    // The DTO's own value always wins, so a caller value under the same name
+    // would be silently ignored. Either spelling names the same variable.
+    expect(() => defineDto('Observation', { env: { '%site': 'dto' }, callerEnv: ['site'] })).toThrow(
+      "defineDto('Observation'): callerEnv names 'site', which the DTO's own env already binds"
     )
-
-    // Nothing to declare is not a mistake: a DTO that computes its table and
-    // comes up with none reads like one that never declared env at all.
-    class NoneAfterAll extends defineDto('Observation') {
-      static env: DtoEnv | undefined = undefined
-
-      @column('status', { type: 'string', default: '' })
-      status!: string
-    }
-    expect(dtoDefinition(NoneAfterAll).env).toBeUndefined()
-    expect(r4.project(weighed, NoneAfterAll).status).toBe('final')
+    expect(() =>
+      defineDto('Observation', { env: { site: 'dto' }, callerEnv: { '%site': { type: 'string' } } })
+    ).toThrow("callerEnv names 'site'")
   })
 
   it('lays over the caller env for the call and leaves it as it was', () => {
-    class Sited extends defineDto('Observation') {
-      static env = { site: 'dto' }
-
-      @column('%site', { type: 'string', default: '' })
-      site!: string
+    class Sited extends defineDto('Observation', { env: { site: 'dto' } }) {
+      site = this.column('%site', { type: 'string', default: '' })
     }
     const engine = new FhirPathEngine({ ...withEngineEnv, resourceDtos: [Sited] })
     // Inside the body the DTO's value wins; outside it, before and after the
@@ -184,14 +125,11 @@ describe('a DTO env reaches its own columns and stops there', () => {
   })
 
   it('leaves every name the DTO does not declare to the caller', () => {
-    class Partial extends defineDto('Observation') {
-      static env = { own: 'mine' }
-
-      @column("%site.combine(%own).combine(%loinc).combine(%context.status).join('/')", {
+    class Partial extends defineDto('Observation', { env: { own: 'mine' } }) {
+      seen = this.column("%site.combine(%own).combine(%loinc).combine(%context.status).join('/')", {
         type: 'string',
         default: '',
       })
-      seen!: string
     }
     const engine = new FhirPathEngine({ ...withEngineEnv, resourceDtos: [Partial] })
     // The engine env, the built-in constants, and %context all stay the
@@ -200,11 +138,8 @@ describe('a DTO env reaches its own columns and stops there', () => {
   })
 
   it('reaches a per-call name the caller supplies, and keeps its own where they collide', () => {
-    class Requested extends defineDto('Observation') {
-      static env = { site: 'dto' }
-
-      @column("%requestId.combine(%site).join('/')", { type: 'string', default: '' })
-      tagged!: string
+    class Requested extends defineDto('Observation', { env: { site: 'dto' } }) {
+      tagged = this.column("%requestId.combine(%site).join('/')", { type: 'string', default: '' })
     }
     const engine = new FhirPathEngine({ ...withEngineEnv, resourceDtos: [Requested] })
     // A per-call name the DTO never declared is readable in the body...
@@ -214,20 +149,13 @@ describe('a DTO env reaches its own columns and stops there', () => {
   })
 
   it('gives each DTO its own overlay when one column calls another DTO', () => {
-    class Inner extends defineDto('CodeableConcept') {
-      static env = { source: 'inner', innerOnly: 'yes' }
-
-      @column("%source.combine(%outerOnly).join('/')", { type: 'string', default: '' })
-      sourced!: string
+    class Inner extends defineDto('CodeableConcept', { env: { source: 'inner', innerOnly: 'yes' } }) {
+      sourced = this.column("%source.combine(%outerOnly).join('/')", { type: 'string', default: '' })
     }
-    class Outer extends defineDto('Observation') {
-      static env = { source: 'outer', outerOnly: 'reachable' }
+    class Outer extends defineDto('Observation', { env: { source: 'outer', outerOnly: 'reachable' } }) {
+      chained = this.column("code.sourced().combine(%source).join('/')", { type: 'string', default: '' })
 
-      @column("code.sourced().combine(%source).join('/')", { type: 'string', default: '' })
-      chained!: string
-
-      @column('%innerOnly', { type: 'string', default: '' })
-      borrowed!: string
+      borrowed = this.column('%innerOnly', { type: 'string', default: '' })
     }
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Inner, Outer] })
     // Inner's body sees its own %source, and Outer's %outerOnly through the
@@ -240,23 +168,14 @@ describe('a DTO env reaches its own columns and stops there', () => {
   })
 
   it('travels with a criteria, and with each member of an overloaded name', () => {
-    class Concepts extends defineDto('CodeableConcept') {
-      static env = { wanted: 'Weight' }
-
-      @column('%wanted', { type: 'string', default: '' })
-      wantedLabel!: string
+    class Concepts extends defineDto('CodeableConcept', { env: { wanted: 'Weight' } }) {
+      wantedLabel = this.column('%wanted', { type: 'string', default: '' })
     }
-    class Codings extends defineDto('Coding') {
-      static env = { wanted: 'Body weight' }
-
-      @column('%wanted', { type: 'string', default: '' })
-      wantedLabel!: string
+    class Codings extends defineDto('Coding', { env: { wanted: 'Body weight' } }) {
+      wantedLabel = this.column('%wanted', { type: 'string', default: '' })
     }
-    class Flags extends defineDto('Observation') {
-      static env = { finalStatus: 'final' }
-
-      @criteria('status = %finalStatus')
-      isFinal!: boolean
+    class Flags extends defineDto('Observation', { env: { finalStatus: 'final' } }) {
+      isFinal = this.criteria('status = %finalStatus')
     }
     const coded: Observation = {
       resourceType: 'Observation',
@@ -273,15 +192,11 @@ describe('a DTO env reaches its own columns and stops there', () => {
   })
 
   it('is in scope for a body reached through a var, and beside %rowIndex when projecting', () => {
-    class Reported extends defineDto('DiagnosticReport') {
-      static env = { fallback: 'unread' }
-
-      @column('(conclusion | %fallback).first()', { type: 'string', default: '' })
-      summary!: string
+    class Reported extends defineDto('DiagnosticReport', { env: { fallback: 'unread' } }) {
+      summary = this.column('(conclusion | %fallback).first()', { type: 'string', default: '' })
     }
     class Row extends defineDto('DiagnosticReport', { vars: { text: 'summary()' } }) {
-      @column("%rowIndex.toString().combine(%text).join(':')", { type: 'string', default: '' })
-      line!: string
+      line = this.column("%rowIndex.toString().combine(%text).join(':')", { type: 'string', default: '' })
     }
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Reported] })
     // The var body calls the column, whose own env resolves there too, and the
@@ -293,11 +208,8 @@ describe('a DTO env reaches its own columns and stops there', () => {
   })
 
   it('does not weaken the recursion guard', () => {
-    class Looping extends defineDto('Observation') {
-      static env = { marker: 'x' }
-
-      @column("%marker.combine(loops()).join('')", { type: 'string', default: '' })
-      loops!: string
+    class Looping extends defineDto('Observation', { env: { marker: 'x' } }) {
+      loops = this.column("%marker.combine(loops()).join('')", { type: 'string', default: '' })
     }
     const engine = new FhirPathEngine({ model: r4Model, resourceDtos: [Looping] })
     expect(() => engine.evaluate('loops()', weighed)).toThrow(

@@ -71,7 +71,7 @@ It recognizes:
   `analyzeExpression` calls;
 - `FhirPathEngine` and `r4` methods such as `test`, `filter`, `project`, and
   `checkConstraints`;
-- `@column`, `@criteria`, and `defineDto()` expressions;
+- DTO `this.column()` and `this.criteria()` fields and `defineDto()` vars;
 - the `fhirpath` tagged template.
 
 Common method names are checked only on values imported from this package or
@@ -160,8 +160,8 @@ The CLI finds DTOs by convention:
   it imports the selected DTO modules.
 - Put engines in the selected modules or include their modules in `--dtos`.
 
-Importing a DTO module executes its top-level code, decorator and class
-initialization, and imported dependencies. Keep selected DTO modules and their
+Importing a DTO module executes its top-level code, class initialization, and
+imported dependencies. Keep selected DTO modules and their
 imports free of unexpected side effects, and run the import pass only on trusted
 project code. Use `--no-import` when module execution is not appropriate.
 
@@ -215,9 +215,16 @@ information to prove an error.
 - A function declared by a DTO in another module is not visible. An unresolved
   function is reported only when its name is close to a column declared in the
   same file.
-- A DTO needs a statically known `fhirType` for element and type checks. Its own
-  `extends defineDto('Type')` or a base class declared in the same file provides
-  that type. A factory call or imported base class receives syntax checks only.
+- A class is read as a DTO when the file shows that it extends `defineDto(...)`:
+  directly, through a base class declared in the same file, or through a
+  function of the same file that returns such a class. A class extending an
+  imported base is read as a DTO only when TypeScript type information proves
+  it; otherwise the CLI reports its columns as skipped and ESLint leaves them
+  alone.
+- A DTO needs a statically known `fhirType` for element and type checks. A
+  string literal in its `defineDto('Type')` call provides that type, directly or
+  through a base class. A class built by a function receives syntax checks only,
+  because the caller chooses its type.
 - An engine reached through an alias the file does not declare, such as
   `this.engine` or a function parameter, needs TypeScript type information to be
   recognized. The CLI builds a TypeScript program for this. Editors parse one

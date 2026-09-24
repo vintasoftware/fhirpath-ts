@@ -221,7 +221,7 @@ export function analyzeSite(
     variables?: Readonly<Record<string, DeclaredVariable>>
     /** The call also binds variables the source cannot name — a computed key or spread in env/vars. */
     openVariables?: true
-    /** Functions the site's file declares — a DTO's `@column` fields (see `columnFunctionDeclaration`). */
+    /** Functions the site's file declares — a DTO's column fields (see `columnFunctionDeclaration`). */
     functions?: Readonly<Record<string, DeclaredFunction>>
   },
   options?: AnalyzeOptions
@@ -927,7 +927,7 @@ class Analyzer {
     if (signature.input.ordered === true) {
       this.requireOrdered(input, node.span, `${node.name}()`)
     }
-    // A function written for one type (a DTO's `@column`), called on a focus
+    // A function written for one type (a DTO column), called on a focus
     // that can never be that type. `unsatisfiedInput` holds the same rule the
     // engine applies, so the two halves agree on what counts as a mistake.
     const unsatisfied =

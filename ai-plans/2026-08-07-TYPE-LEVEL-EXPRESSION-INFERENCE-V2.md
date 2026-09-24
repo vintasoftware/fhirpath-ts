@@ -32,8 +32,8 @@ r4.first('Patient.name.exists() and Patient.active', patient) // boolean | undef
 
 The gain is broader than operators:
 
-- DTO fields such as `@column("code.text & ' (dx)'") value!: string` are
-  checked against the expression without repeating `{ type: 'string' }`.
+- DTO fields such as `value = this.column("code.text & ' (dx)'")` are typed
+  from the expression without repeating `{ type: 'string' }`.
 - A typed `%report` environment value keeps `%report.status`, comparisons, and
   later calls precise instead of entering an unknown region.
 - A custom function's existing `signature` supplies its call result, so
@@ -41,7 +41,7 @@ The gain is broader than operators:
 - A Reference path carries its generated target profiles through `resolve()`,
   so navigation after resolution can be inferred.
 - `evaluate()`, `first()`, `compile()`, bound expressions, `project()` columns,
-  and DTO decorators all improve together because they already consume
+  and DTO columns all improve together because they already consume
   `FhirpathResult` / `FhirpathResultIn`.
 
 This remains result inference, not a second diagnostics system. Invalid,
@@ -100,8 +100,8 @@ static rule the analyzer can express:
 - an expression over a model with no generated type maps (only R4 ships)
 - an environment value, pre-resolved var, native host function, or external
   reference with no type declaration
-- a function synthesized from standard DTO field decorators: decorators do not
-  add their column names or options to the class's static TypeScript type, so
+- a function synthesized from DTO column fields: the class's static TypeScript
+  type does not tell column fields apart from other fields and getters, so
   `resourceDtos` alone cannot expose those functions soundly to the type layer
 - reflection or tree traversal whose result has no bounded static type
 - a construct whose analyzer result is unknown
@@ -237,9 +237,9 @@ The free exported result types accept a context explicitly for hosts building
 wrappers. Commit 5 must lock all of these call shapes with exact public API tests
 before migrating internal callers.
 
-DTO field decorators still benefit from every new grammar and result rule that
-depends only on the expression and `fhirType`. They do not automatically publish
-decorated column metadata into `resourceDtos`' static class type. Registered DTO
+DTO column fields still benefit from every new grammar and result rule that
+depends only on the expression and the DTO context. They do not publish column
+metadata into `resourceDtos`' static class type. Registered DTO
 function calls therefore remain analyzer-checked but opaque to
 `FhirpathResult` unless a future API supplies explicit, cross-checked static
 metadata. Inferring every non-method instance property would incorrectly include
@@ -702,7 +702,7 @@ The implementation is complete only when:
 | Parser prior art does not fit FHIRPath | Measured fused/AST spike, general precedence stack, explicit documented decision before implementation |
 | Scoping differs from runtime | Capability cases for nested frames, forked operands/arguments, variable lifetime, and local overlays |
 | Context literals widen before inference | Const-generic capture tests, documented `as const satisfies` path, opaque fallback after deliberate widening |
-| DTO decorators appear statically enumerable when they are not | Keep `resourceDtos`-synthesized calls opaque; rely on loaded analyzer checks rather than guessing from instance fields |
+| DTO columns appear statically enumerable when they are not | Keep `resourceDtos`-synthesized calls opaque; rely on loaded analyzer checks rather than guessing from instance fields |
 | Shared-rule refactor slows runtime | Same-machine five-run before/after benchmark plus contextual pinned Rust comparison |
 | Typed host declarations overpromise actual values | Declarations constrain supplied TypeScript values where possible; unsigned/dynamic data stays opaque |
 | One implementation PR becomes hard to review | Six ordered green commits, generated capability summary, and explicit budget/precision diffs per commit |
@@ -723,8 +723,8 @@ The implementation is complete only when:
   accepted expression under the semantic-token cap is 255 source code units.
 - Corrected the public-context plan around literal widening, input-root flow,
   `CompiledExpression` versus `BoundExpression`, projection row variables, and
-  the fact that standard DTO decorators do not expose registered column metadata
-  to TypeScript.
+  the fact that DTO classes do not expose registered column metadata to
+  TypeScript.
 - Updated the delivery gates for the current documentation split and demo
   editor-sample test, and made Commit 1 an explicit go/no-go performance gate.
 
@@ -922,7 +922,7 @@ Raw final JSON is retained outside the worktree under
   did not measure: 4,589,595 instantiations for the project and 3,275,434 for
   `src/api/dto.test.ts`. Factoring environment-free navigation into a cacheable
   core reduced those measurements to 1,687,759 and 380,355 respectively. A new
-  API fixture covers DTO decorators, engine defaults, per-call declarations,
+  API fixture covers DTO columns, engine defaults, per-call declarations,
   and `project()` so this regression class now has its own ratchet.
 - The final TypeScript 5.9.3 baselines are 121,465 common-path, 573,207
   full-language, and 182,237 API-surface instantiations. TypeScript 5.8.3 uses

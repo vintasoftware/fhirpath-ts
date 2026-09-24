@@ -56,25 +56,19 @@ DTO behavior, parse caching, and Medplum type compatibility.
 ## Suggested usage: DTOs
 
 For application code, prefer a DTO when several expressions build one row or
-view model. The resource type is declared once. Each field keeps its TypeScript
-type, and getters or methods can handle work that is clearer in TypeScript.
+view model. The resource type is declared once. Each field's TypeScript type is
+inferred from its expression, and getters or methods can handle work that is
+clearer in TypeScript.
 
 ```ts
-import { column, criteria, defineDto } from 'fhirpath-ts'
+import { defineDto } from 'fhirpath-ts'
 import { r4 } from 'fhirpath-ts/r4'
 
 class PatientRow extends defineDto('Patient') {
-  @column('id', { default: '' })
-  id!: string
-
-  @column("name.where(use = 'official').first().family", { default: '' })
-  family!: string
-
-  @column('name.given', { collection: true })
-  givenNames!: string[]
-
-  @criteria('active = true')
-  active!: boolean
+  id = this.column('id', { default: '' }) // string
+  family = this.column("name.where(use = 'official').first().family", { default: '' }) // string
+  givenNames = this.column('name.given', { collection: true }) // string[]
+  active = this.criteria('active = true') // boolean
 
   get label(): string {
     return this.family || this.id
@@ -86,18 +80,12 @@ rows[0] // PatientRow { id: '', family: '', givenNames: [], active: true }
 rows[0]?.label // ''
 ```
 
-`@column` and `@criteria` use standard JavaScript decorators. Your build must
-transpile them. TypeScript works with `target` set to ES2024 or lower. SWC and Babel
-also support them. For a build without decorator support,
-[use records with `project()`](docs/api.md#project).
-
 Pass DTOs through `resourceDtos` to call their columns from expressions with other
 FHIR resources as root:
 
 ```ts
 class CodeableConceptDto extends defineDto('CodeableConcept') {
-  @column('(text | coding.display.first() | coding.first().code).first()')
-  displayText!: string | undefined
+  displayText = this.column('(text | coding.display.first() | coding.first().code).first()')
 }
 
 const fp = new FhirPathEngine({

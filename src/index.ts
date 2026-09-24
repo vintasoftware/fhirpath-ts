@@ -12,8 +12,8 @@ export type {
 } from './api/compile.ts'
 export { compile, CompiledExpression, DEFAULT_PARSE_CACHE_SIZE } from './api/compile.ts'
 export type { ConstraintCheckResult, ConstraintIssue, FhirConstraint, OperationOutcome } from './api/constraints.ts'
-export type { ColumnTypeMismatch, DtoBase, DtoClass, DtoEnv, DtoInstance, DtoOptions, DtoRow } from './api/dto.ts'
-export { column, criteria, defineDto } from './api/dto.ts'
+export type { DtoBase, DtoBaseClass, DtoClass, DtoContext, DtoOptions, DtoRow } from './api/dto.ts'
+export { defineDto } from './api/dto.ts'
 export type {
   EngineExpression,
   EngineInput,

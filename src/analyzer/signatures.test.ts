@@ -40,7 +40,7 @@ describe('analyzer signature table', () => {
 
   it('no builtin declares input types', () => {
     // `input.types` exists for a function written for one type, such as a DTO's
-    // `@column`. Spec functions accept many types, so a built-in that named
+    // column. Spec functions accept many types, so a built-in that named
     // types here would report valid expressions. official-conformance.test.ts
     // would catch it, but long after the fact.
     const typed = Object.entries(FUNCTION_SIGNATURES)

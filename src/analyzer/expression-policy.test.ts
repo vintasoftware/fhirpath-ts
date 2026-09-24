@@ -200,11 +200,11 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
   {
     name: 'DTO declarations: column, criteria and vars',
     code: [
-      "import { column, criteria, defineDto } from 'fhirpath-ts'",
+      "import { defineDto } from 'fhirpath-ts'",
       "class Row extends defineDto('Condition', { vars: { badge: 'x..1' } }) {",
-      "  @column('x..2', { type: 'string' }) name!: string | undefined",
-      "  @column('x..3', { collection: true }) all!: unknown[]",
-      "  @criteria('x..4') flag!: boolean",
+      "  name = this.column('x..2', { type: 'string' })",
+      "  all = this.column('x..3', { collection: true })",
+      "  flag = this.criteria('x..4')",
       '}',
     ].join('\n'),
     expected: 4,
@@ -213,24 +213,73 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
   {
     // No statically-known root, so `analyzeSite` keeps syntax findings only — the
     // corpus is all syntax errors, so both walkers must still report every one.
+    // The class a factory of the file builds is a DTO, and so is its subclass.
     name: 'DTO declarations on a class with no statically-known root',
     code: [
-      "import { column, criteria } from 'fhirpath-ts'",
-      "class Row extends badgedRow('DiagnosticReport') {",
-      "  @column('x..1') name!: unknown",
-      "  @criteria('x..2') flag!: boolean",
+      "import { defineDto } from 'fhirpath-ts'",
+      'function badgedRow(fhirType: string) {',
+      '  class BadgedRow extends defineDto(fhirType) {',
+      "    name = this.column('x..1')",
+      "    flag = this.criteria('x..2')",
+      '  }',
+      '  return BadgedRow',
+      '}',
+      "class LabRow extends badgedRow('DiagnosticReport') {",
+      "  date = this.column('x..3')",
       '}',
     ].join('\n'),
-    expected: 2,
+    expected: 3,
     typescript: true,
   },
   {
-    name: 'the DTO vocabulary is skipped when it is not the package export',
+    name: 'DTO classes built by arrow, class-expression, and chained factories',
     code: [
-      'const column = (path: string) => path',
+      "import { defineDto } from 'fhirpath-ts'",
+      'const keyed = (fhirType: string) => defineDto(fhirType)',
+      'const wrapped = (fhirType: string) => class extends defineDto(fhirType) {}',
+      'function chained(fhirType: string) { return keyed(fhirType) }',
+      "class A extends keyed('Condition') { a = this.column('x..1') }",
+      "class B extends wrapped('Condition') { b = this.column('x..2') }",
+      "class C extends chained('Condition') { c = this.column('x..3') }",
+      // Not a class-building function: nothing it builds is a DTO.
+      'const other = () => Object',
+      "class D extends other() { d = this.column('x..4') }",
+    ].join('\n'),
+    expected: 3,
+    typescript: true,
+  },
+  {
+    name: 'only the whole initializer of a public instance field is a column',
+    code: [
+      "import { defineDto } from 'fhirpath-ts'",
       "class Row extends defineDto('Condition') {",
-      "  @column('x..1') name!: unknown",
+      "  name = this.column('x..1')",
+      "  static shared = this.column('x..2')",
+      "  #hidden = this.column('x..3')",
+      "  wrapped = [this.column('x..4')]",
+      "  later() { return this.criteria('x..5') }",
       '}',
+    ].join('\n'),
+    expected: 1,
+    typescript: true,
+  },
+  {
+    name: 'a class is not a DTO when its defineDto is not the package export',
+    code: [
+      'const defineDto = (type: string) => class { column(header: string) { return header } }',
+      "class Row extends defineDto('Condition') {",
+      "  name = this.column('x..1')",
+      '}',
+    ].join('\n'),
+    expected: 0,
+    typescript: true,
+  },
+  {
+    name: 'a class of the file that is not a DTO keeps its own column method',
+    code: [
+      "import { defineDto } from 'fhirpath-ts'",
+      "class Table { column(header: string) { return header } names = this.column('x..1') }",
+      "class Wide extends Table { more = this.column('x..2') }",
     ].join('\n'),
     expected: 0,
     typescript: true,
@@ -554,8 +603,8 @@ function eslintPositions(code: string, typescript: boolean): [number, number][] 
   const messages = linter.verify(code, {
     plugins: { fhirpath: eslintPlugin },
     rules: { 'fhirpath/no-invalid-expressions': 'error' },
-    // DTO fields carry decorators and type annotations, which the default parser
-    // cannot read — the same TypeScript parser the repo lints with supplies them.
+    // TypeScript sources carry type annotations, which the default parser cannot
+    // read — the same TypeScript parser the repo lints with supplies them.
     languageOptions: typescript
       ? { parser: tseslint.parser as Linter.Parser, ecmaVersion: 2022, sourceType: 'module' }
       : { ecmaVersion: 2022, sourceType: 'module' },
@@ -591,9 +640,9 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a column path resolves against the class fhirType',
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Row extends defineDto('Condition') {",
-        "  @column('clinicalStatus.codingg.first().code') code!: string | undefined",
+        "  code = this.column('clinicalStatus.codingg.first().code')",
         '}',
       ].join('\n'),
       expected: ["unknown-element: Element 'codingg' is not defined on FHIR.CodeableConcept — did you mean 'coding'?"],
@@ -604,7 +653,7 @@ describe('the walkers agree on a site’s context', () => {
         "import * as api from 'fhirpath-ts'",
         "import { column } from 'fhirpath-ts'",
         "class Row extends api.defineDto('Condition') {",
-        "  @column('clinicalStatus.codingg.first().code') code!: string | undefined",
+        "  code = this.column('clinicalStatus.codingg.first().code')",
         '}',
       ].join('\n'),
       expected: ["unknown-element: Element 'codingg' is not defined on FHIR.CodeableConcept — did you mean 'coding'?"],
@@ -612,9 +661,9 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a %var on a DTO site is never judged',
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Row extends defineDto('Condition') {",
-        "  @column('%whatever.label') label!: unknown",
+        "  label = this.column('%whatever.label')",
         '}',
       ].join('\n'),
       expected: [],
@@ -654,12 +703,12 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a call into a column the same file declares resolves, and carries its type',
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Concept extends defineDto('CodeableConcept') {",
-        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        "  displayText = this.column('text', { type: 'string' })",
         '}',
         "class Row extends defineDto('Condition') {",
-        "  @column('code.displayText().length()') len!: number | undefined",
+        "  len = this.column('code.displayText().length()')",
         '}',
       ].join('\n'),
       expected: [],
@@ -667,12 +716,12 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a near-miss of a column the same file declares is still a typo',
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Concept extends defineDto('CodeableConcept') {",
-        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        "  displayText = this.column('text', { type: 'string' })",
         '}',
         "class Row extends defineDto('Condition') {",
-        "  @column('code.displayTxt()') name!: unknown",
+        "  name = this.column('code.displayTxt()')",
         '}',
       ].join('\n'),
       expected: ["unknown-function: Unrecognized function 'displayTxt' — did you mean 'displayText'?"],
@@ -680,12 +729,12 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a root followed through a same-file base class',
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Base extends defineDto('Observation') {",
-        "  @column('issued') at!: unknown",
+        "  at = this.column('issued')",
         '}',
         'class Sub extends Base {',
-        "  @column('valuee.ofType(Quantity).value') kg!: unknown",
+        "  kg = this.column('valuee.ofType(Quantity).value')",
         '}',
       ].join('\n'),
       expected: ["unknown-element: Element 'valuee' is not defined on FHIR.Observation — did you mean 'value'?"],
@@ -693,12 +742,12 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a column called on a focus that can never hold its own fhirType',
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Concept extends defineDto('CodeableConcept') {",
-        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        "  displayText = this.column('text', { type: 'string' })",
         '}',
         "class Row extends defineDto('Condition') {",
-        "  @column('subject.reference.displayText()') name!: unknown",
+        "  name = this.column('subject.reference.displayText()')",
         '}',
       ].join('\n'),
       expected: ['input-type: displayText() expects FHIR.CodeableConcept as input, found FHIR.string'],
@@ -706,12 +755,12 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a column whose cardinality is dynamic still declares what it is written against',
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Concept extends defineDto('CodeableConcept') {",
-        "  @column('coding.display', { collection: dynamic }) displays!: string[]",
+        "  displays = this.column('coding.display', { collection: dynamic })",
         '}',
         "class Row extends defineDto('Condition') {",
-        "  @column('subject.reference.displays()') name!: unknown",
+        "  name = this.column('subject.reference.displays()')",
         '}',
       ].join('\n'),
       expected: ['input-type: displays() expects FHIR.CodeableConcept as input, found FHIR.string'],
@@ -721,15 +770,15 @@ describe('the walkers agree on a site’s context', () => {
       // Sub's fhirType is only known once Base is read, so the walkers must
       // decide the file's column vocabulary after the whole file, not during it.
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         'class Sub extends Base {',
-        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        "  displayText = this.column('text', { type: 'string' })",
         '}',
         "class Base extends defineDto('CodeableConcept') {",
-        "  @column('id') conceptId!: unknown",
+        "  conceptId = this.column('id')",
         '}',
         "class Row extends defineDto('Condition') {",
-        "  @column('subject.reference.displayText()') name!: unknown",
+        "  name = this.column('subject.reference.displayText()')",
         '}',
       ].join('\n'),
       expected: ['input-type: displayText() expects FHIR.CodeableConcept as input, found FHIR.string'],
@@ -740,15 +789,15 @@ describe('the walkers agree on a site’s context', () => {
       // written for, and `code` is a CodeableConcept. Keeping the last one seen
       // would report this valid call.
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class ConceptRow extends defineDto('CodeableConcept') {",
-        "  @column('text', { type: 'string' }) label!: string | undefined",
+        "  label = this.column('text', { type: 'string' })",
         '}',
         "class CodingRow extends defineDto('Coding') {",
-        "  @column('display', { type: 'string' }) label!: string | undefined",
+        "  label = this.column('display', { type: 'string' })",
         '}',
         "class ProblemRow extends defineDto('Condition') {",
-        "  @column('code.label()') name!: unknown",
+        "  name = this.column('code.label()')",
         '}',
       ].join('\n'),
       expected: [],
@@ -758,15 +807,15 @@ describe('the walkers agree on a site’s context', () => {
       // agree on, which about the result is nothing.
       name: 'one field name declared with two result types claims neither',
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Text extends defineDto('CodeableConcept') {",
-        "  @column('text', { type: 'string' }) label!: string | undefined",
+        "  label = this.column('text', { type: 'string' })",
         '}',
         "class Count extends defineDto('CodeableConcept') {",
-        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        "  label = this.column('coding.count()', { type: 'integer' })",
         '}',
         "class ProblemRow extends defineDto('Condition') {",
-        "  @column('code.label().length()') n!: unknown",
+        "  n = this.column('code.label().length()')",
         '}',
       ].join('\n'),
       expected: [],
@@ -777,16 +826,16 @@ describe('the walkers agree on a site’s context', () => {
       // everything, and each call still gets the result of the column its own
       // focus reaches.
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class ConceptRow extends defineDto('CodeableConcept') {",
-        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        "  label = this.column('coding.count()', { type: 'integer' })",
         '}',
         "class CodingRow extends defineDto('Coding') {",
-        "  @column('display', { type: 'string' }) label!: string | undefined",
+        "  label = this.column('display', { type: 'string' })",
         '}',
         "class ProblemRow extends defineDto('Condition') {",
-        "  @column('code.coding.label().length()') chars!: unknown",
-        "  @column('code.label().length()') counted!: unknown",
+        "  chars = this.column('code.coding.label().length()')",
+        "  counted = this.column('code.label().length()')",
         '}',
       ].join('\n'),
       expected: ['operand-type: length() expects a String input, found FHIR.integer'],
@@ -797,15 +846,16 @@ describe('the walkers agree on a site’s context', () => {
       // wherever both are in play — the Integer result of the one whose root is
       // known cannot be pinned on this call.
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
+        'function keyedRow(fhirType: string) { class KeyedRow extends defineDto(fhirType) {} return KeyedRow }',
         "class Loose extends keyedRow('CodeableConcept') {",
-        "  @column('coding.first().display', { type: 'string' }) label!: string | undefined",
+        "  label = this.column('coding.first().display', { type: 'string' })",
         '}',
         "class Concept extends defineDto('CodeableConcept') {",
-        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        "  label = this.column('coding.count()', { type: 'integer' })",
         '}',
         "class ProblemRow extends defineDto('Condition') {",
-        "  @column('code.label().length()') n!: unknown",
+        "  n = this.column('code.label().length()')",
         '}',
       ].join('\n'),
       expected: [],
@@ -817,15 +867,15 @@ describe('the walkers agree on a site’s context', () => {
       // string focus is wrong whichever one it meant — dropping the signature
       // of a name declared twice would miss it.
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Text extends defineDto('CodeableConcept') {",
-        "  @column('text', { type: 'string' }) label!: string | undefined",
+        "  label = this.column('text', { type: 'string' })",
         '}',
         "class Count extends defineDto('CodeableConcept') {",
-        "  @column('coding.count()', { type: 'integer' }) label!: number | undefined",
+        "  label = this.column('coding.count()', { type: 'integer' })",
         '}',
         "class ProblemRow extends defineDto('Condition') {",
-        "  @column('subject.reference.label()') name!: unknown",
+        "  name = this.column('subject.reference.label()')",
         '}',
       ].join('\n'),
       expected: ['input-type: label() expects FHIR.CodeableConcept as input, found FHIR.string'],
@@ -835,15 +885,15 @@ describe('the walkers agree on a site’s context', () => {
       // Same name, same root, same result — nothing is in doubt, so the wrong
       // focus is still reported.
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class A extends defineDto('CodeableConcept') {",
-        "  @column('text', { type: 'string' }) label!: string | undefined",
+        "  label = this.column('text', { type: 'string' })",
         '}',
         "class B extends defineDto('CodeableConcept') {",
-        "  @column('coding.first().display', { type: 'string' }) label!: string | undefined",
+        "  label = this.column('coding.first().display', { type: 'string' })",
         '}',
         "class ProblemRow extends defineDto('Condition') {",
-        "  @column('subject.reference.label()') name!: unknown",
+        "  name = this.column('subject.reference.label()')",
         '}',
       ].join('\n'),
       expected: ['input-type: label() expects FHIR.CodeableConcept as input, found FHIR.string'],
@@ -851,12 +901,12 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a column on a root-generic factory declares no input, so calls stay unchecked',
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Concept extends keyedRow('CodeableConcept') {",
-        "  @column('text', { type: 'string' }) displayText!: string | undefined",
+        "  displayText = this.column('text', { type: 'string' })",
         '}',
         "class Row extends defineDto('Condition') {",
-        "  @column('subject.reference.displayText()') name!: unknown",
+        "  name = this.column('subject.reference.displayText()')",
         '}',
       ].join('\n'),
       expected: [],
@@ -866,7 +916,7 @@ describe('the walkers agree on a site’s context', () => {
       code: [
         "import { column } from 'fhirpath-ts'",
         "class Row extends badgedRow('DiagnosticReport') {",
-        "  @column('clinicalStatus.codingg.first()') code!: unknown",
+        "  code = this.column('clinicalStatus.codingg.first()')",
         '}',
       ].join('\n'),
       expected: [],
@@ -968,12 +1018,12 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a dynamic column claim does not leak a stale result type',
       code: [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class Concept extends defineDto('CodeableConcept') {",
-        "  @column('coding.count()', { ...unknownClaim, type: 'integer', collection: false }) label!: unknown",
+        "  label = this.column('coding.count()', { ...unknownClaim, type: 'integer', collection: false })",
         '}',
         "class Row extends defineDto('Condition') {",
-        "  @column('code.label().length()') size!: unknown",
+        "  size = this.column('code.label().length()')",
         '}',
       ].join('\n'),
       expected: [],
