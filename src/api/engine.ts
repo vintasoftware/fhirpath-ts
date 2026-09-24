@@ -126,21 +126,6 @@ export type ViewBaseClass<
     ? DtoBaseClass<Root, EngineDtoContext<Defaults, Options>, Fields, 'view'>
     : never
 
-/** The function names an engine's options bind. */
-type BoundFunctionNames<Defaults> = Defaults extends { readonly functions?: infer Functions }
-  ? string extends keyof Exclude<Functions, undefined>
-    ? never
-    : keyof Exclude<Functions, undefined> & string
-  : never
-
-/**
- * Per-call options for projecting a DTO or view. A function the engine binds
- * cannot be replaced, because the columns' types were inferred from it.
- */
-export type DtoProjectOptions<Defaults> = Omit<EvaluateOptions, 'functions'> & {
-  functions?: EvaluateOptions['functions'] & { readonly [Name in BoundFunctionNames<Defaults>]?: never }
-}
-
 /** Engines created during the current recording session. */
 let session: FhirPathEngine[] | undefined
 
@@ -380,9 +365,9 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   project<C extends DtoClass>(
     input: readonly unknown[] | BundleLike,
     dto: C,
-    options?: DtoProjectOptions<Defaults>
+    options?: EvaluateOptions
   ): InstanceType<C>[]
-  project<C extends DtoClass>(input: unknown, dto: C, options?: DtoProjectOptions<Defaults>): InstanceType<C>
+  project<C extends DtoClass>(input: unknown, dto: C, options?: EvaluateOptions): InstanceType<C>
   project<
     const Input extends readonly unknown[] | BundleLike,
     const Columns extends ProjectionColumns,
@@ -395,7 +380,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   >(input: Input, columns: Columns, options?: Declaring<Options>): EngineProjection<Columns, Input, Defaults, Options>
   project(input: unknown, columns: ProjectionColumns | DtoClass, options?: EvaluateOptions): unknown {
     if (typeof columns === 'function') {
-      this.assertProjectable(columns, options)
+      this.assertProjectable(columns)
       assertInputMatchesDto(input, columns)
     }
     const rows =
@@ -403,7 +388,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
         ? projectRows(
             input,
             dtoDefinition(columns).columns,
-            this.merged(dtoCallOptions(columns, options)),
+            this.merged(dtoCallOptions(columns, options, this.compileCached)),
             this.compileCached
           )
             // Materialize each row as a class instance, so the DTO's own methods
@@ -426,25 +411,11 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
     return evaluateConstraints(input, constraints, this.merged(options), this.compileCached)
   }
 
-  /**
-   * A DTO projects on the engine that defined it or one derived from it, and a
-   * per-call option may not replace a function the engine binds: the columns'
-   * types came from the engine's own declarations.
-   */
-  private assertProjectable(dto: DtoClass, options: EvaluateOptions | undefined): void {
-    const { engine } = dtoDefinition(dto)
-    if (!this.derivesFrom(engine)) {
+  /** A DTO projects on the engine that defined it or one derived from it: its column types came from that engine. */
+  private assertProjectable(dto: DtoClass): void {
+    if (!this.derivesFrom(dtoDefinition(dto).engine)) {
       throw new FhirPathTypeError(
         `project(): ${dto.name} was defined on another engine; project it with that engine or one derived from it`
-      )
-    }
-    const bound = this.defaults.functions ?? {}
-    const replaced = Object.keys(options?.functions ?? {})
-      .filter(name => Object.hasOwn(bound, name))
-      .map(name => `functions.${name}`)
-    if (replaced.length > 0) {
-      throw new FhirPathTypeError(
-        `project(): ${replaced.join(', ')} would replace a name the engine binds, which ${dto.name}'s column types rely on`
       )
     }
   }

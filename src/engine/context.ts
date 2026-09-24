@@ -49,6 +49,12 @@ export interface HostExpressionFunction {
    */
   env?: ReadonlyMap<string, TypedValue[]>
   /**
+   * Host functions the body calls, laid over the caller's the same way as `env`.
+   * A DTO column carries its defining engine's functions here, so a caller's
+   * function of the same name cannot change what the column's type describes.
+   */
+  functions?: ReadonlyMap<string, HostFunction>
+  /**
    * Apply the criteria rule to the body's result, so the function always returns
    * exactly one Boolean. That rule is `criteriaBoolean`: §4.5 singleton
    * evaluation, with an empty result read as false. It is what makes a DTO
@@ -248,6 +254,14 @@ export function withEnvOverlay(
   overlay: ReadonlyMap<string, TypedValue[]>
 ): EvaluationContext {
   return { ...context, env: new Map([...context.env, ...overlay]) }
+}
+
+/** Adds host functions for one expression function body, over the caller's (see `HostExpressionFunction.functions`). */
+export function withFunctionOverlay(
+  context: EvaluationContext,
+  overlay: ReadonlyMap<string, HostFunction>
+): EvaluationContext {
+  return { ...context, functions: new Map([...context.functions, ...overlay]) }
 }
 
 /** A context whose defineVariable() scope is detached from the parent chain. */

@@ -15,7 +15,15 @@ import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
 import { columnSignature, criteriaSignature } from './column-signature.ts'
-import type { AnyExpression, Compiler, CustomFunction, EvaluateOptions, SingleCustomFunction } from './compile.ts'
+import {
+  type AnyExpression,
+  COLUMN_FUNCTIONS,
+  type ColumnCustomFunction,
+  type Compiler,
+  type CustomFunction,
+  type EvaluateOptions,
+  type SingleCustomFunction,
+} from './compile.ts'
 import type { FhirPathEngine } from './engine.ts'
 import type { ColumnOptions, ColumnResult, ProjectionColumn } from './project.ts'
 
@@ -579,7 +587,7 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
   const functions: Record<string, CustomFunction> = { ...defaults.functions }
   for (const dto of dtos) {
     const definition = dtoDefinition(dto)
-    for (const [name, spec] of Object.entries(definition.columns)) {
+    for (const name of Object.keys(definition.columns)) {
       // Without this, createContext fails later and names the function rather
       // than the field that caused it.
       if (builtinFunctions.has(name)) {
@@ -589,13 +597,37 @@ export function withDtos(defaults: EvaluateOptions, dtos: readonly DtoClass[], c
       }
       functions[name] = declaredWith(
         functions[name],
-        columnFunction(spec, compile, definition),
+        columnFunctions(definition, compile)[name] as SingleCustomFunction,
         model,
         () => `DTO ${dto.name} redefines the function '${name}'`
       )
     }
   }
   return { ...defaults, functions }
+}
+
+/** Function tables already built, one per definition. */
+const functionTables = new WeakMap<DtoDefinition, Record<string, CustomFunction>>()
+
+/**
+ * The functions a DTO's column bodies call: its defining engine's, and a
+ * registered DTO's own columns. Fixed with the definition, like `columnEnv`, so
+ * a caller's function of the same name cannot change what a column's type
+ * describes. Each column function carries the table it belongs to.
+ */
+function columnFunctions(definition: DtoDefinition, compile: Compiler): Record<string, CustomFunction> {
+  const cached = functionTables.get(definition)
+  if (cached !== undefined) {
+    return cached
+  }
+  const table: Record<string, CustomFunction> = { ...definition.engine.defaults.functions }
+  functionTables.set(definition, table)
+  if (definition.kind === 'dto') {
+    for (const [name, spec] of Object.entries(definition.columns)) {
+      table[name] = columnFunction(spec, compile, definition, table)
+    }
+  }
+  return table
 }
 
 /** Adds a column declaration when its focus type distinguishes it from every existing declaration. */
@@ -655,7 +687,12 @@ function canonicalTypes(model: ModelProvider, types: readonly string[] | undefin
  * definition's env (see `DtoDefinition.columnEnv`). Criteria functions also carry the criteria Boolean rule. DTO
  * variables remain projection-only because function calls have no row.
  */
-function columnFunction(spec: ColumnSpec, compile: Compiler, dto: DtoDefinition): SingleCustomFunction {
+function columnFunction(
+  spec: ColumnSpec,
+  compile: Compiler,
+  dto: DtoDefinition,
+  functions: Record<string, CustomFunction>
+): ColumnCustomFunction {
   const { fhirType, columnEnv: env } = dto
   if ('test' in spec) {
     return {
@@ -663,6 +700,7 @@ function columnFunction(spec: ColumnSpec, compile: Compiler, dto: DtoDefinition)
       criteria: true,
       signature: criteriaSignature(fhirType),
       ...(env !== undefined && { env }),
+      [COLUMN_FUNCTIONS]: functions,
     }
   }
   const signature = columnSignature(spec, fhirType)
@@ -670,6 +708,7 @@ function columnFunction(spec: ColumnSpec, compile: Compiler, dto: DtoDefinition)
     expression: compile(spec.path),
     ...(signature !== undefined && { signature }),
     ...(env !== undefined && { env }),
+    [COLUMN_FUNCTIONS]: functions,
   }
 }
 
@@ -692,15 +731,20 @@ export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
 
 /**
  * Merges DTO options with call options. Definition values win, so projected and
- * registered columns read the same environment, and a column's inferred type
- * cannot be changed by a caller's value of the same name.
+ * registered columns read the same env and functions, and a column's inferred
+ * type cannot be changed by a caller's value of the same name.
  */
-export function dtoCallOptions(dto: DtoClass, options: EvaluateOptions | undefined): EvaluateOptions | undefined {
-  const { columnEnv: env, vars } = dtoDefinition(dto)
-  if (env === undefined && vars === undefined) {
-    return options
+export function dtoCallOptions(
+  dto: DtoClass,
+  options: EvaluateOptions | undefined,
+  compile: Compiler
+): EvaluateOptions {
+  const definition = dtoDefinition(dto)
+  const { columnEnv: env, vars } = definition
+  const merged: EvaluateOptions = {
+    ...options,
+    functions: { ...options?.functions, ...columnFunctions(definition, compile) },
   }
-  const merged: EvaluateOptions = { ...options }
   if (env !== undefined) {
     merged.env = mergeEnvKeys(options?.env, env)
   }

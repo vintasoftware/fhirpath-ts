@@ -26,7 +26,6 @@ export type {
   RegisteredOptions,
 } from './api/dto.ts'
 export type {
-  DtoProjectOptions,
   EngineDtoContext,
   EngineExpression,
   EngineInput,

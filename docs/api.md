@@ -607,10 +607,9 @@ against that expression's resource.
 
 A DTO or view projects on the engine it was defined on and on engines derived
 from it with `register()`. `project()` on any other engine throws. A column body
-always reads the engine's `env`, projected or called, so a per-call value of the
-same name does not reach it. A per-call function may not replace one the engine
-binds when projecting, because the columns' types came from the engine's
-declarations.
+always reads the engine's `env` and calls the engine's functions, projected or
+called, so a per-call value or function of the same name does not reach it: the
+columns' types came from the engine's own.
 
 ### DTO environment and variables
 
@@ -649,8 +648,8 @@ map when FHIRPath navigates through them. It does not create values. Pass them t
 it cannot be a name the engine's `env` binds.
 
 DTO `env` and `vars` take priority over engine and per-call values with the same
-name, and the engine's `env` takes priority over per-call values, so a column
-means the same thing however it is reached. `%rowIndex` and
+name, and the engine's `env` and functions take priority over per-call ones, so
+a column means the same thing however it is reached. `%rowIndex` and
 `%rowTotal` are also available to every column.
 
 DTO `vars` apply only when the DTO is projected. They are row expressions and do

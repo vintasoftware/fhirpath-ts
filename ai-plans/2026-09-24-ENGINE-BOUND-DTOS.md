@@ -140,6 +140,8 @@ sibling value in TypeScript (a getter).
   column called with a per-call `env` value of an engine name returned that
   value while its type came from the engine's. `DtoDefinition.columnEnv` (the
   defining engine's env under the DTO's own) now overlays the caller's env on
-  both routes, replacing the per-call env and vars refusal. Engine `vars` are
+  both routes, and a function table (the defining engine's functions plus a
+  registered DTO's own columns) does the same for function calls. Together
+  they replace the per-call refusal in `project()`. Engine `vars` are
   left out of the column context, since they are evaluated against the
   caller's root.

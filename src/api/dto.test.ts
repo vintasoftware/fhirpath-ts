@@ -209,19 +209,27 @@ describe('DTO projection', () => {
     expect(fp.evaluate('%site', weighed, { env: { site: 42 } })).toEqual([42])
   })
 
-  it('refuses a per-call function that would replace one the engine binds', () => {
+  it('calls the engine functions a column was typed from, whatever the caller passes', () => {
     const hosted = new FhirPathEngine({
       model: r4Model,
       functions: { shout: { expression: 'upper()', signature: { result: { types: ['string'] } } } },
     })
-    class Loud extends hosted.defineView('Observation') {
+    class LoudDto extends hosted.defineDto('Observation') {
+      loud = this.column('status.shout()')
+    }
+    const fp = hosted.register(LoudDto)
+    class Loud extends fp.defineView('Observation') {
       status = this.column('status.shout()')
     }
     expectTypeOf(new Loud().status).toEqualTypeOf<string | undefined>()
-    expect(() =>
-      // @ts-expect-error -- the column's type came from the engine's shout()
-      hosted.project(weighed, Loud, { functions: { shout: { expression: 'length()' } } })
-    ).toThrow("project(): functions.shout would replace a name the engine binds, which Loud's column types rely on")
+    const replaced = { functions: { shout: { expression: 'length()' } } }
+    // Projected or called, the column keeps the engine's shout().
+    expect(fp.project(weighed, Loud, replaced).status).toBe('FINAL')
+    const called = () => fp.evaluate('loud()', weighed, replaced)
+    expectTypeOf(called).returns.toEqualTypeOf<string[]>()
+    expect(called()).toEqual(['FINAL'])
+    // Outside a column body, a per-call function still replaces the engine's.
+    expect(fp.evaluate('status.shout()', weighed, replaced)).toEqual([5])
   })
 
   it('collects every column when a field initializer collects another DTO', () => {

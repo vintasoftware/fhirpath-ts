@@ -193,15 +193,16 @@ rules together; each protects the types:
   would break the types of DTOs defined on its parent.
 - A DTO projects on its engine or an engine derived from it (`derivesFrom`), and
   `register()` accepts only DTOs of that lineage.
-- A column body reads `DtoDefinition.columnEnv`: the defining engine's env with
-  the DTO's own env over it. The registered function's overlay and
-  `dtoCallOptions` both apply it over the caller's env, so per-call env never
-  changes what a column's type was inferred from. `defineDto()` /
-  `defineView()` refuse a `callerEnv` name that env binds. Engine `vars` stay
-  out of the column context (`EngineColumnContext`): they are evaluated against
-  the caller's root.
-- `project()` refuses a per-call function the engine binds. Keep that runtime
-  check and `DtoProjectOptions` in step.
+- A column body reads what its definition fixed: `DtoDefinition.columnEnv` (the
+  defining engine's env with the DTO's own env over it) and `columnFunctions`
+  (the defining engine's functions plus a registered DTO's own columns). The
+  registered function carries both as overlays, and `dtoCallOptions` applies
+  both over the caller's options, so per-call values never change what a
+  column's type was inferred from. The function table rides under the internal
+  `COLUMN_FUNCTIONS` symbol, not a public field, because the type layer does not
+  model per-function tables. `defineDto()` / `defineView()` refuse a
+  `callerEnv` name the engine's env binds. Engine `vars` stay out of the column
+  context (`EngineColumnContext`): they are evaluated against the caller's root.
 - `DtoFunctions` types registered columns from the class's field types. That is
   sound only because `assertRegistrable` rejects views, getters, and plain fields,
   and `dtoDefinition` rejects `as`/`choices` on DTO columns: a registered

@@ -299,16 +299,29 @@ function toHostFunction(name: string, custom: SingleCustomFunction): HostSingleF
   return inputTypes === undefined ? custom : { ...custom, inputTypes }
 }
 
+/**
+ * The functions a DTO column's body calls, fixed where the DTO was defined (see
+ * `HostExpressionFunction.functions`). Symbol-keyed, so it stays out of the
+ * public CustomFunction shape and the type layer, which types a column's calls
+ * from the same table.
+ */
+export const COLUMN_FUNCTIONS: unique symbol = Symbol('fhirpath-ts.columnFunctions')
+
+/** An expression function that carries its column function table. */
+export type ColumnCustomFunction = Extract<SingleCustomFunction, { expression: AnyExpression }> & {
+  [COLUMN_FUNCTIONS]?: Record<string, CustomFunction>
+}
+
 /** The runtime form of an expression-defined CustomFunction: its body, plus what the engine checks around it. */
-function hostExpressionFunction(
-  custom: Extract<SingleCustomFunction, { expression: AnyExpression }>
-): HostExpressionFunction {
+function hostExpressionFunction(custom: ColumnCustomFunction): HostExpressionFunction {
   const { expression, signature } = custom
   const inputTypes = signature?.input?.types
+  const functions = custom[COLUMN_FUNCTIONS]
   return {
     ast: typeof expression === 'string' ? parse(expression) : expression.ast,
     ...(inputTypes !== undefined && { inputTypes }),
     ...(custom.env !== undefined && { env: envOverlay(custom.env) }),
+    ...(functions !== undefined && { functions: functionsOverlay(functions) }),
     ...(custom.criteria === true && { criteria: true }),
   }
 }
@@ -329,6 +342,27 @@ function envOverlay(env: Record<string, unknown>): ReadonlyMap<string, TypedValu
   if (overlay === undefined) {
     overlay = envCollections(env)
     overlays.set(env, overlay)
+  }
+  return overlay
+}
+
+/** Function overlays already built, by the table they were built from (see `overlays`). */
+const functionOverlays = new WeakMap<object, ReadonlyMap<string, HostFunction>>()
+
+/**
+ * A column function table in runtime form, built once per table. The table
+ * holds the DTO's own columns, which carry the same table, so the map is cached
+ * before its entries convert.
+ */
+function functionsOverlay(functions: Record<string, CustomFunction>): ReadonlyMap<string, HostFunction> {
+  let overlay = functionOverlays.get(functions)
+  if (overlay === undefined) {
+    const built = new Map<string, HostFunction>()
+    functionOverlays.set(functions, built)
+    for (const [name, fn] of Object.entries(toHostFunctions(functions))) {
+      built.set(name, fn)
+    }
+    overlay = built
   }
   return overlay
 }
