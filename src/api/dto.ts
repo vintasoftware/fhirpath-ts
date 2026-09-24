@@ -4,11 +4,11 @@ import { bareEnvironmentName, mergeEnvKeys, normalizeEnvKeys } from '../engine/c
 import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
+import type { R4Elements, R4TypeOf } from '../r4/generated/type-maps.ts'
 import type {
   EmptyFhirpathTypeContext,
   FhirpathTypeContextOf,
   FhirpathTypeDeclarations,
-  FhirTypeName,
   MergeFhirpathTypeContexts,
 } from '../typed/infer.ts'
 import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
@@ -16,6 +16,7 @@ import type { TypedValue } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
 import { columnSignature, criteriaSignature } from './column-signature.ts'
 import type { AnyExpression, Compiler, CustomFunction, EvaluateOptions, SingleCustomFunction } from './compile.ts'
+import type { FhirPathEngine } from './engine.ts'
 import type { ColumnOptions, ColumnResult, ProjectionColumn } from './project.ts'
 
 /** The object forms of ProjectionColumn: what `this.column()` and `this.criteria()` record. */
@@ -30,6 +31,24 @@ export type ColumnSpec = Exclude<ProjectionColumn, string>
 type PickConstraint<Options> = Options extends { choices: readonly (infer Row extends { code: string })[] }
   ? { pick?: keyof Row & string }
   : { pick?: never }
+
+/**
+ * What a DTO class is for. A `'dto'` is registered on an engine, so its columns
+ * become FHIRPath functions; a `'view'` is only projected.
+ */
+export type DtoKind = 'dto' | 'view'
+
+/**
+ * The column options of a registered DTO. A registered column is also a
+ * function that returns its expression's own result, so options that convert
+ * the projected value (`as`, `choices`) belong in a view.
+ */
+export interface DtoColumnOptions {
+  collection?: boolean
+  type?: keyof R4TypeOf
+  default?: unknown
+  enum?: readonly string[]
+}
 
 /** Data a DTO reads in addition to the projected resource. */
 export interface DtoOptions {
@@ -93,11 +112,25 @@ class ColumnMarker {
   }
 }
 
+/** The options a column of this kind accepts. */
+type ColumnOptionsOf<Kind extends DtoKind> = Kind extends 'dto' ? DtoColumnOptions : ColumnOptions
+
+/** The `pick` check applies to view columns, the only ones with `choices`. */
+type KindConstraint<Kind extends DtoKind, Options> = Kind extends 'dto' ? unknown : PickConstraint<Options>
+
 /**
- * The instance side of every DTO. `defineDto()` returns a subclass bound to one
- * FHIR type and option set; declare columns as fields of a class extending it.
+ * The instance side of every DTO and view. `engine.defineDto()` and
+ * `engine.defineView()` return a subclass bound to one engine, FHIR type, and
+ * option set; declare columns as fields of a class extending it.
  */
-export class DtoBase<Root extends string = string, Context extends object = EmptyFhirpathTypeContext> {
+export class DtoBase<
+  Root extends string = string,
+  Context extends object = EmptyFhirpathTypeContext,
+  Kind extends DtoKind = DtoKind,
+> {
+  /** Type-only: keeps a view out of `register()`. Protected, so rows never show it. */
+  declare protected readonly dtoKind: Kind
+
   /** The FHIR type the columns read. It lives on the prototype, so it is not one of a row's own keys. */
   get fhirType(): Root {
     return (this.constructor as unknown as { readonly fhirType: Root }).fhirType
@@ -110,9 +143,9 @@ export class DtoBase<Root extends string = string, Context extends object = Empt
    * DTO's `env`, `vars`, and `callerEnv`.
    */
   protected column<const Expr extends string>(path: Expr): ColumnResult<{ path: Expr }, Root, Context>
-  protected column<const Expr extends string, const Options extends ColumnOptions>(
+  protected column<const Expr extends string, const Options extends ColumnOptionsOf<Kind>>(
     path: Expr,
-    options: Options & PickConstraint<Options>
+    options: Options & KindConstraint<Kind, Options>
   ): ColumnResult<{ path: Expr } & Options, Root, Context>
   protected column(path: string, options?: ColumnOptions): unknown {
     return mark(this, { path, ...options })
@@ -156,27 +189,177 @@ function assertLastMarkerStored(instance: object, found: readonly ColumnMarker[]
   }
 }
 
-/** A DTO class: a `defineDto()` base, or any class extending one. */
+/** A DTO or view class: an engine's `defineDto()`/`defineView()` base, or any class extending one. */
 export type DtoClass = (new () => { readonly fhirType: string }) & { readonly fhirType: string }
 
 /** The DTO instance type returned by projection, including getters and methods. */
 export type DtoRow<C extends DtoClass> = InstanceType<C>
 
 /**
- * The class `defineDto()` returns: a DTO base bound to one FHIR type and its
- * column context. `Fields` adds the columns of a class a function builds on
- * that base, for writing such a function's return type.
+ * The class `defineDto()`/`defineView()` returns: a base bound to one FHIR type
+ * and its column context. `Fields` adds the columns of a class a function
+ * builds on that base, for writing such a function's return type.
  */
 export type DtoBaseClass<
   Root extends string,
   Context extends object,
   Fields extends object = object,
-> = (new () => DtoBase<Root, Context> & Fields) & {
+  Kind extends DtoKind = DtoKind,
+> = (new () => DtoBase<Root, Context, Kind> & Fields) & {
   readonly fhirType: Root
+}
+
+/** The class a registered DTO is: every non-method instance field is a column. */
+export type RegisteredDtoClass = (new () => { readonly fhirType: string } & DtoBase<string, object, 'dto'>) & {
+  readonly fhirType: string
+}
+
+type NonColumnKey = 'fhirType'
+
+/** A registered DTO's column names: its non-method instance fields. */
+type ColumnNames<Instance> = {
+  [Key in keyof Instance]: Key extends NonColumnKey
+    ? never
+    : Instance[Key] extends (...args: never[]) => unknown
+      ? never
+      : Key
+}[keyof Instance] &
+  string
+
+/**
+ * Type names by the TypeScript form of their values. Generic over the model maps
+ * so they resolve only when a registered column needs them, and then once.
+ */
+type ElementlessTypeName<TypeOf, Elements> = Exclude<keyof TypeOf, keyof Elements>
+type TypeNameHolding<TypeOf, Elements, Value> = {
+  [Name in ElementlessTypeName<TypeOf, Elements>]: TypeOf[Name] extends Value ? Name : never
+}[ElementlessTypeName<TypeOf, Elements>]
+/** Model types an object value may be: every type with elements, and the System quantity. */
+type ObjectTypeName<TypeOf, Elements> =
+  | Extract<keyof Elements, keyof TypeOf>
+  | Exclude<
+      ElementlessTypeName<TypeOf, Elements>,
+      TypeNameHolding<TypeOf, Elements, string | number | boolean | bigint>
+    >
+
+/** Marks a member no FHIR type represents, which makes the whole result undeclared. */
+type Unmapped = '~unmapped'
+
+/**
+ * Every FHIR type whose TypeScript form is this value type. A TypeScript
+ * `string` may be a FHIR `string`, `code`, `uri`, and more, so the answer is
+ * their union: naming one of them would let `ofType()` drop a value the
+ * runtime returns.
+ */
+type TypeNamesOf<Value, TypeOf = R4TypeOf, Elements = R4Elements> = Value extends string
+  ? TypeNameHolding<TypeOf, Elements, string>
+  : Value extends number
+    ? TypeNameHolding<TypeOf, Elements, number>
+    : Value extends boolean
+      ? TypeNameHolding<TypeOf, Elements, boolean>
+      : Value extends object
+        ? {
+            [Name in ObjectTypeName<TypeOf, Elements>]: [Value] extends [TypeOf[Name]]
+              ? [TypeOf[Name]] extends [Value]
+                ? Name
+                : never
+              : never
+          }[ObjectTypeName<TypeOf, Elements>] extends infer Names extends string
+          ? [Names] extends [never]
+            ? Unmapped
+            : Names
+          : Unmapped
+        : Unmapped
+
+type ColumnElement<Value> = Value extends readonly (infer Item)[] ? Item : Value
+
+/**
+ * A column as the expression-defined function registration makes it. The body
+ * text is not in the class type, so the declared result is all the call has; with
+ * no result, the call stays opaque.
+ */
+type ColumnFunction<Root extends string, Value> = unknown extends Value
+  ? OpaqueColumnFunction<Root>
+  : TypeNamesOf<ColumnElement<Exclude<Value, null | undefined>>> extends infer Names extends string
+    ? [Names] extends [never]
+      ? OpaqueColumnFunction<Root>
+      : Unmapped extends Names
+        ? OpaqueColumnFunction<Root>
+        : {
+            readonly expression: string
+            readonly signature: {
+              readonly input: { readonly types: readonly [Root] }
+              readonly result: { readonly types: readonly Names[] }
+            }
+          }
+    : never
+
+type OpaqueColumnFunction<Root extends string> = {
+  readonly expression: string
+  readonly signature: { readonly input: { readonly types: readonly [Root] } }
+}
+
+type DeclarationsNamed<Dtos extends readonly unknown[], Name extends string> = Dtos extends readonly [
+  infer Head,
+  ...infer Tail,
+]
+  ? Head extends RegisteredDtoClass
+    ? Name extends ColumnNames<InstanceType<Head>>
+      ? [ColumnFunction<Head['fhirType'], InstanceType<Head>[Name]>, ...DeclarationsNamed<Tail, Name>]
+      : DeclarationsNamed<Tail, Name>
+    : DeclarationsNamed<Tail, Name>
+  : []
+
+/**
+ * The FHIRPath functions a list of registered DTOs adds, in the shape
+ * `EvaluateOptions.functions` declares: one per column name, with an overload
+ * per DTO that declares it.
+ */
+type AllColumnNames<Dto> = Dto extends RegisteredDtoClass ? ColumnNames<InstanceType<Dto>> : never
+
+type DeclarationList<Declaration> = Declaration extends { readonly overloads: infer List extends readonly unknown[] }
+  ? List
+  : readonly [Declaration]
+
+/** Function declarations with more added: a name both declare becomes one overload list, as at runtime. */
+type AddFunctionDeclarations<Existing, Added> = {
+  readonly [Name in keyof Existing | keyof Added]: Name extends keyof Added
+    ? Name extends keyof Existing
+      ? { readonly overloads: readonly [...DeclarationList<Existing[Name]>, ...DeclarationList<Added[Name]>] }
+      : Added[Name]
+    : Name extends keyof Existing
+      ? Existing[Name]
+      : never
+}
+
+type FunctionsOption<Options> = Options extends { readonly functions?: infer Functions }
+  ? Exclude<Functions, undefined>
+  : EmptyFhirpathTypeContext
+
+/**
+ * The options type of the engine `register()` returns: the same options, with
+ * each registered column added to `functions`. Keeping them there means a call
+ * on an engine types exactly as a host function declared at construction.
+ */
+export type RegisteredOptions<Options, Added extends readonly unknown[]> = {
+  readonly [Key in keyof Options | 'functions']: Key extends 'functions'
+    ? AddFunctionDeclarations<FunctionsOption<Options>, DtoFunctions<Added>>
+    : Key extends keyof Options
+      ? Options[Key]
+      : never
+}
+
+export type DtoFunctions<Dtos extends readonly unknown[]> = {
+  readonly [Name in AllColumnNames<Dtos[number]>]: DeclarationsNamed<Dtos, Name> extends readonly [infer Only]
+    ? Only
+    : { readonly overloads: DeclarationsNamed<Dtos, Name> }
 }
 
 /** Everything a DTO class was declared with; `project()`, the engine, and `analyzeDto` all read it from here. */
 export interface DtoDefinition {
+  /** The engine whose `defineDto()`/`defineView()` created the base. */
+  readonly engine: FhirPathEngine
+  readonly kind: DtoKind
   readonly fhirType: string
   /** A column always records an object form, so a consumer never has to handle the plain-string column. */
   readonly columns: Readonly<Record<string, ColumnSpec>>
@@ -198,29 +381,36 @@ const bases = new WeakMap<object, DtoBaseDefinition>()
 const definitions = new WeakMap<object, DtoDefinition>()
 
 /**
- * Creates a DTO base for one FHIR resource or datatype. The type becomes the
- * context for relative column paths, and the options become the variables the
- * columns can read. Subclasses add column fields, getters, and methods.
+ * Creates the base class behind `engine.defineDto()` and `engine.defineView()`.
+ * The type becomes the context for relative column paths, and the options
+ * become the variables the columns can read. The engine's own env names are
+ * refused as `callerEnv`, because a per-call value may not replace them.
  */
-export function defineDto<const Root extends FhirTypeName, const Options extends DtoOptions = EmptyFhirpathTypeContext>(
-  fhirType: Root,
-  options?: Options
-): DtoBaseClass<Root, DtoContext<Options>> {
-  const base = class extends DtoBase<Root> {}
+export function createDtoBase(
+  engine: FhirPathEngine,
+  kind: DtoKind,
+  fhirType: string,
+  options: DtoOptions = {}
+): DtoBaseClass<string, object> {
+  const base = class extends DtoBase {}
   // A readable name for project()/registration errors; a subclass replaces it.
-  Object.defineProperty(base, 'name', { value: `${fhirType}Dto` })
+  Object.defineProperty(base, 'name', { value: `${fhirType}${kind === 'dto' ? 'Dto' : 'View'}` })
   Object.defineProperty(base, 'fhirType', { value: fhirType, enumerable: true })
-  bases.set(base, baseDefinition(fhirType, options ?? {}))
-  return base as unknown as DtoBaseClass<Root, DtoContext<Options>>
+  bases.set(base, baseDefinition(engine, kind, fhirType, options))
+  return base as unknown as DtoBaseClass<string, object>
 }
 
-/** Checks and normalizes `defineDto()` options once, when the base is created. */
-function baseDefinition(fhirType: string, options: DtoOptions): DtoBaseDefinition {
+/** Checks and normalizes the options once, when the base is created. */
+function baseDefinition(
+  engine: FhirPathEngine,
+  kind: DtoKind,
+  fhirType: string,
+  options: DtoOptions
+): DtoBaseDefinition {
+  const call = `${kind === 'dto' ? 'defineDto' : 'defineView'}('${fhirType}')`
   const { env, vars, callerEnv } = options
   if (env !== undefined && (typeof env !== 'object' || env === null || Array.isArray(env))) {
-    throw new FhirPathTypeError(
-      `defineDto('${fhirType}'): 'env' must be a record of variables, the same shape as EvaluateOptions.env`
-    )
+    throw new FhirPathTypeError(`${call}: 'env' must be a record of variables, the same shape as EvaluateOptions.env`)
   }
   const normalizedEnv = env === undefined ? undefined : normalizeEnvKeys(env)
   const callerEnvIsNames = isCallerEnvNames(callerEnv)
@@ -228,11 +418,18 @@ function baseDefinition(fhirType: string, options: DtoOptions): DtoBaseDefinitio
   // The DTO's own value always wins, so a caller value under the same name would never be read.
   const shadowed = callerEnvNames.find(name => normalizedEnv !== undefined && Object.hasOwn(normalizedEnv, name))
   if (shadowed !== undefined) {
+    throw new FhirPathTypeError(`${call}: callerEnv names '${shadowed}', which the DTO's own env already binds`)
+  }
+  const engineEnv = normalizeEnvKeys(engine.defaults.env)
+  const engineOwned = callerEnvNames.find(name => Object.hasOwn(engineEnv, name))
+  if (engineOwned !== undefined) {
     throw new FhirPathTypeError(
-      `defineDto('${fhirType}'): callerEnv names '${shadowed}', which the DTO's own env already binds`
+      `${call}: callerEnv names '${engineOwned}', which the engine's env binds; a projection may not replace it`
     )
   }
   return {
+    engine,
+    kind,
     fhirType,
     env: normalizedEnv !== undefined && Object.keys(normalizedEnv).length > 0 ? normalizedEnv : undefined,
     vars,
@@ -247,7 +444,7 @@ function isCallerEnvNames(
   return Array.isArray(callerEnv)
 }
 
-/** The `defineDto()` base a class descends from, with the options it fixed. */
+/** The engine-created base a class descends from, with the options it fixed. */
 function baseOf(cls: object): DtoBaseDefinition | undefined {
   for (let current: unknown = cls; typeof current === 'function'; current = Object.getPrototypeOf(current)) {
     const base = bases.get(current)
@@ -259,8 +456,8 @@ function baseOf(cls: object): DtoBaseDefinition | undefined {
 }
 
 /**
- * Whether a value is a DTO class — one `defineDto()` produced, or a subclass of
- * one. Lets tooling pick the DTOs out of a module's exports (see the
+ * Whether a value is a DTO or view class — a base an engine created, or a
+ * subclass of one. Lets tooling pick the DTOs out of a module's exports (see the
  * `fhirpath-check` CLI) without instantiating anything that is not one.
  */
 export function isDtoClass(value: unknown): value is DtoClass {
@@ -280,7 +477,7 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
   const base = baseOf(cls)
   if (base === undefined) {
     throw new FhirPathTypeError(
-      `${cls.name || 'The class'} is not a DTO class; extend defineDto('<fhirType>') to declare one`
+      `${cls.name || 'The class'} is not a DTO class; extend engine.defineDto('<fhirType>') or engine.defineView('<fhirType>')`
     )
   }
   const found: ColumnMarker[] = []
@@ -305,8 +502,51 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
   if ('fhirType' in columns) {
     throw new FhirPathTypeError(`DTO ${cls.name} declares a column named 'fhirType', which every row already carries`)
   }
+  if (base.kind === 'dto') {
+    const converted = Object.entries(columns).find(([, spec]) => 'as' in spec || 'choices' in spec)
+    if (converted !== undefined) {
+      throw new FhirPathTypeError(
+        `DTO ${cls.name} column '${converted[0]}' converts its value with 'as' or 'choices'; ` +
+          'a registered column returns its expression result, so convert values in a view'
+      )
+    }
+  }
   const definition: DtoDefinition = { ...base, columns }
   definitions.set(cls, definition)
+  return definition
+}
+
+/**
+ * Checks that a class can be registered: a DTO rather than a view, holding only
+ * columns and methods. The engine's types read every non-method field of a
+ * registered DTO as a column, so a getter or a plain field would claim a
+ * function that does not exist.
+ */
+export function assertRegistrable(cls: DtoClass): DtoDefinition {
+  const definition = dtoDefinition(cls)
+  if (definition.kind === 'view') {
+    throw new FhirPathTypeError(`${cls.name} is a view; only classes from engine.defineDto() can be registered`)
+  }
+  const plain = Object.keys(new cls()).find(name => !Object.hasOwn(definition.columns, name))
+  if (plain !== undefined) {
+    throw new FhirPathTypeError(
+      `DTO ${cls.name} has a field '${plain}' that is not a column; a registered DTO holds only columns and methods`
+    )
+  }
+  for (
+    let current: unknown = cls.prototype;
+    current !== DtoBase.prototype && current !== null;
+    current = Object.getPrototypeOf(current)
+  ) {
+    const getter = Object.entries(Object.getOwnPropertyDescriptors(current)).find(
+      ([name, descriptor]) => name !== 'fhirType' && (descriptor.get !== undefined || descriptor.set !== undefined)
+    )
+    if (getter !== undefined) {
+      throw new FhirPathTypeError(
+        `DTO ${cls.name} has an accessor '${getter[0]}'; a registered DTO holds only columns and methods, so move it to a view`
+      )
+    }
+  }
   return definition
 }
 

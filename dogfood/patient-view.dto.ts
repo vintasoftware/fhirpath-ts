@@ -1,20 +1,15 @@
-import {
-  defineDto,
-  type DtoBaseClass,
-  type DtoContext,
-  type DtoOptions,
-  FhirPathEngine,
-  type FhirTypeName,
-} from 'fhirpath-ts'
+import { type DtoOptions, FhirPathEngine, type FhirTypeName, type ViewBaseClass } from 'fhirpath-ts'
 import { r4Model } from 'fhirpath-ts/r4'
 
 import type { StatusTone, VitalStatus } from './types'
 
-// The DTO half of a real-usage module: the row shapes a patient-portal app
-// projects, plus the engine that projects them. DTOs live in a `*.dto.ts` file by
-// convention, which is how `fhirpath-check` finds and imports them — it then
-// analyzes every column against this engine's own functions and env. The mappers
-// that consume these rows are beside this file, in patient-view-mappers.ts.
+// The DTO half of a real-usage module: the resource DTOs a patient-portal app
+// registers, the engine they build, and the view rows it projects. Registered
+// DTOs live in one `*.dto.ts` file by convention: it builds and exports the final
+// engine, and it is how `fhirpath-check` finds and imports them. Views can live
+// anywhere as long as they extend that engine's defineView(); these sit here so
+// the dogfood stays in one module. The mappers that consume the rows are beside
+// this file, in patient-view-mappers.ts.
 
 export const LOINC = 'http://loinc.org'
 
@@ -23,23 +18,27 @@ type LabBadge = { label: string; tone: StatusTone; flagged: boolean }
 
 type StatusChoice = { code: string; label: string; tone: StatusTone }
 
+/** The engine every DTO below is defined on; `fp`, at the end of the resource DTOs, adds their columns. */
+const base = new FhirPathEngine({ model: r4Model, env: { loinc: LOINC } })
+
 // --- resource DTOs ---
 // Each one binds recurring chains to a resource or datatype. Registered on the
-// engine below, every column becomes a function any expression can call, and a
-// DTO's own `env` tables travel with its columns rather than joining the
-// engine's env. Field types are inferred from the expressions; a column that
-// calls another registered column declares `type`, which `fhirpath-check`
-// verifies against the analyzer.
+// engine, every column becomes a function any expression can call, and a DTO's
+// own `env` tables travel with its columns rather than joining the engine's env.
+// Field types are inferred from the expressions, including calls to columns an
+// engine already registers.
 
-export class CodeableConceptDTO extends defineDto('CodeableConcept') {
+export class CodeableConceptDTO extends base.defineDto('CodeableConcept') {
   /** The text | display | code fallback. */
   displayText = this.column('(text | coding.display.first() | coding.first().code).first()')
 }
 
-export class MedicationRequestDTO extends defineDto('MedicationRequest') {
+/** Registers displayText() so the medication DTO's columns can call it with a type. */
+const withConcepts = base.register(CodeableConceptDTO)
+
+export class MedicationRequestDTO extends withConcepts.defineDto('MedicationRequest') {
   medicationName = this.column(
-    '(medication.ofType(CodeableConcept).displayText() | medication.ofType(Reference).display).first()',
-    { type: 'string' }
+    '(medication.ofType(CodeableConcept).displayText() | medication.ofType(Reference).display).first()'
   )
 
   // combine() is outside TypeScript inference, so the column declares its type.
@@ -54,7 +53,7 @@ export class MedicationRequestDTO extends defineDto('MedicationRequest') {
   sigText = this.column('dosageInstruction.first().text')
 }
 
-export class ConditionDTO extends defineDto('Condition') {
+export class ConditionDTO extends base.defineDto('Condition') {
   clinicalStatusCode = this.column('clinicalStatus.coding.first().code')
 }
 
@@ -96,7 +95,7 @@ const REPORT_STATUS_CHOICES: ({ code: string } & LabBadge)[] = [
 
 // The badge tables belong to this DTO: its columns read them, projected or
 // called, and no other expression on the engine can see them.
-export class DiagnosticReportDTO extends defineDto('DiagnosticReport', {
+export class DiagnosticReportDTO extends base.defineDto('DiagnosticReport', {
   env: {
     hgInterpretation: HG_INTERPRETATION,
     interpretationChoices: INTERPRETATION_CHOICES,
@@ -112,8 +111,8 @@ export class DiagnosticReportDTO extends defineDto('DiagnosticReport', {
    * extension carries one (only those can flag), else the workflow-status row.
    * Inside `where()` the focus is the table row being scanned, so the body first
    * saves its own input as %r to keep the report reachable by name. The row
-   * objects stay `unknown` to TypeScript; the lab rows read their fields
-   * through `%badge`.
+   * objects stay `unknown` to TypeScript, since the body calls a column of this
+   * same class; the lab rows read their fields through `%badge`.
    */
   reportBadge = this.column(
     "defineVariable('r')" +
@@ -121,19 +120,23 @@ export class DiagnosticReportDTO extends defineDto('DiagnosticReport', {
   )
 }
 
+// One engine for every mapper, module-level so its parse cache warms once per bundle.
+export const fp = withConcepts.register(MedicationRequestDTO, ConditionDTO, DiagnosticReportDTO)
+
 // --- shared view-row bases ---
 // A column several view rows share lives on a base class they extend; the two
 // generic ones are factories because their rows sit on different resources.
-// Each factory forwards its options to defineDto, so the columns of a class
+// Each factory forwards its options to defineView, so the columns of a class
 // extending it still infer against the vars and env passed in. Its return type
 // is written out because exported classes extend it and this project emits
 // declarations, which cannot describe a class declared inside a function.
 
-type KeyedRowClass<Root extends FhirTypeName, Options> = DtoBaseClass<Root, DtoContext<Options>, { id: string }>
+type KeyedRowClass<Root extends FhirTypeName, Options> = ViewBaseClass<typeof fp, Root, Options, { id: string }>
 
-type BadgedRowClass<Root extends FhirTypeName, Options> = DtoBaseClass<
+type BadgedRowClass<Root extends FhirTypeName, Options> = ViewBaseClass<
+  typeof fp,
   Root,
-  DtoContext<Options>,
+  Options,
   { id: string; statusLabel: string; tone: StatusTone; flagged: boolean }
 >
 
@@ -146,7 +149,7 @@ function keyedRow<const Root extends FhirTypeName, const Options extends DtoOpti
   fhirType: Root,
   options?: Options
 ): KeyedRowClass<Root, Options> {
-  class KeyedRow extends defineDto(fhirType, options) {
+  class KeyedRow extends fp.defineView(fhirType, options) {
     id = this.column('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
   }
   return KeyedRow
@@ -172,14 +175,7 @@ function badgedRow<const Root extends FhirTypeName, const Options extends DtoOpt
   return BadgedRow
 }
 
-// One engine for every mapper, module-level so its parse cache warms once per bundle.
-export const fp = new FhirPathEngine({
-  model: r4Model,
-  env: { loinc: LOINC },
-  resourceDtos: [CodeableConceptDTO, MedicationRequestDTO, ConditionDTO, DiagnosticReportDTO],
-})
-
-// --- view DTOs ---
+// --- views ---
 
 /** One decimal place, shared by the weight rows and the trend maths in the mappers. */
 export function round1(value: number): number {
@@ -187,7 +183,7 @@ export function round1(value: number): number {
 }
 
 /** Every vitals row reads the same observation timestamp. */
-export class ObservationRow extends defineDto('Observation') {
+export class ObservationRow extends fp.defineView('Observation') {
   at = this.column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
 
   /** Oldest first; a reading with no parseable timestamp sorts first. */
@@ -226,7 +222,7 @@ export class HeightRow extends ObservationRow {
 
 /** What both medication views share: the key, the name, and the dosing group. */
 export class MedicationRow extends keyedRow('MedicationRequest') {
-  name = this.column('medicationName()', { type: 'string', default: 'Medication' })
+  name = this.column('medicationName()', { default: 'Medication' })
 
   group = this.column(
     'iif(dosageInstruction.first()' +
@@ -261,11 +257,11 @@ const MEDICATION_STATUS_CHOICES: StatusChoice[] = [
 
 /** The Medications page view-model row. */
 export class MedicationDetailRow extends MedicationRow {
-  dose = this.column('doseText()', { type: 'string', default: '' })
+  dose = this.column('doseText()', { default: '' })
 
-  route = this.column('routeText()', { type: 'string', default: '' })
+  route = this.column('routeText()', { default: '' })
 
-  instructions = this.column('sigText()', { type: 'string', default: '' })
+  instructions = this.column('sigText()', { default: '' })
 
   // 'unknown' is itself a status code, so the default stays inside the inferred union.
   status = this.column('status', { default: 'unknown' })
@@ -301,9 +297,9 @@ const PROBLEM_STATUS_CHOICES: StatusChoice[] = [
 
 /** The problem-list view-model row, keyed off clinicalStatus. */
 export class ProblemRow extends keyedRow('Condition') {
-  name = this.column('code.displayText()', { type: 'string', default: 'Condition' })
+  name = this.column('code.displayText()', { default: 'Condition' })
 
-  statusCode = this.column('clinicalStatusCode()', { type: 'code', default: '' })
+  statusCode = this.column('clinicalStatusCode()', { default: '' })
 
   // The tone's fallback is a constant, so choices + default do it; the label
   // needs a computed one, so it reads the code back off the row.
@@ -327,7 +323,7 @@ export class ProblemRow extends keyedRow('Condition') {
 
 /** The Lab History view-model row; the report itself carries the badge. */
 export class LabRow extends badgedRow('DiagnosticReport', { vars: { badge: 'reportBadge()' } }) {
-  name = this.column('code.displayText()', { type: 'string', default: 'Lab result' })
+  name = this.column('code.displayText()', { default: 'Lab result' })
 
   date = this.column('(effective.ofType(dateTime) | issued).first().toString()', { default: '' })
 }

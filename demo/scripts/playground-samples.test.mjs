@@ -5,7 +5,7 @@ import test from 'node:test'
 import ts from 'typescript'
 
 import { analyzeExpression, analyzeSite } from '../../src/analyzer/index.ts'
-import { defineDto, FhirPathEngine } from '../../src/index.ts'
+import { FhirPathEngine } from '../../src/index.ts'
 import { r4, r4Model } from '../../src/r4/index.ts'
 import { createSiteFinder } from '../../src/sites/index.ts'
 import { executeJavaScript } from '../src/playground/runtime.ts'
@@ -45,7 +45,7 @@ const PROJECT_ROW_VARIABLES = {
 }
 
 const MODULES = {
-  'fhirpath-ts': { defineDto, FhirPathEngine },
+  'fhirpath-ts': { FhirPathEngine },
   'fhirpath-ts/r4': { r4, r4Model },
   'fhirpath-ts/analyzer': { analyzeExpression },
 }

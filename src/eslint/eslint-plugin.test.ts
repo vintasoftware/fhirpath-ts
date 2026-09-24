@@ -142,32 +142,32 @@ const dtoTester = new RuleTester({
   languageOptions: { parser: tseslint.parser, ecmaVersion: 2022, sourceType: 'module' },
 })
 
-const DTO_IMPORT = "import { defineDto } from 'fhirpath-ts'; "
+const DTO_IMPORT = "import { r4 } from 'fhirpath-ts/r4'; "
 
 dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressions'], {
   valid: [
     // A column analyzed against the class's fhirType.
     {
-      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { code = this.column('clinicalStatus.coding.first().code') }`,
+      code: `${DTO_IMPORT}class Row extends r4.defineView('Condition') { code = this.column('clinicalStatus.coding.first().code') }`,
     },
     {
-      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { seen = this.criteria('recordedDate.exists()') }`,
+      code: `${DTO_IMPORT}class Row extends r4.defineView('Condition') { seen = this.criteria('recordedDate.exists()') }`,
     },
-    // A DTO's vars, off the defineDto options.
+    // A DTO's vars, off the defineView options.
     {
-      code: `${DTO_IMPORT}class Row extends defineDto('Observation', { vars: { at: 'issued' } }) { s = this.column('status') }`,
+      code: `${DTO_IMPORT}class Row extends r4.defineView('Observation', { vars: { at: 'issued' } }) { s = this.column('status') }`,
     },
     // %vars and registered DTO functions are not this rule's to judge.
     {
-      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { label = this.column('%badge.label', { type: 'string' }) }`,
+      code: `${DTO_IMPORT}class Row extends r4.defineView('Condition') { label = this.column('%badge.label', { type: 'string' }) }`,
     },
     {
-      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { name = this.column('code.displayText()', { type: 'string' }) }`,
+      code: `${DTO_IMPORT}class Row extends r4.defineView('Condition') { name = this.column('code.displayText()', { type: 'string' }) }`,
     },
     // No statically-known root: a relative path is not reported, because a
     // leading `code` segment is also a model type name.
     {
-      code: `${DTO_IMPORT}function badgedRow(fhirType) { class BadgedRow extends defineDto(fhirType) {} return BadgedRow } class Row extends badgedRow('DiagnosticReport') { name = this.column('code.coding.first().display') }`,
+      code: `${DTO_IMPORT}function badgedRow(fhirType) { class BadgedRow extends r4.defineView(fhirType) {} return BadgedRow } class Row extends badgedRow('DiagnosticReport') { name = this.column('code.coding.first().display') }`,
     },
     // A class the source cannot prove to be a DTO is left alone.
     { code: `${DTO_IMPORT}class Row extends ImportedBase { name = this.column('code.text(') }` },
@@ -175,14 +175,14 @@ dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressi
     // A call into a column the same file declares resolves, in a DTO site and
     // in an ordinary one.
     {
-      code: `${DTO_IMPORT}class C extends defineDto('CodeableConcept') { displayText = this.column('text', { type: 'string' }) } class W extends defineDto('Observation') { len = this.column('code.displayText().length()', { type: 'integer' }) }`,
+      code: `${DTO_IMPORT}class C extends r4.defineView('CodeableConcept') { displayText = this.column('text', { type: 'string' }) } class W extends r4.defineView('Observation') { len = this.column('code.displayText().length()', { type: 'integer' }) }`,
     },
     {
-      code: `${DTO_IMPORT}import { r4 } from 'fhirpath-ts/r4'; class C extends defineDto('CodeableConcept') { displayText = this.column('text', { type: 'string' }) } const label = r4.first('Condition.code.displayText()', condition)`,
+      code: `${DTO_IMPORT}import { r4 } from 'fhirpath-ts/r4'; class C extends r4.defineView('CodeableConcept') { displayText = this.column('text', { type: 'string' }) } const label = r4.first('Condition.code.displayText()', condition)`,
     },
     // An unresolved call unlike any column here: a DTO in another module.
     {
-      code: `${DTO_IMPORT}class W extends defineDto('Observation') { badge = this.column('code.reportBadge()', { type: 'string' }) }`,
+      code: `${DTO_IMPORT}class W extends r4.defineView('Observation') { badge = this.column('code.reportBadge()', { type: 'string' }) }`,
     },
     // A declared root makes a shared const checkable; its %env stays unjudged.
     {
@@ -194,7 +194,7 @@ dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressi
     // A root followed through a base class the same file declares — the way the
     // docs recommend sharing columns — checks a valid path rather than skipping it.
     {
-      code: `${DTO_IMPORT}class Base extends defineDto('Observation') { at = this.column('issued') } class Sub extends Base { kg = this.column('value.ofType(Quantity).value') }`,
+      code: `${DTO_IMPORT}class Base extends r4.defineView('Observation') { at = this.column('issued') } class Sub extends Base { kg = this.column('value.ofType(Quantity).value') }`,
     },
     // A tag reached through a foreign namespace is not ours — gated on the
     // receiver, exactly as a call is.
@@ -205,19 +205,18 @@ dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressi
   ],
   invalid: [
     {
-      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { code = this.column('clinicalStatus.codingg.first()') }`,
+      code: `${DTO_IMPORT}class Row extends r4.defineView('Condition') { code = this.column('clinicalStatus.codingg.first()') }`,
       errors: [{ message: /unknown-element/ }],
     },
     // A typo in a subclass of a same-file DTO base is reported against the root
     // that base fixes; without the chain it would go unchecked.
     {
-      code: `${DTO_IMPORT}class Base extends defineDto('Observation') { at = this.column('issued') } class Sub extends Base { kg = this.column('valuee.ofType(Quantity).value') }`,
+      code: `${DTO_IMPORT}class Base extends r4.defineView('Observation') { at = this.column('issued') } class Sub extends Base { kg = this.column('valuee.ofType(Quantity).value') }`,
       errors: [{ message: /unknown-element.*valuee/ }],
     },
-    // A namespace import reaches defineDto through a member access; the root it
-    // fixes still applies.
+    // A view defined on the project's own engine, imported from a relative path.
     {
-      code: `import * as api from 'fhirpath-ts'; class Row extends api.defineDto('Condition') { code = this.column('clinicalStatus.codingg.first()') }`,
+      code: `import { fp } from './portal.dto'; class Row extends fp.defineView('Condition') { code = this.column('clinicalStatus.codingg.first()') }`,
       errors: [{ message: /unknown-element/ }],
     },
     // The same rule for a tag reached through a namespace import.
@@ -226,25 +225,25 @@ dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressi
       errors: [{ message: /unknown-element/ }],
     },
     {
-      code: `${DTO_IMPORT}class Row extends defineDto('CodeableConcept') { text = this.column('(texxt | coding.display.first()).first()') }`,
+      code: `${DTO_IMPORT}class Row extends r4.defineView('CodeableConcept') { text = this.column('(texxt | coding.display.first()).first()') }`,
       errors: [{ message: /unknown-element.*texxt/ }],
     },
     {
-      code: `${DTO_IMPORT}class Row extends defineDto('Condition') { bad = this.criteria('verificationStatuss.exists()') }`,
+      code: `${DTO_IMPORT}class Row extends r4.defineView('Condition') { bad = this.criteria('verificationStatuss.exists()') }`,
       errors: [{ message: /unknown-element/ }],
     },
     {
-      code: `${DTO_IMPORT}class Row extends defineDto('Observation', { vars: { at: 'issuedd' } }) { s = this.column('status') }`,
+      code: `${DTO_IMPORT}class Row extends r4.defineView('Observation', { vars: { at: 'issuedd' } }) { s = this.column('status') }`,
       errors: [{ message: /unknown-element/ }],
     },
     // A near-miss of a column the file declares is a typo, not a foreign DTO.
     {
-      code: `${DTO_IMPORT}class C extends defineDto('CodeableConcept') { displayText = this.column('text', { type: 'string' }) } class W extends defineDto('Observation') { name = this.column('code.displayTxt()', { type: 'string' }) }`,
+      code: `${DTO_IMPORT}class C extends r4.defineView('CodeableConcept') { displayText = this.column('text', { type: 'string' }) } class W extends r4.defineView('Observation') { name = this.column('code.displayTxt()', { type: 'string' }) }`,
       errors: [{ message: /unknown-function.*did you mean 'displayText'/ }],
     },
     // A declared column's result type carries into the calling expression.
     {
-      code: `${DTO_IMPORT}class C extends defineDto('CodeableConcept') { displayText = this.column('text', { type: 'string' }) } class W extends defineDto('Observation') { bad = this.column('code.displayText() + 1', { type: 'string' }) }`,
+      code: `${DTO_IMPORT}class C extends r4.defineView('CodeableConcept') { displayText = this.column('text', { type: 'string' }) } class W extends r4.defineView('Observation') { bad = this.column('code.displayText() + 1', { type: 'string' }) }`,
       errors: [{ message: /operand-type/ }],
     },
     // The root is what lets a relative expression be checked at all.
@@ -258,7 +257,7 @@ dtoTester.run('no-invalid-expressions (DTOs)', plugin.rules['no-invalid-expressi
     },
     // Even with no root, a malformed expression is still a syntax error.
     {
-      code: `${DTO_IMPORT}function badgedRow(fhirType) { class BadgedRow extends defineDto(fhirType) {} return BadgedRow } class Row extends badgedRow('DiagnosticReport') { name = this.column('code.text(') }`,
+      code: `${DTO_IMPORT}function badgedRow(fhirType) { class BadgedRow extends r4.defineView(fhirType) {} return BadgedRow } class Row extends badgedRow('DiagnosticReport') { name = this.column('code.text(') }`,
       errors: [{ message: /syntax/ }],
     },
   ],

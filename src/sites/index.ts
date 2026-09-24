@@ -18,10 +18,11 @@ import {
   columnFunctionDeclaration,
   constructsEngine,
   declaredColumnOverloads,
-  DTO_BASE_NAME,
+  derivesEngine,
+  DTO_BASE_NAMES,
   dtoClassesOf,
   type DtoClassFact,
-  dtoClassOf,
+  type DtoClassResolver,
   ENGINE_CLASS_NAME,
   type ExpressionAst,
   type ExpressionProperty,
@@ -165,8 +166,8 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
   function heritageOfBase(name: string | undefined, base: TS.Expression | undefined): ClassHeritage {
     const heritage: ClassHeritage = {
       name,
-      extendsDefineDto: false,
-      defineDtoNamespace: undefined,
+      extendsDtoBase: false,
+      dtoBaseReceiver: undefined,
       ownRoot: undefined,
       baseName: undefined,
       baseCall: undefined,
@@ -175,10 +176,14 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     if (base === undefined) {
       return heritage
     }
-    if (ts.isCallExpression(base) && nameOf(base.expression) === DTO_BASE_NAME) {
+    if (
+      ts.isCallExpression(base) &&
+      ts.isPropertyAccessExpression(base.expression) &&
+      DTO_BASE_NAMES.has(base.expression.name.text)
+    ) {
       const root = base.arguments[0]
-      heritage.extendsDefineDto = true
-      heritage.defineDtoNamespace = receiverRoot(base.expression)
+      heritage.extendsDtoBase = true
+      heritage.dtoBaseReceiver = receiverRoot(base.expression)
       heritage.ownRoot = root === undefined ? undefined : tsAst.string(root)?.expression
     } else if (ts.isIdentifier(base)) {
       heritage.baseName = base.text
@@ -210,36 +215,40 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     engineSymbols: ReadonlySet<TS.Symbol>
   ): {
     bindings: SourceBindings
-    dtoClasses: ReadonlyMap<string, DtoClassFact>
+    dtoClasses: DtoClassResolver
     heritage: ReadonlyMap<TS.Node, ClassHeritage>
   } {
     const factories: ClassFactory[] = []
     const foreign = new Set<string>()
     const trusted = new Set<string>()
     const rebound = new Set<string>()
+    const relative = new Set<string>()
     for (const statement of source.statements) {
       if (!(ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier))) {
         continue
       }
-      const names = isForeignModule(statement.moduleSpecifier.text, options) ? foreign : trusted
+      const specifier = statement.moduleSpecifier.text
+      const names = isForeignModule(specifier, options) ? foreign : trusted
       const clause = statement.importClause
       if (!clause) {
         continue
       }
-      if (clause.name) {
-        names.add(clause.name.text)
-      }
-      if (clause.namedBindings) {
-        if (ts.isNamedImports(clause.namedBindings)) {
-          for (const element of clause.namedBindings.elements) {
-            names.add(element.name.text)
-          }
-        } else {
-          names.add(clause.namedBindings.name.text)
+      const imported = [
+        ...(clause.name ? [clause.name.text] : []),
+        ...(clause.namedBindings === undefined
+          ? []
+          : ts.isNamedImports(clause.namedBindings)
+            ? clause.namedBindings.elements.map(element => element.name.text)
+            : [clause.namedBindings.name.text]),
+      ]
+      for (const name of imported) {
+        names.add(name)
+        if (specifier.startsWith('.')) {
+          relative.add(name)
         }
       }
     }
-    const bindings = { foreign, trusted, rebound }
+    const bindings = { foreign, trusted, rebound, relative }
     const heritage = new Map<TS.Node, ClassHeritage>()
     const collectLocals = (node: TS.Node): void => {
       if (ts.isClassLike(node)) {
@@ -266,6 +275,14 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
         ) {
           const set = constructsEngine(node.initializer.expression.text, bindings) ? trusted : rebound
           set.add(node.name.text)
+        } else if (
+          ts.isIdentifier(node.name) &&
+          node.initializer !== undefined &&
+          ts.isCallExpression(node.initializer) &&
+          ts.isPropertyAccessExpression(node.initializer.expression) &&
+          derivesEngine(node.initializer.expression.name.text, receiverRoot(node.initializer.expression), bindings)
+        ) {
+          trusted.add(node.name.text)
         } else if (ts.isIdentifier(node.name) && isEngineExpression(node.name, engineSymbols)) {
           trusted.add(node.name.text)
           foreign.delete(node.name.text)
@@ -738,7 +755,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
           }
         }
       }
-      const nested = ts.isClassLike(node) ? dtoClassOf(heritage.get(node), dtoClasses, bindings) : dtoClass
+      const nested = ts.isClassLike(node) ? dtoClasses(heritage.get(node)) : dtoClass
       const nestedClass = ts.isClassLike(node) ? node : enclosingClass
       ts.forEachChild(node, child => visit(child, nested, nestedClass))
     }

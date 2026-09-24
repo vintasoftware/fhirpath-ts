@@ -48,7 +48,7 @@ describe('static analysis', () => {
       encoding: 'utf8',
     })
     const output = `${result.stdout}${result.stderr}`
-    expect(output, output).toMatch(/analyzed 13 DTO\(s\) from 1 module\(s\) against 1 engine\(s\)/)
+    expect(output, output).toMatch(/analyzed 13 DTO\(s\) from 1 module\(s\)/)
     expect(result.status, output).toBe(0)
   })
 })

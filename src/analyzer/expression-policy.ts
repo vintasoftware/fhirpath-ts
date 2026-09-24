@@ -25,20 +25,22 @@ export interface CallSitePolicy {
    * foreign import owns the name. `engine` requires a package import or local
    * `FhirPathEngine`. `import` requires the called name to come from this package.
    * `dto-field` requires a `this.<name>(...)` call that is the whole initializer
-   * of a public instance field of a DTO class (see `dtoClassOf`).
+   * of a public instance field of a DTO class (see `dtoClassesOf`). `dto-base`
+   * requires an `<engine>.defineDto(...)`/`defineView(...)` call whose receiver
+   * is not another package's import (see `isDtoBaseReceiver`).
    */
-  receiver: 'any' | 'engine' | 'import' | 'dto-field'
+  receiver: 'any' | 'engine' | 'import' | 'dto-field' | 'dto-base'
   /**
    * The argument that names the type the expression runs against, when the call
    * takes one: `fhirpath('status', 'MedicationRequest')` declares it at index 1,
-   * `defineDto('Condition', { vars })` at index 0. A site with a declared root is
+   * `fp.defineView('Condition', { vars })` at index 0. A site with a declared root is
    * analyzed against it, which is the only way a walker can check a relative
    * expression — see `analyzeSite`.
    */
   rootArg?: number
   /**
    * The root comes from the enclosing DTO class: its own
-   * `extends defineDto('Condition')` clause, or a base class in the same file.
+   * `extends fp.defineDto('Condition')` clause, or a base class in the same file.
    * A class whose fhirType the source cannot name (a root-generic factory) is
    * analyzed without an input type.
    */
@@ -115,11 +117,15 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
       declaresField: 'criteria',
     },
   ],
-  ['defineDto', { argIndex: 1, shape: 'dto-vars', receiver: 'import', rootArg: 0, dto: true }],
+  ['defineDto', { argIndex: 1, shape: 'dto-vars', receiver: 'dto-base', rootArg: 0, dto: true }],
+  ['defineView', { argIndex: 1, shape: 'dto-vars', receiver: 'dto-base', rootArg: 0, dto: true }],
 ])
 
-/** The `defineDto` call whose first argument fixes a DTO's fhirType. */
-export const DTO_BASE_NAME = 'defineDto'
+/** The engine methods whose result a DTO or view class extends; the first argument fixes its fhirType. */
+export const DTO_BASE_NAMES: ReadonlySet<string> = new Set(['defineDto', 'defineView'])
+
+/** The engine method that returns a derived engine with DTOs registered. */
+export const REGISTER_NAME = 'register'
 
 /** The tag name whose no-substitution template holds a FHIRPath expression. */
 export const TAG_NAME = 'fhirpath'
@@ -142,8 +148,13 @@ export interface SourceBindings {
    * (`compile` from handlebars is not a FHIRPath entry point).
    */
   foreign: ReadonlySet<string>
-  /** Package imports and locals created with `new FhirPathEngine()`. */
+  /** Package imports and locals created with `new FhirPathEngine()` or derived by `register()`. */
   trusted: ReadonlySet<string>
+  /**
+   * Names imported from relative paths, whether or not `localImports` trusts
+   * them. A project's own engine usually arrives this way in a view module.
+   */
+  relative?: ReadonlySet<string>
   /**
    * Trusted names also declared for another purpose. Trust is file-wide, so a
    * rebound name is skipped to prevent false positives in another scope.
@@ -176,6 +187,9 @@ export function isCheckedCall(
   if (policy.receiver === 'dto-field') {
     return evidence.dtoField === true
   }
+  if (policy.receiver === 'dto-base') {
+    return isDtoBaseReceiver(receiverRoot, bindings)
+  }
   if (policy.receiver === 'import') {
     return receiverRoot === undefined && bindings.trusted.has(calleeName) && !bindings.rebound.has(calleeName)
   }
@@ -186,6 +200,27 @@ export function isCheckedCall(
     return receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot)
   }
   return !bindings.foreign.has(receiverRoot ?? calleeName)
+}
+
+/**
+ * Whether `<receiver>.defineDto(...)`/`defineView(...)` is this package's engine
+ * method. The engine is usually the project's own, imported from a relative
+ * path or built in the same file, so only another package's import rules it out.
+ */
+export function isDtoBaseReceiver(receiverRoot: string | undefined, bindings: SourceBindings): boolean {
+  return (
+    receiverRoot !== undefined && (!bindings.foreign.has(receiverRoot) || bindings.relative?.has(receiverRoot) === true)
+  )
+}
+
+/** Whether `const name = <receiver>.register(...)` derives an engine from a trusted one. */
+export function derivesEngine(methodName: string, receiverRoot: string | undefined, bindings: SourceBindings): boolean {
+  return (
+    methodName === REGISTER_NAME &&
+    receiverRoot !== undefined &&
+    bindings.trusted.has(receiverRoot) &&
+    !bindings.rebound.has(receiverRoot)
+  )
 }
 
 /** Checks a `fhirpath` tag unless its bare name or namespace comes from another package. */
@@ -269,11 +304,11 @@ export type SiteVariablePlan = SourceVariablePlan
 export interface ClassHeritage {
   /** The class's own name, when it has one. */
   name: string | undefined
-  /** Its own `extends` clause is a `defineDto(...)` or `namespace.defineDto(...)` call. */
-  extendsDefineDto: boolean
-  /** The namespace of a `namespace.defineDto(...)` clause. */
-  defineDtoNamespace: string | undefined
-  /** The fhirType that `defineDto(...)` call names, when it is a string literal. */
+  /** Its own `extends` clause is an `<engine>.defineDto(...)` or `<engine>.defineView(...)` call. */
+  extendsDtoBase: boolean
+  /** The leftmost identifier of that call's receiver. */
+  dtoBaseReceiver: string | undefined
+  /** The fhirType that call names, when it is a string literal. */
   ownRoot: string | undefined
   /** The name of the class it extends, when that clause is a plain identifier. */
   baseName: string | undefined
@@ -298,18 +333,23 @@ export interface DtoClassFact {
   root: string | undefined
 }
 
+/** What the source proves about one class of the file. */
+export type DtoClassResolver = (heritage: ClassHeritage | undefined) => DtoClassFact | undefined
+
 /**
- * Finds the file's DTO classes: a class extending this package's `defineDto(...)`
- * call, or extending a class or a factory call of the same file that leads to
- * one, through any number of steps. A factory hides the root its caller passes,
- * so a class it builds has none. Duplicate names, cycles, and imported bases
- * stay unresolved, because the source cannot prove what they are.
+ * Resolves the file's DTO classes: a class extending an engine's `defineDto(...)`
+ * or `defineView(...)`, or extending a class or a factory call of the same file
+ * that leads to one, through any number of steps. A factory hides the root its
+ * caller passes, so a class it builds has none. A base named by two classes of
+ * the file, a cycle, or an imported base stays unresolved, because the source
+ * cannot prove what it is. A class's own clause is read from the class itself,
+ * so a class whose own name the file declares twice still resolves.
  */
 export function dtoClassesOf(
   classes: readonly ClassHeritage[],
   bindings: SourceBindings,
   factories: readonly ClassFactory[] = []
-): ReadonlyMap<string, DtoClassFact> {
+): DtoClassResolver {
   const byName = new Map<string, ClassHeritage>()
   const ambiguous = new Set<string>()
   for (const cls of classes) {
@@ -352,44 +392,13 @@ export function dtoClassesOf(
     seen.add(base)
     return factOf(declaration, seen)
   }
-  const facts = new Map<string, DtoClassFact>()
-  for (const [name, cls] of byName) {
-    if (ambiguous.has(name)) {
-      continue
-    }
-    const fact = factOf(cls, new Set([name]))
-    if (fact !== undefined) {
-      facts.set(name, fact)
-    }
-  }
-  return facts
+  return heritage =>
+    heritage === undefined ? undefined : factOf(heritage, new Set(heritage.name === undefined ? [] : [heritage.name]))
 }
 
-/** A class whose own clause calls this package's `defineDto`, bare or through a namespace import. */
+/** A class whose own clause calls an engine's `defineDto` or `defineView`. */
 function ownDtoFact(cls: ClassHeritage, bindings: SourceBindings): DtoClassFact | undefined {
-  if (!cls.extendsDefineDto) {
-    return undefined
-  }
-  const name = cls.defineDtoNamespace ?? DTO_BASE_NAME
-  return bindings.trusted.has(name) && !bindings.rebound.has(name) ? { root: cls.ownRoot } : undefined
-}
-
-/**
- * What the source proves about one class: its own `extends defineDto(...)`
- * clause, else whatever its `extends` chain settled on in `dtoClassesOf`. Its
- * own clause wins outright, so a class whose *name* the file declares twice —
- * dropped from the chain, since a wrong root would report valid code — still
- * checks its own columns.
- */
-export function dtoClassOf(
-  heritage: ClassHeritage | undefined,
-  dtoClasses: ReadonlyMap<string, DtoClassFact>,
-  bindings: SourceBindings
-): DtoClassFact | undefined {
-  if (heritage === undefined) {
-    return undefined
-  }
-  return ownDtoFact(heritage, bindings) ?? (heritage.name === undefined ? undefined : dtoClasses.get(heritage.name))
+  return cls.extendsDtoBase && isDtoBaseReceiver(cls.dtoBaseReceiver, bindings) ? { root: cls.ownRoot } : undefined
 }
 
 /**
@@ -404,14 +413,14 @@ export function mayBeUnprovenDto(heritage: ClassHeritage | undefined, classNames
   if (heritage.baseName !== undefined) {
     return !classNames.has(heritage.baseName)
   }
-  return heritage.extendsDefineDto || heritage.baseCall !== undefined || heritage.extendsOther
+  return heritage.extendsDtoBase || heritage.baseCall !== undefined || heritage.extendsOther
 }
 
 /**
  * The context a call site's expressions carry, per its policy. The root is named
  * either by one of the call's own arguments (`fhirpath(expr, 'Patient')`,
- * `defineDto('Condition', …)`) or by the enclosing DTO class, which the walker
- * resolves (see `dtoClassOf`) and passes as `classRoot`. Mapping a policy
+ * `fp.defineView('Condition', …)`) or by the enclosing DTO class, which the walker
+ * resolves (see `dtoClassesOf`) and passes as `classRoot`. Mapping a policy
  * to a context is a decision, so it happens here rather than once per walker —
  * the two drifted while each had its own copy.
  */

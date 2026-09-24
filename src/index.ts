@@ -12,9 +12,22 @@ export type {
 } from './api/compile.ts'
 export { compile, CompiledExpression, DEFAULT_PARSE_CACHE_SIZE } from './api/compile.ts'
 export type { ConstraintCheckResult, ConstraintIssue, FhirConstraint, OperationOutcome } from './api/constraints.ts'
-export type { DtoBase, DtoBaseClass, DtoClass, DtoContext, DtoOptions, DtoRow } from './api/dto.ts'
-export { defineDto } from './api/dto.ts'
 export type {
+  DtoBase,
+  DtoBaseClass,
+  DtoClass,
+  DtoColumnOptions,
+  DtoContext,
+  DtoFunctions,
+  DtoKind,
+  DtoOptions,
+  DtoRow,
+  RegisteredDtoClass,
+  RegisteredOptions,
+} from './api/dto.ts'
+export type {
+  DtoProjectOptions,
+  EngineDtoContext,
   EngineExpression,
   EngineInput,
   EngineInputRoot,
@@ -23,6 +36,7 @@ export type {
   EngineProjectionContext,
   EngineResult,
   TypedEvaluateOptions,
+  ViewBaseClass,
 } from './api/engine.ts'
 export { BoundExpression, FhirPathEngine, recordEngines } from './api/engine.ts'
 export { evaluate } from './api/evaluate.ts'

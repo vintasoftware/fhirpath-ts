@@ -1,7 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { compile } from '../api/compile.ts'
-import { defineDto } from '../api/dto.ts'
 import { fhirpath } from '../api/tagged.ts'
 import type {
   HumanName,
@@ -12,7 +11,7 @@ import type {
   Quantity,
   SystemQuantity,
 } from '../r4/generated/type-maps.ts'
-import { r4Model } from '../r4/index.ts'
+import { r4, r4Model } from '../r4/index.ts'
 import { type FhirpathInput, type FhirpathResult } from './infer.ts'
 
 const patient: Patient = {
@@ -321,7 +320,7 @@ describe('DTO column integration', () => {
   it('infers the value type without a declared type option', () => {
     // Rooted at the resource name, and relative to the DTO's fhirType: both
     // resolve, so a column never needs its type spelled out.
-    class WeightRow extends defineDto('Observation') {
+    class WeightRow extends r4.defineView('Observation') {
       rooted = this.column("Observation.value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
 
       relative = this.column("value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
