@@ -290,6 +290,25 @@ describe('DTO declarations', () => {
     ])
   })
 
+  it('reports a column whose same-file base chain reaches an imported class', () => {
+    const chained = [
+      "import { Imported } from './portal'",
+      'class Base extends Imported {}',
+      'class Middle extends Base {}',
+      "class Sub extends Middle { x = this.column('code.text') }",
+      // One of two same-name bases extends nothing, the other an import: either may be the base.
+      'function a() { class Twice {} return Twice }',
+      'function b() { class Twice extends Imported {} return Twice }',
+      "class Either extends Twice { y = this.column('code.text') }",
+      // A chain that ends at nothing, even through a cycle, builds no DTO.
+      'class Plain {}',
+      "class OwnColumn extends Plain { column(expression: string) { return expression } z = this.column('x') }",
+      'class Loop extends Cycle {}',
+      "class Cycle extends Loop { w = this.column('x') }",
+    ].join('\n')
+    expect(createSiteScanner(ts)(chained, 'chained.ts').skipped.map(skip => skip.line)).toEqual([4, 7])
+  })
+
   it('declares a function per column field, and types it from the options', () => {
     const withCalls = [
       "import { r4 } from 'fhirpath-ts/r4'",

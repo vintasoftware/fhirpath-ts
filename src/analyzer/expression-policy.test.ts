@@ -174,10 +174,10 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
       "import * as api from 'fhirpath-ts'",
       'const a = api.fhirpath`x..1`',
       "const b = api.compile('x..2')",
-      // An engine reached through the namespace defines a DTO, so its vars count.
-      "class Row extends api.r4.defineView('Condition', { vars: { v: 'x..3' } }) {}",
+      // An engine reached through the namespace defines a DTO, so its vars and columns count.
+      "class Row extends api.r4.defineView('Condition', { vars: { v: 'x..3' } }) { name = this.column('x..4') }",
     ].join('\n'),
-    expected: 3,
+    expected: 4,
     typescript: true,
   },
   {
@@ -296,13 +296,16 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
       "import { r4 } from 'fhirpath-ts/r4'",
       "class Row extends r4.defineView('Condition') {",
       "  name = this.column('x..1')",
+      "  'quoted' = this.column('x..6')",
+      // Without the semicolon, the previous initializer would continue into `['computed']`.
+      "  ;['computed'] = this.column('x..7')",
       "  static shared = this.column('x..2')",
       "  #hidden = this.column('x..3')",
       "  wrapped = [this.column('x..4')]",
       "  later() { return this.criteria('x..5') }",
       '}',
     ].join('\n'),
-    expected: 1,
+    expected: 3,
     typescript: true,
   },
   {

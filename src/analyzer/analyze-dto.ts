@@ -102,11 +102,17 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
   const { engine, ...caller } = options ?? {}
   const context = contextOf(engine ?? definingContext(dto, definition), caller)
   const inputType = context.inputType ?? definition.fhirType
-  const declared: Record<string, DeclaredVariable> = { ...PROJECT_ROW_VARIABLES }
-  for (const name of [...Object.keys(definition.env ?? {}), ...definition.callerEnvNames]) {
-    declared[bareEnvironmentName(name)] = {}
+  // An untyped caller env name is typed by whoever supplies it, so caller and
+  // engine declarations sit above it. The DTO's own env, caller env types, vars,
+  // and row variables sit above those, matching `dtoCallOptions` and projection.
+  const callerNames: Record<string, DeclaredVariable> = {}
+  for (const name of definition.callerEnvNames) {
+    callerNames[bareEnvironmentName(name)] = {}
   }
-  Object.assign(declared, analyzerVariables(undefined, definition.callerEnvTypes))
+  const declared: Record<string, DeclaredVariable> = {
+    ...analyzerEnvironmentVariables(definition.env, undefined, context.model),
+    ...analyzerVariables(undefined, definition.callerEnvTypes),
+  }
   const diagnostics: DtoDiagnostic[] = []
   const analyze = (
     member: string,
@@ -116,7 +122,7 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
     const perExpression: AnalyzeOptions = {
       ...context,
       ...(inputType !== undefined && { inputType }),
-      variables: { ...declared, ...context.variables },
+      variables: { ...callerNames, ...context.variables, ...declared, ...PROJECT_ROW_VARIABLES },
     }
     const { diagnostics: found, result } = analyzeExpressionDetailed(expression, perExpression)
     for (const diagnostic of found) {

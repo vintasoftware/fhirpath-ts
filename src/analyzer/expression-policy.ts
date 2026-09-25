@@ -402,18 +402,34 @@ function ownDtoFact(cls: ClassHeritage, bindings: SourceBindings): DtoClassFact 
 }
 
 /**
- * Whether a class the source did not prove to be a DTO could still be one: it
- * extends a factory call, an untrusted `defineDto`, or a class from another
- * module. A class extending nothing, or another class of the same file, cannot.
+ * Tests whether a class the source did not prove to be a DTO could still be one:
+ * it extends a factory call, an untrusted `defineDto`, or a class from another
+ * module, directly or through classes of the same file. A class whose chain of
+ * same-file bases ends at nothing cannot. When the file declares a base name
+ * twice, either declaration may be the base.
  */
-export function mayBeUnprovenDto(heritage: ClassHeritage | undefined, classNames: ReadonlySet<string>): boolean {
-  if (heritage === undefined) {
-    return false
+export function mayBeUnprovenDtoOf(
+  classes: readonly ClassHeritage[]
+): (heritage: ClassHeritage | undefined) => boolean {
+  const byName = new Map<string, ClassHeritage[]>()
+  for (const cls of classes) {
+    if (cls.name !== undefined) {
+      byName.set(cls.name, [...(byName.get(cls.name) ?? []), cls])
+    }
   }
-  if (heritage.baseName !== undefined) {
-    return !classNames.has(heritage.baseName)
+  const mayBe = (heritage: ClassHeritage, seen: Set<ClassHeritage>): boolean => {
+    if (heritage.baseName === undefined) {
+      return heritage.extendsDtoBase || heritage.baseCall !== undefined || heritage.extendsOther
+    }
+    const bases = byName.get(heritage.baseName)
+    if (bases === undefined) {
+      return true
+    }
+    seen.add(heritage)
+    // A cycle throws when its classes are defined, so it builds no DTO.
+    return bases.some(base => !seen.has(base) && mayBe(base, seen))
   }
-  return heritage.extendsDtoBase || heritage.baseCall !== undefined || heritage.extendsOther
+  return heritage => heritage !== undefined && mayBe(heritage, new Set())
 }
 
 /**

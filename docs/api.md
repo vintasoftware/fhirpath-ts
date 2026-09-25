@@ -511,12 +511,13 @@ class ReportRow extends r4.defineView('DiagnosticReport') {
 }
 ```
 
-When TypeScript cannot infer an expression, the field type is `unknown`. Set the
-column `type` option to give it a type; `analyzeDto()` checks that option against
-the expression. `combine()`, caller values without a declared type, and calls to
-a column of the same class are the common cases. TypeScript cannot type a call
-to a column of the class being defined, because a field's type cannot depend on
-its own class.
+When TypeScript cannot infer an expression, the field type is `unknown`.
+`combine()`, caller values without a declared type, and calls to a column of the
+same class are the common cases. TypeScript cannot type a call to a column of the
+class being defined, because a field's type cannot depend on its own class. Set
+the column `type` option to give the field a type. `analyzeDto()` checks that
+option when it can infer the expression result; otherwise the option is an
+unchecked assertion.
 
 Write each column as the whole initializer of a public instance field. Projection
 reads columns by constructing the class once, and it reports a column in a

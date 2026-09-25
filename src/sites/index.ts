@@ -31,7 +31,7 @@ import {
   isCheckedTag,
   isForeignModule,
   type LocalModuleOptions,
-  mayBeUnprovenDto,
+  mayBeUnprovenDtoOf,
   type SiteContext,
   type SourceBindings,
   TAG_NAME,
@@ -631,7 +631,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
         : ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
     const engineSymbols = engineSymbolsFor(options)
     const { bindings, dtoClasses, heritage } = collectFile(source, options, engineSymbols)
-    const classNames = new Set([...heritage.values()].flatMap(cls => (cls.name === undefined ? [] : [cls.name])))
+    const mayBeUnprovenDto = mayBeUnprovenDtoOf([...heritage.values()])
     const sites: ExpressionSite[] = []
     const skipped: SkippedExpressionSite[] = []
     const columnClasses = new Set<TS.ClassLikeDeclaration>()
@@ -688,7 +688,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
             ...(columnClass !== undefined && { dtoField: true }),
           })
           if (policy.receiver === 'dto-field') {
-            if (!checked && field !== undefined && mayBeUnprovenDto(heritage.get(enclosingClass!), classNames)) {
+            if (!checked && field !== undefined && mayBeUnprovenDto(heritage.get(enclosingClass!))) {
               const unresolved =
                 checker === undefined ||
                 checker.getSymbolAtLocation((node.expression as TS.PropertyAccessExpression).name) === undefined

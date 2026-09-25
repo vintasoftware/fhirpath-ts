@@ -1001,6 +1001,30 @@ describe('analyzeDto', () => {
     expect(analyzeDto(OrderRow, { model: r4Model, variables: { reports: {} } })).toEqual([])
   })
 
+  it('checks DTO env and vars over same-name engine and caller variables, as projection binds them', () => {
+    const engine = new FhirPathEngine({
+      model: r4Model,
+      env: { label: 5 },
+      vars: { report: "'engine'" },
+      varTypes: { report: { type: 'string' } },
+    })
+    class OrderRow extends engine.defineView('ServiceRequest', {
+      env: { label: 'Order' },
+      callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
+      vars: { report: '%reports.first()' },
+    }) {
+      status = this.column('%report.status', { type: 'code' })
+
+      label = this.column('%label.upper()', { type: 'string' })
+    }
+    const reports = [{ resourceType: 'DiagnosticReport', status: 'final' }]
+    expect(engine.project([{ resourceType: 'ServiceRequest', id: 'sr1' }], OrderRow, { env: { reports } })).toEqual([
+      expect.objectContaining({ status: 'final', label: 'ORDER' }),
+    ])
+    expect(analyzeDto(OrderRow)).toEqual([])
+    expect(analyzeDto(OrderRow, { variables: { report: { types: ['System.Integer'], single: true } } })).toEqual([])
+  })
+
   it('propagates typed caller environment through DTO vars into columns', () => {
     class VisitNoteRow extends r4.defineView('ClinicalImpression', {
       callerEnv: { carePlans: { type: 'CarePlan', collection: true } },
