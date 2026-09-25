@@ -119,7 +119,7 @@ describe('expression-defined custom functions', () => {
 
   it('a definition may carry env of its own, over the caller env and only inside the body', () => {
     const labelled: CustomFunction = {
-      // Data the definition owns, the way a DTO's `static env` reaches its
+      // Data the definition owns, the way a DTO's `env` reaches its
       // columns: readable here, and nowhere the definition was not called.
       expression: "%prefix.combine(%outer).combine(coding.first().code).join('/')",
       env: { prefix: 'own', '%outer': 'shadowed' },

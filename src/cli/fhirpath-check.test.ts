@@ -22,14 +22,12 @@ describe('fhirpath-check CLI', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-dto-'))
     const dto = (call: string): string =>
       [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "class ConceptDto extends defineDto('CodeableConcept') {",
-        "  @column('(text | coding.display.first()).first()', { type: 'string' })",
-        '  displayText!: string | undefined',
+        "  displayText = this.column('(text | coding.display.first()).first()', { type: 'string' })",
         '}',
         "class WeightRow extends defineDto('Observation') {",
-        `  @column('${call}', { type: 'string', default: '' })`,
-        '  name!: string',
+        `  name = this.column('${call}', { type: 'string', default: '' })`,
         '}',
       ].join('\n')
     const good = join(directory, 'good.ts')
@@ -83,12 +81,11 @@ describe('fhirpath-check CLI', () => {
     writeFileSync(
       join(directory, 'patient.dto.ts'),
       [
-        "import { column, defineDto, FhirPathEngine } from 'fhirpath-ts'",
+        "import { defineDto, FhirPathEngine } from 'fhirpath-ts'",
         "import { r4Model } from 'fhirpath-ts/r4'",
         '',
         "export class ConceptDto extends defineDto('CodeableConcept') {",
-        "  @column('(text | coding.display.first()).first()', { type: 'string' })",
-        '  displayText!: string | undefined',
+        "  displayText = this.column('(text | coding.display.first()).first()', { type: 'string' })",
         '}',
         '',
         '// Module-private on purpose: discovery records constructions, so an engine',
@@ -97,11 +94,9 @@ describe('fhirpath-check CLI', () => {
         '',
         "export class ProblemRow extends defineDto('Condition') {",
         '  // Resolves only through the engine above.',
-        "  @column('code.displayText()', { type: 'string', default: '' })",
-        '  name!: string',
+        "  name = this.column('code.displayText()', { type: 'string', default: '' })",
         '',
-        "  @column('clinicalStatus.coding.first().codee')",
-        '  statusCode!: string | undefined',
+        "  statusCode = this.column('clinicalStatus.coding.first().codee')",
         '}',
         '',
         'export const rows = (input: unknown[]): unknown => fp.project(input, ProblemRow)',
@@ -123,7 +118,7 @@ describe('fhirpath-check CLI', () => {
     writeFileSync(
       join(directory, 'shared.dto.ts'),
       [
-        "import { column, defineDto, FhirPathEngine } from 'fhirpath-ts'",
+        "import { defineDto, FhirPathEngine } from 'fhirpath-ts'",
         "import { r4Model } from 'fhirpath-ts/r4'",
         '',
         "new FhirPathEngine({ model: r4Model, envTypes: { report: { type: 'DiagnosticReport' } } })",
@@ -134,14 +129,11 @@ describe('fhirpath-check CLI', () => {
         '})',
         '',
         "export class SharedRow extends defineDto('Observation') {",
-        "  @column('%report.status.first().length()', { type: 'integer' })",
-        '  statusLength!: number | undefined',
+        "  statusLength = this.column('%report.status.first().length()', { type: 'integer' })",
         '',
-        "  @column('%subject.name.given')",
-        '  given!: string[]',
+        "  given = this.column('%subject.name.given')",
         '',
-        "  @column('%loose')",
-        '  loose!: unknown',
+        "  loose = this.column('%loose')",
         '}',
       ].join('\n')
     )
@@ -158,20 +150,18 @@ describe('fhirpath-check CLI', () => {
     writeFileSync(
       join(directory, 'patient.dto.ts'),
       [
-        "import { column, defineDto, FhirPathEngine } from 'fhirpath-ts'",
+        "import { defineDto, FhirPathEngine } from 'fhirpath-ts'",
         "import { r4Model } from 'fhirpath-ts/r4'",
         '',
         "export class ConceptDto extends defineDto('CodeableConcept') {",
-        "  @column('(text | coding.display.first()).first()', { type: 'string' })",
-        '  displayText!: string | undefined',
+        "  displayText = this.column('(text | coding.display.first()).first()', { type: 'string' })",
         '}',
         '',
         'const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [ConceptDto] })',
         '',
         "export class ProblemRow extends defineDto('Condition') {",
         '  // A CodeableConcept column, reached on a string.',
-        "  @column('subject.reference.displayText()', { type: 'string', default: '' })",
-        '  name!: string',
+        "  name = this.column('subject.reference.displayText()', { type: 'string', default: '' })",
         '}',
         '',
         'export const rows = (input: unknown[]): unknown => fp.project(input, ProblemRow)',
@@ -611,10 +601,10 @@ describe('fhirpath-check CLI', () => {
     writeFileSync(
       join(directory, 'private.dto.ts'),
       [
-        "import { column, defineDto } from 'fhirpath-ts'",
+        "import { defineDto } from 'fhirpath-ts'",
         "const keyedRow = (type: 'Condition') => defineDto(type)",
         "class ProblemRow extends keyedRow('Condition') {",
-        "  @column('clinicalStatus.coding.first().code') status!: string | undefined",
+        "  status = this.column('clinicalStatus.coding.first().code')",
         '}',
       ].join('\n')
     )

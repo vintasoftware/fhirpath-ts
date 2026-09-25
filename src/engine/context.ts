@@ -51,9 +51,9 @@ export interface HostExpressionFunction {
   /**
    * Apply the criteria rule to the body's result, so the function always returns
    * exactly one Boolean. That rule is `criteriaBoolean`: §4.5 singleton
-   * evaluation, with an empty result read as false. It is what makes a
-   * `@criteria` mean the same thing whether it is projected as a column or
-   * called from an expression.
+   * evaluation, with an empty result read as false. It is what makes a DTO
+   * criteria column mean the same thing whether it is projected or called from
+   * an expression.
    */
   criteria?: boolean
 }

@@ -163,7 +163,7 @@ function expressionOf(column: ColumnSpec): string {
  *
  * A criteria claims nothing here, even though its function declares a Boolean
  * result. The Boolean comes from the criteria rule applied to the result, not
- * from the expression itself. `@criteria('name.given')` validly returns
+ * from the expression itself. `this.criteria('name.given')` validly returns
  * HumanName.given, which then reads as true.
  */
 function claimedType(column: ColumnSpec): string | undefined {

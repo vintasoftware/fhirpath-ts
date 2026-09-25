@@ -247,16 +247,23 @@ describe('extraction ignores computed callees', () => {
 
 describe('DTO declarations', () => {
   const source = [
-    "import { column, criteria, defineDto } from 'fhirpath-ts'",
+    "import { defineDto } from 'fhirpath-ts'",
     "class ProblemRow extends defineDto('Condition', { vars: { badge: 'clinicalStatus' } }) {",
-    "  @column('code.text', { type: 'string', default: '' })",
-    '  name!: string',
-    "  @criteria('recordedDate.exists()')",
-    '  recorded!: boolean',
+    "  name = this.column('code.text', { type: 'string', default: '' })",
+    "  recorded = this.criteria('recordedDate.exists()')",
+    '}',
+    'function badgedRow(fhirType) {',
+    '  class BadgedRow extends defineDto(fhirType) {}',
+    '  return BadgedRow',
     '}',
     "class LabRow extends badgedRow('DiagnosticReport') {",
-    "  @column('code.text')",
-    '  name!: string | undefined',
+    "  name = this.column('code.text')",
+    '}',
+    'class Imported extends SomeBase {',
+    "  name = this.column('code.text(')",
+    '}',
+    'class Table {',
+    "  header = this.column('First name')",
     '}',
   ].join('\n')
 
@@ -265,21 +272,32 @@ describe('DTO declarations', () => {
       ['clinicalStatus', 'Condition', true],
       ['code.text', 'Condition', true],
       ['recordedDate.exists()', 'Condition', true],
-      // Extending a factory: found, but with no fhirType to analyze against.
+      // Built by a factory of this file: a DTO, but the factory hides its fhirType.
       ['code.text', undefined, true],
+    ])
+  })
+
+  it('reports a column of a class the source cannot prove to be a DTO, and ignores other classes', () => {
+    // An imported base may be a DTO, so its column is a coverage gap. A class
+    // extending nothing cannot be one, so its own `column` method is not ours.
+    expect(createSiteScanner(ts)(source, 'sample.ts').skipped).toEqual([
+      {
+        reason: 'unrecognized-receiver',
+        message: 'column(...) expression not analyzed: the class is not recognized as a DTO',
+        line: 14,
+        column: 10,
+      },
     ])
   })
 
   it('declares a function per column field, and types it from the options', () => {
     const withCalls = [
-      "import { column, defineDto } from 'fhirpath-ts'",
+      "import { defineDto } from 'fhirpath-ts'",
       "class ConceptDto extends defineDto('CodeableConcept') {",
-      "  @column('text', { type: 'string' })",
-      '  displayText!: string | undefined',
+      "  displayText = this.column('text', { type: 'string' })",
       '}',
       "class WeightRow extends defineDto('Observation') {",
-      "  @column('code.displayText()', { type: 'string', default: '' })",
-      '  name!: string',
+      "  name = this.column('code.displayText()', { type: 'string', default: '' })",
       '}',
     ].join('\n')
     // Each column declares the type it was written against, so a call on the
@@ -297,14 +315,11 @@ describe('DTO declarations', () => {
 
   it('reads the cardinality of a collection column, and declines to guess a dynamic one', () => {
     const source = [
-      "import { column, defineDto } from 'fhirpath-ts'",
+      "import { defineDto } from 'fhirpath-ts'",
       "class Row extends defineDto('Patient') {",
-      "  @column('name.given', { type: 'string', collection: true })",
-      '  given!: string[]',
-      "  @column('name.family', { type: 'string', collection: false })",
-      '  family!: string | undefined',
-      "  @column('telecom.value', { type: 'string', collection: dynamic })",
-      '  contacts!: string[]',
+      "  given = this.column('name.given', { type: 'string', collection: true })",
+      "  family = this.column('name.family', { type: 'string', collection: false })",
+      "  contacts = this.column('telecom.value', { type: 'string', collection: dynamic })",
       '}',
     ].join('\n')
     const input = { types: ['Patient'] }
@@ -336,55 +351,56 @@ describe('DTO declarations', () => {
 
   it('follows a DTO root through a base class the same file declares', () => {
     const source = [
-      "import { column, defineDto } from 'fhirpath-ts'",
+      "import { defineDto } from 'fhirpath-ts'",
       "class ObservationRow extends defineDto('Observation') {",
-      "  @column('issued') at!: string | undefined",
+      "  at = this.column('issued')",
       '}',
       'class WeightRow extends ObservationRow {',
-      "  @column('value.ofType(Quantity).value') kg!: unknown",
+      "  kg = this.column('value.ofType(Quantity).value')",
       '}',
       'class Deeper extends WeightRow {',
-      "  @column('status') state!: string | undefined",
+      "  state = this.column('status')",
       '}',
-      // A factory call is not a name this file declares, so it stays rootless.
+      // A function this file does not declare proves nothing about its class.
       "class LabRow extends badgedRow('DiagnosticReport') {",
-      "  @column('code.text') name!: string | undefined",
+      "  name = this.column('code.text')",
       '}',
     ].join('\n')
     expect(findExpressionSites(source, 'sample.ts').map(site => [site.expression, site.inputType])).toEqual([
       ['issued', 'Observation'],
       ['value.ofType(Quantity).value', 'Observation'],
       ['status', 'Observation'],
-      ['code.text', undefined],
     ])
   })
 
-  it('does not guess a root for a class name the file declares twice', () => {
+  it('does not guess a DTO for a class name the file declares twice', () => {
     // Two scopes, two different classes, one name: inheriting the wrong root would
     // report valid code, so the chain drops the name. A class's own clause is
     // unaffected.
     const source = [
-      "import { column, defineDto } from 'fhirpath-ts'",
-      "function a() { class Row extends defineDto('Observation') { @column('issued') at!: unknown } return Row }",
-      "function b() { class Row extends defineDto('Condition') { @column('recordedDate') at!: unknown } return Row }",
+      "import { defineDto } from 'fhirpath-ts'",
+      "function a() { class Row extends defineDto('Observation') { at = this.column('issued') } return Row }",
+      "function b() { class Row extends defineDto('Condition') { at = this.column('recordedDate') } return Row }",
       'class Sub extends Row {',
-      "  @column('whatever') x!: unknown",
+      "  x = this.column('whatever')",
       '}',
     ].join('\n')
     expect(findExpressionSites(source, 'sample.ts').map(site => [site.expression, site.inputType])).toEqual([
       ['issued', 'Observation'],
       ['recordedDate', 'Condition'],
-      ['whatever', undefined],
     ])
   })
 
   it('does not loop on a cyclic extends chain', () => {
     const source = [
-      "import { column } from 'fhirpath-ts'",
-      "class A extends B { @column('issued') at!: unknown }",
+      "import { defineDto } from 'fhirpath-ts'",
+      "class A extends B { at = this.column('issued') }",
       'class B extends A {}',
+      'function make() { return C }',
+      'class C extends make() {}',
+      "class D extends C { at = this.column('issued') }",
     ].join('\n')
-    expect(findExpressionSites(source, 'sample.ts').map(site => site.inputType)).toEqual([undefined])
+    expect(findExpressionSites(source, 'sample.ts')).toEqual([])
   })
 })
 
@@ -393,9 +409,9 @@ describe('DTO export reachability', () => {
   const loadableOf = (code: string): Record<string, boolean> =>
     Object.fromEntries(scan(code, 'sample.ts').dtoDeclarations.map(dto => [dto.name, dto.loadable]))
   const dto = [
-    "import { column, defineDto } from 'fhirpath-ts'",
+    "import { defineDto } from 'fhirpath-ts'",
     "class ProblemRow extends defineDto('Condition') {",
-    "  @column('code.text') name!: string | undefined",
+    "  name = this.column('code.text')",
     '}',
   ]
 
@@ -475,18 +491,13 @@ describe('DTO context and declared roots', () => {
 
   it('declares one function per column field, typed from its options', () => {
     const source = [
-      "import { column, criteria, defineDto } from 'fhirpath-ts'",
+      "import { defineDto } from 'fhirpath-ts'",
       "class Row extends defineDto('CodeableConcept') {",
-      "  @column('text', { type: 'string' })",
-      '  displayText!: string | undefined',
-      "  @column('coding.count()', { type: 'integer' })",
-      '  readonly codingCount!: number | undefined',
-      "  @column('coding', { collection: true })",
-      '  codings!: unknown[]',
-      "  @column('text', { choices: { a: 'A' } })",
-      '  decoded!: string | undefined',
-      "  @criteria('text.exists()')",
-      '  named!: boolean',
+      "  displayText = this.column('text', { type: 'string' })",
+      "  readonly codingCount = this.column('coding.count()', { type: 'integer' })",
+      "  codings = this.column('coding', { collection: true })",
+      "  decoded = this.column('text', { choices: { a: 'A' } })",
+      "  named = this.criteria('text.exists()')",
       '}',
     ].join('\n')
     const [site] = findExpressionSites(source, 'sample.ts')
@@ -504,17 +515,22 @@ describe('DTO context and declared roots', () => {
     })
   })
 
-  it('finds the field name past other decorators and modifiers', () => {
+  it('reads a column only as the whole initializer of a public instance field', () => {
     const source = [
-      "import { column, defineDto } from 'fhirpath-ts'",
+      "import { defineDto } from 'fhirpath-ts'",
       "class Row extends defineDto('CodeableConcept') {",
-      "  @column('text', { type: 'string' })",
-      '  @deprecated',
-      "  @label('Display')",
-      '  readonly displayText!: string | undefined',
+      "  override readonly 'displayText' = this.column('text', { type: 'string' })",
+      "  static shared = this.column('x..1')",
+      "  #hidden = this.column('x..2')",
+      "  wrapped = [this.column('x..3')]",
+      "  later() { return this.column('x..4') }",
+      "  borrowed = other.column('x..5')",
       '}',
     ].join('\n')
-    expect(findExpressionSites(source, 'sample.ts')[0]?.functions).toEqual({
+    const sites = findExpressionSites(source, 'sample.ts')
+    // The runtime refuses the other shapes, so none of them is a column to check.
+    expect(sites.map(site => site.expression)).toEqual(['text'])
+    expect(sites[0]?.functions).toEqual({
       displayText: {
         minArity: 0,
         maxArity: 0,
@@ -524,11 +540,14 @@ describe('DTO context and declared roots', () => {
   })
 
   it('survives a buffer that is mid-edit', () => {
-    // What an editor sees between keystrokes: the parser recovers, the walker
-    // neither throws nor invents a field name for a decorator with no field.
-    const decoratorOnly =
-      "import { column, defineDto } from 'fhirpath-ts'\nclass Row extends defineDto('Coding') { @column('code') }"
-    expect(findExpressionSites(decoratorOnly, 'sample.ts').map(site => site.expression)).toEqual(['code'])
+    // What an editor sees between keystrokes: the parser recovers, and the
+    // walker neither throws nor loses the columns it can still read.
+    const unclosed =
+      "import { defineDto } from 'fhirpath-ts'\nclass Row extends defineDto('Coding') { code = this.column('code')"
+    expect(findExpressionSites(unclosed, 'sample.ts').map(site => site.expression)).toEqual(['code'])
+    const noArgument =
+      "import { defineDto } from 'fhirpath-ts'\nclass Row extends defineDto('Coding') { code = this.column( }"
+    expect(() => findExpressionSites(noArgument, 'sample.ts')).not.toThrow()
     const truncated = "import { r4 } from 'fhirpath-ts/r4'\nr4.evaluate('Patient.na"
     expect(() => findExpressionSites(truncated, 'sample.ts')).not.toThrow()
   })
@@ -583,6 +602,56 @@ describe('module options', () => {
     expect(scan(source, file, { packages: ['@acme/fhirpath'] }).sites.map(site => site.expression)).toEqual([
       'Patient.name',
     ])
+  }, 15_000)
+
+  it('reads the columns of a DTO whose base only the types reveal', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-dto-'))
+    const packageDirectory = join(directory, 'node_modules', '@acme', 'fhirpath')
+    mkdirSync(packageDirectory, { recursive: true })
+    writeFileSync(
+      join(packageDirectory, 'package.json'),
+      JSON.stringify({ name: '@acme/fhirpath', type: 'module', types: 'index.d.ts' })
+    )
+    writeFileSync(
+      join(packageDirectory, 'index.d.ts'),
+      [
+        'export declare class DtoBase<Root extends string = string> {',
+        '  get fhirType(): Root',
+        '  protected column(path: string): unknown',
+        '}',
+        'export declare function defineDto<const Root extends string>(fhirType: Root): new () => DtoBase<Root>',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'bases.ts'),
+      [
+        "import { defineDto } from '@acme/fhirpath'",
+        "export class ObservationRow extends defineDto('Observation') {}",
+        'export class Table { protected column(header: string): string { return header } }',
+      ].join('\n')
+    )
+    const file = join(directory, 'rows.ts')
+    const source = [
+      "import { ObservationRow, Table } from './bases.ts'",
+      "class WeightRow extends ObservationRow { kg = this.column('value.ofType(Quantity).value') }",
+      "class Report extends Table { header = this.column('First name') }",
+    ].join('\n')
+    writeFileSync(file, source)
+    const program = ts.createProgram({
+      rootNames: [file],
+      options: { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, noLib: true },
+    })
+
+    // The source sees two imported bases. The types show which one is a DTO,
+    // and its fhirType, so that column is checked like one declared in place;
+    // the other class's own `column` method is not ours, and is not a gap.
+    const scanned = createSiteScanner(ts, program)(source, file, { packages: ['@acme/fhirpath'] })
+    expect(scanned.sites.map(site => [site.expression, site.inputType, site.dto])).toEqual([
+      ['value.ofType(Quantity).value', 'Observation', true],
+    ])
+    expect(scanned.skipped).toEqual([])
+    // Without the types, both remain possible DTOs the scan cannot read.
+    expect(createSiteScanner(ts)(source, file, { packages: ['@acme/fhirpath'] }).skipped).toHaveLength(2)
   }, 15_000)
 })
 

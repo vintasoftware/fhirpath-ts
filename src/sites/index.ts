@@ -13,12 +13,15 @@ import type TS from 'typescript'
 import {
   CALL_SITES,
   callExpressionCandidates,
+  type ClassFactory,
   type ClassHeritage,
   columnFunctionDeclaration,
   constructsEngine,
   declaredColumnOverloads,
   DTO_BASE_NAME,
-  dtoRootsOf,
+  dtoClassesOf,
+  type DtoClassFact,
+  dtoClassOf,
   ENGINE_CLASS_NAME,
   type ExpressionAst,
   type ExpressionProperty,
@@ -27,11 +30,14 @@ import {
   isCheckedTag,
   isForeignModule,
   type LocalModuleOptions,
-  rootOf,
+  mayBeUnprovenDto,
   type SiteContext,
   type SourceBindings,
   TAG_NAME,
 } from '../analyzer/expression-policy.ts'
+
+/** The package's DTO base class export, whose `column`/`criteria` methods a type-aware scan recognizes. */
+const DTO_BASE_EXPORT = 'DtoBase'
 
 /** The TypeScript namespace accepted by `createSiteFinder`. */
 export type TypeScriptApi = typeof TS
@@ -92,6 +98,7 @@ export type SiteScanner = (sourceText: string, fileName: string, options?: Local
 export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): SiteScanner {
   const checker = program?.getTypeChecker()
   const engineSymbolsByOptions = new Map<string, ReadonlySet<TS.Symbol>>()
+  const dtoBaseSymbolsByOptions = new Map<string, ReadonlySet<TS.Symbol>>()
   /** How the shared shape extractor reads TypeScript AST nodes. */
   const tsAst: ExpressionAst<TS.Node> = {
     string: node => (ts.isStringLiteralLike(node) ? { node, expression: node.text } : undefined),
@@ -129,54 +136,84 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     return ts.isIdentifier(name) || ts.isStringLiteral(name) ? name.text : undefined
   }
 
-  /** The name of the field a `@column(...)` decorator belongs to. */
-  function decoratedFieldName(call: TS.CallExpression): string | undefined {
-    const decorator = call.parent
-    const member = decorator?.parent
+  /**
+   * The public instance field a `this.<name>(...)` call initializes, when the
+   * call is that field's whole initializer. Undefined for any other call shape.
+   */
+  function initializedFieldName(call: TS.CallExpression): string | undefined {
+    const field = call.parent
     if (
-      decorator === undefined ||
-      !ts.isDecorator(decorator) ||
-      member === undefined ||
-      !ts.isPropertyDeclaration(member) ||
-      !(ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))
+      !ts.isPropertyAccessExpression(call.expression) ||
+      call.expression.expression.kind !== ts.SyntaxKind.ThisKeyword ||
+      field === undefined ||
+      !ts.isPropertyDeclaration(field) ||
+      field.initializer !== call ||
+      (ts.getModifiers(field) ?? []).some(modifier => modifier.kind === ts.SyntaxKind.StaticKeyword)
     ) {
       return undefined
     }
-    return member.name.text
+    return ts.isPrivateIdentifier(field.name) ? undefined : propertyKeyName(field.name)
   }
 
-  /** A class's heritage, as `dtoRootsOf` reads it: its own DTO root, or the name of the class it extends. */
+  /** A class's heritage, as `dtoClassesOf` reads it. */
   function heritageOf(node: TS.ClassLikeDeclaration): ClassHeritage {
-    const heritage: ClassHeritage = { name: node.name?.text, ownRoot: undefined, baseName: undefined }
-    for (const clause of node.heritageClauses ?? []) {
-      if (clause.token !== ts.SyntaxKind.ExtendsKeyword) {
-        continue
-      }
-      for (const type of clause.types) {
-        const base = type.expression
-        if (ts.isCallExpression(base)) {
-          if (nameOf(base.expression) === DTO_BASE_NAME) {
-            const root = base.arguments[0]
-            heritage.ownRoot = root === undefined ? undefined : tsAst.string(root)?.expression
-          }
-        } else if (ts.isIdentifier(base)) {
-          heritage.baseName = base.text
-        }
-      }
+    const extended = node.heritageClauses?.find(clause => clause.token === ts.SyntaxKind.ExtendsKeyword)?.types[0]
+    return heritageOfBase(node.name?.text, extended?.expression)
+  }
+
+  /** Reads one `extends` expression, or what a factory returns, for `dtoClassesOf`. */
+  function heritageOfBase(name: string | undefined, base: TS.Expression | undefined): ClassHeritage {
+    const heritage: ClassHeritage = {
+      name,
+      extendsDefineDto: false,
+      defineDtoNamespace: undefined,
+      ownRoot: undefined,
+      baseName: undefined,
+      baseCall: undefined,
+      extendsOther: false,
+    }
+    if (base === undefined) {
+      return heritage
+    }
+    if (ts.isCallExpression(base) && nameOf(base.expression) === DTO_BASE_NAME) {
+      const root = base.arguments[0]
+      heritage.extendsDefineDto = true
+      heritage.defineDtoNamespace = receiverRoot(base.expression)
+      heritage.ownRoot = root === undefined ? undefined : tsAst.string(root)?.expression
+    } else if (ts.isIdentifier(base)) {
+      heritage.baseName = base.text
+    } else if (ts.isCallExpression(base) && ts.isIdentifier(base.expression)) {
+      heritage.baseCall = base.expression.text
+    } else {
+      heritage.extendsOther = true
     }
     return heritage
   }
 
-  /** Collects imports, engine locals, rebound names, and DTO class roots before extracting sites. */
+  /** What a function named `name` returns, when that is a class, a class name, or a class-building call. */
+  function factoryOf(name: string, body: TS.ConciseBody | undefined): ClassFactory | undefined {
+    const returned =
+      body === undefined ? undefined : ts.isBlock(body) ? body.statements.find(ts.isReturnStatement)?.expression : body
+    const inner = unwrapped(returned)
+    if (inner !== undefined && ts.isClassExpression(inner)) {
+      return { name, builds: heritageOf(inner) }
+    }
+    return inner !== undefined && (ts.isIdentifier(inner) || ts.isCallExpression(inner))
+      ? { name, builds: heritageOfBase(undefined, inner) }
+      : undefined
+  }
+
+  /** Collects imports, engine locals, rebound names, and DTO classes before extracting sites. */
   function collectFile(
     source: TS.SourceFile,
     options: LocalModuleOptions,
     engineSymbols: ReadonlySet<TS.Symbol>
   ): {
     bindings: SourceBindings
-    dtoRoots: ReadonlyMap<string, string>
+    dtoClasses: ReadonlyMap<string, DtoClassFact>
     heritage: ReadonlyMap<TS.Node, ClassHeritage>
   } {
+    const factories: ClassFactory[] = []
     const foreign = new Set<string>()
     const trusted = new Set<string>()
     const rebound = new Set<string>()
@@ -207,6 +244,18 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     const collectLocals = (node: TS.Node): void => {
       if (ts.isClassLike(node)) {
         heritage.set(node, heritageOf(node))
+      }
+      const factory =
+        ts.isFunctionDeclaration(node) && node.name !== undefined
+          ? factoryOf(node.name.text, node.body)
+          : ts.isVariableDeclaration(node) &&
+              ts.isIdentifier(node.name) &&
+              node.initializer !== undefined &&
+              (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+            ? factoryOf(node.name.text, node.initializer.body)
+            : undefined
+      if (factory !== undefined) {
+        factories.push(factory)
       }
       if (ts.isVariableDeclaration(node)) {
         if (
@@ -243,7 +292,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
       ts.forEachChild(node, collectLocals)
     }
     collectLocals(source)
-    return { bindings, dtoRoots: dtoRootsOf([...heritage.values()]), heritage }
+    return { bindings, dtoClasses: dtoClassesOf([...heritage.values()], bindings, factories), heritage }
   }
 
   /** Package engine declarations reached through a real `fhirpath-ts` import. */
@@ -308,6 +357,61 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     const symbols = collectTrustedEngineSymbols(options)
     engineSymbolsByOptions.set(key, symbols)
     return symbols
+  }
+
+  /** This package's DTO base class, reached through any real `fhirpath-ts` import in the program. */
+  function dtoBaseSymbolsFor(options: LocalModuleOptions): ReadonlySet<TS.Symbol> {
+    const key = JSON.stringify({ packages: options.packages, localImports: options.localImports === true })
+    const cached = dtoBaseSymbolsByOptions.get(key)
+    if (cached !== undefined) {
+      return cached
+    }
+    const symbols = new Set<TS.Symbol>()
+    for (const source of program?.getSourceFiles() ?? []) {
+      for (const statement of source.statements) {
+        if (
+          !ts.isImportDeclaration(statement) ||
+          !ts.isStringLiteral(statement.moduleSpecifier) ||
+          isForeignModule(statement.moduleSpecifier.text, options)
+        ) {
+          continue
+        }
+        const module = checker?.getSymbolAtLocation(statement.moduleSpecifier)
+        const exported = module === undefined ? undefined : checker?.getExportsOfModule(module)
+        const base = exported?.find(entry => entry.name === DTO_BASE_EXPORT)
+        if (base !== undefined) {
+          symbols.add((base.flags & ts.SymbolFlags.Alias) !== 0 ? checker!.getAliasedSymbol(base) : base)
+        }
+      }
+    }
+    dtoBaseSymbolsByOptions.set(key, symbols)
+    return symbols
+  }
+
+  /**
+   * What TypeScript proves about a `this.<name>(...)` call the source could not:
+   * the method is this package's DTO base method, and the class's fhirType when
+   * it is a literal. Undefined without a program or for any other method.
+   */
+  function dtoFactFromTypes(
+    callee: TS.PropertyAccessExpression,
+    options: LocalModuleOptions
+  ): DtoClassFact | undefined {
+    if (checker === undefined) {
+      return undefined
+    }
+    const declaration = checker.getSymbolAtLocation(callee.name)?.declarations?.[0]
+    const owner = declaration?.parent
+    const ownerSymbol =
+      owner !== undefined && ts.isClassDeclaration(owner) && owner.name !== undefined
+        ? checker.getSymbolAtLocation(owner.name)
+        : undefined
+    if (ownerSymbol === undefined || !dtoBaseSymbolsFor(options).has(ownerSymbol)) {
+      return undefined
+    }
+    const fhirType = checker.getTypeAtLocation(callee.expression).getProperty('fhirType')
+    const root = fhirType === undefined ? undefined : checker.getTypeOfSymbolAtLocation(fhirType, callee)
+    return { root: root?.isStringLiteral() === true ? root.value : undefined }
   }
 
   /** Whether TypeScript resolved an expression to this package's engine class. */
@@ -509,10 +613,11 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
         ? programSource
         : ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true)
     const engineSymbols = engineSymbolsFor(options)
-    const { bindings, dtoRoots, heritage } = collectFile(source, options, engineSymbols)
+    const { bindings, dtoClasses, heritage } = collectFile(source, options, engineSymbols)
+    const classNames = new Set([...heritage.values()].flatMap(cls => (cls.name === undefined ? [] : [cls.name])))
     const sites: ExpressionSite[] = []
     const skipped: SkippedExpressionSite[] = []
-    const decoratedClasses = new Set<TS.ClassLikeDeclaration>()
+    const columnClasses = new Set<TS.ClassLikeDeclaration>()
     const functions: Record<string, FileColumnFunction> = {}
     // A site points at the first character inside the quote/backtick (node start
     // + 1), so fhirpath-check can add a diagnostic's span offsets directly. The
@@ -534,7 +639,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     }
     const visit = (
       node: TS.Node,
-      classRoot: string | undefined,
+      dtoClass: DtoClassFact | undefined,
       enclosingClass: TS.ClassLikeDeclaration | undefined
     ): void => {
       if (ts.isTaggedTemplateExpression(node) && nameOf(node.tag) === TAG_NAME) {
@@ -551,14 +656,34 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
         const callee = nameOf(node.expression)
         const policy = callee === undefined ? undefined : CALL_SITES.get(callee)
         const argument = policy && (node.arguments[policy.argIndex] as TS.Expression | undefined)
+        const field = policy?.receiver === 'dto-field' ? initializedFieldName(node) : undefined
+        // A DTO the source cannot prove may still be one the types can.
+        const columnClass =
+          field === undefined
+            ? undefined
+            : (dtoClass ?? dtoFactFromTypes(node.expression as TS.PropertyAccessExpression, options))
         if (callee !== undefined && policy !== undefined && argument !== undefined) {
           const typedEngineReceiver =
             ts.isPropertyAccessExpression(node.expression) &&
             isEngineExpression(node.expression.expression, engineSymbols)
           const checked = isCheckedCall(policy, callee, receiverRoot(node.expression), bindings, {
             ...(typedEngineReceiver && { engine: true }),
+            ...(columnClass !== undefined && { dtoField: true }),
           })
-          if (!checked) {
+          if (policy.receiver === 'dto-field') {
+            if (!checked && field !== undefined && mayBeUnprovenDto(heritage.get(enclosingClass!), classNames)) {
+              const unresolved =
+                checker === undefined ||
+                checker.getSymbolAtLocation((node.expression as TS.PropertyAccessExpression).name) === undefined
+              if (unresolved) {
+                skip(
+                  node.expression,
+                  'unrecognized-receiver',
+                  `${callee}(...) expression not analyzed: the class is not recognized as a DTO`
+                )
+              }
+            }
+          } else if (!checked) {
             const receiver = receiverRoot(node.expression)
             const receiverExpression = ts.isPropertyAccessExpression(node.expression)
               ? node.expression.expression
@@ -574,22 +699,22 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
                 }`
               )
             }
-          } else {
+          }
+          if (checked) {
             const declares = policy.declaresField
-            const field = declares === undefined ? undefined : decoratedFieldName(node)
             if (declares !== undefined && field !== undefined) {
               if (enclosingClass !== undefined) {
-                decoratedClasses.add(enclosingClass)
+                columnClasses.add(enclosingClass)
               }
               functions[field] = declaredColumnOverloads(
                 functions[field],
-                columnFunctionDeclaration<TS.Node>(declares, node.arguments[1], tsAst, classRoot)
+                columnFunctionDeclaration<TS.Node>(declares, node.arguments[1], tsAst, columnClass?.root)
               )
             }
             for (const candidate of callExpressionCandidates<TS.Node>(
               policy,
               index => node.arguments[index],
-              classRoot,
+              columnClass?.root,
               tsAst
             )) {
               if (candidate.uncheckable === 'dynamic-vars') {
@@ -613,7 +738,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
           }
         }
       }
-      const nested = ts.isClassLike(node) ? rootOf(heritage.get(node), dtoRoots) : classRoot
+      const nested = ts.isClassLike(node) ? dtoClassOf(heritage.get(node), dtoClasses, bindings) : dtoClass
       const nestedClass = ts.isClassLike(node) ? node : enclosingClass
       ts.forEachChild(node, child => visit(child, nested, nestedClass))
     }
@@ -646,7 +771,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
       }
       return false
     }
-    const dtoDeclarations = [...decoratedClasses].flatMap(node => {
+    const dtoDeclarations = [...columnClasses].flatMap(node => {
       const nameNode = node.name
       // Runtime module discovery can only miss top-level module-local classes.
       // A class inside a factory is reached through whatever class the factory

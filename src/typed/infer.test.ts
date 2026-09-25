@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { compile } from '../api/compile.ts'
-import { column, defineDto } from '../api/dto.ts'
+import { defineDto } from '../api/dto.ts'
 import { fhirpath } from '../api/tagged.ts'
 import type {
   HumanName,
@@ -320,14 +320,11 @@ describe('a declared root types a relative expression', () => {
 describe('DTO column integration', () => {
   it('infers the value type without a declared type option', () => {
     // Rooted at the resource name, and relative to the DTO's fhirType: both
-    // resolve, so a column never needs its type spelled out — and the field's
-    // declared type is checked against what the expression yields.
+    // resolve, so a column never needs its type spelled out.
     class WeightRow extends defineDto('Observation') {
-      @column("Observation.value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
-      rooted!: number
+      rooted = this.column("Observation.value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
 
-      @column("value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
-      relative!: number
+      relative = this.column("value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
     }
     const row = new WeightRow()
     expectTypeOf(row.rooted).toEqualTypeOf<number>()

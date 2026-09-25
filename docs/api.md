@@ -463,24 +463,18 @@ result opaque.
 
 ## DTOs
 
-A DTO is a class created from `defineDto(fhirType)`. Each decorated field is a
-projection column:
+A DTO is a class created from `defineDto(fhirType)`. Each field initialized with
+`this.column()` or `this.criteria()` is a projection column, and its type is
+inferred from the expression:
 
 ```ts
-import { column, criteria, defineDto } from 'fhirpath-ts'
+import { defineDto } from 'fhirpath-ts'
 
 class WeightRow extends defineDto('Observation') {
-  @column("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 })
-  lbs!: number
-
-  @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
-  at!: Date | undefined
-
-  @column('note.text', { collection: true })
-  notes!: string[]
-
-  @criteria("status = 'final'")
-  final!: boolean
+  lbs = this.column("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 }) // number
+  at = this.column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' }) // Date | undefined
+  notes = this.column('note.text', { collection: true }) // string[]
+  final = this.criteria("status = 'final'") // boolean
 
   get rounded(): number {
     return Math.round(this.lbs)
@@ -490,17 +484,27 @@ class WeightRow extends defineDto('Observation') {
 const rows = fp.project(observations, WeightRow) // WeightRow[]
 ```
 
-The field type is checked against the inferred column type. The decorator accepts
-the same options as a plain project column. Rows are class instances, so derived
-values can be getters or methods.
+`this.column()` accepts the same options as a plain project column. Rows are class
+instances, so derived values can be getters or methods. Other fields keep their
+ordinary JavaScript behavior and are not projected.
 
-### Decorator compilation
+A field may also declare its type. TypeScript then checks that the declared type
+can hold the column value:
 
-These are standard JavaScript decorators. TypeScript must compile them with a
-target of ES2024 or lower. SWC and Babel can also lower them. esbuild, oxc, and
-Node's type stripping do not currently lower standard decorators.
+```ts
+class ReportRow extends defineDto('DiagnosticReport') {
+  issued: string | undefined = this.column('issued')
+}
+```
 
-Use a plain column record if the build cannot compile decorators.
+When TypeScript cannot infer an expression, the field type is `unknown`. Set the
+column `type` option to give it a type; `analyzeDto()` checks that option against
+the expression. Calls to registered DTO columns, `combine()`, and caller values
+without a declared type are the common cases.
+
+Write each column as the whole initializer of a public instance field. Projection
+reads columns by constructing the class once, and it reports a column in a
+private field, a static field, or a nested value.
 
 ### Registering DTO columns as functions
 
@@ -508,8 +512,7 @@ Pass DTOs through `resourceDtos` to call their columns from other expressions:
 
 ```ts
 class CodeableConceptDto extends defineDto('CodeableConcept') {
-  @column('(text | coding.display.first() | coding.first().code).first()')
-  displayText!: string | undefined
+  displayText = this.column('(text | coding.display.first() | coding.first().code).first()')
 }
 
 const fp = new FhirPathEngine({
@@ -524,10 +527,10 @@ Registration publishes every column under its field name. Each function accepts
 the DTO's `fhirType`. A model is required so the engine can reject calls on an
 incompatible focus.
 
-Decorator metadata is collected at runtime and is not enumerable by TypeScript.
-A call known only through `resourceDtos` therefore remains `unknown[]` in the
-type layer; use a column or call `type` when needed. The loaded analyzer still
-checks the registered DTO function completely.
+TypeScript does not see which columns an engine registers. A call to a
+registered column therefore remains `unknown[]` in the type layer; use a column
+or call `type` when needed. The loaded analyzer still checks the registered DTO
+function completely.
 
 Names are scoped by input type. A CodeableConcept DTO and a Coding DTO may both
 declare `displayText`. The call focus selects the matching declaration.
@@ -539,64 +542,86 @@ host function. Built-in names are always reserved.
 
 Several DTOs may target the same FHIR type when their field names are different.
 
-### DTO environment values
+### DTO environment and variables
 
-Use `static env` for lookup values owned by a DTO:
+Use `env` for lookup values owned by a DTO:
 
 ```ts
-class LabRow extends defineDto('DiagnosticReport') {
-  static env = { system: 'http://loinc.org' }
-
-  @column('code.coding.where(system = %system).first().code', {
+class LabRow extends defineDto('DiagnosticReport', {
+  env: { system: 'http://loinc.org' },
+}) {
+  loincCode = this.column('code.coding.where(system = %system).first().code', {
     default: '',
   })
-  loincCode!: string
 }
 ```
 
 These values are available only while evaluating that DTO's columns. Registering
-the DTO does not publish them to other engine expressions. A DTO value has higher
-priority than the engine and per-call environment values with the same name.
+the DTO does not publish them to other engine expressions. Column types are
+inferred from the values, so a lookup table types the columns that read it.
 
 Declare data supplied by each projection with `callerEnv`. A declaration map
-lets DTO vars carry the supplied type into later columns:
+types the supplied values, and DTO vars carry that type into later columns:
 
 ```ts
 class LabResultRow extends defineDto('ServiceRequest', {
   callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
   vars: { report: "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()" },
 }) {
-  @column('%report.status', { type: 'string', default: 'waiting' })
-  status!: string
+  status = this.column('%report.status', { default: 'waiting' }) // string
 }
 ```
 
-`callerEnv` tells the analyzer which names the call provides. Use an array of
-names when their structure is intentionally opaque, or a declaration map when
-FHIRPath navigates through them. It does not create values. Pass them to
-`project()` through `env`.
+`callerEnv` tells TypeScript and the analyzer which names the call provides. Use
+an array of names when their structure is intentionally opaque, or a declaration
+map when FHIRPath navigates through them. It does not create values. Pass them to
+`project()` through `env`. A name cannot be both in `env` and in `callerEnv`.
+
+DTO `env` and `vars` take priority over engine and per-call values with the same
+name, so a column means the same thing however it is reached. `%rowIndex` and
+`%rowTotal` are also available to every column.
 
 DTO `vars` apply only when the DTO is projected. They are row expressions and do
 not travel with a registered function call, which has a focus but no projection
 row.
 
-### Inheritance
+### Inheritance and shared columns
 
-Subclasses inherit columns, variables, and environment values. Environment
-records merge by key:
+Subclasses inherit columns, environment values, and variables. A subclass can add
+columns, or replace an inherited column with a field of the same name:
 
 ```ts
-class BaseRow extends defineDto('Observation') {
-  static env = { unit: 'kg', label: 'Reading' }
+class ObservationRow extends defineDto('Observation') {
+  at = this.column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
 }
 
-class PoundsRow extends BaseRow {
-  static override env = { unit: '[lb_av]' }
+class HeightRow extends ObservationRow {
+  meters = this.column("value.ofType(Quantity).toQuantity('m').value", { default: 0 })
 }
 ```
 
-Annotate a base environment as `DtoEnv` when a subclass should override only
-part of a record. An inferred literal type may otherwise require every base key.
+Columns shared by DTOs on different FHIR types come from a function that builds a
+base class. Forward the options to `defineDto()` so the columns of each subclass
+are inferred against its own `env` and `vars`:
+
+```ts
+function keyedRow<const Root extends FhirTypeName, const Options extends DtoOptions = DtoOptions>(
+  fhirType: Root,
+  options?: Options
+): DtoBaseClass<Root, DtoContext<Options>, { id: string }> {
+  return class KeyedRow extends defineDto(fhirType, options) {
+    id = this.column('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
+  }
+}
+
+class ProblemRow extends keyedRow('Condition') {
+  status = this.column('clinicalStatus.coding.first().code')
+}
+```
+
+The return type is needed only when an exported class extends the function's
+result and the project emits declaration files. `DtoBaseClass` names the base
+class and the columns the function adds.
 
 ### Input checks
 

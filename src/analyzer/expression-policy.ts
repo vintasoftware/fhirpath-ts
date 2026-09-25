@@ -24,8 +24,10 @@ export interface CallSitePolicy {
    * Required receiver evidence. `any` accepts bare or member calls unless a
    * foreign import owns the name. `engine` requires a package import or local
    * `FhirPathEngine`. `import` requires the called name to come from this package.
+   * `dto-field` requires a `this.<name>(...)` call that is the whole initializer
+   * of a public instance field of a DTO class (see `dtoClassOf`).
    */
-  receiver: 'any' | 'engine' | 'import'
+  receiver: 'any' | 'engine' | 'import' | 'dto-field'
   /**
    * The argument that names the type the expression runs against, when the call
    * takes one: `fhirpath('status', 'MedicationRequest')` declares it at index 1,
@@ -35,10 +37,10 @@ export interface CallSitePolicy {
    */
   rootArg?: number
   /**
-   * The root comes from the enclosing class's `extends defineDto('Condition')`
-   * clause: a `@column`/`@criteria` field. A class extending anything else (a
-   * base class, a root-generic factory) has no statically-known fhirType, and
-   * the expression is analyzed without an input type.
+   * The root comes from the enclosing DTO class: its own
+   * `extends defineDto('Condition')` clause, or a base class in the same file.
+   * A class whose fhirType the source cannot name (a root-generic factory) is
+   * analyzed without an input type.
    */
   rootFromClass?: true
   /** The EvaluateOptions argument whose inline env/vars declarations are visible to the expression. */
@@ -55,7 +57,7 @@ export interface CallSitePolicy {
    * checks all of it properly.
    */
   dto?: true
-  /** Declares a zero-argument function named after the decorated field. */
+  /** Declares a zero-argument function named after the field it initializes. */
   declaresField?: 'column' | 'criteria'
 }
 
@@ -89,15 +91,29 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
     'checkConstraints',
     { argIndex: 1, shape: 'constraints', receiver: 'any', optionsArg: 2, optionsExpressions: 'vars' },
   ],
-  // DTO declarations: the column/criteria expressions of a `@column` field, and
+  // DTO declarations: the expression of a `name = this.column(...)` field, and
   // the `vars` a DTO binds per row.
   [
     'column',
-    { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true, declaresField: 'column' },
+    {
+      argIndex: 0,
+      shape: 'expression',
+      receiver: 'dto-field',
+      rootFromClass: true,
+      dto: true,
+      declaresField: 'column',
+    },
   ],
   [
     'criteria',
-    { argIndex: 0, shape: 'expression', receiver: 'import', rootFromClass: true, dto: true, declaresField: 'criteria' },
+    {
+      argIndex: 0,
+      shape: 'expression',
+      receiver: 'dto-field',
+      rootFromClass: true,
+      dto: true,
+      declaresField: 'criteria',
+    },
   ],
   ['defineDto', { argIndex: 1, shape: 'dto-vars', receiver: 'import', rootArg: 0, dto: true }],
 ])
@@ -135,10 +151,12 @@ export interface SourceBindings {
   rebound: ReadonlySet<string>
 }
 
-/** Semantic receiver facts a compiler-backed walker can prove. */
+/** Receiver facts a walker proves from the AST or, with a compiler, from types. */
 export interface ReceiverEvidence {
   /** The receiver resolves to this package's FhirPathEngine declaration. */
   engine?: true
+  /** The call is `this.<name>(...)`, the whole initializer of a public field of a DTO class. */
+  dtoField?: true
 }
 
 /**
@@ -155,6 +173,9 @@ export function isCheckedCall(
   bindings: SourceBindings,
   evidence: ReceiverEvidence = {}
 ): boolean {
+  if (policy.receiver === 'dto-field') {
+    return evidence.dtoField === true
+  }
   if (policy.receiver === 'import') {
     return receiverRoot === undefined && bindings.trusted.has(calleeName) && !bindings.rebound.has(calleeName)
   }
@@ -248,18 +269,47 @@ export type SiteVariablePlan = SourceVariablePlan
 export interface ClassHeritage {
   /** The class's own name, when it has one. */
   name: string | undefined
-  /** The fhirType its own `extends defineDto('X')` clause fixes, when it has one. */
+  /** Its own `extends` clause is a `defineDto(...)` or `namespace.defineDto(...)` call. */
+  extendsDefineDto: boolean
+  /** The namespace of a `namespace.defineDto(...)` clause. */
+  defineDtoNamespace: string | undefined
+  /** The fhirType that `defineDto(...)` call names, when it is a string literal. */
   ownRoot: string | undefined
   /** The name of the class it extends, when that clause is a plain identifier. */
   baseName: string | undefined
+  /** The function named by an `extends factory(...)` clause. */
+  baseCall: string | undefined
+  /** It extends some other expression, such as a member call. */
+  extendsOther: boolean
 }
 
 /**
- * Resolves DTO roots through base classes declared in the same file. Duplicate
- * names, cycles, factories, and imported bases remain unresolved because the
- * source cannot prove their root.
+ * A function of the file that returns a class: `function keyedRow() { … return Row }`,
+ * `const keyedRow = t => defineDto(t)`, or one returning a class expression.
+ * `builds` reads what it returns as if it were an `extends` clause.
  */
-export function dtoRootsOf(classes: readonly ClassHeritage[]): ReadonlyMap<string, string> {
+export interface ClassFactory {
+  name: string
+  builds: ClassHeritage
+}
+
+/** What the source proves about a DTO class: it is one, and maybe its fhirType. */
+export interface DtoClassFact {
+  root: string | undefined
+}
+
+/**
+ * Finds the file's DTO classes: a class extending this package's `defineDto(...)`
+ * call, or extending a class or a factory call of the same file that leads to
+ * one, through any number of steps. A factory hides the root its caller passes,
+ * so a class it builds has none. Duplicate names, cycles, and imported bases
+ * stay unresolved, because the source cannot prove what they are.
+ */
+export function dtoClassesOf(
+  classes: readonly ClassHeritage[],
+  bindings: SourceBindings,
+  factories: readonly ClassFactory[] = []
+): ReadonlyMap<string, DtoClassFact> {
   const byName = new Map<string, ClassHeritage>()
   const ambiguous = new Set<string>()
   for (const cls of classes) {
@@ -271,9 +321,25 @@ export function dtoRootsOf(classes: readonly ClassHeritage[]): ReadonlyMap<strin
     }
     byName.set(cls.name, cls)
   }
-  const rootOf = (cls: ClassHeritage, seen: Set<string>): string | undefined => {
-    if (cls.ownRoot !== undefined) {
-      return cls.ownRoot
+  const built = new Map<string, ClassHeritage | undefined>()
+  for (const factory of factories) {
+    // Two functions under one name are as unprovable as two classes.
+    built.set(factory.name, built.has(factory.name) ? undefined : factory.builds)
+  }
+  const factOf = (cls: ClassHeritage, seen: Set<string>): DtoClassFact | undefined => {
+    const own = ownDtoFact(cls, bindings)
+    if (own !== undefined) {
+      return own
+    }
+    const call = cls.baseCall
+    if (call !== undefined) {
+      const builds = built.get(call)
+      if (builds === undefined || seen.has(`${call}()`)) {
+        return undefined
+      }
+      seen.add(`${call}()`)
+      // The factory's caller chooses the fhirType, which the factory hides.
+      return factOf(builds, seen) === undefined ? undefined : { root: undefined }
     }
     const base = cls.baseName
     if (base === undefined || ambiguous.has(base) || seen.has(base)) {
@@ -284,40 +350,68 @@ export function dtoRootsOf(classes: readonly ClassHeritage[]): ReadonlyMap<strin
       return undefined
     }
     seen.add(base)
-    return rootOf(declaration, seen)
+    return factOf(declaration, seen)
   }
-  const roots = new Map<string, string>()
+  const facts = new Map<string, DtoClassFact>()
   for (const [name, cls] of byName) {
     if (ambiguous.has(name)) {
       continue
     }
-    const root = rootOf(cls, new Set([name]))
-    if (root !== undefined) {
-      roots.set(name, root)
+    const fact = factOf(cls, new Set([name]))
+    if (fact !== undefined) {
+      facts.set(name, fact)
     }
   }
-  return roots
+  return facts
+}
+
+/** A class whose own clause calls this package's `defineDto`, bare or through a namespace import. */
+function ownDtoFact(cls: ClassHeritage, bindings: SourceBindings): DtoClassFact | undefined {
+  if (!cls.extendsDefineDto) {
+    return undefined
+  }
+  const name = cls.defineDtoNamespace ?? DTO_BASE_NAME
+  return bindings.trusted.has(name) && !bindings.rebound.has(name) ? { root: cls.ownRoot } : undefined
 }
 
 /**
- * The DTO root a class's `@column` fields analyze against: its own
- * `extends defineDto('X')` clause, else whatever its `extends` chain settled on in
- * `dtoRootsOf`. Its own clause wins outright, so a class whose *name* the file
- * declares twice — dropped from the chain, since a wrong root would report valid
- * code — still checks its own columns.
+ * What the source proves about one class: its own `extends defineDto(...)`
+ * clause, else whatever its `extends` chain settled on in `dtoClassesOf`. Its
+ * own clause wins outright, so a class whose *name* the file declares twice —
+ * dropped from the chain, since a wrong root would report valid code — still
+ * checks its own columns.
  */
-export function rootOf(heritage: ClassHeritage | undefined, dtoRoots: ReadonlyMap<string, string>): string | undefined {
-  if (heritage === undefined || heritage.ownRoot !== undefined) {
-    return heritage?.ownRoot
+export function dtoClassOf(
+  heritage: ClassHeritage | undefined,
+  dtoClasses: ReadonlyMap<string, DtoClassFact>,
+  bindings: SourceBindings
+): DtoClassFact | undefined {
+  if (heritage === undefined) {
+    return undefined
   }
-  return heritage.name === undefined ? undefined : dtoRoots.get(heritage.name)
+  return ownDtoFact(heritage, bindings) ?? (heritage.name === undefined ? undefined : dtoClasses.get(heritage.name))
+}
+
+/**
+ * Whether a class the source did not prove to be a DTO could still be one: it
+ * extends a factory call, an untrusted `defineDto`, or a class from another
+ * module. A class extending nothing, or another class of the same file, cannot.
+ */
+export function mayBeUnprovenDto(heritage: ClassHeritage | undefined, classNames: ReadonlySet<string>): boolean {
+  if (heritage === undefined) {
+    return false
+  }
+  if (heritage.baseName !== undefined) {
+    return !classNames.has(heritage.baseName)
+  }
+  return heritage.extendsDefineDto || heritage.baseCall !== undefined || heritage.extendsOther
 }
 
 /**
  * The context a call site's expressions carry, per its policy. The root is named
  * either by one of the call's own arguments (`fhirpath(expr, 'Patient')`,
- * `defineDto('Condition', …)`) or by the enclosing class's `extends defineDto(…)`
- * clause, which the walker resolves and passes as `classRoot`. Mapping a policy
+ * `defineDto('Condition', …)`) or by the enclosing DTO class, which the walker
+ * resolves (see `dtoClassOf`) and passes as `classRoot`. Mapping a policy
  * to a context is a decision, so it happens here rather than once per walker —
  * the two drifted while each had its own copy.
  */
@@ -727,7 +821,7 @@ export function expressionCandidates<N>(
 }
 
 /**
- * What a DTO column declares as a function: every `@column` field of a
+ * What a DTO column declares as a function: every column field of a
  * registered DTO becomes a zero-argument expression function named by the field
  * (see `withDtos`), so a walker that reads a file's columns can resolve the
  * calls between them. Shaped to be assignable to the analyzer's

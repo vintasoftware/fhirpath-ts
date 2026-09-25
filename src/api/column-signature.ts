@@ -58,7 +58,7 @@ export function columnSignature(
 }
 
 /**
- * The signature a `@criteria` contributes. Its expression goes through the
+ * The signature a DTO criteria column contributes. Its expression goes through the
  * criteria rule (see `criteriaBoolean`), so the function returns a single
  * Boolean whatever the expression returns. This is a function rather than a
  * shared constant, so one caller cannot change what the next caller reads.

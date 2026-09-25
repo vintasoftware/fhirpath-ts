@@ -103,10 +103,12 @@ const documentation: readonly DocumentExpectation[] = [
         'note.text',
         "status = 'final'"
       ),
+      valid('issued'),
       valid('(text | coding.display.first() | coding.first().code).first()', 'Condition.code.displayText()'),
       valid('code.coding.where(system = %system).first().code'),
       valid("%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()", '%report.status'),
-      valid(),
+      valid('(effective.ofType(dateTime) | issued).first()', "value.ofType(Quantity).toQuantity('m').value"),
+      valid('(id | %rowIndex.toString()).first()', 'clinicalStatus.coding.first().code'),
       valid('$this is Patient'),
       valid(),
       valid('Patient.name.given', 'Bundle.entry.count()'),
@@ -132,7 +134,7 @@ const documentation: readonly DocumentExpectation[] = [
 ]
 
 const imports = `
-import { FhirPathEngine, analyzeExpression, checkConstraints, column, compile, criteria, defineDto, evaluate, fhirpath } from 'fhirpath-ts'
+import { FhirPathEngine, analyzeExpression, checkConstraints, compile, defineDto, evaluate, fhirpath } from 'fhirpath-ts'
 import { r4 } from 'fhirpath-ts/r4'
 `
 

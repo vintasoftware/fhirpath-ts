@@ -1,6 +1,6 @@
 /**
- * Minimal Node loader for DTO checks. It compiles standard decorators to ES2022
- * before importing TypeScript modules. It does not read tsconfig paths or run
+ * Minimal Node loader for DTO checks. It compiles TypeScript modules to ES2022
+ * before importing them. It does not read tsconfig paths or run
  * type checks; projects that need custom module resolution should compile first.
  */
 import { readFile } from 'node:fs/promises'
@@ -12,7 +12,6 @@ const COMPILER_OPTIONS = {
   target: ts.ScriptTarget.ES2022,
   module: ts.ModuleKind.ESNext,
   useDefineForClassFields: true,
-  experimentalDecorators: false,
   inlineSourceMap: true,
   inlineSources: true,
 }

@@ -62,8 +62,7 @@ export async function tsWorkerHandle(): Promise<Worker> {
 export function configureMonaco(): void {
   const ts = monaco.languages.typescript
   ts.typescriptDefaults.setCompilerOptions({
-    // ESNext leaves standard decorators unchanged. ES2020 makes the sample output executable.
-    target: ts.ScriptTarget.ES2020,
+    target: ts.ScriptTarget.ESNext,
     useDefineForClassFields: true,
     // CommonJS turns imports into calls that the playground can provide.
     module: ts.ModuleKind.CommonJS,

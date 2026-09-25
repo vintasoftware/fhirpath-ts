@@ -120,35 +120,31 @@ console.log(rows)
     id: 'dto',
     label: 'dto',
     runnable: true,
-    code: `import { column, criteria, defineDto, FhirPathEngine } from 'fhirpath-ts'
+    code: `import { defineDto, FhirPathEngine } from 'fhirpath-ts'
 import { r4Model } from 'fhirpath-ts/r4'
 
 // A DTO is a class: defineDto fixes the resource its columns read, and each
-// @column field declares one — the expression above, its type below. fhirType is
-// the context the paths infer against, so they stay relative. Registered on the
-// engine, each column doubles as a function any expression can call.
+// this.column() field declares one. fhirType is the context the paths infer
+// against, so they stay relative. Registered on the engine, each column doubles
+// as a function any expression can call.
 class CodeableConceptDto extends defineDto('CodeableConcept') {
-  @column('(text | coding.display.first() | coding.first().code).first()')
-  displayText!: string | undefined
+  displayText = this.column('(text | coding.display.first() | coding.first().code).first()')
 }
 
 const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
 
-// The field's declared type is checked against what its expression yields — try
-// changing kg to a string and watch the @column line light up. Projected rows are
-// real instances, so getters see the values. Hover the fields to see the types.
+// Each field's type is inferred from its expression — hover the fields to see
+// them, or write \`kg: string = ...\` and watch the mismatch light up. A call to
+// a registered column declares its type. Projected rows are real instances, so
+// getters see the values.
 class WeightRow extends defineDto('Observation') {
-  @column('code.displayText()', { type: 'string', default: 'Reading' })
-  name!: string
+  name = this.column('code.displayText()', { type: 'string', default: 'Reading' })
 
-  @column("value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
-  kg!: number
+  kg = this.column("value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
 
-  @column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
-  at!: Date | undefined
+  at = this.column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
 
-  @criteria("status = 'final'")
-  isFinal!: boolean
+  isFinal = this.criteria("status = 'final'")
 
   get label(): string {
     return this.name + ': ' + Math.round(this.kg * 10) / 10 + ' kg'

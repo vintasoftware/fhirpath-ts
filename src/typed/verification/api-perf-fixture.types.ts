@@ -1,34 +1,33 @@
-import { column, criteria, defineDto } from '../../api/dto.ts'
+import { defineDto } from '../../api/dto.ts'
 import { FhirPathEngine } from '../../api/engine.ts'
 import type { Observation } from '../../r4/generated/type-maps.ts'
 
-class ObservationSummary extends defineDto('Observation') {
-  @column('status')
-  status!: string | undefined
+class ObservationSummary extends defineDto('Observation', {
+  env: { tones: [{ code: 'final', tone: 'success' }] },
+  callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
+  vars: { report: "%reports.where(basedOn.reference = 'Observation/' + %context.id).first()" },
+}) {
+  status = this.column('status')
 
-  @column('code.coding.first().code')
-  code!: string | undefined
+  tone = this.column('%tones.where(code = %context.status).tone.first()')
 
-  @column('(code.text | code.coding.display.first()).first()')
-  display!: string | undefined
+  reportStatus = this.column('%report.status', { default: 'waiting' })
 
-  @column('subject.reference')
-  subjectReference!: string | undefined
+  code = this.column('code.coding.first().code')
 
-  @column('effective.ofType(dateTime)')
-  effective!: string | undefined
+  display = this.column('(code.text | code.coding.display.first()).first()')
 
-  @column('value.ofType(Quantity).value')
-  value!: number | undefined
+  subjectReference = this.column('subject.reference')
 
-  @column('value.ofType(Quantity).unit')
-  unit!: string | undefined
+  effective = this.column('effective.ofType(dateTime)')
 
-  @column('component.code.text', { collection: true })
-  componentLabels!: string[]
+  value = this.column('value.ofType(Quantity).value')
 
-  @criteria("status = 'final'")
-  isFinal!: boolean
+  unit = this.column('value.ofType(Quantity).unit')
+
+  componentLabels = this.column('component.code.text', { collection: true })
+
+  isFinal = this.criteria("status = 'final'")
 }
 
 const engine = new FhirPathEngine({

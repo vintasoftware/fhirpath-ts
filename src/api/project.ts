@@ -18,7 +18,7 @@ import { assertStrictExpression } from './strict.ts'
  */
 export type ProjectionColumn = string | ({ path: string } & ColumnOptions) | { test: string }
 
-/** Options shared by plain project columns and DTO `@column` fields. */
+/** Options shared by plain project columns and DTO `this.column()` fields. */
 export type ColumnOptions = {
   collection?: boolean
   type?: keyof R4TypeOf

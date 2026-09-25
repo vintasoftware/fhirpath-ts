@@ -55,7 +55,7 @@ export default tseslint.config(
     },
   },
   // Dogfood: run the analyzer over the library's own source, the demo, and the
-  // real-usage mappers — including their DTO `@column`/`@criteria` fields.
+  // real-usage mappers — including their DTO column fields.
   // `localImports` treats the repo's relative imports of its API as the real
   // FHIRPath API (not foreign), so those call sites are actually checked. Test
   // files are excluded because they deliberately hold malformed expressions as

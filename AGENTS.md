@@ -150,12 +150,16 @@ expression-defined function calls. Both must give the DTO's own value priority
 over caller values. A column can be reached through both paths during one
 projection, so different precedence would give one declaration two answers.
 
+DTO `vars` win over per-call vars for the same reason, and because
+`DtoContext` infers column types from the DTO's own bindings. Keep the runtime
+precedence in `dtoCallOptions` and the type-level merge in `DtoContext` equal.
+
 DTO `vars` remain projection-only. A variable is evaluated against a row; a
 registered function call has a focus but no row.
 
 ## Criteria booleans
 
-`@criteria` registers a function with `criteria: true`. The evaluator applies
+A `this.criteria()` column registers a function with `criteria: true`. The evaluator applies
 `criteriaBoolean` to its body so projection and function calls return the same
 single boolean.
 
@@ -172,24 +176,37 @@ The input-type check is required for criteria functions. A criteria body called
 on the wrong focus would otherwise return a plausible `false` instead of an
 empty result.
 
-## DTO decorator collection
+## DTO column collection
 
-Standard field decorators record their class through the initializer they
-return. `dtoDefinition` creates one instance while `collecting` identifies the
-class being read.
+A column is a field initialized with `this.column()` or `this.criteria()`,
+protected methods of `DtoBase`. The field's type comes from the method's return
+type, which reads the class's `fhirType` and `DtoContext` from the generic base
+that `defineDto()` returns. Keep DTO `env`, `vars`, and `callerEnv` in the
+`defineDto()` options: that is the only place the column types can see them.
 
-Collection can be re-entrant: a field initializer may construct an engine that
-reads another DTO definition. Save and restore the previous `collecting` value
-around each read. Clearing it after the inner read would stop collection for the
-outer class. `src/api/dto.test.ts` covers this case.
+`dtoDefinition` constructs the class once. While `collecting` holds the class,
+each column call returns a `ColumnMarker`, and the columns are the own
+properties that hold one. At any other time the methods return `undefined`, so
+projected rows start empty. The previous marker must already sit in a public
+field when the next column is declared, and the last one at the end of
+construction; that is how a column in a private field or a nested value is
+reported.
 
-The repository lowers standard decorators through the TypeScript transform in
-`vitest.config.ts`. Keep its target at ES2022. An `esnext` target leaves
-decorators in the output, which Node cannot import in this setup. The demo uses
-the same target in Monaco.
+`collecting` is keyed by class because collection is re-entrant: a field
+initializer may construct an engine that reads another DTO definition.
+`src/api/dto.test.ts` covers this case.
 
-Legacy `experimentalDecorators` cannot check a field's declared value type
-against the inferred column type, so this project uses standard decorators.
+`column` and `criteria` stay protected, so rows do not expose them. The cost:
+an exported class extending a class returned by a user function needs that
+function's return type written out when declarations are emitted (TS4094).
+`DtoBaseClass<Root, Context, Fields>` exists for that annotation; the dogfood
+factories use it.
+
+The walkers read a column only in a class `dtoClassesOf` proves to be a DTO,
+directly, through a base class, or through a factory function of the same file.
+The TypeScript walker also accepts a class whose `this.column` resolves to the
+package's `DtoBase`. This keeps an unrelated class's own `column()` method out
+of the analyzer.
 
 ## Required checks
 

@@ -5,7 +5,14 @@ import ts from 'typescript'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
-import { column, criteria, defineDto, FhirPathEngine } from '../index.ts'
+import {
+  defineDto,
+  type DtoBaseClass,
+  type DtoContext,
+  type DtoOptions,
+  FhirPathEngine,
+  type FhirTypeName,
+} from '../index.ts'
 import type {
   Bundle,
   Condition,
@@ -156,17 +163,14 @@ describe('README usage recipes', () => {
     ])
 
     class MedicationRow extends defineDto('MedicationRequest') {
-      @column('id', { default: '' })
-      id!: string
+      id = this.column('id', { default: '' })
 
-      @column(
+      name = this.column(
         '(medication.ofType(CodeableConcept).select(text | coding.display.first()) | medication.ofType(Reference).display).first()',
         { default: 'Medication' }
       )
-      name!: string
 
-      @criteria("status = 'active'")
-      active!: boolean
+      active = this.criteria("status = 'active'")
     }
 
     expect(r4.project(requests, MedicationRow).map(row => row.name)).toEqual(['Lisinopril', 'Medication'])
@@ -444,6 +448,58 @@ describe('README usage recipes', () => {
     }
     expect(r4.first('Bundle.entry.count()', bundle)).toBe(1)
     expect(r4.first('Bundle.type', bundle)).toBe('searchset')
+  })
+
+  it('runs the API reference DTO examples', () => {
+    class ReportRow extends defineDto('DiagnosticReport') {
+      issued: string | undefined = this.column('issued')
+    }
+    const report: DiagnosticReport = {
+      resourceType: 'DiagnosticReport',
+      status: 'final',
+      code: {},
+      issued: '2026-08-01T12:00:00Z',
+    }
+    expect(r4.project(report, ReportRow).issued).toBe('2026-08-01T12:00:00Z')
+
+    class ObservationRow extends defineDto('Observation') {
+      at = this.column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
+    }
+    class HeightRow extends ObservationRow {
+      meters = this.column("value.ofType(Quantity).toQuantity('m').value", { default: 0 })
+    }
+    const height: Observation = {
+      resourceType: 'Observation',
+      status: 'final',
+      code: { text: 'Body height' },
+      valueQuantity: { value: 172, unit: 'cm', system: 'http://unitsofmeasure.org', code: 'cm' },
+      effectiveDateTime: '2026-08-01T12:00:00Z',
+    }
+    const heightRow = r4.project(height, HeightRow)
+    expectTypeOf(heightRow.meters).toEqualTypeOf<number>()
+    expect(heightRow).toMatchObject({ at: new Date('2026-08-01T12:00:00Z'), meters: 1.72 })
+
+    function keyedRow<const Root extends FhirTypeName, const Options extends DtoOptions = DtoOptions>(
+      fhirType: Root,
+      options?: Options
+    ): DtoBaseClass<Root, DtoContext<Options>, { id: string }> {
+      return class KeyedRow extends defineDto(fhirType, options) {
+        id = this.column('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
+      }
+    }
+    class ProblemRow extends keyedRow('Condition') {
+      status = this.column('clinicalStatus.coding.first().code')
+    }
+    const problems: Condition[] = [
+      { resourceType: 'Condition', id: 'c1', subject: {}, clinicalStatus: { coding: [{ code: 'active' }] } },
+      { resourceType: 'Condition', subject: {} },
+    ]
+    const problemRows = r4.project(problems, ProblemRow)
+    expectTypeOf(problemRows[0]!.status).toEqualTypeOf<string | undefined>()
+    expect(problemRows).toEqual([
+      expect.objectContaining({ id: 'c1', status: 'active' }),
+      expect.objectContaining({ id: '1', status: undefined }),
+    ])
   })
 })
 
