@@ -40,7 +40,11 @@ const documentation: readonly DocumentExpectation[] = [
       valid('%threshold + 1'),
       invalid('Patient', ['unknown-element'], 'Patient.name.givenn'),
       valid('id', "name.where(use = 'official').first().family", 'name.given', 'active = true'),
-      valid('(text | coding.display.first() | coding.first().code).first()', 'Condition.code.displayText()'),
+      valid(
+        '(text | coding.display.first() | coding.first().code).first()',
+        'Condition.code.displayText()',
+        'code.displayText()'
+      ),
       valid(
         'Patient.name.given',
         'Patient.name.family',
@@ -105,6 +109,9 @@ const documentation: readonly DocumentExpectation[] = [
       ),
       valid('issued'),
       valid('(text | coding.display.first() | coding.first().code).first()', 'Condition.code.displayText()'),
+      valid('medication.ofType(CodeableConcept).displayText()'),
+      valid('(text | coding.display.first() | coding.first().code).first()'),
+      valid('code.displayText()'),
       valid('code.coding.where(system = %system).first().code'),
       valid("%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()", '%report.status'),
       valid('(effective.ofType(dateTime) | issued).first()', "value.ofType(Quantity).toQuantity('m').value"),
@@ -134,7 +141,7 @@ const documentation: readonly DocumentExpectation[] = [
 ]
 
 const imports = `
-import { FhirPathEngine, analyzeExpression, checkConstraints, compile, defineDto, evaluate, fhirpath } from 'fhirpath-ts'
+import { FhirPathEngine, analyzeExpression, checkConstraints, compile, evaluate, fhirpath } from 'fhirpath-ts'
 import { r4 } from 'fhirpath-ts/r4'
 `
 

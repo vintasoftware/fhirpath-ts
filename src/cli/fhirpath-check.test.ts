@@ -22,11 +22,12 @@ describe('fhirpath-check CLI', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-dto-'))
     const dto = (call: string): string =>
       [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class ConceptDto extends defineDto('CodeableConcept') {",
-        "  displayText = this.column('(text | coding.display.first()).first()', { type: 'string' })",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class ConceptDto extends r4.defineDto('CodeableConcept') {",
+        "  displayText = this.column('(text | coding.display.first()).first()')",
         '}',
-        "class WeightRow extends defineDto('Observation') {",
+        'const fp = r4.register(ConceptDto)',
+        "class WeightRow extends fp.defineView('Observation') {",
         `  name = this.column('${call}', { type: 'string', default: '' })`,
         '}',
       ].join('\n')
@@ -81,20 +82,22 @@ describe('fhirpath-check CLI', () => {
     writeFileSync(
       join(directory, 'patient.dto.ts'),
       [
-        "import { defineDto, FhirPathEngine } from 'fhirpath-ts'",
+        "import { FhirPathEngine } from 'fhirpath-ts'",
         "import { r4Model } from 'fhirpath-ts/r4'",
         '',
-        "export class ConceptDto extends defineDto('CodeableConcept') {",
-        "  displayText = this.column('(text | coding.display.first()).first()', { type: 'string' })",
+        'const base = new FhirPathEngine({ model: r4Model })',
+        '',
+        "export class ConceptDto extends base.defineDto('CodeableConcept') {",
+        "  displayText = this.column('(text | coding.display.first()).first()')",
         '}',
         '',
-        '// Module-private on purpose: discovery records constructions, so an engine',
-        '// does not have to be exported to be found.',
-        'const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [ConceptDto] })',
+        '// Module-private on purpose: each DTO carries the engine it was defined on,',
+        '// so the engine does not have to be exported to be found.',
+        'const fp = base.register(ConceptDto)',
         '',
-        "export class ProblemRow extends defineDto('Condition') {",
+        "export class ProblemRow extends fp.defineView('Condition') {",
         '  // Resolves only through the engine above.',
-        "  name = this.column('code.displayText()', { type: 'string', default: '' })",
+        "  name = this.column('code.displayText()', { default: '' })",
         '',
         "  statusCode = this.column('clinicalStatus.coding.first().codee')",
         '}',
@@ -108,39 +111,46 @@ describe('fhirpath-check CLI', () => {
     // and the member it came from.
     expect(result.output).not.toContain('displayText')
     expect(result.output).toMatch(/patient\.dto\.ts:\d+:\d+ ProblemRow\.statusCode \[unknown-element\]/)
-    expect(result.output).toContain('analyzed 2 DTO(s) from 1 module(s) against 1 engine(s)')
+    expect(result.output).toContain('analyzed 2 DTO(s) from 1 module(s)')
   })
 
-  it('merges static declarations and vars from every engine for an unregistered DTO', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-merged-context-'))
+  it('checks each DTO against the engine it was defined on, not the others', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-own-engine-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })
     symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
     writeFileSync(
       join(directory, 'shared.dto.ts'),
       [
-        "import { defineDto, FhirPathEngine } from 'fhirpath-ts'",
+        "import { FhirPathEngine } from 'fhirpath-ts'",
         "import { r4Model } from 'fhirpath-ts/r4'",
         '',
-        "new FhirPathEngine({ model: r4Model, envTypes: { report: { type: 'DiagnosticReport' } } })",
-        'new FhirPathEngine({',
+        "const reports = new FhirPathEngine({ model: r4Model, envTypes: { report: { type: 'DiagnosticReport' } } })",
+        'const subjects = new FhirPathEngine({',
         '  model: r4Model,',
         "  vars: { subject: '{}', loose: '{}' },",
         "  varTypes: { subject: { type: 'Patient' } },",
         '})',
         '',
-        "export class SharedRow extends defineDto('Observation') {",
+        "export class ReportRow extends reports.defineView('Observation') {",
         "  statusLength = this.column('%report.status.first().length()', { type: 'integer' })",
+        '}',
         '',
+        "export class SubjectRow extends subjects.defineView('Observation') {",
         "  given = this.column('%subject.name.given')",
         '',
         "  loose = this.column('%loose')",
+        '',
+        '  // Declared by the other engine only.',
+        "  report = this.column('%report.status')",
         '}',
       ].join('\n')
     )
 
     const result = run([], directory)
-    expect(result.status).toBe(0)
-    expect(result.output).toContain('analyzed 1 DTO(s) from 1 module(s) against 2 engine(s)')
+    expect(result.status).toBe(1)
+    expect(result.output).toMatch(/shared\.dto\.ts:\d+:\d+ SubjectRow\.report \[unknown-variable\]/)
+    expect(result.output).not.toContain('ReportRow')
+    expect(result.output).toContain('analyzed 2 DTO(s) from 1 module(s)')
   })
 
   it('reports a registered column called on a focus its own fhirType rules out', () => {
@@ -150,16 +160,15 @@ describe('fhirpath-check CLI', () => {
     writeFileSync(
       join(directory, 'patient.dto.ts'),
       [
-        "import { defineDto, FhirPathEngine } from 'fhirpath-ts'",
-        "import { r4Model } from 'fhirpath-ts/r4'",
+        "import { r4 } from 'fhirpath-ts/r4'",
         '',
-        "export class ConceptDto extends defineDto('CodeableConcept') {",
-        "  displayText = this.column('(text | coding.display.first()).first()', { type: 'string' })",
+        "export class ConceptDto extends r4.defineDto('CodeableConcept') {",
+        "  displayText = this.column('(text | coding.display.first()).first()')",
         '}',
         '',
-        'const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [ConceptDto] })',
+        'const fp = r4.register(ConceptDto)',
         '',
-        "export class ProblemRow extends defineDto('Condition') {",
+        "export class ProblemRow extends fp.defineView('Condition') {",
         '  // A CodeableConcept column, reached on a string.',
         "  name = this.column('subject.reference.displayText()', { type: 'string', default: '' })",
         '}',
@@ -601,8 +610,8 @@ describe('fhirpath-check CLI', () => {
     writeFileSync(
       join(directory, 'private.dto.ts'),
       [
-        "import { defineDto } from 'fhirpath-ts'",
-        "const keyedRow = (type: 'Condition') => defineDto(type)",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "const keyedRow = (type: 'Condition') => r4.defineView(type)",
         "class ProblemRow extends keyedRow('Condition') {",
         "  status = this.column('clinicalStatus.coding.first().code')",
         '}',

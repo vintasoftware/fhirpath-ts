@@ -1,5 +1,6 @@
 import { columnResultType } from '../api/column-signature.ts'
-import { type ColumnSpec, type DtoClass, dtoDefinition } from '../api/dto.ts'
+import { createCachedCompiler } from '../api/compile.ts'
+import { columnFunctionTable, type ColumnSpec, type DtoClass, type DtoDefinition, dtoDefinition } from '../api/dto.ts'
 import { bareEnvironmentName } from '../engine/context.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
@@ -33,15 +34,25 @@ export interface AnalyzedContext {
   }
 }
 
-/** A context that also knows which DTOs it registered, which is what a sweep needs. */
-export interface AnalyzedEngine extends AnalyzedContext {
+/** An engine as the sweep reads it: the DTOs it registered. */
+export interface AnalyzedEngine {
   readonly dtos: readonly DtoClass[]
 }
 
-/** `analyzeDto` options, with the engine the DTO belongs to as a shortcut for its context. */
+/** `analyzeDto` options. The DTO's own engine supplies the context unless `engine` replaces it. */
 export interface AnalyzeDtoOptions extends AnalyzeOptions {
   /** Engine model, functions, and environment names used while checking the DTO. */
   engine?: AnalyzedContext
+}
+
+/**
+ * The engine a DTO was defined on, calling the functions its column bodies call
+ * at runtime (see `columnFunctionTable`): the engine's, plus a registered DTO's
+ * own columns. A DTO whose columns cannot join them throws the error
+ * `register()` would.
+ */
+function definingContext(dto: DtoClass, definition: DtoDefinition): AnalyzedContext {
+  return { defaults: { ...definition.engine.defaults, functions: columnFunctionTable(dto, createCachedCompiler(0)) } }
 }
 
 /**
@@ -51,11 +62,7 @@ export interface AnalyzeDtoOptions extends AnalyzeOptions {
  * would be reported as unresolved. `model` and `inputType` are single values, so
  * there the caller simply wins.
  */
-function contextOf(options: AnalyzeDtoOptions | undefined): AnalyzeOptions {
-  const { engine, ...caller } = options ?? {}
-  if (engine === undefined) {
-    return caller
-  }
+function contextOf(engine: AnalyzedContext, caller: AnalyzeOptions): AnalyzeOptions {
   const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
   const activeModel = caller.model ?? model
   return {
@@ -71,36 +78,41 @@ function contextOf(options: AnalyzeDtoOptions | undefined): AnalyzeOptions {
 }
 
 /**
- * Every DTO an engine registered, checked against that engine's own context —
- * the sweep a project's checker runs, with no list to maintain: the engine
- * already knows its `resourceDtos`. Each finding names the class it came from.
- * DTOs the engine does not register (row shapes you only ever project) are not
- * reachable from here; pass those to `analyzeDto` yourself, or list them.
+ * Every DTO an engine registered, each checked by `analyzeDto` against the
+ * engine it was defined on — the sweep a project's checker runs, with no list
+ * to maintain. Each finding names the class it came from. Views are not
+ * registered, so pass those to `analyzeDto` yourself.
  */
 export function analyzeEngineDtos(
   engine: AnalyzedEngine,
   options?: AnalyzeOptions
 ): (DtoDiagnostic & { dto: string })[] {
-  return engine.dtos.flatMap(dto =>
-    analyzeDto(dto, { ...options, engine }).map(finding => ({ ...finding, dto: dto.name }))
-  )
+  return engine.dtos.flatMap(dto => analyzeDto(dto, options).map(finding => ({ ...finding, dto: dto.name })))
 }
 
 /**
- * Checks a DTO's columns, criteria, and variables. The DTO type is the input
- * context. DTO environment names, caller environment names, and row variables
- * are declared automatically. Variables are checked in order. Declared column
- * types and enums are compared with the analyzer result.
+ * Checks a DTO's columns, criteria, and variables against the engine it was
+ * defined on. The DTO type is the input context. DTO environment names, caller
+ * environment names, and row variables are declared automatically. Variables
+ * are checked in order. Declared column types and enums are compared with the
+ * analyzer result.
  */
 export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagnostic[] {
   const definition = dtoDefinition(dto)
-  const context = contextOf(options)
+  const { engine, ...caller } = options ?? {}
+  const context = contextOf(engine ?? definingContext(dto, definition), caller)
   const inputType = context.inputType ?? definition.fhirType
-  const declared: Record<string, DeclaredVariable> = { ...PROJECT_ROW_VARIABLES }
-  for (const name of [...Object.keys(definition.env ?? {}), ...definition.callerEnvNames]) {
-    declared[bareEnvironmentName(name)] = {}
+  // An untyped caller env name is typed by whoever supplies it, so caller and
+  // engine declarations sit above it. The DTO's own env, caller env types, vars,
+  // and row variables sit above those, matching `dtoCallOptions` and projection.
+  const callerNames: Record<string, DeclaredVariable> = {}
+  for (const name of definition.callerEnvNames) {
+    callerNames[bareEnvironmentName(name)] = {}
   }
-  Object.assign(declared, analyzerVariables(undefined, definition.callerEnvTypes))
+  const declared: Record<string, DeclaredVariable> = {
+    ...analyzerEnvironmentVariables(definition.env, undefined, context.model),
+    ...analyzerVariables(undefined, definition.callerEnvTypes),
+  }
   const diagnostics: DtoDiagnostic[] = []
   const analyze = (
     member: string,
@@ -110,7 +122,7 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
     const perExpression: AnalyzeOptions = {
       ...context,
       ...(inputType !== undefined && { inputType }),
-      variables: { ...declared, ...context.variables },
+      variables: { ...callerNames, ...context.variables, ...declared, ...PROJECT_ROW_VARIABLES },
     }
     const { diagnostics: found, result } = analyzeExpressionDetailed(expression, perExpression)
     for (const diagnostic of found) {

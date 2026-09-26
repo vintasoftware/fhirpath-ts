@@ -120,25 +120,23 @@ console.log(rows)
     id: 'dto',
     label: 'dto',
     runnable: true,
-    code: `import { defineDto, FhirPathEngine } from 'fhirpath-ts'
-import { r4Model } from 'fhirpath-ts/r4'
+    code: `import { r4 } from 'fhirpath-ts/r4'
 
-// A DTO is a class: defineDto fixes the resource its columns read, and each
-// this.column() field declares one. fhirType is the context the paths infer
-// against, so they stay relative. Registered on the engine, each column doubles
-// as a function any expression can call.
-class CodeableConceptDto extends defineDto('CodeableConcept') {
+// A DTO is a class defined on an engine: the resource its columns read is the
+// context the paths infer against, so they stay relative. Registering it returns
+// a new engine where each column doubles as a function any expression can call.
+class CodeableConceptDto extends r4.defineDto('CodeableConcept') {
   displayText = this.column('(text | coding.display.first() | coding.first().code).first()')
 }
 
-const fp = new FhirPathEngine({ model: r4Model, resourceDtos: [CodeableConceptDto] })
+const fp = r4.register(CodeableConceptDto)
 
-// Each field's type is inferred from its expression — hover the fields to see
-// them, or write \`kg: string = ...\` and watch the mismatch light up. A call to
-// a registered column declares its type. Projected rows are real instances, so
-// getters see the values.
-class WeightRow extends defineDto('Observation') {
-  name = this.column('code.displayText()', { type: 'string', default: 'Reading' })
+// A view is a projected row on that engine. Each field's type is inferred from
+// its expression, calls to registered columns included — hover the fields to
+// see them, or write \`kg: string = ...\` and watch the mismatch light up.
+// Projected rows are real instances, so getters see the values.
+class WeightRow extends fp.defineView('Observation') {
+  name = this.column('code.displayText()', { default: 'Reading' })
 
   kg = this.column("value.ofType(Quantity).toQuantity('kg').value", { default: 0 })
 

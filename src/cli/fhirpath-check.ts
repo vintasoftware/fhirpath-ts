@@ -279,11 +279,7 @@ if (dtoResult !== undefined) {
     }
   }
   for (const finding of result.findings) {
-    // With no engine in reach, an unresolved column call is unresolvable rather
-    // than wrong, so it is reported without failing the run.
-    const unresolvable = result.engines === 0 && finding.code === 'unknown-function'
-    const reported = unresolvable ? { ...finding, severity: 'warning' as const } : finding
-    report(locate(finding), reported)
+    report(locate(finding), finding)
   }
   if (result.files.length === 0) {
     console.error(
@@ -291,17 +287,8 @@ if (dtoResult !== undefined) {
     )
   } else if (result.dtos.length === 0) {
     console.error(`fhirpath-check: ${result.files.length} DTO module(s) matched but export no DTO class`)
-  } else if (result.engines === 0) {
-    // Without an engine, a call into another DTO's column cannot resolve, so the
-    // DTO half would report valid code. Say so instead of failing the run.
-    console.error(
-      'fhirpath-check: no engine was constructed by the imported modules — column function calls cannot be resolved; ' +
-        'point --dtos at the module that builds your FhirPathEngine'
-    )
   } else {
-    console.log(
-      `fhirpath-check: analyzed ${result.dtos.length} DTO(s) from ${result.files.length} module(s) against ${result.engines} engine(s)`
-    )
+    console.log(`fhirpath-check: analyzed ${result.dtos.length} DTO(s) from ${result.files.length} module(s)`)
   }
 }
 

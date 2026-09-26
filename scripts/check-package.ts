@@ -189,7 +189,7 @@ try {
   const dtoCheck = runCli(['--dtos', 'patient.dto.fixture.ts'])
   const dtoOutput = `${dtoCheck.stdout}${dtoCheck.stderr}`
   assert.equal(dtoCheck.status, 0, dtoOutput)
-  assert.match(dtoOutput, /analyzed 1 DTO\(s\) from 1 module\(s\) against 1 engine\(s\)/)
+  assert.match(dtoOutput, /analyzed 1 DTO\(s\) from 1 module\(s\)/)
 
   if (output !== undefined) {
     mkdirSync(dirname(output), { recursive: true })

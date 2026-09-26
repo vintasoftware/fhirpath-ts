@@ -59,7 +59,10 @@ copies.
 Keep inference bounded by `src/typed/inference-limits.ts`. Returning `unknown[]`
 is safe; returning a type narrower than `analyzeExpressionDetailed()` is not.
 The required checks below cover generated drift, corpus soundness, and compiler
-cost.
+cost. A helper that means "nothing to read" returns a sentinel such as
+`undefined`, not `never`: `never` distributes through later conditionals and
+erases the whole result (`HostBodySource` did this for host functions without a
+body or result type).
 
 Normalize host declaration names through `src/typed/context-maps.ts`. Per-call
 declarations override engine defaults, matching runtime option merging.
@@ -90,7 +93,8 @@ The CLI has two separate passes:
 
 1. the TypeScript walker finds source literals;
 2. `src/cli/dto-check.ts` imports DTO modules through `src/cli/ts-loader.mjs` and
-   calls `analyzeDto` with the discovered engine context.
+   calls `analyzeDto` on each exported DTO, which uses the engine the DTO was
+   defined on.
 
 The first pass has only source information and avoids claims it cannot prove. The
 second pass can be complete because it loads the DTOs and engines.
@@ -100,11 +104,12 @@ DTO discovery uses the conventions documented in
 details:
 
 - Exported classes are the only DTOs a module loader can enumerate.
-- Engine discovery uses a closable `recordEngines()` session around the imports.
-  An always-on recording mode would retain every engine and its environment.
-- A missing engine makes unresolved column calls warnings, not errors.
-- An unregistered DTO is checked once against the merged context of all engines.
-  Checking each engine and keeping the quietest answer would hide errors.
+- Each DTO is checked against its own engine. Checking it against a merged
+  context of every engine would accept names its engine does not bind.
+- The source pass still merges the declarations of the engines the imports
+  construct. That recording uses a closable `recordEngines()` session around the
+  imports; an always-on recording mode would retain every engine and its
+  environment.
 - Do not add `fhirpath.config.ts`; the checker obtains its inputs from module
   discovery and DTO declarations.
 
@@ -176,13 +181,53 @@ The input-type check is required for criteria functions. A criteria body called
 on the wrong focus would otherwise return a plausible `false` instead of an
 empty result.
 
+## Engine-bound DTOs
+
+A DTO or view is defined on an engine (`engine.defineDto()` /
+`engine.defineView()`), and `register()` returns a derived engine. Keep these
+rules together; each protects the types:
+
+- `register()` never mutates. TypeScript fixes a value's type where it is
+  declared, so only a new engine can carry the new functions in its type. There
+  is no `with()`: a derived engine that could redefine an env name or the model
+  would break the types of DTOs defined on its parent.
+- A DTO projects on its engine or an engine derived from it (`derivesFrom`), and
+  `register()` accepts only DTOs of that lineage.
+- A column body reads what its definition fixed: `DtoDefinition.columnEnv` (the
+  defining engine's env with the DTO's own env over it) and `columnFunctionTable`
+  (the defining engine's functions with a registered DTO's own columns added
+  through `declaredWith`, as `register()` adds them). `withDtos`, projection,
+  and `analyzeDto` all read that one table, so a same-name column of another
+  DTO stays an overload everywhere. The
+  registered function carries both as overlays, and `dtoCallOptions` applies
+  both over the caller's options, so per-call values never change what a
+  column's type was inferred from. The function table rides under the internal
+  `COLUMN_FUNCTIONS` symbol, not a public field, because the type layer does not
+  model per-function tables. `defineDto()` / `defineView()` refuse a
+  `callerEnv` name the engine's env binds. Engine `vars` stay out of the column
+  context (`EngineColumnContext`): they are evaluated against the caller's root.
+- `DtoFunctions` types registered columns from the class's field types. That is
+  sound only because `assertRegistrable` rejects views, getters, and plain fields,
+  and `dtoDefinition` rejects `as`/`choices` on DTO columns: a registered
+  function returns the expression result, not the projected value.
+- A field's TypeScript type maps back to the union of every FHIR type with that
+  TypeScript form (`TypeNamesOf`). Naming one type would let `ofType()` infer
+  empty where the runtime returns a value. A member no FHIR type represents
+  makes the whole result undeclared; dropping it would narrow the call.
+- Registered functions live in the engine's options type (`RegisteredOptions`),
+  not in a second engine type parameter: measuring that parameter's variance
+  taxed every engine call. Type aliases in `dto.ts` take the model maps as type
+  parameters, because a concrete map in an alias body is resolved whenever the
+  file is checked.
+
 ## DTO column collection
 
 A column is a field initialized with `this.column()` or `this.criteria()`,
 protected methods of `DtoBase`. The field's type comes from the method's return
-type, which reads the class's `fhirType` and `DtoContext` from the generic base
-that `defineDto()` returns. Keep DTO `env`, `vars`, and `callerEnv` in the
-`defineDto()` options: that is the only place the column types can see them.
+type, which reads the class's `fhirType` and context from the generic base the
+engine returns: the engine's context, then the DTO's `env`, `vars`, and
+`callerEnv`. Keep those in the `defineDto()`/`defineView()` options: that is the
+only place the column types can see them.
 
 `dtoDefinition` constructs the class once. While `collecting` holds the class,
 each column call returns a `ColumnMarker`, and the columns are the own
@@ -196,17 +241,18 @@ reported.
 initializer may construct an engine that reads another DTO definition.
 `src/api/dto.test.ts` covers this case.
 
-`column` and `criteria` stay protected, so rows do not expose them. The cost:
-an exported class extending a class returned by a user function needs that
-function's return type written out when declarations are emitted (TS4094).
-`DtoBaseClass<Root, Context, Fields>` exists for that annotation; the dogfood
-factories use it.
+`column`, `criteria`, and the type-only `dtoKind` stay protected, so rows do not
+expose them. The cost: an exported class extending a class returned by a user
+function needs that function's return type written out when declarations are
+emitted (TS4094). `ViewBaseClass<Engine, Root, Options, Fields>` exists for that
+annotation; the dogfood factories use it.
 
-The walkers read a column only in a class `dtoClassesOf` proves to be a DTO,
-directly, through a base class, or through a factory function of the same file.
-The TypeScript walker also accepts a class whose `this.column` resolves to the
-package's `DtoBase`. This keeps an unrelated class's own `column()` method out
-of the analyzer.
+The walkers read a column only in a class `dtoClassesOf` proves to be a DTO:
+extending `<engine>.defineDto/defineView(...)` whose receiver is not another
+package's import, directly, through a base class, or through a factory function
+of the same file. The TypeScript walker also accepts a class whose `this.column`
+resolves to the package's `DtoBase`. This keeps an unrelated class's own
+`column()` method out of the analyzer.
 
 ## Required checks
 

@@ -55,16 +55,15 @@ DTO behavior, parse caching, and Medplum type compatibility.
 
 ## Suggested usage: DTOs
 
-For application code, prefer a DTO when several expressions build one row or
+For application code, prefer a view when several expressions build one row or
 view model. The resource type is declared once. Each field's TypeScript type is
 inferred from its expression, and getters or methods can handle work that is
 clearer in TypeScript.
 
 ```ts
-import { defineDto } from 'fhirpath-ts'
 import { r4 } from 'fhirpath-ts/r4'
 
-class PatientRow extends defineDto('Patient') {
+class PatientRow extends r4.defineView('Patient') {
   id = this.column('id', { default: '' }) // string
   family = this.column("name.where(use = 'official').first().family", { default: '' }) // string
   givenNames = this.column('name.given', { collection: true }) // string[]
@@ -80,27 +79,30 @@ rows[0] // PatientRow { id: '', family: '', givenNames: [], active: true }
 rows[0]?.label // ''
 ```
 
-Pass DTOs through `resourceDtos` to call their columns from expressions with other
-FHIR resources as root:
+Define DTOs and register them to call their columns from any expression.
+`register()` returns a new engine whose types know those functions:
 
 ```ts
-class CodeableConceptDto extends defineDto('CodeableConcept') {
+class CodeableConceptDto extends r4.defineDto('CodeableConcept') {
   displayText = this.column('(text | coding.display.first() | coding.first().code).first()')
 }
 
-const fp = new FhirPathEngine({
-  model: r4Model,
-  resourceDtos: [CodeableConceptDto],
-})
+export const fp = r4.register(CodeableConceptDto)
 
-fp.first('Condition.code.displayText()', condition)
+fp.first('Condition.code.displayText()', condition) // string | undefined
+
+class ProblemRow extends fp.defineView('Condition') {
+  name = this.column('code.displayText()', { default: 'Condition' }) // string
+}
 ```
 
 This is useful for shared application vocabulary such as `displayText()` or `isFinal()`.
 
-Name DTO modules `*.dto.ts` and export the classes: `fhirpath-check` imports
-modules matching `**/*.dto.ts` by default and checks each DTO against its
-engine. See [DTO discovery](docs/static-checking.md#dto-discovery).
+Keep registered DTOs in one `*.dto.ts` module that exports the final engine.
+Views can live anywhere; each imports that engine and extends its `defineView()`.
+`fhirpath-check` imports modules matching `**/*.dto.ts` by default and checks each
+DTO against its engine. See [Engines and file layout](docs/api.md#engines-and-file-layout)
+and [DTO discovery](docs/static-checking.md#dto-discovery).
 
 ## Usage recipes
 

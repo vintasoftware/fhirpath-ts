@@ -5,14 +5,7 @@ import ts from 'typescript'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
-import {
-  defineDto,
-  type DtoBaseClass,
-  type DtoContext,
-  type DtoOptions,
-  FhirPathEngine,
-  type FhirTypeName,
-} from '../index.ts'
+import { type DtoOptions, FhirPathEngine, type FhirTypeName, type ViewBaseClass } from '../index.ts'
 import type {
   Bundle,
   Condition,
@@ -162,7 +155,7 @@ describe('README usage recipes', () => {
       { id: '1', name: 'Medication', sig: '', isActive: false, prescribedOn: null },
     ])
 
-    class MedicationRow extends defineDto('MedicationRequest') {
+    class MedicationRow extends r4.defineView('MedicationRequest') {
       id = this.column('id', { default: '' })
 
       name = this.column(
@@ -450,8 +443,39 @@ describe('README usage recipes', () => {
     expect(r4.first('Bundle.type', bundle)).toBe('searchset')
   })
 
+  it('runs the README and API reference registration examples', () => {
+    class CodeableConceptDto extends r4.defineDto('CodeableConcept') {
+      displayText = this.column('(text | coding.display.first() | coding.first().code).first()')
+    }
+    const withConcepts = r4.register(CodeableConceptDto)
+    class MedicationRequestDto extends withConcepts.defineDto('MedicationRequest') {
+      medicationName = this.column('medication.ofType(CodeableConcept).displayText()')
+    }
+    const fp = withConcepts.register(MedicationRequestDto)
+    class ProblemRow extends fp.defineView('Condition') {
+      name = this.column('code.displayText()', { default: 'Condition' })
+    }
+    const condition: Condition = {
+      resourceType: 'Condition',
+      subject: { reference: 'Patient/p1' },
+      code: { coding: [{ display: 'Hypertension' }] },
+    }
+    const request: MedicationRequest = {
+      resourceType: 'MedicationRequest',
+      status: 'active',
+      intent: 'order',
+      subject: { reference: 'Patient/p1' },
+      medicationCodeableConcept: { text: 'Lisinopril' },
+    }
+    expectTypeOf(fp.first('Condition.code.displayText()', condition)).toEqualTypeOf<string | undefined>()
+    expect(fp.first('Condition.code.displayText()', condition)).toBe('Hypertension')
+    expectTypeOf(new MedicationRequestDto().medicationName).toEqualTypeOf<string | undefined>()
+    expect(fp.project(request, MedicationRequestDto).medicationName).toBe('Lisinopril')
+    expect(fp.project(condition, ProblemRow).name).toBe('Hypertension')
+  })
+
   it('runs the API reference DTO examples', () => {
-    class ReportRow extends defineDto('DiagnosticReport') {
+    class ReportRow extends r4.defineView('DiagnosticReport') {
       issued: string | undefined = this.column('issued')
     }
     const report: DiagnosticReport = {
@@ -462,7 +486,7 @@ describe('README usage recipes', () => {
     }
     expect(r4.project(report, ReportRow).issued).toBe('2026-08-01T12:00:00Z')
 
-    class ObservationRow extends defineDto('Observation') {
+    class ObservationRow extends r4.defineView('Observation') {
       at = this.column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
     }
     class HeightRow extends ObservationRow {
@@ -482,8 +506,8 @@ describe('README usage recipes', () => {
     function keyedRow<const Root extends FhirTypeName, const Options extends DtoOptions = DtoOptions>(
       fhirType: Root,
       options?: Options
-    ): DtoBaseClass<Root, DtoContext<Options>, { id: string }> {
-      return class KeyedRow extends defineDto(fhirType, options) {
+    ): ViewBaseClass<typeof r4, Root, Options, { id: string }> {
+      return class KeyedRow extends r4.defineView(fhirType, options) {
         id = this.column('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
       }
     }

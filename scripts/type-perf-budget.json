@@ -4,12 +4,12 @@
     "typescript": {
       "commonPath": 121465,
       "fullLanguage": 573207,
-      "apiSurface": 211769
+      "apiSurface": 227706
     },
     "typescript-5-8": {
       "commonPath": 126217,
       "fullLanguage": 592659,
-      "apiSurface": 247425
+      "apiSurface": 311858
     }
   },
   "fullLanguageLimit": 5000000,

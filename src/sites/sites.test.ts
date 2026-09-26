@@ -247,13 +247,13 @@ describe('extraction ignores computed callees', () => {
 
 describe('DTO declarations', () => {
   const source = [
-    "import { defineDto } from 'fhirpath-ts'",
-    "class ProblemRow extends defineDto('Condition', { vars: { badge: 'clinicalStatus' } }) {",
+    "import { r4 } from 'fhirpath-ts/r4'",
+    "class ProblemRow extends r4.defineView('Condition', { vars: { badge: 'clinicalStatus' } }) {",
     "  name = this.column('code.text', { type: 'string', default: '' })",
     "  recorded = this.criteria('recordedDate.exists()')",
     '}',
     'function badgedRow(fhirType) {',
-    '  class BadgedRow extends defineDto(fhirType) {}',
+    '  class BadgedRow extends r4.defineView(fhirType) {}',
     '  return BadgedRow',
     '}',
     "class LabRow extends badgedRow('DiagnosticReport') {",
@@ -290,13 +290,32 @@ describe('DTO declarations', () => {
     ])
   })
 
+  it('reports a column whose same-file base chain reaches an imported class', () => {
+    const chained = [
+      "import { Imported } from './portal'",
+      'class Base extends Imported {}',
+      'class Middle extends Base {}',
+      "class Sub extends Middle { x = this.column('code.text') }",
+      // One of two same-name bases extends nothing, the other an import: either may be the base.
+      'function a() { class Twice {} return Twice }',
+      'function b() { class Twice extends Imported {} return Twice }',
+      "class Either extends Twice { y = this.column('code.text') }",
+      // A chain that ends at nothing, even through a cycle, builds no DTO.
+      'class Plain {}',
+      "class OwnColumn extends Plain { column(expression: string) { return expression } z = this.column('x') }",
+      'class Loop extends Cycle {}',
+      "class Cycle extends Loop { w = this.column('x') }",
+    ].join('\n')
+    expect(createSiteScanner(ts)(chained, 'chained.ts').skipped.map(skip => skip.line)).toEqual([4, 7])
+  })
+
   it('declares a function per column field, and types it from the options', () => {
     const withCalls = [
-      "import { defineDto } from 'fhirpath-ts'",
-      "class ConceptDto extends defineDto('CodeableConcept') {",
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class ConceptDto extends r4.defineView('CodeableConcept') {",
       "  displayText = this.column('text', { type: 'string' })",
       '}',
-      "class WeightRow extends defineDto('Observation') {",
+      "class WeightRow extends r4.defineView('Observation') {",
       "  name = this.column('code.displayText()', { type: 'string', default: '' })",
       '}',
     ].join('\n')
@@ -315,8 +334,8 @@ describe('DTO declarations', () => {
 
   it('reads the cardinality of a collection column, and declines to guess a dynamic one', () => {
     const source = [
-      "import { defineDto } from 'fhirpath-ts'",
-      "class Row extends defineDto('Patient') {",
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Row extends r4.defineView('Patient') {",
       "  given = this.column('name.given', { type: 'string', collection: true })",
       "  family = this.column('name.family', { type: 'string', collection: false })",
       "  contacts = this.column('telecom.value', { type: 'string', collection: dynamic })",
@@ -351,8 +370,8 @@ describe('DTO declarations', () => {
 
   it('follows a DTO root through a base class the same file declares', () => {
     const source = [
-      "import { defineDto } from 'fhirpath-ts'",
-      "class ObservationRow extends defineDto('Observation') {",
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class ObservationRow extends r4.defineView('Observation') {",
       "  at = this.column('issued')",
       '}',
       'class WeightRow extends ObservationRow {',
@@ -378,9 +397,9 @@ describe('DTO declarations', () => {
     // report valid code, so the chain drops the name. A class's own clause is
     // unaffected.
     const source = [
-      "import { defineDto } from 'fhirpath-ts'",
-      "function a() { class Row extends defineDto('Observation') { at = this.column('issued') } return Row }",
-      "function b() { class Row extends defineDto('Condition') { at = this.column('recordedDate') } return Row }",
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "function a() { class Row extends r4.defineView('Observation') { at = this.column('issued') } return Row }",
+      "function b() { class Row extends r4.defineView('Condition') { at = this.column('recordedDate') } return Row }",
       'class Sub extends Row {',
       "  x = this.column('whatever')",
       '}',
@@ -393,7 +412,7 @@ describe('DTO declarations', () => {
 
   it('does not loop on a cyclic extends chain', () => {
     const source = [
-      "import { defineDto } from 'fhirpath-ts'",
+      "import { r4 } from 'fhirpath-ts/r4'",
       "class A extends B { at = this.column('issued') }",
       'class B extends A {}',
       'function make() { return C }',
@@ -409,8 +428,8 @@ describe('DTO export reachability', () => {
   const loadableOf = (code: string): Record<string, boolean> =>
     Object.fromEntries(scan(code, 'sample.ts').dtoDeclarations.map(dto => [dto.name, dto.loadable]))
   const dto = [
-    "import { defineDto } from 'fhirpath-ts'",
-    "class ProblemRow extends defineDto('Condition') {",
+    "import { r4 } from 'fhirpath-ts/r4'",
+    "class ProblemRow extends r4.defineView('Condition') {",
     "  name = this.column('code.text')",
     '}',
   ]
@@ -451,7 +470,7 @@ describe('DTO export reachability', () => {
       loadableOf(
         [
           ...dto,
-          "class OtherRow extends defineDto('Condition') {}",
+          "class OtherRow extends r4.defineView('Condition') {}",
           'export let Row = ProblemRow',
           'Row = OtherRow',
         ].join('\n')
@@ -491,8 +510,8 @@ describe('DTO context and declared roots', () => {
 
   it('declares one function per column field, typed from its options', () => {
     const source = [
-      "import { defineDto } from 'fhirpath-ts'",
-      "class Row extends defineDto('CodeableConcept') {",
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Row extends r4.defineView('CodeableConcept') {",
       "  displayText = this.column('text', { type: 'string' })",
       "  readonly codingCount = this.column('coding.count()', { type: 'integer' })",
       "  codings = this.column('coding', { collection: true })",
@@ -517,8 +536,8 @@ describe('DTO context and declared roots', () => {
 
   it('reads a column only as the whole initializer of a public instance field', () => {
     const source = [
-      "import { defineDto } from 'fhirpath-ts'",
-      "class Row extends defineDto('CodeableConcept') {",
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Row extends r4.defineView('CodeableConcept') {",
       "  override readonly 'displayText' = this.column('text', { type: 'string' })",
       "  static shared = this.column('x..1')",
       "  #hidden = this.column('x..2')",
@@ -543,10 +562,10 @@ describe('DTO context and declared roots', () => {
     // What an editor sees between keystrokes: the parser recovers, and the
     // walker neither throws nor loses the columns it can still read.
     const unclosed =
-      "import { defineDto } from 'fhirpath-ts'\nclass Row extends defineDto('Coding') { code = this.column('code')"
+      "import { r4 } from 'fhirpath-ts/r4'\nclass Row extends r4.defineView('Coding') { code = this.column('code')"
     expect(findExpressionSites(unclosed, 'sample.ts').map(site => site.expression)).toEqual(['code'])
     const noArgument =
-      "import { defineDto } from 'fhirpath-ts'\nclass Row extends defineDto('Coding') { code = this.column( }"
+      "import { r4 } from 'fhirpath-ts/r4'\nclass Row extends r4.defineView('Coding') { code = this.column( }"
     expect(() => findExpressionSites(noArgument, 'sample.ts')).not.toThrow()
     const truncated = "import { r4 } from 'fhirpath-ts/r4'\nr4.evaluate('Patient.na"
     expect(() => findExpressionSites(truncated, 'sample.ts')).not.toThrow()
@@ -619,14 +638,14 @@ describe('module options', () => {
         '  get fhirType(): Root',
         '  protected column(path: string): unknown',
         '}',
-        'export declare function defineDto<const Root extends string>(fhirType: Root): new () => DtoBase<Root>',
+        'export declare const r4: { defineView<const Root extends string>(fhirType: Root): new () => DtoBase<Root> }',
       ].join('\n')
     )
     writeFileSync(
       join(directory, 'bases.ts'),
       [
-        "import { defineDto } from '@acme/fhirpath'",
-        "export class ObservationRow extends defineDto('Observation') {}",
+        "import { r4 } from '@acme/fhirpath'",
+        "export class ObservationRow extends r4.defineView('Observation') {}",
         'export class Table { protected column(header: string): string { return header } }',
       ].join('\n')
     )

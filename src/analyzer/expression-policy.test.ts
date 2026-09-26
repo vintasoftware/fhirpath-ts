@@ -174,13 +174,10 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
       "import * as api from 'fhirpath-ts'",
       'const a = api.fhirpath`x..1`',
       "const b = api.compile('x..2')",
-      // Not a third site: `defineDto` is `receiver: 'import'`, which asks for the
-      // callee name itself to be the imported one, so a member-access callee is
-      // not a checked call and its `vars` go unread — in both walkers. The root
-      // this clause fixes is still read from it (see the context suite below).
-      "class Row extends api.defineDto('Condition', { vars: { v: 'x..3' } }) {}",
+      // An engine reached through the namespace defines a DTO, so its vars and columns count.
+      "class Row extends api.r4.defineView('Condition', { vars: { v: 'x..3' } }) { name = this.column('x..4') }",
     ].join('\n'),
-    expected: 2,
+    expected: 4,
     typescript: true,
   },
   {
@@ -200,8 +197,8 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
   {
     name: 'DTO declarations: column, criteria and vars',
     code: [
-      "import { defineDto } from 'fhirpath-ts'",
-      "class Row extends defineDto('Condition', { vars: { badge: 'x..1' } }) {",
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Row extends r4.defineView('Condition', { vars: { badge: 'x..1' } }) {",
       "  name = this.column('x..2', { type: 'string' })",
       "  all = this.column('x..3', { collection: true })",
       "  flag = this.criteria('x..4')",
@@ -216,9 +213,9 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
     // The class a factory of the file builds is a DTO, and so is its subclass.
     name: 'DTO declarations on a class with no statically-known root',
     code: [
-      "import { defineDto } from 'fhirpath-ts'",
+      "import { r4 } from 'fhirpath-ts/r4'",
       'function badgedRow(fhirType: string) {',
-      '  class BadgedRow extends defineDto(fhirType) {',
+      '  class BadgedRow extends r4.defineView(fhirType) {',
       "    name = this.column('x..1')",
       "    flag = this.criteria('x..2')",
       '  }',
@@ -234,9 +231,9 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
   {
     name: 'DTO classes built by arrow, class-expression, and chained factories',
     code: [
-      "import { defineDto } from 'fhirpath-ts'",
-      'const keyed = (fhirType: string) => defineDto(fhirType)',
-      'const wrapped = (fhirType: string) => class extends defineDto(fhirType) {}',
+      "import { r4 } from 'fhirpath-ts/r4'",
+      'const keyed = (fhirType: string) => r4.defineView(fhirType)',
+      'const wrapped = (fhirType: string) => class extends r4.defineView(fhirType) {}',
       'function chained(fhirType: string) { return keyed(fhirType) }',
       "class A extends keyed('Condition') { a = this.column('x..1') }",
       "class B extends wrapped('Condition') { b = this.column('x..2') }",
@@ -249,25 +246,73 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
     typescript: true,
   },
   {
+    name: 'an engine derived with register() is an engine, and so is a project engine a view imports',
+    code: [
+      "import { FhirPathEngine } from 'fhirpath-ts'",
+      "import { shared } from './portal.dto'",
+      'const base = new FhirPathEngine({})',
+      "class ConceptDto extends base.defineDto('CodeableConcept') { text = this.column('x..1') }",
+      'const fp = base.register(ConceptDto)',
+      "const later = fp.first('x..2', resource)",
+      "class ProblemRow extends shared.defineView('Condition', { vars: { v: 'x..3' } }) { name = this.column('x..4') }",
+      // Registering on something that is not an engine derives nothing.
+      'const notEngine = registry.register(ConceptDto)',
+      "const skipped = notEngine.first('x..5', resource)",
+    ].join('\n'),
+    expected: 4,
+    typescript: true,
+  },
+  {
+    name: 'a class resolves through its own clause even when its name is declared twice',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      'const keyed = (fhirType: string) => r4.defineView(fhirType)',
+      "function a() { class Row extends keyed('Condition') { x = this.column('x..1') } return Row }",
+      "function b() { class Row extends keyed('Patient') { y = this.column('x..2') } return Row }",
+      // A base named by both classes proves nothing.
+      "class Sub extends Row { z = this.column('x..3') }",
+    ].join('\n'),
+    expected: 2,
+    typescript: true,
+  },
+  {
+    name: 'a factory that casts the class it returns still builds a DTO',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      'function keyed(fhirType: string) {',
+      "  class Keyed extends r4.defineView(fhirType) { id = this.column('x..1') }",
+      '  return Keyed as unknown as typeof Keyed',
+      '}',
+      'const checked = (fhirType: string) => r4.defineView(fhirType) satisfies object',
+      "class Row extends keyed('Condition') { code = this.column('x..2') }",
+      "class Other extends checked('Patient') { name = this.column('x..3') }",
+    ].join('\n'),
+    expected: 3,
+    typescript: true,
+  },
+  {
     name: 'only the whole initializer of a public instance field is a column',
     code: [
-      "import { defineDto } from 'fhirpath-ts'",
-      "class Row extends defineDto('Condition') {",
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Row extends r4.defineView('Condition') {",
       "  name = this.column('x..1')",
+      "  'quoted' = this.column('x..6')",
+      // Without the semicolon, the previous initializer would continue into `['computed']`.
+      "  ;['computed'] = this.column('x..7')",
       "  static shared = this.column('x..2')",
       "  #hidden = this.column('x..3')",
       "  wrapped = [this.column('x..4')]",
       "  later() { return this.criteria('x..5') }",
       '}',
     ].join('\n'),
-    expected: 1,
+    expected: 3,
     typescript: true,
   },
   {
-    name: 'a class is not a DTO when its defineDto is not the package export',
+    name: 'a class is not a DTO when its defineView belongs to another package',
     code: [
-      'const defineDto = (type: string) => class { column(header: string) { return header } }',
-      "class Row extends defineDto('Condition') {",
+      "import { views } from 'some-report-library'",
+      "class Row extends views.defineView('Condition') {",
       "  name = this.column('x..1')",
       '}',
     ].join('\n'),
@@ -277,7 +322,7 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
   {
     name: 'a class of the file that is not a DTO keeps its own column method',
     code: [
-      "import { defineDto } from 'fhirpath-ts'",
+      "import { r4 } from 'fhirpath-ts/r4'",
       "class Table { column(header: string) { return header } names = this.column('x..1') }",
       "class Wide extends Table { more = this.column('x..2') }",
     ].join('\n'),
@@ -640,19 +685,18 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a column path resolves against the class fhirType',
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class Row extends defineDto('Condition') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Row extends r4.defineView('Condition') {",
         "  code = this.column('clinicalStatus.codingg.first().code')",
         '}',
       ].join('\n'),
       expected: ["unknown-element: Element 'codingg' is not defined on FHIR.CodeableConcept — did you mean 'coding'?"],
     },
     {
-      name: 'a namespace-imported defineDto still fixes the root',
+      name: 'an engine imported from the project fixes the root',
       code: [
-        "import * as api from 'fhirpath-ts'",
-        "import { column } from 'fhirpath-ts'",
-        "class Row extends api.defineDto('Condition') {",
+        "import { fp } from './portal.dto'",
+        "class Row extends fp.defineDto('Condition') {",
         "  code = this.column('clinicalStatus.codingg.first().code')",
         '}',
       ].join('\n'),
@@ -661,8 +705,8 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a %var on a DTO site is never judged',
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class Row extends defineDto('Condition') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Row extends r4.defineView('Condition') {",
         "  label = this.column('%whatever.label')",
         '}',
       ].join('\n'),
@@ -703,11 +747,11 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a call into a column the same file declares resolves, and carries its type',
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class Concept extends defineDto('CodeableConcept') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends r4.defineView('CodeableConcept') {",
         "  displayText = this.column('text', { type: 'string' })",
         '}',
-        "class Row extends defineDto('Condition') {",
+        "class Row extends r4.defineView('Condition') {",
         "  len = this.column('code.displayText().length()')",
         '}',
       ].join('\n'),
@@ -716,11 +760,11 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a near-miss of a column the same file declares is still a typo',
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class Concept extends defineDto('CodeableConcept') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends r4.defineView('CodeableConcept') {",
         "  displayText = this.column('text', { type: 'string' })",
         '}',
-        "class Row extends defineDto('Condition') {",
+        "class Row extends r4.defineView('Condition') {",
         "  name = this.column('code.displayTxt()')",
         '}',
       ].join('\n'),
@@ -729,8 +773,8 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a root followed through a same-file base class',
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class Base extends defineDto('Observation') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Base extends r4.defineView('Observation') {",
         "  at = this.column('issued')",
         '}',
         'class Sub extends Base {',
@@ -742,11 +786,11 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a column called on a focus that can never hold its own fhirType',
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class Concept extends defineDto('CodeableConcept') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends r4.defineView('CodeableConcept') {",
         "  displayText = this.column('text', { type: 'string' })",
         '}',
-        "class Row extends defineDto('Condition') {",
+        "class Row extends r4.defineView('Condition') {",
         "  name = this.column('subject.reference.displayText()')",
         '}',
       ].join('\n'),
@@ -755,11 +799,11 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a column whose cardinality is dynamic still declares what it is written against',
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class Concept extends defineDto('CodeableConcept') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends r4.defineView('CodeableConcept') {",
         "  displays = this.column('coding.display', { collection: dynamic })",
         '}',
-        "class Row extends defineDto('Condition') {",
+        "class Row extends r4.defineView('Condition') {",
         "  name = this.column('subject.reference.displays()')",
         '}',
       ].join('\n'),
@@ -770,14 +814,14 @@ describe('the walkers agree on a site’s context', () => {
       // Sub's fhirType is only known once Base is read, so the walkers must
       // decide the file's column vocabulary after the whole file, not during it.
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
+        "import { r4 } from 'fhirpath-ts/r4'",
         'class Sub extends Base {',
         "  displayText = this.column('text', { type: 'string' })",
         '}',
-        "class Base extends defineDto('CodeableConcept') {",
+        "class Base extends r4.defineView('CodeableConcept') {",
         "  conceptId = this.column('id')",
         '}',
-        "class Row extends defineDto('Condition') {",
+        "class Row extends r4.defineView('Condition') {",
         "  name = this.column('subject.reference.displayText()')",
         '}',
       ].join('\n'),
@@ -789,14 +833,14 @@ describe('the walkers agree on a site’s context', () => {
       // written for, and `code` is a CodeableConcept. Keeping the last one seen
       // would report this valid call.
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class ConceptRow extends defineDto('CodeableConcept') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class ConceptRow extends r4.defineView('CodeableConcept') {",
         "  label = this.column('text', { type: 'string' })",
         '}',
-        "class CodingRow extends defineDto('Coding') {",
+        "class CodingRow extends r4.defineView('Coding') {",
         "  label = this.column('display', { type: 'string' })",
         '}',
-        "class ProblemRow extends defineDto('Condition') {",
+        "class ProblemRow extends r4.defineView('Condition') {",
         "  name = this.column('code.label()')",
         '}',
       ].join('\n'),
@@ -807,14 +851,14 @@ describe('the walkers agree on a site’s context', () => {
       // agree on, which about the result is nothing.
       name: 'one field name declared with two result types claims neither',
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class Text extends defineDto('CodeableConcept') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Text extends r4.defineView('CodeableConcept') {",
         "  label = this.column('text', { type: 'string' })",
         '}',
-        "class Count extends defineDto('CodeableConcept') {",
+        "class Count extends r4.defineView('CodeableConcept') {",
         "  label = this.column('coding.count()', { type: 'integer' })",
         '}',
-        "class ProblemRow extends defineDto('Condition') {",
+        "class ProblemRow extends r4.defineView('Condition') {",
         "  n = this.column('code.label().length()')",
         '}',
       ].join('\n'),
@@ -826,14 +870,14 @@ describe('the walkers agree on a site’s context', () => {
       // everything, and each call still gets the result of the column its own
       // focus reaches.
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class ConceptRow extends defineDto('CodeableConcept') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class ConceptRow extends r4.defineView('CodeableConcept') {",
         "  label = this.column('coding.count()', { type: 'integer' })",
         '}',
-        "class CodingRow extends defineDto('Coding') {",
+        "class CodingRow extends r4.defineView('Coding') {",
         "  label = this.column('display', { type: 'string' })",
         '}',
-        "class ProblemRow extends defineDto('Condition') {",
+        "class ProblemRow extends r4.defineView('Condition') {",
         "  chars = this.column('code.coding.label().length()')",
         "  counted = this.column('code.label().length()')",
         '}',
@@ -846,15 +890,15 @@ describe('the walkers agree on a site’s context', () => {
       // wherever both are in play — the Integer result of the one whose root is
       // known cannot be pinned on this call.
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        'function keyedRow(fhirType: string) { class KeyedRow extends defineDto(fhirType) {} return KeyedRow }',
+        "import { r4 } from 'fhirpath-ts/r4'",
+        'function keyedRow(fhirType: string) { class KeyedRow extends r4.defineView(fhirType) {} return KeyedRow }',
         "class Loose extends keyedRow('CodeableConcept') {",
         "  label = this.column('coding.first().display', { type: 'string' })",
         '}',
-        "class Concept extends defineDto('CodeableConcept') {",
+        "class Concept extends r4.defineView('CodeableConcept') {",
         "  label = this.column('coding.count()', { type: 'integer' })",
         '}',
-        "class ProblemRow extends defineDto('Condition') {",
+        "class ProblemRow extends r4.defineView('Condition') {",
         "  n = this.column('code.label().length()')",
         '}',
       ].join('\n'),
@@ -867,14 +911,14 @@ describe('the walkers agree on a site’s context', () => {
       // string focus is wrong whichever one it meant — dropping the signature
       // of a name declared twice would miss it.
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class Text extends defineDto('CodeableConcept') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Text extends r4.defineView('CodeableConcept') {",
         "  label = this.column('text', { type: 'string' })",
         '}',
-        "class Count extends defineDto('CodeableConcept') {",
+        "class Count extends r4.defineView('CodeableConcept') {",
         "  label = this.column('coding.count()', { type: 'integer' })",
         '}',
-        "class ProblemRow extends defineDto('Condition') {",
+        "class ProblemRow extends r4.defineView('Condition') {",
         "  name = this.column('subject.reference.label()')",
         '}',
       ].join('\n'),
@@ -885,14 +929,14 @@ describe('the walkers agree on a site’s context', () => {
       // Same name, same root, same result — nothing is in doubt, so the wrong
       // focus is still reported.
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class A extends defineDto('CodeableConcept') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class A extends r4.defineView('CodeableConcept') {",
         "  label = this.column('text', { type: 'string' })",
         '}',
-        "class B extends defineDto('CodeableConcept') {",
+        "class B extends r4.defineView('CodeableConcept') {",
         "  label = this.column('coding.first().display', { type: 'string' })",
         '}',
-        "class ProblemRow extends defineDto('Condition') {",
+        "class ProblemRow extends r4.defineView('Condition') {",
         "  name = this.column('subject.reference.label()')",
         '}',
       ].join('\n'),
@@ -901,11 +945,11 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a column on a root-generic factory declares no input, so calls stay unchecked',
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
+        "import { r4 } from 'fhirpath-ts/r4'",
         "class Concept extends keyedRow('CodeableConcept') {",
         "  displayText = this.column('text', { type: 'string' })",
         '}',
-        "class Row extends defineDto('Condition') {",
+        "class Row extends r4.defineView('Condition') {",
         "  name = this.column('subject.reference.displayText()')",
         '}',
       ].join('\n'),
@@ -1018,11 +1062,11 @@ describe('the walkers agree on a site’s context', () => {
     {
       name: 'a dynamic column claim does not leak a stale result type',
       code: [
-        "import { defineDto } from 'fhirpath-ts'",
-        "class Concept extends defineDto('CodeableConcept') {",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends r4.defineView('CodeableConcept') {",
         "  label = this.column('coding.count()', { ...unknownClaim, type: 'integer', collection: false })",
         '}',
-        "class Row extends defineDto('Condition') {",
+        "class Row extends r4.defineView('Condition') {",
         "  size = this.column('code.label().length()')",
         '}',
       ].join('\n'),

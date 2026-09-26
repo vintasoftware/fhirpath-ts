@@ -1,6 +1,6 @@
 /**
- * Imports DTO modules, records the engines they create, and checks each exported
- * DTO with loaded runtime context. The default module pattern is `*.dto.ts`.
+ * Imports DTO modules, checks each exported DTO against the engine it was
+ * defined on, and records the engines the modules create for the source pass. The default module pattern is `*.dto.ts`.
  * Importing runs module initialization; `--no-import` skips this pass.
  */
 /* v8 ignore file -- covered end-to-end as a subprocess in fhirpath-check.test.ts, which is the only way to exercise a module loader and engine discovery in a fresh process */
@@ -39,15 +39,13 @@ export interface DtoCheckResult {
   findings: DtoFinding[]
   /** Modules that matched and were imported, relative to the working directory. */
   files: string[]
-  /** How many engines the imported modules constructed. */
-  engines: number
   /** Every DTO analyzed, by module. */
   dtos: { file: string; dto: string }[]
   /** Merged engine declarations that make ordinary source-site checks complete. */
   sourceOptions: AnalyzeOptions | undefined
 }
 
-/** Imports matching modules and checks their exported DTOs against recorded engines. */
+/** Imports matching modules and checks their exported DTOs against their own engines. */
 export async function checkDtoModules(patterns: readonly string[], cwd: string): Promise<DtoCheckResult> {
   const recorded = recordEngines()
   register(new URL('ts-loader.mjs', import.meta.url))
@@ -66,39 +64,19 @@ export async function checkDtoModules(patterns: readonly string[], cwd: string):
   const engines = recorded()
   assertSharedModel(engines)
   const findings = dtos.flatMap(({ file, dto, cls }) =>
-    analyzeFor(cls, engines).map(finding => ({ ...finding, dto, file }))
+    analyzeDto(cls, { reportUnchecked: true }).map(finding => ({ ...finding, dto, file }))
   )
   return {
     findings,
     files,
-    engines: engines.length,
     dtos: dtos.map(({ file, dto }) => ({ file, dto })),
     sourceOptions: engines.length === 0 ? undefined : optionsForSource(merged(engines)),
   }
 }
 
 /**
- * A DTO against the engine that registered it, or — when no engine claims it, as
- * for a row shape that is only ever projected — against everything the project's
- * engines make available. A DTO checked against one engine of several would
- * report calls that resolve perfectly well in the engine it actually runs on, and
- * "some engine in this project declares this" is the most that can be said
- * without being told which. Merging says exactly that, once, in engine order.
- */
-function analyzeFor(dto: DtoClass, engines: readonly FhirPathEngine[]): DtoDiagnostic[] {
-  const owner = engines.find(engine => engine.dtos.includes(dto))
-  if (owner !== undefined) {
-    return analyzeDto(dto, { engine: owner, reportUnchecked: true })
-  }
-  if (engines.length === 0) {
-    return analyzeDto(dto, { reportUnchecked: true })
-  }
-  return analyzeDto(dto, { engine: merged(engines), reportUnchecked: true })
-}
-
-/**
- * Merged analysis (unregistered DTOs, `sourceOptions`) uses the first engine's
- * model for every declaration, so all engines must share one `ModelProvider`
+ * Merged source analysis (`sourceOptions`) uses the first engine's model for
+ * every declaration, so all engines must share one `ModelProvider`
  * instance — a declaration analyzed under another engine's type hierarchy would
  * produce wrong element, subtype, and Reference-target findings. Identity is
  * the only equivalence a `ModelProvider` offers, so two wrappers around the
@@ -109,7 +87,7 @@ function assertSharedModel(engines: readonly FhirPathEngine[]): void {
   if (engines.some(engine => engine.defaults.model !== model)) {
     throw new EngineMergeError(
       'the imported modules constructed engines with different ModelProvider instances; ' +
-        'source and unregistered-DTO analysis needs one shared model — check projects with different models in separate runs'
+        'source analysis needs one shared model — check projects with different models in separate runs'
     )
   }
 }

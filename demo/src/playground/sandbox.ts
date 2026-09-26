@@ -4,7 +4,7 @@
  * captures output. The static page has no server, credentials, or external data.
  */
 
-import { defineDto, FhirPathEngine } from 'fhirpath-ts'
+import { FhirPathEngine } from 'fhirpath-ts'
 import { analyzeExpression } from 'fhirpath-ts/analyzer'
 import { r4, r4Model } from 'fhirpath-ts/r4'
 
@@ -13,7 +13,7 @@ import { errorText, executeJavaScript, type OutputLine } from './runtime.ts'
 
 /** The only modules the sandbox can import: the real bundled engine and analyzer. */
 const MODULES: Record<string, Record<string, unknown>> = {
-  'fhirpath-ts': { defineDto, FhirPathEngine },
+  'fhirpath-ts': { FhirPathEngine },
   'fhirpath-ts/r4': { r4, r4Model },
   'fhirpath-ts/analyzer': { analyzeExpression },
 }

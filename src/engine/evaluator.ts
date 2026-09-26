@@ -28,6 +28,7 @@ import {
   resolveEnvironmentVariable,
   withEnvOverlay,
   withFrame,
+  withFunctionOverlay,
 } from './context.ts'
 import { navigateIdentifier } from './navigation.ts'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
@@ -66,7 +67,8 @@ function evaluateHostFunction(
     context.activeExpressionFunctions.add(name)
     try {
       // Keep the function's environment local and recursion detection active.
-      const scoped = host.env === undefined ? context : withEnvOverlay(context, host.env)
+      const withEnv = host.env === undefined ? context : withEnvOverlay(context, host.env)
+      const scoped = host.functions === undefined ? withEnv : withFunctionOverlay(withEnv, host.functions)
       // withFrame rebinds $this to the input and forks variables, so the
       // body's defineVariable() bindings stay local to the body.
       const result = withFrame(scoped, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))

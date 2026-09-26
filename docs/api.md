@@ -179,6 +179,12 @@ single resource gets index `0` and total `1`.
 `project()` creates application data. Structure-to-structure transformation is
 the job of StructureMap and the FHIR Mapping Language.
 
+### `defineDto()`, `defineView()`, and `register()`
+
+`engine.defineView(fhirType)` and `engine.defineDto(fhirType)` return base classes
+for projected rows, and `engine.register(...dtos)` returns a new engine with DTO
+columns as FHIRPath functions. See [DTOs](#dtos).
+
 ### `compile()`
 
 Parses once and returns a reusable expression:
@@ -463,14 +469,14 @@ result opaque.
 
 ## DTOs
 
-A DTO is a class created from `defineDto(fhirType)`. Each field initialized with
+DTOs and views are classes defined on an engine. Each field initialized with
 `this.column()` or `this.criteria()` is a projection column, and its type is
 inferred from the expression:
 
 ```ts
-import { defineDto } from 'fhirpath-ts'
+import { r4 } from 'fhirpath-ts/r4'
 
-class WeightRow extends defineDto('Observation') {
+class WeightRow extends r4.defineView('Observation') {
   lbs = this.column("value.ofType(Quantity).toQuantity('[lb_av]').value", { default: 0 }) // number
   at = this.column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' }) // Date | undefined
   notes = this.column('note.text', { collection: true }) // string[]
@@ -481,73 +487,137 @@ class WeightRow extends defineDto('Observation') {
   }
 }
 
-const rows = fp.project(observations, WeightRow) // WeightRow[]
+const rows = r4.project(observations, WeightRow) // WeightRow[]
 ```
 
+There are two kinds:
+
+- `engine.defineDto(fhirType, options?)` defines a DTO whose columns become
+  FHIRPath functions once it is registered. It holds only columns and methods.
+- `engine.defineView(fhirType, options?)` defines a projected row. A view may
+  also hold getters and plain fields, and its columns may convert values with
+  `as` or `choices`.
+
 `this.column()` accepts the same options as a plain project column. Rows are class
-instances, so derived values can be getters or methods. Other fields keep their
-ordinary JavaScript behavior and are not projected.
+instances, so derived values can be getters or methods. Plain fields of a view
+keep their ordinary JavaScript behavior and are not projected.
 
 A field may also declare its type. TypeScript then checks that the declared type
 can hold the column value:
 
 ```ts
-class ReportRow extends defineDto('DiagnosticReport') {
+class ReportRow extends r4.defineView('DiagnosticReport') {
   issued: string | undefined = this.column('issued')
 }
 ```
 
-When TypeScript cannot infer an expression, the field type is `unknown`. Set the
-column `type` option to give it a type; `analyzeDto()` checks that option against
-the expression. Calls to registered DTO columns, `combine()`, and caller values
-without a declared type are the common cases.
+When TypeScript cannot infer an expression, the field type is `unknown`.
+`combine()`, caller values without a declared type, and calls to a column of the
+same class are the common cases. TypeScript cannot type a call to a column of the
+class being defined, because a field's type cannot depend on its own class. Set
+the column `type` option to give the field a type. `analyzeDto()` checks that
+option when it can infer the expression result; otherwise the option is an
+unchecked assertion.
 
 Write each column as the whole initializer of a public instance field. Projection
 reads columns by constructing the class once, and it reports a column in a
 private field, a static field, or a nested value.
 
-### Registering DTO columns as functions
+### Registering DTOs
 
-Pass DTOs through `resourceDtos` to call their columns from other expressions:
+`engine.register(...dtos)` returns a new engine on which every column of those
+DTOs is a FHIRPath function. The engine it is called on does not change.
 
 ```ts
-class CodeableConceptDto extends defineDto('CodeableConcept') {
+class CodeableConceptDto extends r4.defineDto('CodeableConcept') {
   displayText = this.column('(text | coding.display.first() | coding.first().code).first()')
 }
 
-const fp = new FhirPathEngine({
-  model: r4Model,
-  resourceDtos: [CodeableConceptDto],
-})
+const fp = r4.register(CodeableConceptDto)
 
-fp.first('Condition.code.displayText()', condition)
+fp.first('Condition.code.displayText()', condition) // string | undefined
 ```
 
 Registration publishes every column under its field name. Each function accepts
 the DTO's `fhirType`. A model is required so the engine can reject calls on an
 incompatible focus.
 
-TypeScript does not see which columns an engine registers. A call to a
-registered column therefore remains `unknown[]` in the type layer; use a column
-or call `type` when needed. The loaded analyzer still checks the registered DTO
-function completely.
+The new engine's type includes the registered functions, so calls to them are
+typed in engine calls and in the columns of DTOs and views defined on it. A
+TypeScript `string` column may hold any FHIR type represented as a string, so its
+call result is the union of those types; `ofType(code)` keeps the value. A column
+whose value no FHIR type represents, such as a lookup-table row, keeps an
+`unknown[]` call result.
+
+A registered column is also a function that returns its expression's own result,
+without `default` or other projection options. `register()` therefore accepts
+only DTOs from `defineDto()` on that engine or an engine it derives from. It
+rejects views, getters, and plain fields, because the engine's types read every
+non-method field of a registered DTO as a column.
 
 Names are scoped by input type. A CodeableConcept DTO and a Coding DTO may both
 declare `displayText`. The call focus selects the matching declaration.
 
-Engine construction fails when two declarations with the same name cannot be
+Registration fails when two declarations with the same name cannot be
 distinguished. This includes two DTOs on the same FHIR type, overlapping input
 types such as Quantity and SimpleQuantity, and a DTO name already accepted by a
 host function. Built-in names are always reserved.
 
 Several DTOs may target the same FHIR type when their field names are different.
+When one registered DTO calls another's column, define it on the engine that
+already registers the callee:
+
+```ts
+const withConcepts = r4.register(CodeableConceptDto)
+
+class MedicationRequestDto extends withConcepts.defineDto('MedicationRequest') {
+  medicationName = this.column('medication.ofType(CodeableConcept).displayText()') // string | undefined
+}
+
+export const fp = withConcepts.register(MedicationRequestDto)
+```
+
+### Engines and file layout
+
+Build every registered DTO in one `*.dto.ts` module: define the DTOs, register
+them, and export the final engine. Views may live anywhere in the codebase. Each
+view module imports that engine and extends `engine.defineView(...)`:
+
+```ts
+// patient-portal.dto.ts
+export class CodeableConceptDto extends r4.defineDto('CodeableConcept') {
+  displayText = this.column('(text | coding.display.first() | coding.first().code).first()')
+}
+export const fp = r4.register(CodeableConceptDto)
+```
+
+```ts
+// problems/problem-row.ts
+import { fp } from '../patient-portal.dto'
+
+export class ProblemRow extends fp.defineView('Condition') {
+  name = this.column('code.displayText()', { default: 'Condition' }) // string
+}
+```
+
+A custom engine works the same way as `r4`: build it with
+`new FhirPathEngine(options)`, define DTOs on it, and register them. Columns see
+the engine's `env` and typed functions. Engine `vars` stay untyped in columns,
+because a registered column called inside another expression evaluates them
+against that expression's resource.
+
+A DTO or view projects on the engine it was defined on and on engines derived
+from it with `register()`. `project()` on any other engine throws. A column body
+always reads the engine's `env` and calls the engine's functions, projected or
+called, so a per-call value or function of the same name does not reach it: the
+columns' types came from the engine's own.
 
 ### DTO environment and variables
 
 Use `env` for lookup values owned by a DTO:
 
 ```ts
-class LabRow extends defineDto('DiagnosticReport', {
+class LabRow extends r4.defineView('DiagnosticReport', {
   env: { system: 'http://loinc.org' },
 }) {
   loincCode = this.column('code.coding.where(system = %system).first().code', {
@@ -564,7 +634,7 @@ Declare data supplied by each projection with `callerEnv`. A declaration map
 types the supplied values, and DTO vars carry that type into later columns:
 
 ```ts
-class LabResultRow extends defineDto('ServiceRequest', {
+class LabResultRow extends r4.defineView('ServiceRequest', {
   callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
   vars: { report: "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()" },
 }) {
@@ -575,10 +645,12 @@ class LabResultRow extends defineDto('ServiceRequest', {
 `callerEnv` tells TypeScript and the analyzer which names the call provides. Use
 an array of names when their structure is intentionally opaque, or a declaration
 map when FHIRPath navigates through them. It does not create values. Pass them to
-`project()` through `env`. A name cannot be both in `env` and in `callerEnv`.
+`project()` through `env`. A name cannot be both in `env` and in `callerEnv`, and
+it cannot be a name the engine's `env` binds.
 
 DTO `env` and `vars` take priority over engine and per-call values with the same
-name, so a column means the same thing however it is reached. `%rowIndex` and
+name, and the engine's `env` and functions take priority over per-call ones, so
+a column means the same thing however it is reached. `%rowIndex` and
 `%rowTotal` are also available to every column.
 
 DTO `vars` apply only when the DTO is projected. They are row expressions and do
@@ -591,7 +663,7 @@ Subclasses inherit columns, environment values, and variables. A subclass can ad
 columns, or replace an inherited column with a field of the same name:
 
 ```ts
-class ObservationRow extends defineDto('Observation') {
+class ObservationRow extends r4.defineView('Observation') {
   at = this.column('(effective.ofType(dateTime) | issued).first()', { as: 'Date' })
 }
 
@@ -600,16 +672,16 @@ class HeightRow extends ObservationRow {
 }
 ```
 
-Columns shared by DTOs on different FHIR types come from a function that builds a
-base class. Forward the options to `defineDto()` so the columns of each subclass
-are inferred against its own `env` and `vars`:
+Columns shared by views on different FHIR types come from a function that builds
+a base class. Forward the options to `defineView()` so the columns of each
+subclass are inferred against its own `env` and `vars`:
 
 ```ts
 function keyedRow<const Root extends FhirTypeName, const Options extends DtoOptions = DtoOptions>(
   fhirType: Root,
   options?: Options
-): DtoBaseClass<Root, DtoContext<Options>, { id: string }> {
-  return class KeyedRow extends defineDto(fhirType, options) {
+): ViewBaseClass<typeof fp, Root, Options, { id: string }> {
+  return class KeyedRow extends fp.defineView(fhirType, options) {
     id = this.column('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
   }
 }
@@ -620,8 +692,8 @@ class ProblemRow extends keyedRow('Condition') {
 ```
 
 The return type is needed only when an exported class extends the function's
-result and the project emits declaration files. `DtoBaseClass` names the base
-class and the columns the function adds.
+result and the project emits declaration files. `ViewBaseClass` names the base
+class that engine's `defineView()` returns, plus the columns the function adds.
 
 ### Input checks
 
@@ -643,12 +715,12 @@ Use the analyzer in unit tests:
 ```ts
 import { analyzeDto, analyzeEngineDtos } from 'fhirpath-ts/analyzer'
 
-expect(analyzeDto(LabResultRow, { engine: fp })).toEqual([])
+expect(analyzeDto(LabResultRow)).toEqual([])
 expect(analyzeEngineDtos(fp)).toEqual([])
 ```
 
-`analyzeDto()` checks the complete expression language against the engine model,
-functions, and environment. It also compares a declared column `type` or `enum`
+`analyzeDto()` checks the complete expression language against the model,
+functions, and environment of the engine the DTO was defined on. It also compares a declared column `type` or `enum`
 with the analyzer's inferred result.
 
 `analyzeEngineDtos()` checks only registered DTOs. Use the

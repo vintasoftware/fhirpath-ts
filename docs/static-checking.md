@@ -71,7 +71,8 @@ It recognizes:
   `analyzeExpression` calls;
 - `FhirPathEngine` and `r4` methods such as `test`, `filter`, `project`, and
   `checkConstraints`;
-- DTO `this.column()` and `this.criteria()` fields and `defineDto()` vars;
+- DTO and view `this.column()` and `this.criteria()` fields, and the `vars` of
+  `engine.defineDto()` and `engine.defineView()`;
 - the `fhirpath` tagged template.
 
 Common method names are checked only on values imported from this package or
@@ -156,35 +157,32 @@ The CLI finds DTOs by convention:
   use another location.
 - DTO classes must be available through a module export. Direct exports,
   aliases, and exported subclasses are supported.
-- Engines do not need to be exported. The checker records engines created while
-  it imports the selected DTO modules.
-- Put engines in the selected modules or include their modules in `--dtos`.
+- Engines do not need to be exported. Each DTO and view carries the engine it
+  was defined on, and the checker analyzes it against that engine.
+- Views outside `*.dto.ts` modules get the source pass. Add their modules to
+  `--dtos`, or check them with `analyzeDto()` in a test, for the loaded check.
 
 Importing a DTO module executes its top-level code, class initialization, and
 imported dependencies. Keep selected DTO modules and their
 imports free of unexpected side effects, and run the import pass only on trusted
 project code. Use `--no-import` when module execution is not appropriate.
 
-The loaded DTO check has the engine's real model, registered functions, and
-environment names. It can resolve calls between DTO columns and compare declared
-column types with the analyzer result. Those merged engine declarations also
-feed the source pass, so a misspelled environment variable is reported when the
-import pass knows the complete environment.
+The loaded DTO check has the real model, registered functions, and environment
+names of the DTO's own engine. It can resolve calls between DTO columns and
+compare declared column types with the analyzer result. A registered DTO's own
+columns are also callable from its other columns. The project does not need a
+`fhirpath.config.ts`.
 
-When no engine is found, the CLI cannot resolve column-to-column calls. It
-reports that limit as a warning and keeps the run successful.
-
-A DTO that is not registered with an engine is checked against the merged
-context of all discovered engines. This answers whether some engine in the
-project defines a name. The project does not need a `fhirpath.config.ts`.
-
-All discovered engines must use the same `ModelProvider` instance. If a project
-uses different models, check them in separate runs.
+The checker also records the engines the imported modules construct and merges
+their declarations into the source pass, so a misspelled environment variable
+is reported when the import pass knows the complete environment. Those engines
+must use the same `ModelProvider` instance. If a project uses different models,
+check them in separate runs.
 
 Declare per-call environment names or types on the DTO itself:
 
 ```ts
-export class LabRow extends defineDto('ServiceRequest', {
+export class LabRow extends fp.defineView('ServiceRequest', {
   callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
   vars: { report: "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()" },
 }) {
@@ -215,16 +213,19 @@ information to prove an error.
 - A function declared by a DTO in another module is not visible. An unresolved
   function is reported only when its name is close to a column declared in the
   same file.
-- A class is read as a DTO when the file shows that it extends `defineDto(...)`:
-  directly, through a base class declared in the same file, or through a
-  function of the same file that returns such a class. A class extending an
-  imported base is read as a DTO only when TypeScript type information proves
-  it; otherwise the CLI reports its columns as skipped and ESLint leaves them
-  alone.
+- A class is read as a DTO when the file shows that it extends
+  `<engine>.defineDto(...)` or `<engine>.defineView(...)`: directly, through a
+  base class declared in the same file, or through a function of the same file
+  that returns such a class. The engine may be imported from the project; only
+  another package's import rules the call out. A class extending an imported
+  base class is read as a DTO only when TypeScript type information proves it;
+  otherwise the CLI reports its columns as skipped and ESLint leaves them alone.
 - A DTO needs a statically known `fhirType` for element and type checks. A
-  string literal in its `defineDto('Type')` call provides that type, directly or
-  through a base class. A class built by a function receives syntax checks only,
-  because the caller chooses its type.
+  string literal in its `defineDto('Type')` or `defineView('Type')` call provides
+  that type, directly or through a base class. A class built by a function
+  receives syntax checks only, because the caller chooses its type.
+- An engine built with `engine.register(...)` in the same file is an engine, so
+  its method calls are checked.
 - An engine reached through an alias the file does not declare, such as
   `this.engine` or a function parameter, needs TypeScript type information to be
   recognized. The CLI builds a TypeScript program for this. Editors parse one
@@ -290,8 +291,9 @@ A variable declaration may also set `ordered: false` when the host supplies a
 collection with no defined order; the analyzer then rejects positional
 operations on it. Omitting `ordered` keeps the ordering unknown.
 
-`analyzeDto()` checks one DTO with an engine or explicit analyzer options.
-`analyzeEngineDtos()` checks all DTOs registered on an engine.
+`analyzeDto()` checks one DTO against the engine it was defined on, or against
+explicit analyzer options. `analyzeEngineDtos()` checks all DTOs registered on an
+engine.
 
 ## Shared expression-site rules
 

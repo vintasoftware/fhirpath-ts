@@ -1616,13 +1616,14 @@ type InferHostBody<Declaration, Input extends InferenceState, Name extends strin
       : CopyEnvironment<UnknownState, Input>
     : CopyEnvironment<UnknownState, Input>
 
+/** The body text of an expression-defined function; `undefined` when it has none to read, never `never`, which would erase the call's result. */
 type HostBodySource<Declaration> = Declaration extends { readonly expression: infer Body }
   ? Body extends string
     ? Body
     : Body extends { readonly source: infer Source extends string }
       ? Source
-      : never
-  : never
+      : undefined
+  : undefined
 
 type WithHostCallEnvironment<Input extends InferenceState, Declaration, Active extends string> = CoreOf<Input> &
   EnvironmentCarrier<

@@ -190,6 +190,18 @@ describe('typed host context', () => {
     expectTypeOf(row).toEqualTypeOf<{ id: string | undefined; position: string | undefined }>()
   })
 
+  it('keeps a host function with no result type or body opaque, not empty', () => {
+    const native = new FhirPathEngine({ functions: { label: { fn: () => 'x' } } })
+    const scoped = new FhirPathEngine({
+      model: r4Model,
+      functions: { label: { fn: () => 'x', signature: { input: { types: ['Patient'] } } } },
+    })
+    const patient: Patient = { resourceType: 'Patient' }
+    // The runtime returns ['x']; neither declaration says what that is.
+    expectTypeOf(native.evaluate('Patient.label()', patient)).toEqualTypeOf<unknown[]>()
+    expectTypeOf(scoped.evaluate('Patient.label()', patient)).toEqualTypeOf<unknown[]>()
+  })
+
   it('keeps old untyped options source-compatible and opaque', () => {
     const options = { env: { report: {} } }
     const result = new FhirPathEngine().evaluate('%report.status', undefined, options)

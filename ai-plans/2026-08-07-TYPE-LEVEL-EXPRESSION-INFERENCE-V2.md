@@ -100,9 +100,9 @@ static rule the analyzer can express:
 - an expression over a model with no generated type maps (only R4 ships)
 - an environment value, pre-resolved var, native host function, or external
   reference with no type declaration
-- a function synthesized from DTO column fields: the class's static TypeScript
-  type does not tell column fields apart from other fields and getters, so
-  `resourceDtos` alone cannot expose those functions soundly to the type layer
+- a registered DTO column whose value no FHIR type represents (see
+  [engine-bound DTOs](2026-09-24-ENGINE-BOUND-DTOS.md) for how `register()`
+  types the others)
 - reflection or tree traversal whose result has no bounded static type
 - a construct whose analyzer result is unknown
 - an expression over either scanner budget
@@ -238,12 +238,10 @@ wrappers. Commit 5 must lock all of these call shapes with exact public API test
 before migrating internal callers.
 
 DTO column fields still benefit from every new grammar and result rule that
-depends only on the expression and the DTO context. They do not publish column
-metadata into `resourceDtos`' static class type. Registered DTO
-function calls therefore remain analyzer-checked but opaque to
-`FhirpathResult` unless a future API supplies explicit, cross-checked static
-metadata. Inferring every non-method instance property would incorrectly include
-ordinary fields and getters, so it is forbidden as an approximation.
+depends only on the expression and the DTO context. Registered DTO function
+calls are typed by `register()`, which reads every non-method field of a
+registered DTO as a column only because registration rejects getters and plain
+fields; see [engine-bound DTOs](2026-09-24-ENGINE-BOUND-DTOS.md).
 
 ## Type-level architecture
 
@@ -641,8 +639,8 @@ all earlier tests and applicable repository gates are green at every commit.
 - Add the public type declarations and engine/per-call context generics.
 - Infer declared env, vars, native/expression functions, overloads, local
   overlays, projection row variables, and root-aware built-ins.
-- Keep functions synthesized only from `resourceDtos` opaque in the type layer;
-  retain their loaded analyzer checks and runtime dispatch tests.
+- Keep registered DTO functions typed only through `register()`; retain their
+  loaded analyzer checks and runtime dispatch tests.
 - Test literal capture, deliberately widened declarations, every merge/precedence
   route, the `CompiledExpression` result override, and old untyped calls.
 
@@ -702,7 +700,7 @@ The implementation is complete only when:
 | Parser prior art does not fit FHIRPath | Measured fused/AST spike, general precedence stack, explicit documented decision before implementation |
 | Scoping differs from runtime | Capability cases for nested frames, forked operands/arguments, variable lifetime, and local overlays |
 | Context literals widen before inference | Const-generic capture tests, documented `as const satisfies` path, opaque fallback after deliberate widening |
-| DTO columns appear statically enumerable when they are not | Keep `resourceDtos`-synthesized calls opaque; rely on loaded analyzer checks rather than guessing from instance fields |
+| DTO columns appear statically enumerable when they are not | Type registered calls only through `register()`, whose DTOs hold columns and methods only; rely on loaded analyzer checks otherwise |
 | Shared-rule refactor slows runtime | Same-machine five-run before/after benchmark plus contextual pinned Rust comparison |
 | Typed host declarations overpromise actual values | Declarations constrain supplied TypeScript values where possible; unsigned/dynamic data stays opaque |
 | One implementation PR becomes hard to review | Six ordered green commits, generated capability summary, and explicit budget/precision diffs per commit |

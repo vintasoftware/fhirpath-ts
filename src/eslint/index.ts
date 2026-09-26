@@ -13,15 +13,16 @@ import {
   columnFunctionDeclaration,
   constructsEngine,
   declaredColumnOverloads,
-  DTO_BASE_NAME,
+  derivesEngine,
+  DTO_BASE_NAMES,
   dtoClassesOf,
-  dtoClassOf,
   type ExpressionAst,
   type FileColumnFunction,
   isCheckedCall,
   isCheckedTag,
   isForeignModule,
   type LocalModuleOptions,
+  REGISTER_NAME,
   type SiteContext,
   type SourceBindings,
   TAG_NAME,
@@ -145,31 +146,52 @@ function heritageOf(node: ESTree.ClassDeclaration | ESTree.ClassExpression): Cla
 /** Reads one `extends` expression, or what a factory returns, for `dtoClassesOf`. */
 function heritageOfBase(name: string | undefined, base: ESTree.Expression | null | undefined): ClassHeritage {
   const callee = base?.type === 'CallExpression' ? base.callee : undefined
-  const extendsDefineDto = callee !== undefined && nameOf(callee) === DTO_BASE_NAME
-  const rootArgument = extendsDefineDto && base?.type === 'CallExpression' ? base.arguments[0] : undefined
+  const extendsDtoBase = callee?.type === 'MemberExpression' && DTO_BASE_NAMES.has(nameOf(callee) ?? '')
+  const rootArgument = extendsDtoBase && base?.type === 'CallExpression' ? base.arguments[0] : undefined
   return {
     name,
-    extendsDefineDto,
-    defineDtoNamespace: extendsDefineDto && callee?.type === 'MemberExpression' ? receiverRoot(callee) : undefined,
+    extendsDtoBase,
+    dtoBaseReceiver: extendsDtoBase ? receiverRoot(callee) : undefined,
     ownRoot: rootArgument === undefined ? undefined : estreeAst.string(rootArgument)?.expression,
     baseName: base?.type === 'Identifier' ? base.name : undefined,
-    baseCall: !extendsDefineDto && callee?.type === 'Identifier' ? callee.name : undefined,
+    baseCall: callee?.type === 'Identifier' ? callee.name : undefined,
     extendsOther:
       base !== null &&
       base !== undefined &&
-      !extendsDefineDto &&
+      !extendsDtoBase &&
       base.type !== 'Identifier' &&
       callee?.type !== 'Identifier',
   }
 }
 
+/**
+ * Strips TypeScript wrappers that keep an expression's runtime identity (`as`,
+ * `satisfies`, `!`, `<T>x`), as the TypeScript walker does. The TypeScript ESLint
+ * parser adds these node kinds, which ESTree's types do not list.
+ */
+function unwrapped(node: ESTree.Node | null | undefined): ESTree.Node | undefined {
+  let current = node ?? undefined
+  while (current !== undefined && TYPESCRIPT_WRAPPERS.has((current as { type: string }).type)) {
+    current = (current as unknown as { expression: ESTree.Node }).expression
+  }
+  return current
+}
+
+const TYPESCRIPT_WRAPPERS: ReadonlySet<string> = new Set([
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSTypeAssertion',
+])
+
 /** What a function named `name` returns, when that is a class, a class name, or a class-building call. */
 function factoryOf(name: string, body: ESTree.BlockStatement | ESTree.Expression): ClassFactory | undefined {
-  const returned =
+  const returned = unwrapped(
     body.type === 'BlockStatement'
       ? body.body.find((statement): statement is ESTree.ReturnStatement => statement.type === 'ReturnStatement')
           ?.argument
       : body
+  )
   if (returned?.type === 'ClassExpression') {
     return { name, builds: heritageOf(returned) }
   }
@@ -229,7 +251,9 @@ const noInvalidExpressions: Rule.RuleModule = {
     const foreign = new Set<string>()
     const trusted = new Set<string>()
     const rebound = new Set<string>()
-    const engineLocals: { localName: string; className: string }[] = []
+    const relative = new Set<string>()
+    /** `new X()` locals, and `receiver.register(...)` locals that derive an engine. */
+    const engineLocals: ({ localName: string; className: string } | { localName: string; derivedFrom: string })[] = []
     const reboundFunction = (node: { id?: ESTree.Identifier | null | undefined; params: ESTree.Pattern[] }): void => {
       if (node.id) {
         rebound.add(node.id.name)
@@ -294,6 +318,9 @@ const noInvalidExpressions: Rule.RuleModule = {
         const names = isForeignModule(node.source.value, options) ? foreign : trusted
         for (const specifier of node.specifiers) {
           names.add(specifier.local.name)
+          if (node.source.value.startsWith('.')) {
+            relative.add(specifier.local.name)
+          }
         }
       },
       VariableDeclarator(node) {
@@ -313,6 +340,14 @@ const noInvalidExpressions: Rule.RuleModule = {
           node.init.callee.type === 'Identifier'
         ) {
           engineLocals.push({ localName: node.id.name, className: node.init.callee.name })
+        } else if (
+          node.id.type === 'Identifier' &&
+          init?.type === 'CallExpression' &&
+          init.callee.type === 'MemberExpression' &&
+          nameOf(init.callee) === REGISTER_NAME &&
+          receiverRoot(init.callee) !== undefined
+        ) {
+          engineLocals.push({ localName: node.id.name, derivedFrom: receiverRoot(init.callee) as string })
         } else {
           addPatternNames(node.id, rebound)
         }
@@ -374,19 +409,23 @@ const noInvalidExpressions: Rule.RuleModule = {
         })
       },
       'Program:exit'() {
-        const bindings: SourceBindings = { foreign, trusted, rebound }
+        const bindings: SourceBindings = { foreign, trusted, rebound, relative }
         // All imports are known now; resolve engine locals in source order, like
         // the CLI walker. A `new` local of some other class is a re-binding.
-        for (const { localName, className } of engineLocals) {
-          if (constructsEngine(className, bindings)) {
-            trusted.add(localName)
+        for (const local of engineLocals) {
+          const isEngine =
+            'className' in local
+              ? constructsEngine(local.className, bindings)
+              : derivesEngine(REGISTER_NAME, local.derivedFrom, bindings)
+          if (isEngine) {
+            trusted.add(local.localName)
           } else {
-            rebound.add(localName)
+            rebound.add(local.localName)
           }
         }
         const dtoClasses = dtoClassesOf(classes, bindings, factories)
         const checked = calls.flatMap(call => {
-          const dto = dtoClassOf(call.enclosing, dtoClasses, bindings)
+          const dto = dtoClasses(call.enclosing)
           const evidence = call.field !== undefined && dto !== undefined ? { dtoField: true as const } : {}
           return isCheckedCall(call.policy, call.name, call.receiverRoot, bindings, evidence) ? [{ call, dto }] : []
         })
