@@ -8,6 +8,63 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+## 0.3.0 - 2026-09-26
+
+This release replaces the DTO API. DTOs from 0.2.x need to be rewritten; see
+[DTOs](docs/api.md#dtos) for the new API.
+
+### Changed
+
+- **Breaking:** DTO columns are class fields initialized with `this.column()` or
+  `this.criteria()` instead of decorated properties. Each field's type is
+  inferred from its expression, the class `fhirType`, and the DTO's `env`,
+  `vars`, and `callerEnv`. A declared field type is checked against the
+  inferred type.
+- **Breaking:** DTOs and views are defined on an engine with
+  `engine.defineDto()` and `engine.defineView()`. `defineDto()` is for DTOs meant
+  for registration (columns and methods only). `defineView()` is for projected
+  rows, which may also hold getters, plain fields, and `as`/`choices`
+  conversions.
+- **Breaking:** `engine.register(...dtos)` returns a new engine and leaves the
+  original unchanged. Registered columns are typed expression functions in
+  engine calls and in the columns of DTOs and views defined on the new engine.
+  `register()` accepts only DTOs defined on that engine or on an engine it was
+  derived from.
+- **Breaking:** DTO `env` moves into the `defineDto()`/`defineView()` options.
+  A name in both `env` and `callerEnv`, or a `callerEnv` name the engine's env
+  binds, is rejected.
+- **Breaking:** DTO `vars` win over per-call vars, matching `env`.
+- Column bodies see the engine's env and typed host functions, and always call
+  the functions their types were inferred from, whatever per-call options are
+  passed.
+- `analyzeDto()` and `fhirpath-check` check each DTO against its own engine
+  instead of against the merged context of every discovered engine.
+- The ESLint rule and the TypeScript site walker read columns in classes that
+  extend `<engine>.defineDto/defineView(...)`, including through same-file base
+  classes, factory functions, imported engines, and engines derived with
+  `register()`.
+- DTOs no longer use decorators, so they compile with any TypeScript or
+  JavaScript toolchain.
+
+### Added
+
+- Added the `DtoBaseClass`, `ViewBaseClass`, `DtoColumnOptions`, `DtoContext`,
+  `DtoFunctions`, `DtoKind`, `RegisteredDtoClass`, `RegisteredOptions`, and
+  `EngineDtoContext` types.
+
+### Removed
+
+- **Breaking:** Removed the standalone `defineDto()`, `column`, and `criteria`
+  exports; `static env`; the `resourceDtos` engine option; and the `DtoEnv`,
+  `DtoInstance`, and `ColumnTypeMismatch` types.
+
+### Fixed
+
+- Fixed type inference returning `never` for an expression that calls a host
+  function with no body or result type; it now returns `unknown[]`.
+- Fixed `analyzeDto()` reporting false errors when a DTO's env or vars shared a
+  name with a typed engine variable.
+
 ## 0.2.3 - 2026-09-21
 
 ### Fixed
