@@ -11,8 +11,8 @@ repository, converted to JSON offline, and run with Vitest.
 
 | Suite | Passing | Skipped with a reason | Failing |
 | --- | ---: | ---: | ---: |
-| R4 (`tests-fhir-r4.xml`) | 928 | 7 | 0 |
-| R5 (`tests-fhir-r5.xml`) | 1,032 | 19 | 0 |
+| R4 (`tests-fhir-r4.xml`) | 941 | 6 | 0 |
+| R5 (`tests-fhir-r5.xml`) | 1,056 | 19 | 0 |
 
 Every non-skipped official case passes.
 
