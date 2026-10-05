@@ -658,7 +658,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     reference: {
       kind: 'official',
       suite: 'r5',
-      groupIndex: 62,
+      groupIndex: 63,
       testIndex: 5,
     },
   },
@@ -675,7 +675,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     reference: {
       kind: 'official',
       suite: 'r5',
-      groupIndex: 63,
+      groupIndex: 64,
       testIndex: 4,
     },
   },

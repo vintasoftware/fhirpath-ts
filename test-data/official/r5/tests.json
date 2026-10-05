@@ -5839,6 +5839,28 @@
           }
         ],
         "inputfile": "observation-example.xml"
+      },
+      {
+        "name": "testEquality29",
+        "expression": "name.first() = 'Peter'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality30",
+        "expression": "'Peter' = name.first()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -6093,8 +6115,69 @@
           }
         ],
         "inputfile": "observation-example.xml"
+      },
+      {
+        "name": "testNEquality25",
+        "expression": "name.first() != 'Peter'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testNEquality26",
+        "expression": "'Peter' != name.first()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
+  },
+  {
+    "name": "testHasValue",
+    "tests": [
+      {
+        "name": "testHasValue1",
+        "expression": "name.first().given.first().hasValue()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testHasValue2",
+        "expression": "name.first().hasValue()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testHasValue3",
+        "expression": "name.first().given.first().hasValue() and name.first() != 'Peter'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      }
+    ],
+    "description": "hasValue() is true only for a primitive with a value"
   },
   {
     "name": "testEquivalent",
