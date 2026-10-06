@@ -183,8 +183,23 @@ stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitut
   if (pattern === '') {
     return str(value)
   }
-  return str(compilePattern('replaceMatches', context, pattern, 'gs').replace(value, substitution))
+  return str(compilePattern('replaceMatches', context, pattern, 'gs').replace(value, jsSubstitution(substitution)))
 })
+
+/**
+ * Rewrites PCRE-style group references into String.prototype.replace syntax:
+ * `${name}` becomes `$<name>` and `${n}` becomes `$nn`. The spec's
+ * replaceMatches() example uses `${name}`, and the spec recommends PCRE. `$$`
+ * stays an escaped dollar sign, so `$${name}` remains literal text.
+ */
+function jsSubstitution(substitution: string): string {
+  return substitution.replace(/\$\$|\$\{(?:([A-Za-z_]\w*)|(\d{1,2}))\}/g, (token, name?: string, index?: string) => {
+    if (name !== undefined) {
+      return `$<${name}>`
+    }
+    return index === undefined ? token : `$${index.padStart(2, '0')}`
+  })
+}
 
 stringFunction('length', { min: 0, max: 0 }, value => int(value.length))
 

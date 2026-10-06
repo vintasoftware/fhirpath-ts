@@ -8,6 +8,12 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+### Fixed
+
+- Fixed `replaceMatches()` to substitute PCRE-style group references such as
+  `${day}` and `${1}`, as in the specification's example. A custom `regex`
+  engine receives them rewritten to `$<day>` and `$01`.
+
 ## 0.3.0 - 2026-09-26
 
 This release replaces the DTO API. DTOs from 0.2.x need to be rewritten; see
