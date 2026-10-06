@@ -698,10 +698,13 @@ ProblemRow.from(condition) // ProblemRow { id, lastUpdated, status }; the input 
 ```
 
 The subclass extends the base class: it inherits the base's columns, methods,
-and getters, and a redeclared column overrides. The base's `env`, `vars`, and
-`callerEnv` sit under the subclass's own, which win on a name clash, and the
-subclass's columns are inferred in the merged context. A required column of the
-base is required by every subclass.
+and getters, and a redeclared column overrides. It also inherits the base's
+`env`, `vars`, and `callerEnv`, and its own columns are inferred in the merged
+context. A name the base binds cannot be rebound, because the inherited columns
+were typed against the base's binding. A required column of the base is
+required by every subclass. `analyzeDto()` checks an inherited column against
+the root it was written for, so a column that dispatches on the resource type
+stays valid on every subclass.
 
 The rules: a DTO takes a DTO as base, a view takes a DTO or a view; the base root
 is the root itself or one of its model base types (without a model, only the
@@ -742,7 +745,8 @@ including `unknown` and `{ resourceType: string }`. A datatype root such as
 input.
 
 A Bundle is accepted as a whole, so its entries are checked only at runtime: each
-entry resource must carry the DTO's `fhirType`, or `project()` throws. A value
+entry resource must carry the DTO's `fhirType` or a type deriving from it in the
+model, or `project()` throws. A value
 that is not an object, or has no `resourceType`, is rejected the same way. To
 project one resource type out of a mixed search Bundle, read the entries with
 `ofType()`, which infers the resource type:

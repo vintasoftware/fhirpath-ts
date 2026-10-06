@@ -245,16 +245,20 @@ rules together; each protects the types:
   resource.
 - A `base` (`docs/adr/0002`) is real class inheritance: `createDtoBase` extends
   the base class, so the base's field initializers run under the subclass's
-  collection and its methods and getters are inherited; `baseDefinition` merges
-  the base's env, vars, and caller environment under the subclass's own. The
-  merged definition analyzes, projects, and registers every column on the
-  subclass root, which is the focus the columns run on. `base` sits in
-  `DtoBaseOptions`, outside `DtoOptions`, and `defineDto()`/`defineView()` have
-  a base overload and a plain one: a function forwarding generic `DtoOptions`
-  must resolve to a base class with statically known members, which a
-  conditional over an unresolved type parameter is not. The base's context and
-  kind travel as type-only statics (`dtoContext`, `dtoKind`) on the class the
-  engine returns, because instance-side members would become row keys.
+  collection and its methods and getters are inherited; `baseDefinition` adds
+  the base's env, vars, and caller environment to the subclass's own and
+  refuses a name the base already binds, because the inherited columns' types
+  came from the base's binding while the runtime would read the subclass's.
+  Projection and registration run every column on the subclass root; analysis
+  checks a column inherited unchanged on the root it was written for
+  (`DtoDefinition.columnRoots`, found from the collection order: the base's
+  markers come first). `base` sits in `DtoBaseOptions`, outside `DtoOptions`,
+  and `defineDto()`/`defineView()` have a base overload and a plain one: a
+  function forwarding generic `DtoOptions` must resolve to a base class with
+  statically known members, which a conditional over an unresolved type
+  parameter is not. The base's context and kind travel under a type-only
+  symbol-keyed static on the class the engine returns, because instance-side
+  members would become row keys and a named static would read as a value.
 - A field's TypeScript type maps back to the union of every FHIR type with that
   TypeScript form (`TypeNamesOf`). Naming one type would let `ofType()` infer
   empty where the runtime returns a value. A member no FHIR type represents

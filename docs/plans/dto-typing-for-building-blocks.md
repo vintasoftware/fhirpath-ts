@@ -77,8 +77,11 @@ are recorded in [docs/adr](../adr).
    view takes a DTO or a view. See
    [ADR 0002](../adr/0002-base-is-a-dto-kind-follows-subclass.md). Rules:
    - any model supertype qualifies, including the same type (plain composition);
-   - base `env`, `vars`, and `callerEnv` sit under the subclass's own, which win
-     on a name clash; a redeclared column overrides, as today;
+   - base `env`, `vars`, and `callerEnv` are inherited; a subclass cannot rebind
+     a name the base binds (settled 2026-10-06 in review: the original
+     "subclass wins" clause gave inherited columns a type from the base's
+     binding and a value from the subclass's); a redeclared column overrides,
+     as today;
    - the runtime input check becomes subtype-aware: a `Resource` DTO accepts any
      resource, a `DomainResource` DTO any domain resource; the input type is the
      union of matching resource names;
@@ -146,11 +149,9 @@ Independent, one per layer. Each runs the AGENTS.md required checks plus
   env, vars, callerEnv; kind rule at the type level and in `baseDefinition`;
   subtype-aware `assertInputMatchesDto` through the model's base map;
   `SubtypesOf<Root>` for the input type of an ancestor root.
-- `src/analyzer/analyze-dto.ts`: inherited columns are analyzed on the subclass
-  root. That is the focus they run on when the subclass is projected or
-  registered, and a subtype carries every element of its base, so the check is
-  the same or stricter than on the base root. (Implemented this way; the base
-  root was the original wording.)
+- `src/analyzer/analyze-dto.ts`: a column inherited unchanged is analyzed on
+  the root it was written for, so a base column that dispatches on the resource
+  type does not become an always-empty warning on every subclass.
 - Walkers: `dtoClassesOf` still matches (`extends engine.defineDto(...)`); add a
   `base:` corpus entry to `src/analyzer/expression-policy.test.ts`.
 - Docs: `docs/api.md` (replaces the `keyedRow` factory recipe; `ViewBaseClass`

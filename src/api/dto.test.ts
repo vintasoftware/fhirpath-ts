@@ -754,36 +754,108 @@ describe('base DTOs', () => {
     )
   })
 
-  it("the base's env, vars, and callerEnv sit under the subclass's own, which win", () => {
+  it("the subclass inherits the base's env, vars, and callerEnv, and adds its own", () => {
     class Labelled extends r4.defineView('Resource', {
-      env: { label: 'base', tag: 'base-tag' },
-      callerEnv: ['site'],
+      env: { tag: 'base-tag' },
+      callerEnv: { site: { type: 'string' } },
       vars: { key: 'id' },
     }) {
-      label = this.column('%label')
-
       tag = this.column('%tag')
 
-      site = this.column('%site', { type: 'string' })
+      site = this.column('%site')
 
       key = this.column('%key', { type: 'string' })
     }
     class PatientRow extends r4.defineView('Patient', {
       base: Labelled,
       env: { label: 'patient' },
-      vars: { key: "id & '!'" },
+      callerEnv: ['unit'],
+      vars: { suffix: "'!'" },
     }) {
-      own = this.column('%label & %tag')
+      own = this.column('%label & %tag & %suffix')
+
+      unit = this.column('%unit', { type: 'string' })
     }
-    expect(dtoDefinition(PatientRow).env).toEqual({ label: 'patient', tag: 'base-tag' })
-    expect(dtoDefinition(PatientRow).callerEnvNames).toEqual(['site'])
-    // The subclass's columns are inferred in the merged context.
+    expect(dtoDefinition(PatientRow).env).toEqual({ tag: 'base-tag', label: 'patient' })
+    expect(dtoDefinition(PatientRow).callerEnvNames).toEqual(['site', 'unit'])
+    expect(dtoDefinition(PatientRow).callerEnvTypes).toEqual({ site: { type: 'string' } })
+    expect(Object.keys(dtoDefinition(PatientRow).vars ?? {})).toEqual(['key', 'suffix'])
+    // The subclass's columns are inferred in the merged context; the inherited
+    // ones keep the types they were inferred with.
     expectTypeOf(new PatientRow().own).toEqualTypeOf<string | undefined>()
     expectTypeOf(new PatientRow().tag).toEqualTypeOf<string | undefined>()
-    expect(PatientRow.from({ resourceType: 'Patient', id: 'p1' }, { env: { site: 'here' } })).toEqual(
-      expect.objectContaining({ label: 'patient', tag: 'base-tag', site: 'here', key: 'p1!', own: 'patientbase-tag' })
+    expectTypeOf(new PatientRow().site).toEqualTypeOf<string | undefined>()
+    expect(PatientRow.from({ resourceType: 'Patient', id: 'p1' }, { env: { site: 'here', unit: 'kg' } })).toEqual(
+      expect.objectContaining({ tag: 'base-tag', site: 'here', key: 'p1', own: 'patientbase-tag!', unit: 'kg' })
     )
     expect(analyzeDto(PatientRow)).toEqual([])
+  })
+
+  it('a subclass cannot rebind a name its base binds, since inherited columns were typed against it', () => {
+    class Labelled extends r4.defineView('Resource', {
+      env: { count: 1 },
+      callerEnv: { site: { type: 'string' } },
+      vars: { key: 'id' },
+    }) {
+      count = this.column('%count')
+
+      site = this.column('%site')
+
+      key = this.column('%key', { type: 'string' })
+    }
+    expectTypeOf(new Labelled().count).toEqualTypeOf<number | undefined>()
+    // @ts-expect-error -- `count` is the base's env, typed number in its columns
+    expect(() => r4.defineView('Patient', { base: Labelled, env: { count: 'text' } })).toThrow(
+      "defineView('Patient'): 'count' is bound by the base's env, vars, or callerEnv; the inherited columns were typed against it, so a subclass cannot rebind it"
+    )
+    // @ts-expect-error -- `key` is the base's var
+    expect(() => r4.defineView('Patient', { base: Labelled, vars: { key: 'name.family.first()' } })).toThrow(
+      "defineView('Patient'): 'key' is bound by the base's env, vars, or callerEnv; the inherited columns were typed against it, so a subclass cannot rebind it"
+    )
+    // @ts-expect-error -- `site` is the base's caller environment
+    expect(() => r4.defineView('Patient', { base: Labelled, callerEnv: { site: { type: 'integer' } } })).toThrow(
+      "defineView('Patient'): 'site' is bound by the base's env, vars, or callerEnv; the inherited columns were typed against it, so a subclass cannot rebind it"
+    )
+    // A caller environment name is a binding too, whichever side declares it as one.
+    // @ts-expect-error -- `count` is the base's env
+    expect(() => r4.defineView('Patient', { base: Labelled, callerEnv: ['count'] })).toThrow(
+      "defineView('Patient'): 'count' is bound by the base's env, vars, or callerEnv; the inherited columns were typed against it, so a subclass cannot rebind it"
+    )
+    // Either spelling names the same binding.
+    // @ts-expect-error -- `%count` is `count`
+    expect(() => r4.defineView('Patient', { base: Labelled, env: { '%count': 2 } })).toThrow(/'count' is bound/)
+  })
+
+  it('an inherited column is checked on the root it was written for', () => {
+    class Dispatching extends r4.defineDto('Resource') {
+      family = this.column('ofType(Patient).name.family.first()')
+
+      id = this.column('id')
+    }
+    class ConditionDto extends r4.defineDto('Condition', { base: Dispatching }) {
+      code = this.column('code.text')
+
+      // A redeclared column is this class's own and is checked on its root.
+      override id = this.column('id.first()')
+    }
+    expect(dtoDefinition(ConditionDto).columnRoots).toEqual({ family: 'Resource', id: 'Condition', code: 'Condition' })
+    expect(analyzeDto(Dispatching)).toEqual([])
+    expect(analyzeDto(ConditionDto)).toEqual([])
+    // Written on the subclass itself, the same dispatch is always empty there.
+    class Narrowed extends r4.defineDto('Condition', { base: Dispatching }) {
+      override family = this.column('ofType(Patient).name.family.first()', { type: 'string' })
+    }
+    expect(analyzeDto(Narrowed).map(finding => [finding.member, finding.code])).toEqual([['family', 'always-empty']])
+    // Two levels keep the root of the class that wrote the column.
+    class Deeper extends r4.defineDto('Condition', { base: ConditionDto }) {
+      severity = this.column('severity.text')
+    }
+    expect(dtoDefinition(Deeper).columnRoots).toEqual({
+      family: 'Resource',
+      id: 'Condition',
+      code: 'Condition',
+      severity: 'Condition',
+    })
   })
 
   it('a redeclared column overrides the inherited one in place', () => {
