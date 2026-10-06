@@ -39,18 +39,34 @@ describe('narrativeSanitizer', () => {
   })
 
   it('keeps every element, attribute, and comment the FHIR rules allow', () => {
+    // An HTML parser drops table parts outside a table, so they share one table.
+    const table = div(
+      '<table><caption>c</caption><colgroup><col/></colgroup><thead><tr><th>h</th></tr></thead>' +
+        '<tbody><tr><td>t</td></tr></tbody><tfoot><tr><td>f</td></tr></tfoot></table>'
+    )
+    const tableParts = new Set(['table', 'caption', 'colgroup', 'col', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td'])
+    const elements = [...ALLOWED_ELEMENTS].map(name => ({
+      narrative: tableParts.has(name)
+        ? table
+        : ['br', 'hr', 'img'].includes(name)
+          ? div(`<${name}/>t`)
+          : div(`<${name}>t</${name}>`),
+      // DOMPurify always keeps tbody while table is allowed, so it cannot be forbidden.
+      forbid: name === 'tbody' ? undefined : { FORBID_TAGS: [name] },
+    }))
+    const attributes = [...ALLOWED_ATTRIBUTES]
+      .filter(name => name !== 'xmlns')
+      .map(name => ({ narrative: div(`<p ${name}="1">t</p>`), forbid: { FORBID_ATTR: [name] } }))
     const sanitizer = domPurifySanitizer(purify)
-    const narratives = [
-      ...[...ALLOWED_ELEMENTS].map(name =>
-        ['br', 'hr', 'img', 'col'].includes(name) ? div(`<${name}/>t`) : div(`<${name}>t</${name}>`)
-      ),
-      ...[...ALLOWED_ATTRIBUTES].filter(name => name !== 'xmlns').map(name => div(`<p ${name}="1">t</p>`)),
-      div('a<!-- note -->b'),
-    ]
-    for (const narrative of narratives) {
+    for (const { narrative, forbid } of [...elements, ...attributes]) {
       expect(validateNarrative(narrative), narrative).toBe(true)
       expect(sanitizer.accepts(narrative), narrative).toBe(true)
+      // Forbidding the item must fail the narrative, so DOMPurify really saw it.
+      if (forbid !== undefined) {
+        expect(domPurifySanitizer(purify, forbid).accepts(narrative), JSON.stringify(forbid)).toBe(false)
+      }
     }
+    expect(sanitizer.accepts(div('a<!-- note -->b'))).toBe(true)
     expect(sanitizer.accepts(div('a<!-- <img src="x" onerror="x()"/> -->b'))).toBe(false)
     expect(sanitizer.accepts(div('<img src="a.png" alt="" longdesc="javascript:x()"/>'))).toBe(false)
   })
