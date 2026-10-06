@@ -363,7 +363,8 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       "factory.yaml||%factory.withExtension(%factory.integer({}), 'someExt', 1).extension( 'someExt').value = 1",
       "factory.yaml||%factory.withProperty(%factory.integer(134, %factory.Extension( 'someExt1', 'someString')), 'id', 'someId').where(extension.value = 'someString').id = 'someId'",
     ],
-  },  {
+  },
+  {
     name: 'empty-operand-error',
     evidence:
       'Cases disabled upstream that expect an error for an empty operand. Spec \u00a76.6 returns empty when either operand is empty, and the same file expects [] for n1 + n4.',
