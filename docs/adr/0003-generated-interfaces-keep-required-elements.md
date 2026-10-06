@@ -9,23 +9,30 @@ the claim medplum and the FHIR specification make about conformant data.
 Inference results stay sound under that claim; a client that reads
 non-conformant data already has to validate it.
 
-The code unions follow the same rule as medplum's generator, because the
-target of the assignability is medplum's type: a `required` or `extensible`
-binding to a code system the bundled definitions enumerate becomes the union,
-with no size cap, and an element bound to the resource-types value set
-(`Reference.type`) becomes the union of resource names.
+The interfaces enumerate every `required` or `extensible` `code` binding the
+bundled definitions can list, with no size cap, and type `Reference.type` as
+the union of the concrete resource names. That is a superset of what medplum's
+generator enumerates (medplum leaves `DataRequirement.type`,
+`ParameterDefinition.type`, and the TestScript `resource` elements as
+`string`), so a generated value assigns to the medplum type. Inference claims
+less: a navigated code infers the union only for a required binding, since an
+extensible one admits other codes and medplum data puts its own resource names
+in `Reference.type`.
 
 ## Consequences
 
 - The interfaces also type the input of root-prefixed expressions through
   `FhirpathInput`, and declared host values through `envTypes`/`varTypes`.
-  Inputs stay lenient (`Lenient`): the root pin plus the resource with every
-  element optional and every code widened to `string`, so a fixture such as
-  `{ resourceType: 'Observation' }` still compiles for
-  `r4.evaluate('Observation.status', ...)`, a misspelled property is still
-  rejected, and a medplum value whose `Reference.type` names a medplum-only
-  resource is still accepted. Only results carry the required elements and the
-  code unions.
+  Inputs stay lenient (`Lenient`, one rule for every input site through
+  `InputOf`): the root pin plus the resource with every element optional, so a
+  fixture such as `{ resourceType: 'Observation' }` still compiles for
+  `r4.evaluate('Observation.status', ...)` and a misspelled property is still
+  rejected. A code keeps its union on input, so a misspelled status is rejected
+  too; only a code set that names model types (`Reference.type`,
+  `DataRequirement.type`) widens to `string`, which is what admits a medplum
+  value whose `Reference.type` names a medplum-only resource and medplum's
+  `string` for the broad lists.
+  Only results carry the required elements.
 - Datatypes assign to the medplum types without a cast. Whole resources do not:
   `contained` and `Bundle.entry.resource` stay `{ resourceType: string }` here,
   while medplum's `Resource` is a closed union that also names medplum's own

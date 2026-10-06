@@ -71,14 +71,16 @@ erases the whole result (`HostBodySource` did this for host functions without a
 body or result type).
 
 The generated `R4Elements` map is type-only. It carries `codes`, the code set
-of an enumerated binding (required or extensible, plus the resource-types value
-set; the rule medplum's generator uses), next to `t` and `a`; `NavigateCore`
-attaches it as the literal carrier and `PublicResult` returns it. The runtime
-tables and `R4TypeOf['code']` stay `string`. The generated interfaces require
-elements with FHIR minimum cardinality 1 (`docs/adr/0003`); every input type
-derived from them (`FhirpathInput`, declared host values) goes through
-`Lenient`, which makes elements optional and codes `string` while keeping
-`resourceType` literals, so only results carry the requirement and the unions.
+of a required binding, next to `t` and `a`; `NavigateCore` attaches it as the
+literal carrier and `PublicResult` returns it. The interfaces also enumerate
+extensible bindings and `Reference.type` (a superset of medplum's
+enumerations, for assignability), but those admit other codes, so they get no
+`codes` and infer `string`. The runtime tables and `R4TypeOf['code']` stay
+`string`. The generated interfaces require elements with FHIR minimum
+cardinality 1 (`docs/adr/0003`); every input site (`FhirpathInput`, the
+declared-root forms, declared host values, required-column leaves) goes through
+`InputOf`, the one lenient rule: elements optional, codes kept, a code set that
+names model types widened to `string`, the root pinned by `LenientResource`.
 
 Normalize host declaration names through `src/typed/context-maps.ts`. Per-call
 declarations override engine defaults, matching runtime option merging.

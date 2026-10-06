@@ -12,18 +12,21 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 - **Breaking:** the generated R4 interfaces require the elements FHIR marks as
   required (minimum cardinality 1) and enumerate every required or extensible
-  code binding the bundled definitions can, as `@medplum/fhirtypes` does, so a
-  datatype result such as an `Extension`, `Address`, or `Quantity` is
-  assignable to the Medplum type without a cast. A value constructed by hand as
-  a generated type now needs its required elements. Inputs stay lenient:
-  `FhirpathInput` and declared host values are the `resourceType` pin plus the
-  resource with every element optional and every code a `string`, so
+  code binding the bundled definitions can, a superset of what
+  `@medplum/fhirtypes` enumerates, so a datatype result such as an `Extension`,
+  `Address`, or `Quantity` is assignable to the Medplum type without a cast. A
+  value constructed by hand as a generated type now needs its required
+  elements. Inputs stay lenient: `FhirpathInput`, the declared-root forms of
+  `compile()` and `fhirpath()`, and declared host values are the
+  `resourceType` pin plus the resource with every element optional, so
   `r4.evaluate('Observation.status', { resourceType: 'Observation' })` keeps
-  compiling, a misspelled property is still rejected, and a Medplum resource is
-  still accepted.
-- Inference returns the code union of an enumerated binding: `Observation.status`
+  compiling. A misspelled property or code is still rejected; a code set that
+  names model types, such as `Reference.type`, accepts any string, so a Medplum
+  resource is still accepted.
+- Inference returns the code union of a required binding: `Observation.status`
   infers `('registered' | 'preliminary' | ...)[]` instead of `string[]`, in
-  engine calls, DTO columns, and declared environment values. Runtime data is
+  engine calls, DTO columns, and declared environment values. An extensible
+  binding such as `Reference.type` keeps inferring `string`. Runtime data is
   unchanged.
 - Type inference keeps string literal text: `'a' | 'b'`, `iif(c, 'a', 'b')`,
   `combine()`, `union()`, and `coalesce()` over literals infer the literal

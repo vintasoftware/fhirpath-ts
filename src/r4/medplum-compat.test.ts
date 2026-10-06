@@ -1,5 +1,8 @@
 import type {
   Address as MedplumAddress,
+  AuditEvent as MedplumAuditEvent,
+  Bundle as MedplumBundle,
+  ExampleScenario as MedplumExampleScenario,
   Extension as MedplumExtension,
   Goal as MedplumGoal,
   HumanName as MedplumHumanName,
@@ -7,6 +10,7 @@ import type {
   Patient as MedplumPatient,
   Quantity as MedplumQuantity,
   QuestionnaireItem as MedplumQuestionnaireItem,
+  SearchParameter as MedplumSearchParameter,
 } from '@medplum/fhirtypes'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
@@ -21,6 +25,7 @@ import type {
   Patient,
   Quantity,
   QuestionnaireItem,
+  SearchParameter,
 } from './generated/type-maps.ts'
 import { r4Model } from './index.ts'
 
@@ -79,9 +84,20 @@ describe('Medplum (@medplum/fhirtypes) structural compatibility', () => {
     expectTypeOf<Patient>().not.toExtend<MedplumPatient>()
     // The other way round, a Medplum value names those resources in
     // `Reference.type`, so it enters through the lenient input type, which
-    // widens every code to string, not through the generated interface.
+    // widens a code set that names model types to string, not through the
+    // generated interface. The input keeps every other code union.
     expectTypeOf<MedplumExtension>().not.toExtend<Extension>()
     expectTypeOf<MedplumPatient>().toExtend<LenientResource<'Patient'>>()
+    expectTypeOf<MedplumObservation>().toExtend<LenientResource<'Observation'>>()
+    expectTypeOf<MedplumAuditEvent>().toExtend<LenientResource<'AuditEvent'>>()
+    expectTypeOf<MedplumBundle>().toExtend<LenientResource<'Bundle'>>()
+    expectTypeOf<MedplumSearchParameter>().toExtend<LenientResource<'SearchParameter'>>()
+    // ExampleScenario.instance.resourceType is a code bound to the resource
+    // names, not a resource's own pin, so it widens like Reference.type.
+    expectTypeOf<MedplumExampleScenario>().toExtend<LenientResource<'ExampleScenario'>>()
+    // A required binding to the resource names keeps the abstract names the
+    // spec's own search parameters and operations use.
+    expectTypeOf<'Resource' | 'DomainResource'>().toExtend<SearchParameter['base'][number]>()
   })
 
   it('accepts a raw Medplum resource against the default inferred input, no cast', () => {
