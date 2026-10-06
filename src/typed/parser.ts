@@ -2066,9 +2066,14 @@ type NavigateCore<Input extends InferenceState, Element extends string> =
             ? [Information] extends [never]
               ? UnknownState
               : Information extends { t: infer Types extends string }
-                ? [LocalTypeName<Types>, ReferenceTargets<Input[0], Element, Types>]
+                ? [LocalTypeName<Types>, ReferenceTargets<Input[0], Element, Types>] & ElementLiterals<Information>
                 : OpaqueState
             : OpaqueState
+
+/** The required-binding codes of a navigated element, as the literal carrier; nothing for other elements. */
+type ElementLiterals<Information> = Information extends { codes: infer Codes extends string }
+  ? LiteralCarrier<Codes>
+  : unknown
 
 type NavigateHostValue<Value, Element extends string> = Value extends Value
   ? Element extends keyof Value

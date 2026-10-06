@@ -5,6 +5,7 @@ import type {
   Appointment,
   Bundle,
   Condition,
+  DiagnosticReport,
   Observation,
   Organization,
   Patient,
@@ -113,15 +114,15 @@ describe('DTO projection', () => {
       last = this.criteria('%rowIndex = %rowTotal - 1')
     }
     const row = new OrderRow()
-    expectTypeOf(row.reportStatus).toEqualTypeOf<string>()
+    expectTypeOf(row.reportStatus).toEqualTypeOf<DiagnosticReport['status'] | 'waiting'>()
     expectTypeOf(row.reportIssued).toEqualTypeOf<string | undefined>()
     expectTypeOf(row.tone).toEqualTypeOf<string | undefined>()
     expectTypeOf(row.label).toEqualTypeOf<string | undefined>()
     expectTypeOf(row.position).toEqualTypeOf<number>()
     expectTypeOf(row.last).toEqualTypeOf<boolean>()
     const orders: ServiceRequest[] = [
-      { resourceType: 'ServiceRequest', id: 'sr1', status: 'active', intent: 'order' },
-      { resourceType: 'ServiceRequest', id: 'sr2', status: 'draft', intent: 'order' },
+      { resourceType: 'ServiceRequest', id: 'sr1', status: 'active', intent: 'order', subject: {} },
+      { resourceType: 'ServiceRequest', id: 'sr2', status: 'draft', intent: 'order', subject: {} },
     ]
     const reports = [
       {
@@ -301,8 +302,8 @@ describe('DTO projection', () => {
       reportStatus = this.column('%report.status', { type: 'string', default: 'waiting' })
     }
     const orders: ServiceRequest[] = [
-      { resourceType: 'ServiceRequest', id: 'sr1', status: 'active', intent: 'order' },
-      { resourceType: 'ServiceRequest', id: 'sr2', status: 'active', intent: 'order' },
+      { resourceType: 'ServiceRequest', id: 'sr1', status: 'active', intent: 'order', subject: {} },
+      { resourceType: 'ServiceRequest', id: 'sr2', status: 'active', intent: 'order', subject: {} },
     ]
     const reports = [{ orderId: 'sr1', report: { resourceType: 'DiagnosticReport', id: 'dr1', status: 'final' } }]
     expect(r4.project(orders, OrderRow, { env: { reports } })).toEqual([
@@ -642,12 +643,13 @@ describe('DTO projection', () => {
     class Derived extends Base {
       override code = this.column("code.text & ' (weight)'", { type: 'string' })
 
-      // A plain value replaces the column: it is no longer projected.
-      override status = 'fixed'
+      // A plain value replaces the column: it is no longer projected. The
+      // column's type is the status code union, so the value is one of them.
+      override status = 'amended' as const
     }
     expect(Object.keys(dtoDefinition(Derived).columns)).toEqual(['code'])
     expect(r4.project(weighed, Derived)).toEqual(
-      expect.objectContaining({ status: 'fixed', code: 'Weight (weight)', unit: 'kg' })
+      expect.objectContaining({ status: 'amended', code: 'Weight (weight)', unit: 'kg' })
     )
     // The base class keeps its own columns.
     expect(Object.keys(dtoDefinition(Base).columns)).toEqual(['status', 'code'])
@@ -748,10 +750,12 @@ describe('engines, registration, and typed column calls', () => {
     expectTypeOf(new TableDto().tone).toEqualTypeOf<unknown>()
     expectTypeOf(fp.evaluate('Observation.tone()', weighed)).toEqualTypeOf<unknown[]>()
     // A field whose value, or one member of it, no FHIR type represents
-    // declares no result: dropping that member would narrow the call.
+    // declares no result: dropping that member would narrow the call. The
+    // shape must be one no FHIR type has: `{ label: string }` alone is
+    // ElementDefinition.example.
     type Synthetic = (new () => DtoBase<'Observation', object, 'dto'> & {
-      badge: { label: string } | undefined
-      mixed: string | { label: string }
+      badge: { badgeLabel: string } | undefined
+      mixed: string | { badgeLabel: string }
       codes: string[]
     }) & { readonly fhirType: 'Observation' }
     type Opaque = {

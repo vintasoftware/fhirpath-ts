@@ -20,6 +20,7 @@ const CHECK = process.argv.includes('--check')
 interface ElementDefinition {
   path: string
   sliceName?: string
+  min?: number
   max?: string
   contentReference?: string
   type?: { code: string; targetProfile?: string[] }[]
@@ -81,24 +82,31 @@ interface RequiredCodeIndex {
  * (e.g. Patient.gender) into literal string unions instead of plain `string`.
  */
 function loadRequiredCodeIndex(): RequiredCodeIndex {
-  const bundle = readJson('fhir/r4/valuesets.json') as TerminologyBundle
   const codeSystems = new Map<string, CodeSystemResource>()
   const valueSets = new Map<string, ValueSetResource>()
-  for (const { resource } of bundle.entry) {
-    if (resource.resourceType === 'CodeSystem' && resource.url !== undefined) {
-      codeSystems.set(resource.url, resource)
-    } else if (resource.resourceType === 'ValueSet' && resource.url !== undefined) {
-      valueSets.set(resource.url, resource)
+  // valuesets-medplum-generated.json holds the complete code systems FHIR only
+  // references, such as ISO 4217 currencies; `@medplum/fhirtypes` enumerates
+  // them, so the unions here match it code-for-code.
+  for (const file of ['fhir/r4/valuesets.json', 'fhir/r4/valuesets-medplum-generated.json']) {
+    const bundle = readJson(file) as TerminologyBundle
+    for (const { resource } of bundle.entry) {
+      if (resource.resourceType === 'CodeSystem' && resource.url !== undefined) {
+        codeSystems.set(resource.url, resource)
+      } else if (resource.resourceType === 'ValueSet' && resource.url !== undefined) {
+        valueSets.set(resource.url, resource)
+      }
     }
   }
   return { codeSystems, valueSets }
 }
 
 /**
- * Maximum generated literal-union size. Domain code sets end at 31 entries;
- * broad metadata lists begin at 148 and remain plain strings.
+ * Maximum generated literal-union size. Every required binding to a complete
+ * code system is emitted, as `@medplum/fhirtypes` does, so a generated value
+ * assigns to the Medplum type; the broad lists (currencies, all types) are a
+ * few hundred members and only cost when navigated.
  */
-const MAX_UNION_SIZE = 40
+const MAX_UNION_SIZE = 1000
 
 /**
  * Every code in a CodeSystem concept tree. R4 nests narrower codes under
@@ -141,37 +149,66 @@ function resolveRequiredCodes(valueSetUrl: string, index: RequiredCodeIndex): st
   return codes.length > 0 && codes.length <= MAX_UNION_SIZE ? codes : undefined
 }
 
-/** The literal union codes for an element, or undefined if it isn't eligible (see resolveRequiredCodes). */
+const RESOURCE_TYPES_VALUE_SET = 'http://hl7.org/fhir/ValueSet/resource-types'
+
+/**
+ * The literal union codes for an element, or undefined if it isn't eligible
+ * (see resolveRequiredCodes). An element bound to the resource-types value set,
+ * such as `Reference.type` (extensible, a uri) or `SearchParameter.base`
+ * (required), is the union of the resource names whatever its strength and
+ * size: that is how `@medplum/fhirtypes` types it, so a generated value is
+ * assignable to the Medplum type.
+ */
 function requiredCodeUnionFor(
   element: ElementDefinition,
   elementTypes: string[],
   isChoice: boolean,
-  codeIndex: RequiredCodeIndex
+  codeIndex: RequiredCodeIndex,
+  resourceNames: readonly string[]
 ): string[] | undefined {
-  if (isChoice || element.binding?.strength !== 'required' || element.binding.valueSet === undefined) {
+  const valueSet = element.binding?.valueSet?.replace(/\|.*$/, '')
+  if (isChoice || valueSet === undefined || elementTypes.length !== 1) {
     return undefined
   }
-  if (elementTypes.length !== 1 || elementTypes[0] !== 'code') {
+  if (valueSet === RESOURCE_TYPES_VALUE_SET && (elementTypes[0] === 'code' || elementTypes[0] === 'uri')) {
+    return [...resourceNames]
+  }
+  // Extensible bindings are enumerated too: `@medplum/fhirtypes` types them as
+  // the union (`Expression.language`, `Reference.type`), and a generated value
+  // must assign to the Medplum type. Inputs stay lenient, so a code outside the
+  // set can still be read.
+  const strength = element.binding?.strength
+  if ((strength !== 'required' && strength !== 'extensible') || elementTypes[0] !== 'code') {
     return undefined
   }
-  return resolveRequiredCodes(element.binding.valueSet, codeIndex)
+  return resolveRequiredCodes(valueSet, codeIndex)
 }
 
 /** Resolved code unions, keyed the same way as `types`: owner type name -> element name -> codes. */
 type CodeUnions = Record<string, Record<string, string[]>>
 
 /**
- * Extracts the runtime type/element data plus the literal code unions resolved
- * for required bindings. The unions stay out of `GeneratedType` so the runtime
- * model data (types-data.ts/resources-data.ts) isn't bloated with
- * type-level-only information.
+ * Elements with FHIR minimum cardinality 1, keyed like `types`: owner type
+ * name -> element names. Choice elements are left out: their JSON keys carry a
+ * type suffix, so no single key can be required.
+ */
+type RequiredElements = Record<string, Set<string>>
+
+/**
+ * Extracts the runtime type/element data plus the type-level-only facts: the
+ * literal code unions resolved for required bindings and the required
+ * elements. Both stay out of `GeneratedType` so the runtime model data
+ * (types-data.ts/resources-data.ts) isn't bloated with information only the
+ * generated interfaces and the type-level parser read.
  */
 function extract(
   bundles: Bundle[],
-  codeIndex: RequiredCodeIndex
-): { types: Record<string, GeneratedType>; codeUnions: CodeUnions } {
+  codeIndex: RequiredCodeIndex,
+  resourceNames: readonly string[]
+): { types: Record<string, GeneratedType>; codeUnions: CodeUnions; requiredElements: RequiredElements } {
   const types: Record<string, GeneratedType> = {}
   const codeUnions: CodeUnions = {}
+  const requiredElements: RequiredElements = {}
   for (const bundle of bundles) {
     for (const { resource: definition } of bundle.entry) {
       if (definition.kind === 'logical' || !definition.snapshot) {
@@ -225,15 +262,18 @@ function extract(
           generated.r = targets
         }
         owner.e[name] = generated
-        const codes = requiredCodeUnionFor(element, elementTypes, isChoice, codeIndex)
+        const codes = requiredCodeUnionFor(element, elementTypes, isChoice, codeIndex, resourceNames)
         if (codes) {
           const ownerUnions = (codeUnions[ownerPath] ??= {})
           ownerUnions[name] = codes
         }
+        if (!isChoice && element.min !== undefined && element.min >= 1) {
+          ;(requiredElements[ownerPath] ??= new Set()).add(name)
+        }
       }
     }
   }
-  return { types: sortKeys(types), codeUnions }
+  return { types: sortKeys(types), codeUnions, requiredElements }
 }
 
 /** The Element/BackboneElement base of an inline component, or undefined for other elements. */
@@ -401,12 +441,15 @@ function tsTypeOf(elementTypeName: string, all: Record<string, GeneratedType>): 
  * Emits the type-level side: structural interfaces for every type (so inferred
  * results are real object shapes) plus the element map and base map the
  * template-literal parser walks. Same source data as the runtime tables, so the
- * two stay in lockstep by construction.
+ * two stay in lockstep by construction. Elements with minimum cardinality 1 are
+ * required in the interfaces (see docs/adr/0003); inputs stay lenient through
+ * `FhirpathInput`.
  */
 async function emitTypeMaps(
   all: Record<string, GeneratedType>,
   resourceNames: string[],
-  codeUnions: CodeUnions
+  codeUnions: CodeUnions,
+  requiredElements: RequiredElements
 ): Promise<void> {
   const lines: string[] = [
     '// Generated by scripts/generate-r4-model.ts from the R4 StructureDefinitions (@medplum/definitions).',
@@ -449,6 +492,7 @@ async function emitTypeMaps(
     }
     for (const [element, info] of Object.entries(definition.e)) {
       const suffix = info.a === 1 ? '[]' : ''
+      const optional = requiredElements[name]?.has(element) === true ? '' : '?'
       if (info.c === 1) {
         for (const typeName of info.t) {
           const key = element + typeName.charAt(0).toUpperCase() + typeName.slice(1)
@@ -463,12 +507,18 @@ async function emitTypeMaps(
         // Parenthesize multi-member unions before appending `[]`, or the array
         // suffix binds to the last union member instead of the whole union.
         const type = suffix !== '' && members.length > 1 ? `(${union})` : union
-        lines.push(`  ${quoteKey(element)}?: ${type}${suffix}`)
+        lines.push(`  ${quoteKey(element)}${optional}: ${type}${suffix}`)
       }
     }
     lines.push('}', '')
   }
-  lines.push('/** Element map for type-level path inference: name -> { t: type-name(s), a: array }. */')
+  lines.push(
+    '/**',
+    ' * Element map for type-level path inference: name -> { t: type-name(s), a: array,',
+    ' * codes?: the closed code set of a required binding }. `codes` is the same union',
+    ' * the interfaces carry, so a navigated `code` infers the literal union.',
+    ' */'
+  )
   lines.push('export interface R4Elements {')
   for (const name of Object.keys(all)) {
     const definition = all[name] as GeneratedType
@@ -481,7 +531,9 @@ async function emitTypeMaps(
     lines.push(`  '${name}': {`)
     for (const [element, info] of entries) {
       const union = info.t.map(t => `'${normalizeTypeName(t, all)}'`).join(' | ')
-      lines.push(`    ${quoteKey(element)}: { t: ${union}; a: ${info.a === 1 ? 'true' : 'false'} }`)
+      const codes = codeUnions[name]?.[element]
+      const literals = codes === undefined ? '' : `; codes: ${codes.map(code => JSON.stringify(code)).join(' | ')}`
+      lines.push(`    ${quoteKey(element)}: { t: ${union}; a: ${info.a === 1 ? 'true' : 'false'}${literals} }`)
     }
     lines.push('  }')
   }
@@ -561,8 +613,13 @@ const typeBundle = readJson('fhir/r4/profiles-types.json') as Bundle
 const resourceBundle = readJson('fhir/r4/profiles-resources.json') as Bundle
 const codeIndex = loadRequiredCodeIndex()
 
-const dataTypes = extract([typeBundle], codeIndex)
-const resources = extract([resourceBundle], codeIndex)
+const resourceNames = resourceBundle.entry
+  .map(entry => entry.resource)
+  .filter(definition => definition.kind === 'resource' && definition.snapshot && !definition.abstract)
+  .map(definition => definition.id)
+  .sort()
+const dataTypes = extract([typeBundle], codeIndex, resourceNames)
+const resources = extract([resourceBundle], codeIndex, resourceNames)
 // The type-level maps (emitTypeMaps) keep the flattened `merged`; only the
 // runtime tables are slimmed, since only they pay a download and decode cost.
 const merged: Record<string, GeneratedType> = { ...dataTypes.types, ...resources.types }
@@ -579,9 +636,5 @@ await emit(
   'profiles-resources.json'
 )
 const codeUnions: CodeUnions = { ...dataTypes.codeUnions, ...resources.codeUnions }
-const resourceNames = resourceBundle.entry
-  .map(entry => entry.resource)
-  .filter(definition => definition.kind === 'resource' && definition.snapshot && !definition.abstract)
-  .map(definition => definition.id)
-  .sort()
-await emitTypeMaps(merged, resourceNames, codeUnions)
+const requiredElements: RequiredElements = { ...dataTypes.requiredElements, ...resources.requiredElements }
+await emitTypeMaps(merged, resourceNames, codeUnions, requiredElements)

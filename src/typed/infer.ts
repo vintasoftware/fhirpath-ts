@@ -108,11 +108,12 @@ export type FhirpathTypeContextOf<Options> = {
   functions: NormalizeContextMap<ContextProperty<Options, 'functions'>>
 }
 
+/** A declared host value is an input, so it is lenient like any other input. */
 type DeclarationElement<Declaration> = Declaration extends { readonly type: infer Type }
   ? Type extends readonly FhirTypeName[]
-    ? R4TypeOf[Type[number]]
+    ? Lenient<R4TypeOf[Type[number]]>
     : Type extends FhirTypeName
-      ? R4TypeOf[Type]
+      ? Lenient<R4TypeOf[Type]>
       : unknown
   : unknown
 
@@ -153,13 +154,35 @@ export type FhirpathRootOf<Input> = Input extends readonly (infer Item)[]
     ? Root
     : 'opaque'
 
+/**
+ * A value as an input may be incomplete: the generated interfaces require the
+ * elements FHIR requires and name the codes of a required binding, but data read
+ * from a server, a fixture, or a form need not conform to be navigated. Every
+ * element becomes optional and every code a string, which also admits a
+ * `@medplum/fhirtypes` value whose `Reference.type` names a Medplum resource.
+ * A `resourceType` keeps its literal, so a nested or declared resource is still
+ * the one its type names.
+ */
+export type Lenient<Value> = Value extends string
+  ? string
+  : Value extends readonly (infer Item)[]
+    ? Lenient<Item>[]
+    : Value extends object
+      ? { [Key in keyof Value]?: Key extends 'resourceType' ? Value[Key] : Lenient<Value[Key]> }
+      : Value
+
+/** The input a resource-rooted literal expression accepts: the root's resource, lenient. */
+export type LenientResource<Root extends keyof R4Resources> = { readonly resourceType: Root } & Lenient<
+  R4Resources[Root]
+>
+
 /** The expected input resource for a resource-rooted literal expression. */
 export type FhirpathInput<Expression extends string> = string extends Expression
   ? unknown
   : Expression extends `${infer Root}.${string}`
     ? Root extends keyof R4Resources
-      ? R4Resources[Root]
+      ? LenientResource<Root>
       : unknown
     : Expression extends keyof R4Resources
-      ? R4Resources[Expression]
+      ? LenientResource<Expression>
       : unknown

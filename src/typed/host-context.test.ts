@@ -89,9 +89,9 @@ describe('typed host context', () => {
       env: { report: { resourceType: 'Patient', active: true } },
     })
     const projected = engine.project({ resourceType: 'Patient', id: 'p1' }, { status: '%report.status' })
-    expectTypeOf(fromDefault).toEqualTypeOf<string[]>()
+    expectTypeOf(fromDefault).toEqualTypeOf<DiagnosticReport['status'][]>()
     expectTypeOf(fromCall).toEqualTypeOf<boolean[]>()
-    expectTypeOf(projected).toEqualTypeOf<{ status: string | undefined }>()
+    expectTypeOf(projected).toEqualTypeOf<{ status: DiagnosticReport['status'] | undefined }>()
   })
 
   it('infers literal vars and lets varTypes override their inferred bodies', () => {
@@ -106,7 +106,7 @@ describe('typed host context', () => {
       vars: { status: 'Patient.gender', label: "%status & '!'" },
       varTypes: { status: { type: 'string' } },
     })
-    expectTypeOf(inferred).toEqualTypeOf<string[]>()
+    expectTypeOf(inferred).toEqualTypeOf<NonNullable<Patient['gender']>[]>()
     expectTypeOf(overridden).toEqualTypeOf<boolean[]>()
     expectTypeOf(dependent).toEqualTypeOf<string[]>()
 
@@ -125,7 +125,7 @@ describe('typed host context', () => {
     })
 
     expectTypeOf(incremented).toEqualTypeOf<number[]>()
-    expectTypeOf(status).toEqualTypeOf<string[]>()
+    expectTypeOf(status).toEqualTypeOf<DiagnosticReport['status'][]>()
   })
 
   it('refines compiled and bound expressions while preserving an explicit result override', () => {
@@ -142,9 +142,9 @@ describe('typed host context', () => {
       env: { report },
     }).compile('%report.status')
 
-    expectTypeOf(refined).toEqualTypeOf<string[]>()
+    expectTypeOf(refined).toEqualTypeOf<DiagnosticReport['status'][]>()
     expectTypeOf(explicitResult).toEqualTypeOf<number[]>()
-    expectTypeOf(bound.evaluate()).toEqualTypeOf<string[]>()
+    expectTypeOf(bound.evaluate()).toEqualTypeOf<DiagnosticReport['status'][]>()
   })
 
   it('accepts ordering declarations in function signatures', () => {
@@ -172,7 +172,7 @@ describe('typed host context', () => {
     } satisfies Record<string, CustomFunction>
     type Context = FhirpathTypeContextOf<{ functions: typeof functions }>
     expectTypeOf<FhirpathResult<'Condition.code.displayText()', Context>>().toEqualTypeOf<string[]>()
-    const condition: Condition = { resourceType: 'Condition', code: { text: 'Hypertension' } }
+    const condition: Condition = { resourceType: 'Condition', subject: {}, code: { text: 'Hypertension' } }
     const result = new FhirPathEngine({ model: r4Model, functions }).evaluate('Condition.code.displayText()', condition)
 
     expectTypeOf(result).toEqualTypeOf<string[]>()

@@ -1,15 +1,27 @@
 import type {
   Address as MedplumAddress,
+  Extension as MedplumExtension,
   Goal as MedplumGoal,
   HumanName as MedplumHumanName,
   Observation as MedplumObservation,
   Patient as MedplumPatient,
+  Quantity as MedplumQuantity,
   QuestionnaireItem as MedplumQuestionnaireItem,
 } from '@medplum/fhirtypes'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { compile } from '../api/compile.ts'
-import type { Address, Goal, HumanName, Observation, Patient, QuestionnaireItem } from './generated/type-maps.ts'
+import type { LenientResource } from '../typed/infer.ts'
+import type {
+  Address,
+  Extension,
+  Goal,
+  HumanName,
+  Observation,
+  Patient,
+  Quantity,
+  QuestionnaireItem,
+} from './generated/type-maps.ts'
 import { r4Model } from './index.ts'
 
 /**
@@ -33,25 +45,43 @@ describe('Medplum (@medplum/fhirtypes) structural compatibility', () => {
    * scripts/generate-r4-model.ts).
    */
   it('includes codes nested under a broader parent concept', () => {
-    // NonNullable on both sides because these three bindings are 1..1 in R4:
-    // Medplum types them as required, fhirpath-ts leaves every field optional.
+    // These three bindings are 1..1 in R4, and both packages type them as required.
     expectTypeOf<HumanName['use']>().toEqualTypeOf<MedplumHumanName['use']>()
-    expectTypeOf<NonNullable<Goal['lifecycleStatus']>>().toEqualTypeOf<MedplumGoal['lifecycleStatus']>()
-    expectTypeOf<NonNullable<Observation['status']>>().toEqualTypeOf<MedplumObservation['status']>()
-    expectTypeOf<NonNullable<QuestionnaireItem['type']>>().toEqualTypeOf<MedplumQuestionnaireItem['type']>()
+    expectTypeOf<Goal['lifecycleStatus']>().toEqualTypeOf<MedplumGoal['lifecycleStatus']>()
+    expectTypeOf<Observation['status']>().toEqualTypeOf<MedplumObservation['status']>()
+    expectTypeOf<QuestionnaireItem['type']>().toEqualTypeOf<MedplumQuestionnaireItem['type']>()
 
     // Spot-check the child codes themselves: 'maiden' sits under 'old', 'active'
     // under 'accepted', 'corrected' under 'amended', 'boolean' under 'question'.
     const name: HumanName = { use: 'maiden' }
-    const goal: Goal = { resourceType: 'Goal', lifecycleStatus: 'active' }
-    const observation: Observation = { resourceType: 'Observation', status: 'corrected' }
-    const item: QuestionnaireItem = { type: 'boolean' }
+    const goal: Goal = { resourceType: 'Goal', lifecycleStatus: 'active', description: {}, subject: {} }
+    const observation: Observation = { resourceType: 'Observation', status: 'corrected', code: {} }
+    const item: QuestionnaireItem = { linkId: 'q1', type: 'boolean' }
     expect([name.use, goal.lifecycleStatus, observation.status, item.type]).toEqual([
       'maiden',
       'active',
       'corrected',
       'boolean',
     ])
+  })
+
+  it('hands generated datatypes to Medplum-typed code without a cast', () => {
+    // Both packages require the elements FHIR requires and enumerate the same
+    // bindings, so a datatype read through this package, such as a column
+    // result, is assignable to Medplum's type.
+    expectTypeOf<Extension>().toExtend<MedplumExtension>()
+    expectTypeOf<Address>().toExtend<MedplumAddress>()
+    expectTypeOf<Quantity>().toExtend<MedplumQuantity>()
+    expectTypeOf<HumanName>().toExtend<MedplumHumanName>()
+    // A whole resource is not: `contained` and `Bundle.entry.resource` hold any
+    // `{ resourceType }` here, while Medplum's `Resource` is a closed union that
+    // also names Medplum's own resources.
+    expectTypeOf<Patient>().not.toExtend<MedplumPatient>()
+    // The other way round, a Medplum value names those resources in
+    // `Reference.type`, so it enters through the lenient input type, which
+    // widens every code to string, not through the generated interface.
+    expectTypeOf<MedplumExtension>().not.toExtend<Extension>()
+    expectTypeOf<MedplumPatient>().toExtend<LenientResource<'Patient'>>()
   })
 
   it('accepts a raw Medplum resource against the default inferred input, no cast', () => {

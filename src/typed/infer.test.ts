@@ -6,13 +6,14 @@ import type {
   HumanName,
   Identifier,
   MedicationRequest,
+  Observation,
   Patient,
   PatientContact,
   Quantity,
   SystemQuantity,
 } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
-import { type FhirpathInput, type FhirpathResult } from './infer.ts'
+import { type FhirpathInput, type FhirpathResult, type LenientResource } from './infer.ts'
 
 const patient: Patient = {
   resourceType: 'Patient',
@@ -112,9 +113,17 @@ describe('type-level inference agrees with the runtime', () => {
     expectTypeOf(identifiers).toEqualTypeOf<Identifier[]>()
   })
 
-  it('the input type follows the root resource', () => {
-    expectTypeOf<FhirpathInput<'Patient.name'>>().toEqualTypeOf<Patient>()
+  it('the input type follows the root resource, with every element optional', () => {
+    expectTypeOf<FhirpathInput<'Patient.name'>>().toEqualTypeOf<LenientResource<'Patient'>>()
     expectTypeOf<FhirpathInput<'name.given'>>().toEqualTypeOf<unknown>()
+    // A full resource and a bare pin both fit; the generated interface's
+    // required elements are results, not an input requirement.
+    expectTypeOf<Observation>().toExtend<FhirpathInput<'Observation.status'>>()
+    expectTypeOf<{ resourceType: 'Observation' }>().toExtend<FhirpathInput<'Observation.status'>>()
+    expectTypeOf<{ resourceType: 'Patient' }>().not.toExtend<FhirpathInput<'Observation.status'>>()
+    // A misspelled property is still an excess-property error on a literal.
+    // @ts-expect-error -- 'nam' is not an element of Patient
+    compile('Patient.name').evaluate({ resourceType: 'Patient', nam: [] })
   })
 })
 
@@ -308,7 +317,7 @@ describe('a declared root types a relative expression', () => {
     const kg = fhirpath("value.ofType(Quantity).toQuantity('kg').value", 'Observation')
     expectTypeOf(kg.evaluate).returns.toEqualTypeOf<number[]>()
     const status = compile('status', 'MedicationRequest')
-    expectTypeOf(status.evaluate).returns.toEqualTypeOf<string[]>()
+    expectTypeOf(status.evaluate).returns.toEqualTypeOf<MedicationRequest['status'][]>()
     // The declared root is also the input type, rather than one guessed from the path.
     expectTypeOf(status.evaluate).parameter(0).toEqualTypeOf<MedicationRequest | undefined>()
     // Without a root, a relative expression degrades as before.

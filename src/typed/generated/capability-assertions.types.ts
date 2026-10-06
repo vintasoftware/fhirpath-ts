@@ -570,7 +570,10 @@ export type ReferenceStatePreservationComposition = Assert<
 >
 export type HostContextEnvironmentFastSlowParity = Assert<FastSlowInferenceParity<'%report.status', 'opaque'>>
 export type HostContextEnvironmentPositive = Assert<
-  Equal<FhirpathResultIn<'%report.status', 'opaque', { env: { report: { type: 'DiagnosticReport' } } }>, string[]>
+  Equal<
+    FhirpathResultIn<'%report.status', 'opaque', { env: { report: { type: 'DiagnosticReport' } } }>,
+    R4TypeOf['DiagnosticReport']['status'][]
+  >
 >
 export type HostContextEnvironmentDegradation = Assert<
   Equal<FhirpathResultIn<'%report.nope', 'opaque', { env: { report: { type: 'DiagnosticReport' } } }>, unknown[]>
@@ -578,7 +581,7 @@ export type HostContextEnvironmentDegradation = Assert<
 export type HostContextEnvironmentComposition = Assert<
   Equal<
     FhirpathResultIn<'%report.status.first()', 'opaque', { env: { report: { type: 'DiagnosticReport' } } }>,
-    string[]
+    R4TypeOf['DiagnosticReport']['status'][]
   >
 >
 export type HostContextVariableFastSlowParity = Assert<FastSlowInferenceParity<'%subject.name.given', 'opaque'>>
