@@ -10,6 +10,11 @@ export interface SkipEntry {
   test?: string
   /** Test mode attribute, exact — skips every test carrying it. */
   mode?: string
+  /**
+   * The skip disputes the suite's expected value, not a feature. The analyzer
+   * conformance test does not read values, so it still runs the case.
+   */
+  runtimeOnly?: true
   reason: string
 }
 
@@ -96,30 +101,35 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r4',
     group: 'LowBoundary',
     test: 'LowBoundaryDecimal15',
+    runtimeOnly: true,
     reason: 'suite expects -0.0, but the mathematical lower bound floored at precision 1 is -0.1',
   },
   {
     suite: 'r5',
     group: 'LowBoundary',
     test: 'LowBoundaryDecimal15',
+    runtimeOnly: true,
     reason: 'suite expects -0.0, but the mathematical lower bound floored at precision 1 is -0.1',
   },
   {
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal15',
+    runtimeOnly: true,
     reason: 'suite expects 0.0, but the mathematical upper bound ceiled at precision 1 is 0.1',
   },
   {
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal15',
+    runtimeOnly: true,
     reason: 'suite expects 0.0, but the mathematical upper bound ceiled at precision 1 is 0.1',
   },
   {
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal16',
+    runtimeOnly: true,
     reason:
       'the expression -0.0034.highBoundary(1) negates the boundary of 0.0034 by precedence; the suite expects 0.0',
   },
@@ -127,6 +137,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal16',
+    runtimeOnly: true,
     reason:
       'the expression -0.0034.highBoundary(1) negates the boundary of 0.0034 by precedence; the suite expects 0.0',
   },
@@ -134,6 +145,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond1',
+    runtimeOnly: true,
     reason:
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
@@ -141,6 +153,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond1',
+    runtimeOnly: true,
     reason:
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
@@ -148,6 +161,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond3',
+    runtimeOnly: true,
     reason:
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
@@ -155,6 +169,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond3',
+    runtimeOnly: true,
     reason:
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
@@ -168,6 +183,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r4',
     group: 'testPlus',
     test: 'testPlusDate19',
+    runtimeOnly: true,
     reason:
       'R4 expected fractional seconds to truncate; R5 revised them to add as milliseconds, which this engine follows',
   },

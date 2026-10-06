@@ -44,7 +44,9 @@ fails when a skip no longer matches a suite case.
 | Decimal boundary and dateTime millisecond cases | Expected values conflict with the mathematical bounds; recorded as upstream test issues |
 | `testPlusDate19` in R4 | R5 changed ambiguous R4 behavior; the engine follows R5 |
 
-The manifest contains the exact case names and evidence.
+The manifest contains the exact case names and evidence. Entries marked
+`runtimeOnly` dispute an expected value, not a feature. The analyzer pass still
+runs those cases, because it checks diagnostics and not values.
 
 ## Reference test corpora
 
