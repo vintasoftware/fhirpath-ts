@@ -62,6 +62,9 @@ describe('corpus skip logic', () => {
       string,
     ]
     expect(skipReason({ expression: quirkExpression }, quirkExpression, quirkFile)).toContain('intentional divergence')
-    expect(matchQuirk('nope.yaml', 'nope')).toBeUndefined()
+    expect(matchQuirk('nope.yaml', 'nope', undefined)).toBeUndefined()
+    const scoped = 'Patient.birthDate.hasValue()'
+    expect(matchQuirk('hasValue.yaml', scoped, undefined)).toBeDefined()
+    expect(matchQuirk('hasValue.yaml', scoped, 'r4')).toBeUndefined()
   })
 })

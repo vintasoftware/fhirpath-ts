@@ -55,7 +55,7 @@ export function skipReason(test: CorpusTest, expression: string, file: string): 
   if (test.model !== undefined && test.model !== 'r4') {
     return SKIPPED_MODELS[test.model] ?? `unknown model ${test.model}`
   }
-  const quirk = matchQuirk(file, expression)
+  const quirk = matchQuirk(file, expression, test.model)
   return quirk === undefined ? undefined : `intentional divergence: ${quirk.name}`
 }
 
@@ -66,8 +66,8 @@ for (const family of QUIRK_FAMILIES) {
   }
 }
 
-export function matchQuirk(file: string, expression: string): QuirkFamily | undefined {
-  return QUIRK_INDEX.get(`${file}||${expression}`)
+export function matchQuirk(file: string, expression: string, model: string | undefined): QuirkFamily | undefined {
+  return QUIRK_INDEX.get(`${file}||${expression}`) ?? QUIRK_INDEX.get(`${file}@${model ?? 'none'}||${expression}`)
 }
 
 /** Run one corpus case; returns a failure description or undefined on success. */

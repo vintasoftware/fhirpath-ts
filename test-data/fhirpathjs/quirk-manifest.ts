@@ -1,9 +1,11 @@
 /**
  * Exact corpus cases this engine intentionally diverges on, grouped by the
  * behavior family. Every entry names the fhirpath.js/fhirpath-py behavior we
- * do not inherit and the evidence for our reading. Keys are `${file}||${expression}`.
- * The harness fails when an entry stops matching the corpus (stale) or when an
- * unlisted case fails (regression).
+ * do not inherit and the evidence for our reading. Keys are `${file}||${expression}`,
+ * or `${file}@${model}||${expression}` to match only cases run with that model
+ * (`none` for model-free cases). The harness fails when an entry shields no case,
+ * when a shielded case starts passing (stale), or when an unlisted case fails
+ * (regression).
  */
 export interface QuirkFamily {
   name: string
@@ -46,7 +48,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       '5.5_conversion.yaml||Functions.collWithNullsAndTrue[0].toLong()',
       '5.5_conversion.yaml||Functions.collWithNullsAndTrue[0].toQuantity()',
       '5.5_conversion.yaml||Functions.iif(collWithNullsAndTrue[1], collWithNullsAndTrue[0], collWithNullsAndTrue[2]).id',
-      "5.6_string_manipulation.yaml||Functions.str.empty.join(',')",
       '5.7_math.yaml||Math.arrWithNullsAndVals[0].abs()',
       '5.7_math.yaml||Math.arrWithNullsAndVals[0].ceiling()',
       '5.7_math.yaml||Math.arrWithNullsAndVals[0].exp()',
@@ -62,7 +63,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       '5.8_tree_navigation.yaml||Patient.children() = (Patient.birthDate | Patient.address | Patient.name | Patient.communication)',
       '5.8_tree_navigation.yaml||communication.children()[1] = communication.preferred',
       '6.1_equality.yaml||Bundle.entry[1].resource.name.given[0] = Bundle.entry[2].resource.name.given[0]',
-      '6.3_types.yaml||Questionnaire.children().select(code as Element).count() = 2',
       '6.4_collection.yaml||Patient.name.given contains Patient.name.given[3]',
       '6.4_collection.yaml||Patient.name.given[3] in Patient.name.given',
       '7_aggregate.yaml||Functions.collWithNull1.avg()',
@@ -80,7 +80,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       "extensions.yaml||Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime') .valueDateTime.toDateTime() = @1974-12-25T14:35:45-05:00",
       "extensions.yaml||Patient.communication.preferred.extension('test').exists()",
       'extensions.yaml||Patient.name.given',
-      'hasValue.yaml||Patient.birthDate.hasValue()',
+      'hasValue.yaml@none||Patient.birthDate.hasValue()',
       'simple.yaml||Patient.name.exists(given)',
       'simple.yaml||Patient.name.given.ofType(System.String)',
       'simple.yaml||Patient.name.given.ofType(string)',
@@ -261,12 +261,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       '6.2_comparision.yaml||Observation.value.comparable(1 year)',
       '6.2_comparision.yaml||i.comparable(2 years)',
     ],
-  },
-  {
-    name: 'timezone-normalization',
-    evidence:
-      'fhirpath.js rewrites arithmetic results into the local timezone; \u00a76.6.7 arithmetic changes components, never the offset.',
-    keys: ['6.6_math.yaml||@2018-02-18T12:23:45-05:00 + 2 years'],
   },
   {
     name: 'leap-second-arithmetic',

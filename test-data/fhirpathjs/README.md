@@ -20,8 +20,10 @@ license (beda.software) and covers `cases-py-extras.json`.
 - Cases listed in `quirk-manifest.ts` are skipped as **intentional divergences**:
   each family documents the reference-implementation behavior we do not inherit
   and the spec/official-suite evidence for our reading. The hygiene tests fail if
-  a manifest key stops matching the corpus or the manifest grows past a small
-  fraction of it.
+  a manifest key shields no runnable case, if a shielded case starts passing, or
+  if the manifest grows past a small fraction of the corpus. A key written as
+  `file@model||expression` matches only cases run with that model (`none` for
+  model-free cases).
 - Everything else must pass.
 
 Note that [octofhir/fhirpath-rs](https://github.com/octofhir/fhirpath-rs)
