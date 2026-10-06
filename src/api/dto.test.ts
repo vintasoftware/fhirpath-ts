@@ -364,6 +364,17 @@ describe('DTO projection', () => {
     expect(r4.project([{ text: 'Weight' }], ConceptRow)).toEqual([expect.objectContaining({ text: 'Weight' })])
   })
 
+  it('an abstract resource root is a resource root too, at compile time as at runtime', () => {
+    class DomainDto extends r4.defineDto('DomainResource') {
+      narrative = this.column('text.status')
+    }
+    expectTypeOf<DtoInput<typeof DomainDto>>().toEqualTypeOf<{ readonly resourceType: 'DomainResource' }>()
+    // @ts-expect-error -- not a resource
+    expect(() => DomainDto.from({ hello: 1 })).toThrow(
+      "project(): row 0 has no resourceType, but DomainDto declares fhirType 'DomainResource'"
+    )
+  })
+
   it('a resource root rejects a value that is not a resource, at compile time and at runtime', () => {
     class ConditionDto extends r4.defineDto('Condition') {
       code = this.column('code.text')
@@ -424,7 +435,7 @@ describe('DTO projection', () => {
 
       end = this.column('end')
 
-      status = this.column('status', { required: true, type: 'code' })
+      status = this.column('status', { required: true })
     }
     expectTypeOf<DtoInput<typeof ScheduledAppointment>>().toEqualTypeOf<
       { readonly resourceType: 'Appointment' } & { readonly id: string } & { readonly start: string } & {
@@ -477,9 +488,6 @@ describe('DTO projection', () => {
       // @ts-expect-error -- a collection element
       participants = this.column('participant', { required: true })
 
-      // @ts-expect-error -- a choice element has no single key
-      value = this.column('Observation.value', { required: true })
-
       // @ts-expect-error -- not an element
       typo = this.column('strat', { required: true })
 
@@ -494,10 +502,20 @@ describe('DTO projection', () => {
 
       // @ts-expect-error -- required takes no conversion
       converted = this.column('start', { required: true, as: 'Date' })
+
+      // @ts-expect-error -- the path's own type is exact, so a declared type could only contradict it
+      typed = this.column('start', { required: true, type: 'integer' })
     }
-    expect(() => r4.project({ resourceType: 'Appointment' } as never, Bad)).toThrow(
-      "project(): column 'defaulted' is required and sets 'default'; a required column takes no fallback or conversion"
-    )
+    class Choice extends r4.defineView('Observation') {
+      // @ts-expect-error -- a choice element has no single key
+      value = this.column('value', { required: true })
+
+      // @ts-expect-error -- nor does a choice element that is a date or a period
+      effective = this.column('effective', { required: true })
+    }
+    // The runtime never sees `required`: the recorded columns are plain ones.
+    expect(dtoDefinition(Bad).columns['defaulted']).toEqual({ path: 'start', default: '' })
+    expect(dtoDefinition(Choice).columns['value']).toEqual({ path: 'value' })
     // Plain project() columns have no class to carry a requirement.
     // @ts-expect-error -- required is a DTO column option
     expect(r4.project({ resourceType: 'Appointment' }, { start: { path: 'start', required: true } })).toEqual({

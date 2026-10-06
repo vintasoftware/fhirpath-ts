@@ -750,7 +750,8 @@ such as `id` or `meta.lastUpdated`. An expression, a collection element, a
 choice element, or a root-prefixed path is a compile error; use `default` to
 drop `undefined` from such a column. `required` excludes `default`,
 `collection`, `as`, `choices`, and `enum`, because each of those can replace or
-drop the value. A required column of a base class is required by every subclass.
+drop the value, and `type`, because a singular model path already has an exact
+type. A required column of a base class is required by every subclass.
 
 The field type carries the path it requires, as `string & RequiredColumn<'id'>`.
 The marker is an optional symbol property, so the field reads and assigns as a

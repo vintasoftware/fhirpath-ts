@@ -4,7 +4,7 @@ import { bareEnvironmentName, mergeEnvKeys, normalizeEnvKeys } from '../engine/c
 import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type { R4Bases, R4Elements, R4TypeOf } from '../r4/generated/type-maps.ts'
 import type {
   EmptyFhirpathTypeContext,
   FhirpathTypeContextOf,
@@ -25,10 +25,39 @@ import {
   type SingleCustomFunction,
 } from './compile.ts'
 import type { FhirPathEngine } from './engine.ts'
-import type { ColumnOptions, ColumnResult, PathColumn, RequiredColumn, RequiredColumnOptions } from './project.ts'
+import type { ColumnOptions, ColumnResult, ProjectionColumn } from './project.ts'
 
-/** The object forms of a column: what `this.column()` and `this.criteria()` record. */
-export type ColumnSpec = PathColumn | { test: string }
+/** The object forms of ProjectionColumn: what `this.column()` and `this.criteria()` record. */
+export type ColumnSpec = Exclude<ProjectionColumn, string>
+
+/**
+ * The options of a required column: a column whose path the input must carry
+ * (see `DtoInput`). Nothing may empty or replace the value, so the fallback,
+ * the conversions, and a declared `type` are excluded; the path is a singular
+ * model element, so inference is exact. `required` is type-only: the runtime
+ * never sees it.
+ */
+export interface RequiredColumnOptions {
+  required: true
+  type?: never
+  collection?: never
+  default?: never
+  as?: never
+  choices?: never
+  pick?: never
+  enum?: never
+}
+
+declare const requiredPath: unique symbol
+
+/**
+ * Marks the value of a required column with the path the input must carry.
+ * The marker is an optional symbol property, so the value still reads and
+ * assigns as its plain type; `DtoInput` reads the path back from the class.
+ */
+export interface RequiredColumn<Path extends string> {
+  readonly [requiredPath]?: Path
+}
 
 /**
  * Ties `pick` to the table's row keys: with a table `choices`, `pick` must name
@@ -139,9 +168,18 @@ type KindConstraint<Kind extends DtoKind, Options> = Kind extends 'dto' ? unknow
  */
 type RequiredConstraint<Root extends string, Expr extends string, Options> = Options extends { required: true }
   ? [RequiredPathInput<Root, Expr>] extends [never]
-    ? { required: 'a required column reads a path of singular element names, such as id or meta.lastUpdated' }
+    ? {
+        readonly requiredPath: 'a required column reads a path of singular element names, such as id or meta.lastUpdated'
+      }
     : unknown
   : unknown
+
+/** A required column's field type: the inferred value without `undefined`, marked with its path. */
+type RequiredColumnResult<Expr extends string, Root extends string, Context extends object> = Exclude<
+  ColumnResult<{ path: Expr }, Root, Context>,
+  undefined
+> &
+  RequiredColumn<Expr>
 
 /** The element information of `Element` on `Type`, walking the model's base types. */
 type ModelElement<Type extends string, Element extends string> = Type extends keyof R4Elements
@@ -222,9 +260,13 @@ export class DtoBase<
   protected column<const Expr extends string, const Options extends ColumnOptionsOf<Kind>>(
     path: Expr,
     options: Options & KindConstraint<Kind, Options> & RequiredConstraint<Root, Expr, Options>
-  ): ColumnResult<{ path: Expr } & Options, Root, Context>
-  protected column(path: string, options?: ColumnOptions | RequiredColumnOptions): unknown {
-    return mark(this, { path, ...options })
+  ): Options extends { required: true }
+    ? RequiredColumnResult<Expr, Root, Context>
+    : ColumnResult<{ path: Expr } & Options, Root, Context>
+  protected column(path: string, options: ColumnOptions | RequiredColumnOptions = {}): unknown {
+    // `required` is a claim about the input type; the recorded column is a plain one.
+    const { required: _required, ...spec } = options as ColumnOptions & { required?: true }
+    return mark(this, { path, ...spec })
   }
 
   /**
@@ -273,8 +315,23 @@ export type DtoClass<Root extends string = string> = (new () => { readonly fhirT
 /** The DTO instance type returned by projection, including getters and methods. */
 export type DtoRow<C extends DtoClass> = InstanceType<C>
 
-/** What a resource root accepts: a value carrying its `resourceType`. A datatype root accepts any object. */
-type RootInput<Root extends string> = Root extends keyof R4Resources ? { readonly resourceType: Root } : object
+/** Whether `Type` is `Base` or derives from it in the model. */
+type DerivesFrom<Type extends string, Base extends string> = Type extends Base
+  ? true
+  : Type extends keyof R4Bases
+    ? R4Bases[Type] extends infer Parent extends string
+      ? DerivesFrom<Parent, Base>
+      : false
+    : false
+
+/**
+ * What a resource root accepts: a value carrying its `resourceType`. The rule
+ * is the runtime's, a root that derives from `Resource` in the model, so an
+ * abstract root such as `DomainResource` demands its own name too. A datatype
+ * root accepts any object.
+ */
+type RootInput<Root extends string> =
+  DerivesFrom<Root, 'Resource'> extends true ? { readonly resourceType: Root } : object
 
 type IsAny<Type> = 0 extends 1 & Type ? true : false
 
