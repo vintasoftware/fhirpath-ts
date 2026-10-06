@@ -245,6 +245,17 @@ describe('htmlChecks', () => {
     ['<div xmlns="http://www.w3.org/1999/xhtml"><p foo="bar">attr</p></div>'],
     ['<p xmlns="http://www.w3.org/1999/xhtml">not a div</p>'],
     ['stray text <div xmlns="http://www.w3.org/1999/xhtml"/>'],
+    // An HTML parser ends these comments and CDATA sections before the point
+    // where XML ends them, so the script would render as a live element.
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!--><script>x()</script>--></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!---><script>x()</script>--></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><![CDATA[><script>x()</script>]]></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- a --!><script>x()</script>--></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- a -- b --></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- a ---></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- unterminated></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><![CDATA[ unterminated></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!DOCTYPE html></div>'],
   ])('rejects %s', html => {
     expect(validateNarrative(html)).toBe(false)
   })
@@ -255,6 +266,9 @@ describe('htmlChecks', () => {
         '<div xmlns="http://www.w3.org/1999/xhtml"><!-- note --><p>a&amp;b<br/></p><hr/><img src="data:image/png;base64,x" alt="i"/></div>'
       )
     ).toBe(true)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><!----><p>a<![CDATA[b & c]]></p></div>')).toBe(
+      true
+    )
   })
 
   it.each([

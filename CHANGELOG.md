@@ -8,6 +8,13 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+### Security
+
+- Fixed `htmlChecks()` accepting narratives with active content hidden in a
+  comment or CDATA section that an HTML parser ends early, such as
+  `<!--><script>…</script>-->` or `<![CDATA[><script>…</script>]]>`. Rendered
+  as HTML, the script was a live element.
+
 ### Fixed
 
 - Fixed `replaceMatches()` to substitute PCRE-style group references such as
