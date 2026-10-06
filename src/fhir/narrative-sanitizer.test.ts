@@ -6,6 +6,7 @@ import { evaluate } from '../api/evaluate.ts'
 import type { NarrativeSanitizer } from '../engine/context.ts'
 import { FhirPathEngine } from '../index.ts'
 import { r4Model } from '../r4/index.ts'
+import { ALLOWED_ATTRIBUTES, ALLOWED_ELEMENTS, validateNarrative } from './html-checks.ts'
 import { domPurifySanitizer } from './narrative-sanitizer.ts'
 
 const purify = createDOMPurify(new JSDOM('').window)
@@ -27,15 +28,31 @@ describe('narrativeSanitizer', () => {
     expect(evaluate('text.div.htmlChecks()', patient(body), sanitized)).toEqual([false])
   })
 
-  it('takes a DOMPurify config in place of the default', () => {
+  it('merges a DOMPurify config over the default', () => {
     const body = '<a href="urn:uuid:4f6a">entry</a>'
     const sanitizer = domPurifySanitizer(purify, {
-      ADD_ATTR: ['xml:lang'],
       ALLOWED_URI_REGEXP: /^(?:https?|mailto|tel|urn):|^[^a-z]|^[a-z+.-]+(?:[^a-z+.\-:]|$)/i,
     })
     expect(evaluate('text.div.htmlChecks()', patient(body), { model: r4Model, narrativeSanitizer: sanitizer })).toEqual(
       [true]
     )
+  })
+
+  it('keeps every element, attribute, and comment the FHIR rules allow', () => {
+    const sanitizer = domPurifySanitizer(purify)
+    const narratives = [
+      ...[...ALLOWED_ELEMENTS].map(name =>
+        ['br', 'hr', 'img', 'col'].includes(name) ? div(`<${name}/>t`) : div(`<${name}>t</${name}>`)
+      ),
+      ...[...ALLOWED_ATTRIBUTES].filter(name => name !== 'xmlns').map(name => div(`<p ${name}="1">t</p>`)),
+      div('a<!-- note -->b'),
+    ]
+    for (const narrative of narratives) {
+      expect(validateNarrative(narrative), narrative).toBe(true)
+      expect(sanitizer.accepts(narrative), narrative).toBe(true)
+    }
+    expect(sanitizer.accepts(div('a<!-- <img src="x" onerror="x()"/> -->b'))).toBe(false)
+    expect(sanitizer.accepts(div('<img src="a.png" alt="" longdesc="javascript:x()"/>'))).toBe(false)
   })
 
   it('sees the wrapped div for strings and runs only after the FHIR rules pass', () => {

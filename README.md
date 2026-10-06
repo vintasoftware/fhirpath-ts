@@ -435,9 +435,11 @@ const fp = new FhirPathEngine({ model: r4Model, narrativeSanitizer: domPurifySan
 ```
 
 DOMPurify is not a dependency of this package; install it yourself. Any object
-with an `accepts(xhtml)` method works as a `narrativeSanitizer`. By default
-DOMPurify removes `urn:` links; pass a DOMPurify config with
-`ALLOWED_URI_REGEXP` to `domPurifySanitizer()` to keep them.
+with an `accepts(xhtml)` method works as a `narrativeSanitizer`. The adapter
+configures DOMPurify to keep every element, attribute, and comment the FHIR
+rules allow. DOMPurify still removes `urn:` links; to keep them, pass a config
+with `ALLOWED_URI_REGEXP` as the second argument of `domPurifySanitizer()`. Its
+settings override the adapter's defaults one by one.
 
 ### PHI and tracing
 
