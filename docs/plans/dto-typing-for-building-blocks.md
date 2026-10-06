@@ -1,6 +1,8 @@
 # DTO typing, inference, and client simplification (October 2026)
 
-Status: agreed design, not yet implemented. Tracks
+Status: implemented on `fjsj/improve-dtos-types-for-bb` as one commit per
+pull request below (2026-10-06); the Effect on PR 559 section is the
+migration guide. Tracks
 [issue #88](https://github.com/vintasoftware/fhirpath-ts/issues/88) and the
 friction found by
 [building-blocks PR 559](https://github.com/vintasoftware/building-blocks/pull/559),
