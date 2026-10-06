@@ -24,16 +24,16 @@ describe('bounded type-level tokenizer and parser', () => {
     expectTypeOf<TokenizationStatus<"'unterminated">>().toEqualTypeOf<'opaque'>()
   })
 
-  it('accepts token 64 and bails before token 65', () => {
-    expectTypeOf<TokenizationStatus<Words<64>>>().toEqualTypeOf<64>()
-    expectTypeOf<TokenizationStatus<Words<65>>>().toEqualTypeOf<'opaque'>()
-    expectTypeOf<FhirpathResult<Words<65>>>().toEqualTypeOf<unknown[]>()
+  it('accepts token 128 and bails before token 129', () => {
+    expectTypeOf<TokenizationStatus<Words<128>>>().toEqualTypeOf<128>()
+    expectTypeOf<TokenizationStatus<Words<129>>>().toEqualTypeOf<'opaque'>()
+    expectTypeOf<FhirpathResult<Words<129>>>().toEqualTypeOf<unknown[]>()
   })
 
-  it('accepts source step 256 and bails before source step 257', () => {
-    expectTypeOf<TokenizationStatus<Quoted<254>>>().toEqualTypeOf<1>()
-    expectTypeOf<TokenizationStatus<Quoted<255>>>().toEqualTypeOf<'opaque'>()
-    expectTypeOf<FhirpathResult<Quoted<255>>>().toEqualTypeOf<unknown[]>()
+  it('accepts source step 512 and bails before source step 513', () => {
+    expectTypeOf<TokenizationStatus<Quoted<510>>>().toEqualTypeOf<1>()
+    expectTypeOf<TokenizationStatus<Quoted<511>>>().toEqualTypeOf<'opaque'>()
+    expectTypeOf<FhirpathResult<Quoted<511>>>().toEqualTypeOf<unknown[]>()
   })
 
   it('keeps the original navigation, frame, and call subset precise', () => {

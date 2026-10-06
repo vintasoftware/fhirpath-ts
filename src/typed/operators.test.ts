@@ -10,7 +10,7 @@ describe('type-level literals', () => {
     expectTypeOf<FhirpathResult<'7'>>().toEqualTypeOf<number[]>()
     expectTypeOf<FhirpathResult<'7L'>>().toEqualTypeOf<bigint[]>()
     expectTypeOf<FhirpathResult<'7.3'>>().toEqualTypeOf<number[]>()
-    expectTypeOf<FhirpathResult<"'FHIRPath'">>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"'FHIRPath'">>().toEqualTypeOf<'FHIRPath'[]>()
     expectTypeOf<FhirpathResult<'@2019-01-01'>>().toEqualTypeOf<string[]>()
     expectTypeOf<FhirpathResult<'@2019-01-01T12:30:00Z'>>().toEqualTypeOf<string[]>()
     expectTypeOf<FhirpathResult<'@T12:30:00'>>().toEqualTypeOf<string[]>()
@@ -19,7 +19,10 @@ describe('type-level literals', () => {
   })
 
   it('handles escaped strings and delimited identifiers without losing token boundaries', () => {
-    expectTypeOf<FhirpathResult<"'it\\'s'">>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"'it\\'s'">>().toEqualTypeOf<"it's"[]>()
+    // A unicode escape is a string the type level cannot spell, so no literal survives.
+    expectTypeOf<FhirpathResult<"'caf\\u00e9'">>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"'caf\\u00e9' | 'tea'">>().toEqualTypeOf<string[]>()
     expectTypeOf<FhirpathResult<'Patient.`name`'>>().toEqualTypeOf<HumanName[]>()
   })
 

@@ -41,7 +41,11 @@ A construct remains `unknown[]` when its result cannot be expressed safely.
 Malformed, dynamically widened, and deliberately opaque expressions also become
 `unknown[]`, not TypeScript errors. Use the analyzer to report expression errors.
 
-The type-level scanner accepts at most 64 emitted tokens and 256 visited source
+String literals keep their text through `|`, `iif()`, `combine()`, `union()`, and
+`coalesce()`, so `iif(active, 'open', 'closed')` infers `('open' | 'closed')[]`. A
+union with a non-literal side, and every string operation, widen to `string`.
+
+The type-level scanner accepts at most 128 emitted tokens and 512 visited source
 characters. Crossing either limit returns `unknown[]`; runtime evaluation and
 the analyzer still accept the full expression.
 

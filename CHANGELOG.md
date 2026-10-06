@@ -10,6 +10,12 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Added
 
+- Type inference keeps string literal text: `'a' | 'b'`, `iif(c, 'a', 'b')`,
+  `combine()`, `union()`, and `coalesce()` over literals infer the literal
+  union. A column such as `iif(..., 'asNeeded', 'continuous')` no longer needs
+  an `enum` option to type its values.
+- The type-level scanner budget rises from 64 tokens and 256 source characters
+  to 128 and 512.
 - `Dto.from(input, options?)`: a static on every DTO and view class that
   projects on the defining engine, typed like `engine.project()`.
 - `required: true` column option for DTO and view columns on a path of singular
