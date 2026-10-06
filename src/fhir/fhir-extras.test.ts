@@ -245,6 +245,17 @@ describe('htmlChecks', () => {
     ['<div xmlns="http://www.w3.org/1999/xhtml"><p foo="bar">attr</p></div>'],
     ['<p xmlns="http://www.w3.org/1999/xhtml">not a div</p>'],
     ['stray text <div xmlns="http://www.w3.org/1999/xhtml"/>'],
+    // An HTML parser ends these comments and CDATA sections before the point
+    // where XML ends them, so the script would render as a live element.
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!--><script>x()</script>--></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!---><script>x()</script>--></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><![CDATA[><script>x()</script>]]></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- a --!><script>x()</script>--></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- a -- b --></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- a ---></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- unterminated></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><![CDATA[ unterminated></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!DOCTYPE html></div>'],
   ])('rejects %s', html => {
     expect(validateNarrative(html)).toBe(false)
   })
@@ -255,6 +266,9 @@ describe('htmlChecks', () => {
         '<div xmlns="http://www.w3.org/1999/xhtml"><!-- note --><p>a&amp;b<br/></p><hr/><img src="data:image/png;base64,x" alt="i"/></div>'
       )
     ).toBe(true)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><!----><p>a<![CDATA[b & c]]></p></div>')).toBe(
+      true
+    )
   })
 
   it.each([
@@ -270,9 +284,35 @@ describe('htmlChecks', () => {
     expect(validateNarrative(`<div xmlns="http://www.w3.org/1999/xhtml"><a href="${href}">x</a></div>`)).toBe(true)
   })
 
-  it('empty input propagates and non-strings are false', () => {
+  it('checks a string as the content of a div', () => {
+    expect(evaluate("'<b>bold</b> and <code>code</code>'.htmlChecks()")).toEqual([true])
+    expect(evaluate("'plain text'.htmlChecks()")).toEqual([true])
+    expect(evaluate(`'${valid}'.htmlChecks()`)).toEqual([true])
+    expect(evaluate("'<button>x</button>'.htmlChecks()")).toEqual([false])
+    // The string cannot close the wrapping div and add content after it.
+    expect(evaluate("'</div><script>x()</script><div>'.htmlChecks()")).toEqual([false])
+    expect(evaluate("'<!-- </div>'.htmlChecks()")).toEqual([false])
+  })
+
+  it('checks an xhtml element as the whole narrative div', () => {
+    const patient = { resourceType: 'Patient', text: { status: 'generated', div: valid } }
+    expect(evaluate('text.div.htmlChecks()', patient, { model: r4Model })).toEqual([true])
+    const fragment = { resourceType: 'Patient', text: { status: 'generated', div: '<b>no root</b>' } }
+    expect(evaluate('text.div.htmlChecks()', fragment, { model: r4Model })).toEqual([false])
+  })
+
+  it('gives empty for empty input, collections, and non-string items', () => {
     expect(evaluate('{}.htmlChecks()')).toEqual([])
-    expect(evaluate('1.htmlChecks()')).toEqual([false])
+    expect(evaluate("('<b>a</b>' | '<i>b</i>').htmlChecks()")).toEqual([])
+    expect(evaluate('1.htmlChecks()')).toEqual([])
+    const patient = { resourceType: 'Patient', birthDate: '1974-12-25' }
+    expect(evaluate('birthDate.htmlChecks()', patient, { model: r4Model })).toEqual([])
+  })
+
+  it('checks model subtypes of FHIR.string as div content', () => {
+    const observation = { resourceType: 'Observation', status: '<script>x()</script>', note: [{ text: '<b>ok</b>' }] }
+    expect(evaluate('note.text.htmlChecks()', observation, { model: r4Model })).toEqual([true])
+    expect(evaluate('status.htmlChecks()', observation, { model: r4Model })).toEqual([false])
   })
 })
 

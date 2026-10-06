@@ -51,8 +51,19 @@ describe('corpus harness comparator', () => {
 
 describe('corpus skip logic', () => {
   it('covers each skip shape', () => {
-    expect(skipReason({ expression: 'a', disable: true }, 'a', 'f.yaml')).toBe('disabled upstream')
-    expect(skipReason({ expression: 'a', inheritedDisable: true }, 'a', 'f.yaml')).toBe('disabled upstream')
+    expect(skipReason({ expression: 'a', disable: true }, 'a', 'fhir-r4.yaml')).toContain('official.test.ts')
+    expect(skipReason({ expression: 'a', inheritedDisable: true }, 'a', 'fhir-r5.yaml')).toContain('official.test.ts')
+    expect(skipReason({ expression: 'a', disable: true }, 'a', 'f.yaml')).toBeUndefined()
+    expect(
+      skipReason(
+        { expression: 'a <= h', desc: 'less than equal, with too many values', disable: true },
+        'a <= h',
+        '6.2_comparision.yaml'
+      )
+    ).toContain('intentional divergence: too-many-values-singletons')
+    expect(
+      skipReason({ expression: 'a <= h', desc: 'other', disable: true }, 'a <= h', '6.2_comparision.yaml')
+    ).toBeUndefined()
     expect(skipReason({ expression: { dsl: true } }, '<non-string expression>', 'f.yaml')).toContain('non-string')
     expect(skipReason({ expression: 'a', model: 'r5' }, 'a', 'f.yaml')).toContain('R5 model')
     expect(skipReason({ expression: 'a', model: 'r99' }, 'a', 'f.yaml')).toContain('unknown model')
@@ -62,6 +73,9 @@ describe('corpus skip logic', () => {
       string,
     ]
     expect(skipReason({ expression: quirkExpression }, quirkExpression, quirkFile)).toContain('intentional divergence')
-    expect(matchQuirk('nope.yaml', 'nope')).toBeUndefined()
+    expect(matchQuirk('nope.yaml', { expression: 'nope' }, 'nope')).toBeUndefined()
+    const scoped = 'Patient.birthDate.hasValue()'
+    expect(matchQuirk('hasValue.yaml', { expression: scoped }, scoped)?.key).toBe(`hasValue.yaml@none||${scoped}`)
+    expect(matchQuirk('hasValue.yaml', { expression: scoped, model: 'r4' }, scoped)).toBeUndefined()
   })
 })

@@ -16,12 +16,18 @@ license (beda.software) and covers `cases-py-extras.json`.
 ## How the harness runs them (`src/fhirpathjs.test.ts`)
 
 - Cases with `model: r5/stu3/dstu2` are skipped (this package ships the R4 model).
-- Cases disabled upstream stay skipped.
+- Cases disabled upstream in `fhir-r4.yaml` and `fhir-r5.yaml` stay skipped:
+  those files copy official-suite cases, which `official.test.ts` runs directly.
+  Other cases disabled upstream run; the ones whose expected result is wrong
+  are quirk families like any other divergence.
 - Cases listed in `quirk-manifest.ts` are skipped as **intentional divergences**:
   each family documents the reference-implementation behavior we do not inherit
   and the spec/official-suite evidence for our reading. The hygiene tests fail if
-  a manifest key stops matching the corpus or the manifest grows past a small
-  fraction of it.
+  a manifest key shields no runnable case, if a shielded case starts passing, or
+  if the manifest grows past a small fraction of the corpus. A key written as
+  `file@model||expression` matches only cases run with that model (`none` for
+  model-free cases); `file#desc||expression` matches one of several cases with
+  the same expression.
 - Everything else must pass.
 
 Note that [octofhir/fhirpath-rs](https://github.com/octofhir/fhirpath-rs)

@@ -1127,17 +1127,15 @@ export type BuiltinHourOfDegradation = Assert<Equal<FhirpathResultIn<'Patient.na
 export type BuiltinHourOfComposition = Assert<
   Equal<FhirpathResultIn<'(@2020-01-01.hourOf()).count()', 'opaque'>, number[]>
 >
-export type BuiltinHtmlChecksFastSlowParity = Assert<
-  FastSlowInferenceParity<'Patient.name.first().htmlChecks()', 'opaque'>
->
+export type BuiltinHtmlChecksFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.htmlChecks()', 'opaque'>>
 export type BuiltinHtmlChecksPositive = Assert<
-  Equal<FhirpathResultIn<'Patient.name.first().htmlChecks()', 'opaque'>, boolean[]>
+  Equal<FhirpathResultIn<'Patient.name.htmlChecks()', 'opaque'>, boolean[]>
 >
 export type BuiltinHtmlChecksDegradation = Assert<
   Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
 >
 export type BuiltinHtmlChecksComposition = Assert<
-  Equal<FhirpathResultIn<'(Patient.name.first().htmlChecks()).count()', 'opaque'>, number[]>
+  Equal<FhirpathResultIn<'(Patient.name.htmlChecks()).count()', 'opaque'>, number[]>
 >
 export type BuiltinIifFastSlowParity = Assert<
   FastSlowInferenceParity<'Patient.name.iif(true, given, family)', 'opaque'>

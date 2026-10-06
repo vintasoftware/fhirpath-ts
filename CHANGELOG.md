@@ -8,6 +8,29 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+### Security
+
+- Fixed `htmlChecks()` accepting narratives with active content hidden in a
+  comment or CDATA section that an HTML parser ends early, such as
+  `<!--><script>…</script>-->` or `<![CDATA[><script>…</script>]]>`. Rendered
+  as HTML, the script was a live element.
+
+### Changed
+
+- `htmlChecks()` checks a string, including a model subtype of `string` such as
+  `markdown` or `code`, as the content of a narrative `div`, as the current FHIR
+  build specifies (FHIR-56303); an `xhtml` element is still checked
+  as the whole `div`. Without a model, `text.div` is a string, so it is now
+  checked as `div` content instead of as the whole `div`. It returns an empty
+  collection for other item types and for collections, instead of `false` or an
+  error. The analyzer no longer reports `singleton-required` for it.
+
+### Fixed
+
+- Fixed `replaceMatches()` to substitute PCRE-style group references such as
+  `${day}` and `${1}`, as in the specification's example. A custom `regex`
+  engine receives them rewritten to `$<day>` and `$01`.
+
 ## 0.3.0 - 2026-09-26
 
 This release replaces the DTO API. DTOs from 0.2.x need to be rewritten; see

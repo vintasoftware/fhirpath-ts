@@ -123,6 +123,10 @@ const TAG_PATTERN = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<[^>]*>|[^<]+/g
 const OPEN_TAG = /^<([a-zA-Z][a-zA-Z0-9]*)((?:\s+[^\s=>/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'))?)*)\s*(\/?)>$/
 const CLOSE_TAG = /^<\/([a-zA-Z][a-zA-Z0-9]*)\s*>$/
 const ATTRIBUTE = /([^\s=>/]+)(?:\s*=\s*("[^"]*"|'[^']*'))?/g
+/** An XML comment whose content does not start with `>` or `->`. */
+const COMMENT = /^<!--(?!-?>)(?:[^-]|-(?!-))*-->$/
+/** A CDATA section with no `>` before its terminator. */
+const CDATA = /^<!\[CDATA\[[^>]*\]\]>$/
 
 export function validateNarrative(xhtml: string): boolean {
   const stack: string[] = []
@@ -146,8 +150,14 @@ export function validateNarrative(xhtml: string): boolean {
       }
       continue
     }
-    if (token.startsWith('<!--') || token.startsWith('<![CDATA[')) {
-      continue
+    if (token.startsWith('<!')) {
+      // An HTML parser ends a comment at `<!-->` or `<!--->`, and ends CDATA (a
+      // bogus comment outside SVG and MathML) at the first `>`. Accept only forms
+      // that end where XML ends them, so no hidden text renders as markup.
+      if (COMMENT.test(token) || CDATA.test(token)) {
+        continue
+      }
+      return false
     }
     const close = CLOSE_TAG.exec(token)
     if (close) {

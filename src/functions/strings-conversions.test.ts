@@ -33,6 +33,15 @@ describe('string functions', () => {
     ["'hi'.matchesFull('hi')", [true]],
     ["'hihi'.matchesFull('hi')", [false]],
     ["'abc123def'.replaceMatches('\\\\d+', '|')", ['abc|def']],
+    // Spec §5.6.10 example: PCRE-style named group references.
+    [
+      "'11/30/1972'.replaceMatches('\\\\b(?<month>\\\\d{1,2})/(?<day>\\\\d{1,2})/(?<year>\\\\d{2,4})\\\\b', '${day}-${month}-${year}')",
+      ['30-11-1972'],
+    ],
+    ["'ab'.replaceMatches('(a)(b)', '${2}${1}0')", ['ba0']],
+    ["'ab'.replaceMatches('(a)', '[${0}]')", ['[a]b']],
+    ["'ab'.replaceMatches('(a)(b)', '$2$1')", ['ba']],
+    ["'ab'.replaceMatches('(?<x>a)', '$${x}')", ['${x}b']],
     ["'abcdefg'.length()", [7]],
     ["''.length()", [0]],
     ["'ab'.toChars()", ['a', 'b']],
@@ -296,6 +305,7 @@ describe('pluggable regex engine (EvaluateOptions.regex)', () => {
     expect(evaluate("'abc'.matches('abc')", undefined, { regex: stub })).toEqual([false])
     expect(evaluate("'^(?:abc)$:s'.matchesFull('abc')", undefined, { regex: stub })).toEqual([true])
     expect(evaluate("'x'.replaceMatches('abc', 'y')", undefined, { regex: stub })).toEqual(['x|y|gs'])
+    expect(evaluate("'x'.replaceMatches('abc', '${n}${1}')", undefined, { regex: stub })).toEqual(['x|$<n>$01|gs'])
   })
 
   it('compile failures surface as the spec invalid-regex type error', () => {

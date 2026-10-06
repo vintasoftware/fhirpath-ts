@@ -26,8 +26,11 @@ const suites: Record<SuiteName, OfficialGroup[]> = {
   r5: loadOfficialSuite('r5'),
 }
 
-/** The runtime skip manifest minus its strict-mode entries, which are this file's subject. */
-const RUNTIME_SKIPS = SKIP_MANIFEST.filter(entry => entry.mode !== 'strict')
+/**
+ * The runtime skip manifest minus its strict-mode entries, which are this file's
+ * subject, and its expected-value disputes, which static analysis does not read.
+ */
+const RUNTIME_SKIPS = SKIP_MANIFEST.filter(entry => entry.mode !== 'strict' && entry.runtimeOnly !== true)
 
 function mustError(test: OfficialTest): boolean {
   return test.invalid === 'syntax' || test.invalid === 'semantic' || test.mode === 'strict'

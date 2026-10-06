@@ -12,7 +12,7 @@ repository, converted to JSON offline, and run with Vitest.
 | Suite | Passing | Skipped with a reason | Failing |
 | --- | ---: | ---: | ---: |
 | R4 (`tests-fhir-r4.xml`) | 941 | 6 | 0 |
-| R5 (`tests-fhir-r5.xml`) | 1,056 | 19 | 0 |
+| R5 (`tests-fhir-r5.xml`) | 1,060 | 15 | 0 |
 
 Every non-skipped official case passes.
 
@@ -44,7 +44,9 @@ fails when a skip no longer matches a suite case.
 | Decimal boundary and dateTime millisecond cases | Expected values conflict with the mathematical bounds; recorded as upstream test issues |
 | `testPlusDate19` in R4 | R5 changed ambiguous R4 behavior; the engine follows R5 |
 
-The manifest contains the exact case names and evidence.
+The manifest contains the exact case names and evidence. Entries marked
+`runtimeOnly` dispute an expected value, not a feature. The analyzer pass still
+runs those cases, because it checks diagnostics and not values.
 
 ## Reference test corpora
 
@@ -54,12 +56,15 @@ The package also runs tests from
 
 | Corpus | Passing | Skipped with a reason |
 | --- | ---: | ---: |
-| fhirpath.js cases plus fhirpath-py additions | 2,289 | 1,380 |
+| fhirpath.js cases plus fhirpath-py additions | 2,297 | 1,370 |
 
-Most skips require a model other than R4 or are disabled upstream. Another 241
-cases are intentional differences recorded in
-`test-data/fhirpathjs/quirk-manifest.ts`. Each group includes its specification or
-official-suite evidence. Maintenance tests keep the entries exact.
+Most skips require a model other than R4 or copy official-suite cases that
+upstream disabled; `official.test.ts` runs those cases directly. Other cases
+disabled upstream run here. Another 243 cases are intentional differences
+recorded in `test-data/fhirpathjs/quirk-manifest.ts`, including four disabled
+upstream whose expected result is wrong. Each group includes its specification or
+official-suite evidence. A maintenance test runs every listed case and fails when
+one starts passing, so the manifest lists only differences that still exist.
 
 The fhirpath-rs corpus was also reviewed. Its official R5 cases are already
 covered by the official suite. Its additional cases are included in

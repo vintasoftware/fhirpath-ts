@@ -693,7 +693,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.htmlChecks': {
     source: {
-      expression: 'Patient.name.first().htmlChecks()',
+      expression: 'Patient.name.htmlChecks()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'boolean[]',
@@ -704,7 +704,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().htmlChecks()).count()',
+    composition: '(Patient.name.htmlChecks()).count()',
   },
   'builtin.iif': {
     source: {

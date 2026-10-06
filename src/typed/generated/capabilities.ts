@@ -1714,9 +1714,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.htmlChecks': {
-    expression: 'Patient.name.first().htmlChecks()',
+    expression: 'Patient.name.htmlChecks()',
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().htmlChecks()).count()',
+    composition: '(Patient.name.htmlChecks()).count()',
     analyzer: {
       types: ['System.Boolean'],
       single: true,
