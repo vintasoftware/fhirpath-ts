@@ -411,7 +411,9 @@ appropriate for the application.
 
 `htmlChecks()` checks FHIR narrative rules and allows only inert URL schemes. It
 decodes attribute entities in the same way as a browser. A `true` result means
-the narrative contains no active content.
+the narrative contains no active content. An `xhtml` element, such as
+`text.div`, must be a complete narrative `div`. A string is checked as the
+content of a `div`. Other items and collections give an empty result.
 
 ### PHI and tracing
 

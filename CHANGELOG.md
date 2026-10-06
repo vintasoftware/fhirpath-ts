@@ -15,6 +15,14 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `<!--><script>…</script>-->` or `<![CDATA[><script>…</script>]]>`. Rendered
   as HTML, the script was a live element.
 
+### Changed
+
+- `htmlChecks()` checks a string as the content of a narrative `div`, as the
+  current FHIR build specifies (FHIR-56303); an `xhtml` element is still checked
+  as the whole `div`. It returns an empty collection for other item types and
+  for collections, instead of `false` or an error. The analyzer no longer
+  reports `singleton-required` for it.
+
 ### Fixed
 
 - Fixed `replaceMatches()` to substitute PCRE-style group references such as

@@ -279,7 +279,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   extension: { args: ['String'], result: UNKNOWN },
   hasValue: { input: { singleton: true }, result: BOOLEAN },
   getValue: { input: { singleton: true }, result: UNKNOWN_ITEM },
-  htmlChecks: { input: { singleton: true }, result: BOOLEAN },
+  // A collection gives empty, not an error (FHIR R5 htmlChecks).
+  htmlChecks: { result: BOOLEAN },
   comparable: { input: { kind: 'Quantity', singleton: true }, args: ['Quantity'], result: BOOLEAN },
   conformsTo: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
 

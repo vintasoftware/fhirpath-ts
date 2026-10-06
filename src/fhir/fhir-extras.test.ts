@@ -284,9 +284,29 @@ describe('htmlChecks', () => {
     expect(validateNarrative(`<div xmlns="http://www.w3.org/1999/xhtml"><a href="${href}">x</a></div>`)).toBe(true)
   })
 
-  it('empty input propagates and non-strings are false', () => {
+  it('checks a string as the content of a div', () => {
+    expect(evaluate("'<b>bold</b> and <code>code</code>'.htmlChecks()")).toEqual([true])
+    expect(evaluate("'plain text'.htmlChecks()")).toEqual([true])
+    expect(evaluate(`'${valid}'.htmlChecks()`)).toEqual([true])
+    expect(evaluate("'<button>x</button>'.htmlChecks()")).toEqual([false])
+    // The string cannot close the wrapping div and add content after it.
+    expect(evaluate("'</div><script>x()</script><div>'.htmlChecks()")).toEqual([false])
+    expect(evaluate("'<!-- </div>'.htmlChecks()")).toEqual([false])
+  })
+
+  it('checks an xhtml element as the whole narrative div', () => {
+    const patient = { resourceType: 'Patient', text: { status: 'generated', div: valid } }
+    expect(evaluate('text.div.htmlChecks()', patient, { model: r4Model })).toEqual([true])
+    const fragment = { resourceType: 'Patient', text: { status: 'generated', div: '<b>no root</b>' } }
+    expect(evaluate('text.div.htmlChecks()', fragment, { model: r4Model })).toEqual([false])
+  })
+
+  it('gives empty for empty input, collections, and non-string items', () => {
     expect(evaluate('{}.htmlChecks()')).toEqual([])
-    expect(evaluate('1.htmlChecks()')).toEqual([false])
+    expect(evaluate("('<b>a</b>' | '<i>b</i>').htmlChecks()")).toEqual([])
+    expect(evaluate('1.htmlChecks()')).toEqual([])
+    const patient = { resourceType: 'Patient', gender: 'male' }
+    expect(evaluate('gender.htmlChecks()', patient, { model: r4Model })).toEqual([])
   })
 })
 
