@@ -83,11 +83,6 @@ export const SKIP_MANIFEST: SkipEntry[] = [
   },
   {
     suite: 'r5',
-    mode: 'html',
-    reason: 'the parameters-example-html fixture is only distributed as XML; htmlChecks() is covered by unit tests',
-  },
-  {
-    suite: 'r5',
     mode: 'lenient/polymorphics',
     reason: 'lenient polymorphic access is profile-dependent behavior this engine does not offer',
   },

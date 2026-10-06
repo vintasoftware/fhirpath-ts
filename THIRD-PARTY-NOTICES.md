@@ -28,8 +28,11 @@ the appendix below.
 The official FHIRPath conformance suites and their fixtures in
 `test-data/official/` are vendored (converted from XML to JSON) from
 <https://github.com/FHIR/fhir-test-cases>, licensed under the Apache License
-2.0 (also vendored alongside as `test-data/official/LICENSE.txt`). The FHIR®
-specification content they embed is offered by HL7 under CC0 terms.
+2.0 (also vendored alongside as `test-data/official/LICENSE.txt`). Upstream
+publishes `r5/parameters-example-html.xml` only as XML, so
+`test-data/official/r5/fixtures/parameters-example-html.json` is a hand
+conversion of it. The FHIR® specification content they embed is offered by HL7
+under CC0 terms.
 
 ## HL7/fhirpath.js — NLM/Health Samurai license (BSD-style)
 
