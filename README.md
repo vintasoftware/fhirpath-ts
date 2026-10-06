@@ -409,14 +409,35 @@ appropriate for the application.
 
 ### Narrative checking
 
-`htmlChecks()` checks FHIR narrative rules and allows only inert URL schemes. It
-decodes attribute entities in the same way as a browser. A `true` result means
-the narrative contains no active content. An `xhtml` element, such as
-`text.div`, must be a complete narrative `div`. A string, including a model
-subtype of `string` such as `markdown` or `code`, is checked as the content of a
-`div`. Only a model, such as `r4Model`, types `text.div` as
-`xhtml`; without one it is a string and is checked as `div` content. Other items
-and collections give an empty result.
+`htmlChecks()` checks the FHIR narrative rules: well-formed XHTML in one `div`,
+only the elements and attributes FHIR allows, no scripts (including
+`javascript:` links), and some non-whitespace text or an image. An `xhtml`
+element, such as `text.div`, must be a complete narrative `div`. A string,
+including `code`, `id`, and `markdown`, is checked as the content of a `div`.
+Only a model, such as `r4Model`, types `text.div` as `xhtml`; without one it is
+a string and is checked as `div` content. Other items and collections give an
+empty result.
+
+The FHIR rules are not an HTML sanitizer, so a `true` result does not mean a
+narrative is safe to insert into a page. If your application renders narrative
+as HTML, sanitize it before rendering. We strongly recommend also passing a
+sanitizer to the engine, so `htmlChecks()` returns `false` for any narrative the
+sanitizer would change:
+
+```ts
+import createDOMPurify from 'dompurify'
+import { domPurifySanitizer, FhirPathEngine } from 'fhirpath-ts'
+import { r4Model } from 'fhirpath-ts/r4'
+
+// In a browser, pass `window`. In Node, pass a DOM such as `new JSDOM('').window`.
+const DOMPurify = createDOMPurify(window)
+const fp = new FhirPathEngine({ model: r4Model, narrativeSanitizer: domPurifySanitizer(DOMPurify) })
+```
+
+DOMPurify is not a dependency of this package; install it yourself. Any object
+with an `accepts(xhtml)` method works as a `narrativeSanitizer`. By default
+DOMPurify removes `urn:` links; pass a DOMPurify config with
+`ALLOWED_URI_REGEXP` to `domPurifySanitizer()` to keep them.
 
 ### PHI and tracing
 

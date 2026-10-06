@@ -8,6 +8,7 @@ import {
   type HostFunction,
   type HostNativeFunction,
   type HostSingleFunction,
+  type NarrativeSanitizer,
   normalizeEnvKeys,
   type RegexEngine,
 } from '../engine/context.ts'
@@ -108,6 +109,13 @@ export interface EvaluateOptions {
    * expressions (see README, Security).
    */
   regex?: RegexEngine
+  /**
+   * HTML sanitizer for htmlChecks(). The FHIR narrative rules are not a
+   * sanitizer; when this is set, htmlChecks() also returns false for a narrative
+   * the sanitizer would change. Strongly recommended when narrative is rendered
+   * as HTML (see README, Narrative checking).
+   */
+  narrativeSanitizer?: NarrativeSanitizer
 }
 
 type CheckedOptionKeys<Options, Accepted> = string extends keyof Options
@@ -262,6 +270,7 @@ export function contextFactory(
       trace: options?.trace,
       functions,
       regex: options?.regex,
+      narrativeSanitizer: options?.narrativeSanitizer,
     })
     if (vars !== undefined) {
       bindVars(context, vars)

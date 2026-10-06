@@ -68,6 +68,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid('Questionnaire.repeat(item).linkId'),
       valid('birthDate <= today()', "Patient.name.trace('names').given"),
       valid('Patient.name.given'),
+      valid(),
     ],
   },
   {

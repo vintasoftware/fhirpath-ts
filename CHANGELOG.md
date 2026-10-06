@@ -8,6 +8,12 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+### Added
+
+- `narrativeSanitizer` option and `domPurifySanitizer()` adapter. With a
+  sanitizer set, `htmlChecks()` also returns `false` for a narrative the
+  sanitizer would change. DOMPurify is not a dependency; pass your own instance.
+
 ### Security
 
 - Fixed `htmlChecks()` accepting `javascript:` links written with numeric
@@ -20,6 +26,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
+- The README no longer describes a `true` `htmlChecks()` result as free of
+  active content. `htmlChecks()` checks the FHIR narrative rules, which are not
+  an HTML sanitizer; sanitize narrative before rendering it as HTML.
 - `htmlChecks()` requires well-formed XHTML. It now rejects an unclosed `<br>`,
   uppercase element names, attributes without a value or without whitespace
   between them, duplicate attributes, a bare `&`, characters XML does not allow,
