@@ -129,7 +129,7 @@ export type LiteralDecimalPositive = Assert<Equal<FhirpathResultIn<'-7.3', 'opaq
 export type LiteralDecimalDegradation = Assert<Equal<FhirpathResultIn<'7.', 'opaque'>, unknown[]>>
 export type LiteralDecimalComposition = Assert<Equal<FhirpathResultIn<'(-7.3).round()', 'opaque'>, number[]>>
 export type LiteralStringFastSlowParity = Assert<FastSlowInferenceParity<"'plain'", 'opaque'>>
-export type LiteralStringPositive = Assert<Equal<FhirpathResultIn<"'plain'", 'opaque'>, string[]>>
+export type LiteralStringPositive = Assert<Equal<FhirpathResultIn<"'plain'", 'opaque'>, 'plain'[]>>
 export type LiteralStringDegradation = Assert<Equal<FhirpathResultIn<"'unterminated", 'opaque'>, unknown[]>>
 export type LiteralStringComposition = Assert<Equal<FhirpathResultIn<"'plain'.upper()", 'opaque'>, string[]>>
 export type LiteralDateFastSlowParity = Assert<FastSlowInferenceParity<'@2019', 'opaque'>>
@@ -193,9 +193,9 @@ export type OperatorConcatenateComposition = Assert<
   Equal<FhirpathResultIn<"('a' & 'b').upper()", 'MathTestData'>, string[]>
 >
 export type OperatorUnionFastSlowParity = Assert<FastSlowInferenceParity<"'a' | 'b'", 'Patient'>>
-export type OperatorUnionPositive = Assert<Equal<FhirpathResultIn<"'a' | 'b'", 'Patient'>, string[]>>
+export type OperatorUnionPositive = Assert<Equal<FhirpathResultIn<"'a' | 'b'", 'Patient'>, ('a' | 'b')[]>>
 export type OperatorUnionDegradation = Assert<Equal<FhirpathResultIn<"'a' |", 'Patient'>, unknown[]>>
-export type OperatorUnionComposition = Assert<Equal<FhirpathResultIn<"('a' | 'b').first()", 'Patient'>, string[]>>
+export type OperatorUnionComposition = Assert<Equal<FhirpathResultIn<"('a' | 'b').first()", 'Patient'>, ('a' | 'b')[]>>
 export type OperatorLessThanFastSlowParity = Assert<FastSlowInferenceParity<'a < b', 'opaque'>>
 export type OperatorLessThanPositive = Assert<Equal<FhirpathResultIn<'a < b', 'opaque'>, boolean[]>>
 export type OperatorLessThanDegradation = Assert<Equal<FhirpathResultIn<'1 <', 'opaque'>, unknown[]>>
@@ -733,6 +733,51 @@ export type HostContextReferenceTargetsComposition = Assert<
       { env: { subject: { type: 'Reference'; targets: 'Practitioner' } } }
     >,
     string[]
+  >
+>
+export type LiteralIifUnionFastSlowParity = Assert<FastSlowInferenceParity<"iif(true, 'a', 'b')", 'opaque'>>
+export type LiteralIifUnionPositive = Assert<Equal<FhirpathResultIn<"iif(true, 'a', 'b')", 'opaque'>, ('a' | 'b')[]>>
+export type LiteralIifUnionDegradation = Assert<Equal<FhirpathResultIn<"iif(true, 'a', nope)", 'opaque'>, unknown[]>>
+export type LiteralIifUnionComposition = Assert<
+  Equal<FhirpathResultIn<"iif(true, 'a', 'b').upper()", 'opaque'>, string[]>
+>
+export type LiteralMixedUnionFastSlowParity = Assert<FastSlowInferenceParity<"'a' | 1", 'opaque'>>
+export type LiteralMixedUnionPositive = Assert<Equal<FhirpathResultIn<"'a' | 1", 'opaque'>, (string | number)[]>>
+export type LiteralMixedUnionDegradation = Assert<Equal<FhirpathResultIn<"'a' | nope", 'opaque'>, unknown[]>>
+export type LiteralMixedUnionComposition = Assert<
+  Equal<FhirpathResultIn<"('a' | 1).first()", 'opaque'>, (string | number)[]>
+>
+export type BudgetLongChainFastSlowParity = Assert<
+  FastSlowInferenceParity<
+    "address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())",
+    'Organization'
+  >
+>
+export type BudgetLongChainPositive = Assert<
+  Equal<
+    FhirpathResultIn<
+      "address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())",
+      'Organization'
+    >,
+    string[]
+  >
+>
+export type BudgetLongChainDegradation = Assert<
+  Equal<
+    FhirpathResultIn<
+      "addresss.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())",
+      'Organization'
+    >,
+    unknown[]
+  >
+>
+export type BudgetLongChainComposition = Assert<
+  Equal<
+    FhirpathResultIn<
+      "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())).exists()",
+      'Organization'
+    >,
+    boolean[]
   >
 >
 export type BuiltinAbsFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.first().abs()', 'opaque'>>

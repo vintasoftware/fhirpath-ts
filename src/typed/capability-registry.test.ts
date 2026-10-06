@@ -227,6 +227,15 @@ function runManualCapability(id: string, expression: string): string | undefined
     'syntax.delimited-identifier': { input: patient, expected: [...patient.name] },
     'literal.integer': { input: undefined, expected: [7] },
     'literal.string': { input: undefined, expected: ['plain'] },
+    'literal.iif-union': { input: undefined, expected: ['a'] },
+    'literal.mixed-union': { input: undefined, expected: ['a', 1] },
+    'budget.long-chain': {
+      input: {
+        resourceType: 'Organization',
+        address: [{ line: ['1200 Medical Center Way'], city: 'Seattle', state: 'WA', postalCode: '98101' }],
+      },
+      expected: ['1200 Medical Center Way, Seattle, WA 98101'],
+    },
     'precedence.call-dot': { input: patient, expected: ['Peter', 'James'] },
     'precedence.dot-index': { input: patient, expected: ['Peter', 'James'] },
     'precedence.index-unary': { input: patient, expected: [-5] },
