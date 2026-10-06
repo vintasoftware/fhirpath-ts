@@ -10,6 +10,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Security
 
+- Fixed `htmlChecks()` accepting `javascript:` links written with numeric
+  references that lack a `;`, such as `&#106avascript:`. A browser decodes these
+  forms, so the link ran a script.
 - Fixed `htmlChecks()` accepting narratives with active content hidden in a
   comment or CDATA section that an HTML parser ends early, such as
   `<!--><script>…</script>-->` or `<![CDATA[><script>…</script>]]>`. Rendered
@@ -17,6 +20,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
+- `htmlChecks()` requires well-formed XHTML. It now rejects an unclosed `<br>`,
+  uppercase element names, attributes without a value or without whitespace
+  between them, duplicate attributes, a bare `&`, characters XML does not allow,
+  and an `xmlns` other than the XHTML namespace.
 - `htmlChecks()` checks a string, including a model subtype of `string` such as
   `markdown` or `code`, as the content of a narrative `div`, as the current FHIR
   build specifies (FHIR-56303); an `xhtml` element is still checked
