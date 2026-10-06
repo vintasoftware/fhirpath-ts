@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs'
 
-import { QUIRK_FAMILIES, type QuirkFamily, SKIPPED_MODELS } from '../../test-data/fhirpathjs/quirk-manifest.ts'
+import {
+  DISABLED_UPSTREAM_SKIPS,
+  type DisabledUpstreamSkip,
+  OFFICIAL_SUITE_COPIES,
+  QUIRK_FAMILIES,
+  type QuirkFamily,
+  SKIPPED_MODELS,
+} from '../../test-data/fhirpathjs/quirk-manifest.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate } from '../api/evaluate.ts'
 import { r4Model } from '../r4/index.ts'
@@ -47,7 +54,13 @@ function loadResource(name: string): unknown {
 /** Why a case is skipped, or undefined when it should run. */
 export function skipReason(test: CorpusTest, expression: string, file: string): string | undefined {
   if (test.disable === true || test.inheritedDisable === true) {
-    return 'disabled upstream'
+    if (OFFICIAL_SUITE_COPIES.includes(file)) {
+      return 'disabled upstream; official.test.ts runs this official-suite case'
+    }
+    const entry = disabledUpstreamSkip(file, test)
+    if (entry !== undefined) {
+      return `disabled upstream: ${entry.reason}`
+    }
   }
   if (typeof test.expression === 'object' && !Array.isArray(test.expression)) {
     return 'non-string expression (fhirpath.js internal AST form)'
@@ -57,6 +70,10 @@ export function skipReason(test: CorpusTest, expression: string, file: string): 
   }
   const quirk = matchQuirk(file, expression, test.model)
   return quirk === undefined ? undefined : `intentional divergence: ${quirk.name}`
+}
+
+export function disabledUpstreamSkip(file: string, test: CorpusTest): DisabledUpstreamSkip | undefined {
+  return DISABLED_UPSTREAM_SKIPS.find(entry => entry.file === file && entry.desc === test.desc)
 }
 
 const QUIRK_INDEX = new Map<string, QuirkFamily>()

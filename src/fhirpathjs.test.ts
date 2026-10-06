@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { QUIRK_FAMILIES } from '../test-data/fhirpathjs/quirk-manifest.ts'
+import { DISABLED_UPSTREAM_SKIPS, QUIRK_FAMILIES } from '../test-data/fhirpathjs/quirk-manifest.ts'
 import {
   type CorpusFile,
   type CorpusTest,
+  disabledUpstreamSkip,
   loadCorpus,
   matchQuirk,
   runCorpusTest,
@@ -94,6 +95,19 @@ describe('quirk manifest hygiene', () => {
     expect(passing, 'these quirk cases now pass; remove their manifest keys').toEqual([])
     const unused = QUIRK_FAMILIES.flatMap(family => family.keys.filter(key => !shielding.has(key)))
     expect(unused, 'these quirk keys shield no runnable corpus case').toEqual([])
+  })
+
+  it('every disabled-upstream skip names one disabled case this engine still fails', () => {
+    for (const entry of DISABLED_UPSTREAM_SKIPS) {
+      const matches = cases.filter(
+        ({ file, test }) =>
+          (test.disable === true || test.inheritedDisable === true) && disabledUpstreamSkip(file, test) === entry
+      )
+      expect(matches.length, `${entry.file}: ${entry.desc}`).toBe(1)
+      for (const { data, test, expression } of matches) {
+        expect(runCorpusTest(data, test, expression), `${entry.file}: ${entry.desc} now passes`).toBeDefined()
+      }
+    }
   })
 
   it('the manifest stays a small documented fraction of the corpus', () => {

@@ -371,3 +371,37 @@ export const SKIPPED_MODELS: Readonly<Record<string, string>> = {
   stu3: 'STU3 model is out of scope',
   dstu2: 'DSTU2 model is out of scope',
 }
+
+/**
+ * Corpus files that copy official-suite cases. `official.test.ts` runs those
+ * cases directly, with the suite's modes and skips, so cases disabled upstream
+ * in these files stay skipped here.
+ */
+export const OFFICIAL_SUITE_COPIES: readonly string[] = ['fhir-r4.yaml', 'fhir-r5.yaml']
+
+/**
+ * Cases disabled upstream whose expected result is wrong, keyed by file and
+ * `desc` (one expression can carry contradictory cases). Every other case
+ * disabled upstream outside `OFFICIAL_SUITE_COPIES` runs and must pass. The
+ * hygiene test fails when an entry matches no disabled case or its case starts
+ * passing.
+ */
+export interface DisabledUpstreamSkip {
+  file: string
+  desc: string
+  reason: string
+}
+
+const EMPTY_OPERAND =
+  'expects an error for an empty operand; spec \u00a76.6 returns empty when either operand is empty, and the same file expects [] for n1 + n4'
+
+export const DISABLED_UPSTREAM_SKIPS: DisabledUpstreamSkip[] = [
+  { file: '6.6_math.yaml', desc: '** Error adding missing numbers', reason: EMPTY_OPERAND },
+  { file: '6.6_math.yaml', desc: '** Error truncated divide missing numbers', reason: EMPTY_OPERAND },
+  { file: '6.6_math.yaml', desc: '** Error reminder of truncated division missing numbers', reason: EMPTY_OPERAND },
+  {
+    file: '6.2_comparision.yaml',
+    desc: 'less than equal, with too many values',
+    reason: 'expects a too-many-values error, but a and h are single integers (1 and 2) in the test data, so a <= h is true',
+  },
+]

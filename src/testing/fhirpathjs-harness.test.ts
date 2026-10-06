@@ -51,8 +51,16 @@ describe('corpus harness comparator', () => {
 
 describe('corpus skip logic', () => {
   it('covers each skip shape', () => {
-    expect(skipReason({ expression: 'a', disable: true }, 'a', 'f.yaml')).toBe('disabled upstream')
-    expect(skipReason({ expression: 'a', inheritedDisable: true }, 'a', 'f.yaml')).toBe('disabled upstream')
+    expect(skipReason({ expression: 'a', disable: true }, 'a', 'fhir-r4.yaml')).toContain('official.test.ts')
+    expect(skipReason({ expression: 'a', inheritedDisable: true }, 'a', 'fhir-r5.yaml')).toContain('official.test.ts')
+    expect(skipReason({ expression: 'a', disable: true }, 'a', 'f.yaml')).toBeUndefined()
+    expect(
+      skipReason(
+        { expression: 'a <= h', desc: 'less than equal, with too many values', disable: true },
+        'a <= h',
+        '6.2_comparision.yaml'
+      )
+    ).toContain('disabled upstream: ')
     expect(skipReason({ expression: { dsl: true } }, '<non-string expression>', 'f.yaml')).toContain('non-string')
     expect(skipReason({ expression: 'a', model: 'r5' }, 'a', 'f.yaml')).toContain('R5 model')
     expect(skipReason({ expression: 'a', model: 'r99' }, 'a', 'f.yaml')).toContain('unknown model')
