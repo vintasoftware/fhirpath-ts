@@ -160,8 +160,9 @@ Independent, one per layer. Each runs the AGENTS.md required checks plus
   target before calling `getBaseTypes`; a tuple is never an engine. Reproduced
   on 0.3.0 and on `main` with PR 559's `observation.dto.ts` when files are
   passed on the command line; PR 559's `check:fhirpath` script passes none, so
-  only the syntax scanner runs there. Add a tuple-typed constant to the
-  `src/analyzer/expression-policy.test.ts` corpus.
+  only the syntax scanner runs there. The regression test needs a program with
+  a checker, so it lives in `src/sites/sites.test.ts`; the walker corpus runs
+  without one and cannot reach this code.
 - `src/cli/dto-check.ts:55-57`: resolve glob matches with `path.resolve(cwd, match)`
   so an absolute `--dtos` pattern imports.
 
