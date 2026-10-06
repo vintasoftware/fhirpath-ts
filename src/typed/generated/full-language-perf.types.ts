@@ -251,11 +251,11 @@ export type Composition084 = FhirpathResultIn<"iif(true, 'a', 'b').upper()", 'op
 export type Capability085 = FhirpathResultIn<"'a' | 1", 'opaque'>
 export type Composition085 = FhirpathResultIn<"('a' | 1).first()", 'opaque'>
 export type Capability086 = FhirpathResultIn<
-  "address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())",
+  "address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()",
   'Organization'
 >
 export type Composition086 = FhirpathResultIn<
-  "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())).exists()",
+  "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()).exists()",
   'Organization'
 >
 export type Capability087 = FhirpathResultIn<'Patient.name.first().abs()', 'opaque'>

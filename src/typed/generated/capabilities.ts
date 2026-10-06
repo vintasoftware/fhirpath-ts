@@ -1275,11 +1275,11 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
   },
   'budget.long-chain': {
     expression:
-      "address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())",
+      "address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()",
     degradation:
-      "addresss.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())",
+      "addresss.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()",
     composition:
-      "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())).exists()",
+      "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()).exists()",
     analyzer: {
       types: ['FHIR.string', 'System.String'],
       single: true,
