@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest'
 
 import type { HumanName, Quantity, SystemQuantity } from '../r4/generated/type-maps.ts'
-import type { FhirpathResult } from './infer.ts'
+import type { FhirpathResult, FhirpathResultIn } from './infer.ts'
 
 describe('type-level literals', () => {
   it('infers every runtime literal shape', () => {
@@ -20,6 +20,18 @@ describe('type-level literals', () => {
 
   it('handles escaped strings and delimited identifiers without losing token boundaries', () => {
     expectTypeOf<FhirpathResult<"'it\\'s'">>().toEqualTypeOf<"it's"[]>()
+    // A new value is a string, not the left operand's text: arithmetic and
+    // string functions rebuild the state, and only subset-preserving paths keep it.
+    expectTypeOf<FhirpathResult<"'a' + 'b'">>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"'a' & 'b'">>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResultIn<"'Dr. ' + name.family.first()", 'Patient'>>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"('a' | 'b').select($this + '!')">>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"('a' | 'b').select($this.upper())">>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"('a' | 'b').where($this = 'a').first()">>().toEqualTypeOf<('a' | 'b')[]>()
+    // An empty operand contributes nothing, whichever union form it meets.
+    expectTypeOf<FhirpathResult<"'a' | {}">>().toEqualTypeOf<'a'[]>()
+    expectTypeOf<FhirpathResult<"iif(true, 'a')">>().toEqualTypeOf<'a'[]>()
+    expectTypeOf<FhirpathResult<"'a'.combine({})">>().toEqualTypeOf<'a'[]>()
     // A unicode escape is a string the type level cannot spell, so no literal survives.
     expectTypeOf<FhirpathResult<"'caf\\u00e9'">>().toEqualTypeOf<string[]>()
     expectTypeOf<FhirpathResult<"'caf\\u00e9' | 'tea'">>().toEqualTypeOf<string[]>()

@@ -646,10 +646,14 @@ type DefaultEnvironment = [[], 'unknown', never, EmptyContextMap, never]
 type EnvironmentCarrier<Environment extends InferenceEnvironment> = { readonly __environment: Environment }
 type HostValueCarrier<Value> = { readonly __hostValue: Value }
 /**
- * The literal strings a state's values are known to be: a string literal's
- * text, or the codes of a required binding. Only navigation, string literals,
- * and the union forms attach or merge it; every other result drops it, which
- * falls back to the string type.
+ * The literal strings a state's values are known to be. String literals attach
+ * it and the union forms (`|`, `union`, `combine`, `iif`, `coalesce`) merge it.
+ * It survives only through paths that return a subset of their input: the
+ * `['input']` function rules, `select` over an argument, an index, and a
+ * group. Every result that computes a new value, arithmetic and string
+ * functions included, builds a fresh state without it, which falls back to the
+ * string type. Keep that invariant: a rule that passes a state through while
+ * changing its values must rebuild the state (see `ArithmeticInput`).
  */
 type LiteralCarrier<Literals extends string> = { readonly __literals: Literals }
 type LiteralsOf<State> = State extends LiteralCarrier<infer Literals extends string> ? Literals : never
@@ -661,9 +665,20 @@ type UnionLiterals<Left, Right> =
       : unknown
     : unknown
 /** The carrier for the literals of every member of a state union, or nothing when one member has none. */
-type CollapsedLiterals<States> = [States extends LiteralCarrier<string> ? true : false] extends [true]
-  ? LiteralCarrier<LiteralsOf<States>>
-  : unknown
+type CollapsedLiterals<States extends InferenceState> =
+  NonEmptyStates<States> extends infer Members
+    ? [Members] extends [never]
+      ? unknown
+      : [Members extends LiteralCarrier<string> ? true : false] extends [true]
+        ? LiteralCarrier<LiteralsOf<Members>>
+        : unknown
+    : unknown
+/** An empty member contributes no values, so it neither adds nor removes literals, as in `UnionState`. */
+type NonEmptyStates<States extends InferenceState> = States extends States
+  ? StateKind<States> extends 'empty'
+    ? never
+    : States
+  : never
 type OpaqueState = ['opaque', never]
 type UnknownState = ['unknown', never]
 type EmptyState = [never, never]
@@ -1431,14 +1446,19 @@ type ArithmeticState<
         : ArithmeticInput<Left, Right>
   : ArithmeticInput<Left, Right>
 
+/**
+ * The operand whose type an arithmetic result takes. The result is a new
+ * value, so the state is rebuilt from its core: `'a' + 'b'` is a string, not
+ * `'a'`. `ApplyBinary` puts the environment back.
+ */
 type ArithmeticInput<Left extends InferenceState, Right extends InferenceState> =
   StateKind<Left> extends 'empty'
     ? Left
     : IsUnknownState<Left> extends true
       ? IsUnknownState<Right> extends true
         ? UnknownState
-        : Right
-      : Left
+        : CoreOf<Right>
+      : CoreOf<Left>
 
 type IsQuantityState<State extends InferenceState> =
   StateKind<State> extends 'empty' ? false : [State[0]] extends [QuantityType] ? true : false

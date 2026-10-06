@@ -888,8 +888,9 @@ export const INFERENCE_CAPABILITIES = {
   'budget.long-chain': {
     source: {
       expression:
-        "address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())",
-      corpusGap: 'a sixty-four token column expression from an application DTO',
+        "address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()",
+      corpusGap:
+        'a column expression from an application DTO, with a tail that takes it past the previous sixty-four token budget; the plan named two more such expressions, which were within it',
     },
     input: 'Organization',
     expectedType: 'string[]',
@@ -897,9 +898,9 @@ export const INFERENCE_CAPABILITIES = {
     runtime: true,
     analyzer: { types: ['FHIR.string', 'System.String'], single: true },
     degradation:
-      "addresss.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())",
+      "addresss.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()",
     composition:
-      "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first())).exists()",
+      "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()).exists()",
   },
   ...BUILTIN_FUNCTION_CAPABILITIES,
 } as const satisfies Record<string, CapabilityEntry>
