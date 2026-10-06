@@ -18,7 +18,6 @@ import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { printExpression } from '../parser/printer.ts'
-import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type {
   CheckedFhirpathOptionValues,
   EmptyFhirpathTypeContext,
@@ -27,6 +26,7 @@ import type {
   FhirpathTypeContextOf,
   FhirpathTypeDeclarations,
   FhirTypeName,
+  InputOf,
 } from '../typed/infer.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
@@ -203,7 +203,7 @@ export function compile<
   const Expr extends string,
   const Root extends FhirTypeName,
   TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
->(expression: Expr, inputType: Root): CompiledExpression<Expr, R4TypeOf[Root], TResult, Root>
+>(expression: Expr, inputType: Root): CompiledExpression<Expr, InputOf<Root>, TResult, Root>
 export function compile<
   const Expr extends string,
   TInput = FhirpathInput<Expr>,

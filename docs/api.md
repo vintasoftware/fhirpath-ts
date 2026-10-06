@@ -862,20 +862,23 @@ request-specific values through call options.
 StructureDefinitions. Medplum resources can be passed directly to this engine.
 
 The generated interfaces require the elements FHIR marks as required (minimum
-cardinality 1) and enumerate the same code bindings Medplum does (required and
-extensible bindings the definitions can list, and `Reference.type` as the
-resource names), so a datatype result such as an `Extension`, an `Address`, or a
-`Quantity` is assignable to the Medplum type without a cast. The unions also
-reach inferred results: `r4.evaluate('Observation.status', observation)` infers
-the status codes. A whole resource is not assignable to Medplum's: `contained`
-and `Bundle.entry.resource` hold any `{ resourceType }` here, while Medplum's
+cardinality 1) and enumerate every required and extensible code binding the
+definitions can list, with `Reference.type` as the resource names: a superset
+of Medplum's enumerations, so a datatype result such as an `Extension`, an
+`Address`, or a `Quantity` is assignable to the Medplum type without a cast.
+Inferred results carry the union of a required binding:
+`r4.evaluate('Observation.status', observation)` infers the status codes, while
+`Reference.type` infers `string`, since an extensible binding admits other
+codes. A whole resource is not assignable to Medplum's: `contained` and
+`Bundle.entry.resource` hold any `{ resourceType }` here, while Medplum's
 `Resource` is a closed union that also names Medplum's own resources.
 
-Inputs stay lenient. A root-prefixed expression accepts
-`{ resourceType: 'Observation' }` with every other element optional and every
-code a `string`, because data read from a server, a fixture, or a form may be
-incomplete; a misspelled property is still rejected. The types are not a
-profile validator.
+Inputs stay lenient. A root-prefixed expression, a declared root, and a declared
+host value accept `{ resourceType: 'Observation' }` with every other element
+optional, because data read from a server, a fixture, or a form may be
+incomplete. A misspelled property or status is still rejected; only a code set
+that names model types, such as `Reference.type`, accepts any string, which is
+what lets a Medplum resource in. The types are not a profile validator.
 
 Pass explicit generics to use Medplum types for both input and result:
 
