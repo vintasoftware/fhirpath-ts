@@ -2,8 +2,9 @@
  * Exact corpus cases this engine intentionally diverges on, grouped by the
  * behavior family. Every entry names the fhirpath.js/fhirpath-py behavior we
  * do not inherit and the evidence for our reading. Keys are `${file}||${expression}`,
- * or `${file}@${model}||${expression}` to match only cases run with that model
- * (`none` for model-free cases). The harness fails when an entry shields no case,
+ * `${file}@${model}||${expression}` to match only cases run with that model
+ * (`none` for model-free cases), or `${file}#${desc}||${expression}` to match one
+ * of several cases with the same expression. The harness fails when an entry shields no case,
  * when a shielded case starts passing (stale), or when an unlisted case fails
  * (regression).
  */
@@ -362,6 +363,21 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       "factory.yaml||%factory.withExtension(%factory.integer({}), 'someExt', 1).extension( 'someExt').value = 1",
       "factory.yaml||%factory.withProperty(%factory.integer(134, %factory.Extension( 'someExt1', 'someString')), 'id', 'someId').where(extension.value = 'someString').id = 'someId'",
     ],
+  },  {
+    name: 'empty-operand-error',
+    evidence:
+      'Cases disabled upstream that expect an error for an empty operand. Spec \u00a76.6 returns empty when either operand is empty, and the same file expects [] for n1 + n4.',
+    keys: [
+      '6.6_math.yaml#** Error adding missing numbers||n1 + n4',
+      '6.6_math.yaml||MathTestData.n1 div MathTestData.n4',
+      '6.6_math.yaml||MathTestData.n1 mod MathTestData.n4',
+    ],
+  },
+  {
+    name: 'too-many-values-singletons',
+    evidence:
+      'A case disabled upstream that expects a too-many-values error, but a and h are single integers (1 and 2) in the test data, so a <= h is true; the same file expects [true].',
+    keys: ['6.2_comparision.yaml#less than equal, with too many values||a <= h'],
   },
 ]
 
@@ -378,30 +394,3 @@ export const SKIPPED_MODELS: Readonly<Record<string, string>> = {
  * in these files stay skipped here.
  */
 export const OFFICIAL_SUITE_COPIES: readonly string[] = ['fhir-r4.yaml', 'fhir-r5.yaml']
-
-/**
- * Cases disabled upstream whose expected result is wrong, keyed by file and
- * `desc` (one expression can carry contradictory cases). Every other case
- * disabled upstream outside `OFFICIAL_SUITE_COPIES` runs and must pass. The
- * hygiene test fails when an entry matches no disabled case or its case starts
- * passing.
- */
-export interface DisabledUpstreamSkip {
-  file: string
-  desc: string
-  reason: string
-}
-
-const EMPTY_OPERAND =
-  'expects an error for an empty operand; spec \u00a76.6 returns empty when either operand is empty, and the same file expects [] for n1 + n4'
-
-export const DISABLED_UPSTREAM_SKIPS: DisabledUpstreamSkip[] = [
-  { file: '6.6_math.yaml', desc: '** Error adding missing numbers', reason: EMPTY_OPERAND },
-  { file: '6.6_math.yaml', desc: '** Error truncated divide missing numbers', reason: EMPTY_OPERAND },
-  { file: '6.6_math.yaml', desc: '** Error reminder of truncated division missing numbers', reason: EMPTY_OPERAND },
-  {
-    file: '6.2_comparision.yaml',
-    desc: 'less than equal, with too many values',
-    reason: 'expects a too-many-values error, but a and h are single integers (1 and 2) in the test data, so a <= h is true',
-  },
-]

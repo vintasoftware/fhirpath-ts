@@ -100,7 +100,7 @@ export interface RegexEngine {
     test(subject: string): boolean
     /**
      * Replace every match (the 'g' flag is passed for replaceMatches).
-     * `substitution` uses String.prototype.replace syntax (`$1`, `$<name>`,
+     * `substitution` uses String.prototype.replace syntax (`$1`, `$<name>`, `$&`,
      * `$$`); the engine has already rewritten PCRE-style `${name}` references.
      */
     replace(subject: string, substitution: string): string

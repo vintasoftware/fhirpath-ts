@@ -56,14 +56,13 @@ The package also runs tests from
 
 | Corpus | Passing | Skipped with a reason |
 | --- | ---: | ---: |
-| fhirpath.js cases plus fhirpath-py additions | 2,300 | 1,370 |
+| fhirpath.js cases plus fhirpath-py additions | 2,297 | 1,370 |
 
 Most skips require a model other than R4 or copy official-suite cases that
 upstream disabled; `official.test.ts` runs those cases directly. Other cases
-disabled upstream run here, except four whose expected result is wrong; each has
-its reason in `DISABLED_UPSTREAM_SKIPS`. Another 239
-cases are intentional differences recorded in
-`test-data/fhirpathjs/quirk-manifest.ts`. Each group includes its specification or
+disabled upstream run here. Another 243 cases are intentional differences
+recorded in `test-data/fhirpathjs/quirk-manifest.ts`, including four disabled
+upstream whose expected result is wrong. Each group includes its specification or
 official-suite evidence. A maintenance test runs every listed case and fails when
 one starts passing, so the manifest lists only differences that still exist.
 

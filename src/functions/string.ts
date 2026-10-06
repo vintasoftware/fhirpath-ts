@@ -188,7 +188,8 @@ stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitut
 
 /**
  * Rewrites PCRE-style group references into String.prototype.replace syntax:
- * `${name}` becomes `$<name>` and `${n}` becomes `$nn`. The spec's
+ * `${name}` becomes `$<name>`, `${0}` becomes `$&` (the whole match), and
+ * `${n}` becomes `$nn`. The spec's
  * replaceMatches() example uses `${name}`, and the spec recommends PCRE. `$$`
  * stays an escaped dollar sign, so `$${name}` remains literal text.
  */
@@ -197,7 +198,10 @@ function jsSubstitution(substitution: string): string {
     if (name !== undefined) {
       return `$<${name}>`
     }
-    return index === undefined ? token : `$${index.padStart(2, '0')}`
+    if (index === undefined) {
+      return token
+    }
+    return Number(index) === 0 ? '$&' : `$${index.padStart(2, '0')}`
   })
 }
 

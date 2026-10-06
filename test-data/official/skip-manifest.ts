@@ -12,7 +12,8 @@ export interface SkipEntry {
   mode?: string
   /**
    * The skip disputes the suite's expected value, not a feature. The analyzer
-   * conformance test does not read values, so it still runs the case.
+   * conformance test does not read values, so it still runs the case, and the
+   * hygiene test fails when the engine starts returning the expected value.
    */
   runtimeOnly?: true
   reason: string

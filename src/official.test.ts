@@ -42,6 +42,15 @@ describe('skip manifest hygiene', () => {
     }
   })
 
+  it('every runtime-only skip shields cases this engine still fails', () => {
+    for (const entry of SKIP_MANIFEST.filter(skip => skip.runtimeOnly === true)) {
+      for (const { group, test } of casesMatching(entry, suites)) {
+        const title = `${entry.suite}/${group.name}/${test.name ?? ''} now passes — remove its manifest entry`
+        expect(runOfficialTest(entry.suite, test, group.name), title).toBeDefined()
+      }
+    }
+  })
+
   it('every phase override matches an invalid case', () => {
     for (const entry of PHASE_OVERRIDES) {
       const matches = casesMatching(entry, suites).filter(({ test }) => test.invalid !== undefined)

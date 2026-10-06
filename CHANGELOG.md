@@ -19,9 +19,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 - `htmlChecks()` checks a string as the content of a narrative `div`, as the
   current FHIR build specifies (FHIR-56303); an `xhtml` element is still checked
-  as the whole `div`. It returns an empty collection for other item types and
-  for collections, instead of `false` or an error. The analyzer no longer
-  reports `singleton-required` for it.
+  as the whole `div`. Without a model, `text.div` is a string, so it is now
+  checked as `div` content instead of as the whole `div`. It returns an empty
+  collection for other item types and for collections, instead of `false` or an
+  error. The analyzer no longer reports `singleton-required` for it.
 
 ### Fixed
 

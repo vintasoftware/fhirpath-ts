@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { DISABLED_UPSTREAM_SKIPS, QUIRK_FAMILIES } from '../test-data/fhirpathjs/quirk-manifest.ts'
+import { QUIRK_FAMILIES } from '../test-data/fhirpathjs/quirk-manifest.ts'
 import {
+  classifyCase,
   type CorpusFile,
   type CorpusTest,
-  disabledUpstreamSkip,
   loadCorpus,
   matchQuirk,
   runCorpusTest,
@@ -75,21 +75,17 @@ describe('quirk manifest hygiene', () => {
 
   it('every quirk manifest key shields a case this engine still fails', () => {
     // A quirk that starts passing must take its manifest key with it, and a key
-    // matching only disabled or other-model cases shields nothing.
+    // matching only official-suite copies or other-model cases shields nothing.
     const shielding = new Set<string>()
     const passing: string[] = []
     for (const { file, data, test, expression } of cases) {
-      const quirk = matchQuirk(file, expression, test.model)
-      if (quirk === undefined || skipReason(test, expression, file) !== `intentional divergence: ${quirk.name}`) {
+      const skip = classifyCase(test, expression, file)
+      if (skip?.kind !== 'quirk') {
         continue
       }
-      for (const key of quirk.keys) {
-        if (key === `${file}||${expression}` || key === `${file}@${test.model ?? 'none'}||${expression}`) {
-          shielding.add(key)
-        }
-      }
+      shielding.add(skip.key)
       if (runCorpusTest(data, test, expression) === undefined) {
-        passing.push(`${file}||${expression} (model ${test.model ?? 'none'})`)
+        passing.push(`${skip.key} (model ${test.model ?? 'none'})`)
       }
     }
     expect(passing, 'these quirk cases now pass; remove their manifest keys').toEqual([])
@@ -97,21 +93,8 @@ describe('quirk manifest hygiene', () => {
     expect(unused, 'these quirk keys shield no runnable corpus case').toEqual([])
   })
 
-  it('every disabled-upstream skip names one disabled case this engine still fails', () => {
-    for (const entry of DISABLED_UPSTREAM_SKIPS) {
-      const matches = cases.filter(
-        ({ file, test }) =>
-          (test.disable === true || test.inheritedDisable === true) && disabledUpstreamSkip(file, test) === entry
-      )
-      expect(matches.length, `${entry.file}: ${entry.desc}`).toBe(1)
-      for (const { data, test, expression } of matches) {
-        expect(runCorpusTest(data, test, expression), `${entry.file}: ${entry.desc} now passes`).toBeDefined()
-      }
-    }
-  })
-
   it('the manifest stays a small documented fraction of the corpus', () => {
-    const matched = cases.filter(({ file, test, expression }) => matchQuirk(file, expression, test.model) !== undefined)
+    const matched = cases.filter(({ file, test, expression }) => matchQuirk(file, test, expression) !== undefined)
     expect(matched.length / cases.length).toBeLessThan(0.1)
   })
 })

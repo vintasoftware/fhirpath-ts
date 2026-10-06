@@ -413,7 +413,9 @@ appropriate for the application.
 decodes attribute entities in the same way as a browser. A `true` result means
 the narrative contains no active content. An `xhtml` element, such as
 `text.div`, must be a complete narrative `div`. A string is checked as the
-content of a `div`. Other items and collections give an empty result.
+content of a `div`. Only a model, such as `r4Model`, types `text.div` as
+`xhtml`; without one it is a string and is checked as `div` content. Other items
+and collections give an empty result.
 
 ### PHI and tracing
 

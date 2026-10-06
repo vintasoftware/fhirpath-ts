@@ -39,6 +39,7 @@ describe('string functions', () => {
       ['30-11-1972'],
     ],
     ["'ab'.replaceMatches('(a)(b)', '${2}${1}0')", ['ba0']],
+    ["'ab'.replaceMatches('(a)', '[${0}]')", ['[a]b']],
     ["'ab'.replaceMatches('(a)(b)', '$2$1')", ['ba']],
     ["'ab'.replaceMatches('(?<x>a)', '$${x}')", ['${x}b']],
     ["'abcdefg'.length()", [7]],
