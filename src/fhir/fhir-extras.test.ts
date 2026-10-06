@@ -358,6 +358,10 @@ describe('htmlChecks', () => {
     const observation = { resourceType: 'Observation', status: '<script>x()</script>', note: [{ text: '<b>ok</b>' }] }
     expect(evaluate('note.text.htmlChecks()', observation, { model: r4Model })).toEqual([true])
     expect(evaluate('status.htmlChecks()', observation, { model: r4Model })).toEqual([false])
+    const patient = { resourceType: 'Patient', id: 'abc', photo: [{ url: 'https://example.org/a.png' }] }
+    expect(evaluate('id.htmlChecks()', patient, { model: r4Model })).toEqual([true])
+    // url derives from uri, not string.
+    expect(evaluate('photo.url.htmlChecks()', patient, { model: r4Model })).toEqual([])
   })
 })
 
