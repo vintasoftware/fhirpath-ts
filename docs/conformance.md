@@ -79,6 +79,10 @@ Generated tests cover behavior that a fixed example list may miss:
 - temporal comparison properties across mixed precision;
 - generated expressions evaluated by both this engine and fhirpath.js against
   the official Patient fixture.
+- generated narratives, mixing valid XHTML with forms that XML and HTML parse
+  differently: every narrative `htmlChecks()` accepts must also contain only
+  allowed elements, attributes, and inert URLs when parsed by parse5, which
+  follows the HTML parsing algorithm browsers use.
 
 The comparison follows the specification and official suite when another engine
 has different behavior. For example, this engine does not treat one month as 30

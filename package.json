@@ -151,6 +151,7 @@
     "jiti": "^2.6.1",
     "lint-staged": "^16.2.4",
     "npm": "11.11.0",
+    "parse5": "^8.0.1",
     "prettier": "^3.6.2",
     "publint": "^0.3.23",
     "typescript": "^5.9.3",

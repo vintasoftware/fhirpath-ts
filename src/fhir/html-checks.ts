@@ -12,7 +12,7 @@
  * attributes, so the rules still hold when a browser renders the narrative.
  */
 
-const ALLOWED_ELEMENTS = new Set([
+export const ALLOWED_ELEMENTS: ReadonlySet<string> = new Set([
   'div',
   'p',
   'b',
@@ -69,7 +69,7 @@ const ALLOWED_ELEMENTS = new Set([
   'h6',
 ])
 
-const ALLOWED_ATTRIBUTES = new Set([
+export const ALLOWED_ATTRIBUTES: ReadonlySet<string> = new Set([
   'abbr',
   'accesskey',
   'align',
