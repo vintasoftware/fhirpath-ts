@@ -15,6 +15,7 @@ export type { ConstraintCheckResult, ConstraintIssue, FhirConstraint, OperationO
 export type {
   DtoBase,
   DtoBaseClass,
+  DtoBaseOptions,
   DtoClass,
   DtoColumnOptions,
   DtoContext,
@@ -27,6 +28,7 @@ export type {
   RegisteredOptions,
   RequiredColumn,
   RequiredColumnOptions,
+  SubtypesOf,
   ViewColumnOptions,
 } from './api/dto.ts'
 export type {

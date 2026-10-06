@@ -144,7 +144,11 @@ Independent, one per layer. Each runs the AGENTS.md required checks plus
   env, vars, callerEnv; kind rule at the type level and in `baseDefinition`;
   subtype-aware `assertInputMatchesDto` through the model's base map;
   `SubtypesOf<Root>` for the input type of an ancestor root.
-- `src/analyzer/analyze-dto.ts`: analyze inherited columns on the base root.
+- `src/analyzer/analyze-dto.ts`: inherited columns are analyzed on the subclass
+  root. That is the focus they run on when the subclass is projected or
+  registered, and a subtype carries every element of its base, so the check is
+  the same or stricter than on the base root. (Implemented this way; the base
+  root was the original wording.)
 - Walkers: `dtoClassesOf` still matches (`extends engine.defineDto(...)`); add a
   `base:` corpus entry to `src/analyzer/expression-policy.test.ts`.
 - Docs: `docs/api.md` (replaces the `keyedRow` factory recipe; `ViewBaseClass`

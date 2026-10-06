@@ -503,27 +503,45 @@ describe('README usage recipes', () => {
     expectTypeOf(heightRow.meters).toEqualTypeOf<number>()
     expect(heightRow).toMatchObject({ at: new Date('2026-08-01T12:00:00Z'), meters: 1.72 })
 
-    function keyedRow<const Root extends FhirTypeName, const Options extends DtoOptions = DtoOptions>(
-      fhirType: Root,
-      options?: Options
-    ): ViewBaseClass<typeof r4, Root, Options, { id: string }> {
-      return class KeyedRow extends r4.defineView(fhirType, options) {
-        id = this.column('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
-      }
+    class ResourceDto extends r4.defineDto('Resource') {
+      id = this.column('id', { required: true })
+
+      lastUpdated = this.column('meta.lastUpdated')
     }
-    class ProblemRow extends keyedRow('Condition') {
+    class ProblemRow extends r4.defineView('Condition', { base: ResourceDto }) {
       status = this.column('clinicalStatus.coding.first().code')
     }
-    const problems: Condition[] = [
+    const problems: (Condition & { id: string })[] = [
       { resourceType: 'Condition', id: 'c1', subject: {}, clinicalStatus: { coding: [{ code: 'active' }] } },
-      { resourceType: 'Condition', subject: {} },
+      { resourceType: 'Condition', id: 'c2', subject: {} },
     ]
-    const problemRows = r4.project(problems, ProblemRow)
+    const problemRows = ProblemRow.from(problems)
     expectTypeOf(problemRows[0]!.status).toEqualTypeOf<string | undefined>()
+    expectTypeOf(problemRows[0]!.id).toExtend<string>()
     expect(problemRows).toEqual([
-      expect.objectContaining({ id: 'c1', status: 'active' }),
-      expect.objectContaining({ id: '1', status: undefined }),
+      expect.objectContaining({ id: 'c1', lastUpdated: undefined, status: 'active' }),
+      expect.objectContaining({ id: 'c2', status: undefined }),
     ])
+    expect(ResourceDto.from({ resourceType: 'Patient', id: 'p1' }).id).toBe('p1')
+
+    class Reports extends r4.defineDto('DiagnosticReport') {
+      reportBadge = this.column("iif(status = 'final', 'Final', 'Pending')")
+    }
+    const fp = r4.register(Reports)
+    function badgedRow<const Root extends FhirTypeName, const Options extends DtoOptions = DtoOptions>(
+      fhirType: Root,
+      options?: Options
+    ): ViewBaseClass<typeof fp, Root, Options, { badge: string }> {
+      return class BadgedRow extends fp.defineView(fhirType, options) {
+        badge = this.column('%badge', { type: 'string', default: '' })
+      }
+    }
+    class LabRow extends badgedRow('DiagnosticReport', { vars: { badge: 'reportBadge()' } }) {
+      name = this.column('code.text')
+    }
+    expect(LabRow.from({ resourceType: 'DiagnosticReport', status: 'final', code: { text: 'CBC' } })).toEqual(
+      expect.objectContaining({ badge: 'Final', name: 'CBC' })
+    )
   })
 })
 

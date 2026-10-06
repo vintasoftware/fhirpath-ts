@@ -27,14 +27,19 @@ import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } 
 import {
   assertInputMatchesDto,
   assertRegistrable,
+  type BaseConstraint,
+  type BaseFields,
   createDtoBase,
   type DtoBaseClass,
+  type DtoBaseOptions,
   dtoCallOptions,
   type DtoClass,
   type DtoContext,
   dtoDefinition,
+  type DtoDefinitionOptions,
   type DtoInput,
   type DtoOptions,
+  isDtoClass,
   type RegisteredDtoClass,
   type RegisteredOptions,
   withDtos,
@@ -124,7 +129,7 @@ export type ViewBaseClass<
   Fields extends object = object,
 > =
   Engine extends FhirPathEngine<infer Defaults>
-    ? DtoBaseClass<Root, EngineDtoContext<Defaults, Options>, Fields, 'view'>
+    ? DtoBaseClass<Root, EngineDtoContext<Defaults, Options>, Fields, 'view', DtoContext<Options>>
     : never
 
 /** Engines created during the current recording session. */
@@ -235,14 +240,15 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    */
   defineDto<const Root extends FhirTypeName, const Options extends DtoOptions = EmptyFhirpathTypeContext>(
     fhirType: Root,
-    options?: Options
-  ): DtoBaseClass<Root, EngineDtoContext<Defaults, Options>, object, 'dto'> {
-    return createDtoBase(this.untyped(), 'dto', fhirType, options) as unknown as DtoBaseClass<
-      Root,
-      EngineDtoContext<Defaults, Options>,
-      object,
-      'dto'
-    >
+    options?: Options & { base?: never }
+  ): DtoBaseClass<Root, EngineDtoContext<Defaults, Options>, object, 'dto', DtoContext<Options>>
+  defineDto<const Root extends FhirTypeName, const Options extends DtoBaseOptions>(
+    fhirType: Root,
+    options: Options & BaseConstraint<'dto', Root, Options>
+  ): DtoBaseClass<Root, EngineDtoContext<Defaults, Options>, BaseFields<Options['base']>, 'dto', DtoContext<Options>>
+  defineDto(fhirType: string, options?: DtoDefinitionOptions): DtoBaseClass<string, object> {
+    this.assertBaseLineage('defineDto', fhirType, options)
+    return createDtoBase(this.untyped(), 'dto', fhirType, options)
   }
 
   /**
@@ -252,14 +258,28 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    */
   defineView<const Root extends FhirTypeName, const Options extends DtoOptions = EmptyFhirpathTypeContext>(
     fhirType: Root,
-    options?: Options
-  ): DtoBaseClass<Root, EngineDtoContext<Defaults, Options>, object, 'view'> {
-    return createDtoBase(this.untyped(), 'view', fhirType, options) as unknown as DtoBaseClass<
-      Root,
-      EngineDtoContext<Defaults, Options>,
-      object,
-      'view'
-    >
+    options?: Options & { base?: never }
+  ): DtoBaseClass<Root, EngineDtoContext<Defaults, Options>, object, 'view', DtoContext<Options>>
+  defineView<const Root extends FhirTypeName, const Options extends DtoBaseOptions>(
+    fhirType: Root,
+    options: Options & BaseConstraint<'view', Root, Options>
+  ): DtoBaseClass<Root, EngineDtoContext<Defaults, Options>, BaseFields<Options['base']>, 'view', DtoContext<Options>>
+  defineView(fhirType: string, options?: DtoDefinitionOptions): DtoBaseClass<string, object> {
+    this.assertBaseLineage('defineView', fhirType, options)
+    return createDtoBase(this.untyped(), 'view', fhirType, options)
+  }
+
+  /** A `base` was typed on its engine's context, so this engine must be that engine or derive from it. */
+  private assertBaseLineage(call: string, fhirType: string, options: DtoDefinitionOptions | undefined): void {
+    if (
+      options?.base !== undefined &&
+      isDtoClass(options.base) &&
+      !this.derivesFrom(dtoDefinition(options.base).engine)
+    ) {
+      throw new FhirPathTypeError(
+        `${call}('${fhirType}'): base ${options.base.name} was defined on another engine; define the class on that engine or one derived from it`
+      )
+    }
   }
 
   /**
