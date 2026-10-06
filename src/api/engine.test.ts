@@ -272,7 +272,7 @@ describe('FhirPathEngine.project', () => {
     ])
 
     const fromWrappedBundle = r4.project([searchset], { bundleType: 'type' })
-    expectTypeOf(fromWrappedBundle).toEqualTypeOf<{ bundleType: string | undefined }[]>()
+    expectTypeOf(fromWrappedBundle).toEqualTypeOf<{ bundleType: Bundle['type'] | undefined }[]>()
     expect(fromWrappedBundle).toEqual([{ bundleType: 'searchset' }])
 
     // The Bundle overload resolves to concrete typed rows, not just the alias:

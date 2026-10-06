@@ -70,6 +70,16 @@ cost. A helper that means "nothing to read" returns a sentinel such as
 erases the whole result (`HostBodySource` did this for host functions without a
 body or result type).
 
+The generated `R4Elements` map is type-only. It carries `codes`, the code set
+of an enumerated binding (required or extensible, plus the resource-types value
+set; the rule medplum's generator uses), next to `t` and `a`; `NavigateCore`
+attaches it as the literal carrier and `PublicResult` returns it. The runtime
+tables and `R4TypeOf['code']` stay `string`. The generated interfaces require
+elements with FHIR minimum cardinality 1 (`docs/adr/0003`); every input type
+derived from them (`FhirpathInput`, declared host values) goes through
+`Lenient`, which makes elements optional and codes `string` while keeping
+`resourceType` literals, so only results carry the requirement and the unions.
+
 Normalize host declaration names through `src/typed/context-maps.ts`. Per-call
 declarations override engine defaults, matching runtime option merging.
 Infer literal `env` values before applying `envTypes`; explicit declarations
