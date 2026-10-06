@@ -293,6 +293,19 @@ describe('htmlChecks', () => {
     )
   })
 
+  it('requires non-whitespace content: text or an image (txt-2)', () => {
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"></div>')).toBe(false)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml">\n <p> </p><!-- note --><br/></div>')).toBe(
+      false
+    )
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><p>&#32;&#x9;</p></div>')).toBe(false)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"/>')).toBe(false)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><img src="a.png" alt=""/></div>')).toBe(true)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><p><![CDATA[x]]></p></div>')).toBe(true)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><p>&#160;</p></div>')).toBe(true)
+    expect(evaluate("' '.htmlChecks()")).toEqual([false])
+  })
+
   it.each([
     ['<div xmlns="http://www.w3.org/1999/xhtml">a<br></br>b<p/></div>'],
     ['<div xmlns = "http://www.w3.org/1999/xhtml" >t</div>'],

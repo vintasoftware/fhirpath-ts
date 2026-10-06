@@ -1,7 +1,8 @@
 /**
  * FHIR narrative checking for htmlChecks() (https://hl7.org/fhir/narrative.html).
  * A narrative is XHTML: one `div` in the XHTML namespace, well-formed XML, using
- * only the elements and attributes FHIR allows, with no scripts.
+ * only the elements and attributes FHIR allows, with no scripts, and with some
+ * non-whitespace content: text or an image (invariant txt-2).
  *
  * The scanner accepts a strict subset of XML 1.0 and rejects everything else,
  * including DOCTYPE declarations, processing instructions, unquoted or
@@ -150,13 +151,16 @@ export function validateNarrative(xhtml: string): boolean {
   }
   const stack: string[] = []
   let sawRoot = false
+  let hasContent = false
   let at = 0
   while (at < xhtml.length) {
     if (xhtml[at] !== '<') {
       const end = indexOrLength(xhtml, '<', at)
-      if (!validText(xhtml.slice(at, end), stack.length > 0)) {
+      const text = textContent(xhtml.slice(at, end), stack.length > 0)
+      if (text === undefined) {
         return false
       }
+      hasContent ||= !isXmlSpace(text)
       at = end
     } else if (xhtml.startsWith('<!--', at)) {
       const end = xhtml.indexOf('-->', at + 4)
@@ -166,9 +170,11 @@ export function validateNarrative(xhtml: string): boolean {
       at = end + 3
     } else if (xhtml.startsWith('<![CDATA[', at)) {
       const end = xhtml.indexOf(']]>', at + 9)
-      if (end === -1 || stack.length === 0 || !validCdata(xhtml.slice(at + 9, end))) {
+      const content = xhtml.slice(at + 9, end)
+      if (end === -1 || stack.length === 0 || !validCdata(content)) {
         return false
       }
+      hasContent ||= !isXmlSpace(content)
       at = end + 3
     } else if (xhtml.startsWith('</', at)) {
       const tag = scanEndTag(xhtml, at)
@@ -187,21 +193,25 @@ export function validateNarrative(xhtml: string): boolean {
         }
         sawRoot = true
       }
+      hasContent ||= tag.name === 'img'
       if (!tag.selfClosing) {
         stack.push(tag.name)
       }
       at = tag.end
     }
   }
-  return sawRoot && stack.length === 0
+  return sawRoot && stack.length === 0 && hasContent
 }
 
-/** Only whitespace may sit outside the root; XML also forbids `]]>` in text. */
-function validText(text: string, insideRoot: boolean): boolean {
+/**
+ * The decoded text, or undefined when it is not allowed there. Only whitespace
+ * may sit outside the root, and XML forbids `]]>` in text.
+ */
+function textContent(text: string, insideRoot: boolean): string | undefined {
   if (!insideRoot) {
-    return isXmlSpace(text)
+    return isXmlSpace(text) ? '' : undefined
   }
-  return !text.includes(']]>') && decodeReferences(text) !== undefined
+  return text.includes(']]>') ? undefined : decodeReferences(text)
 }
 
 /**

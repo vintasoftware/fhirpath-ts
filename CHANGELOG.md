@@ -24,6 +24,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   uppercase element names, attributes without a value or without whitespace
   between them, duplicate attributes, a bare `&`, characters XML does not allow,
   and an `xmlns` other than the XHTML namespace.
+- `htmlChecks()` returns `false` for a narrative without non-whitespace text or
+  an image, as FHIR invariant `txt-2` requires. `txt-2` uses `htmlChecks()` as
+  its expression in R4 and R5.
 - `htmlChecks()` checks a string, including a model subtype of `string` such as
   `markdown` or `code`, as the content of a narrative `div`, as the current FHIR
   build specifies (FHIR-56303); an `xhtml` element is still checked
