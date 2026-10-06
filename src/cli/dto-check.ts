@@ -6,7 +6,7 @@
 /* v8 ignore file -- covered end-to-end as a subprocess in fhirpath-check.test.ts, which is the only way to exercise a module loader and engine discovery in a fresh process */
 import { glob } from 'node:fs/promises'
 import { register } from 'node:module'
-import { relative } from 'node:path'
+import { relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import type { AnalyzeOptions } from '../analyzer/analyze.ts'
@@ -52,9 +52,12 @@ export async function checkDtoModules(patterns: readonly string[], cwd: string):
   const files: string[] = []
   const dtos: { file: string; dto: string; cls: DtoClass }[] = []
   for await (const match of glob(patterns.length > 0 ? [...patterns] : [DEFAULT_DTO_GLOB], { cwd, exclude: IGNORED })) {
-    const file = relative(cwd, new URL(match, pathToFileURL(`${cwd}/`)).pathname)
+    // An absolute pattern matches absolute paths; `resolve` keeps those and
+    // anchors relative ones at the working directory.
+    const path = resolve(cwd, match)
+    const file = relative(cwd, path)
     files.push(file)
-    const module: Record<string, unknown> = await import(pathToFileURL(`${cwd}/${match}`).href)
+    const module: Record<string, unknown> = await import(pathToFileURL(path).href)
     for (const [name, value] of Object.entries(module)) {
       if (isDtoClass(value)) {
         dtos.push({ file, dto: value.name || name, cls: value })

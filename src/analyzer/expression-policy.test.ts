@@ -53,6 +53,17 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
     expected: 6,
   },
   {
+    name: 'tuple-typed bindings beside an engine call',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "const statuses = ['active', 'draft'] as const",
+      "const pair: readonly [string, string] = ['a', 'b']",
+      "const a = r4.first('x..1', patient)",
+    ].join('\n'),
+    expected: 1,
+    typescript: true,
+  },
+  {
     name: 'engine helpers on a package-imported receiver',
     code: [
       "import { r4 } from 'fhirpath-ts/r4'",
