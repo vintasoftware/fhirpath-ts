@@ -412,8 +412,9 @@ appropriate for the application.
 `htmlChecks()` checks FHIR narrative rules and allows only inert URL schemes. It
 decodes attribute entities in the same way as a browser. A `true` result means
 the narrative contains no active content. An `xhtml` element, such as
-`text.div`, must be a complete narrative `div`. A string is checked as the
-content of a `div`. Only a model, such as `r4Model`, types `text.div` as
+`text.div`, must be a complete narrative `div`. A string, including a model
+subtype of `string` such as `markdown` or `code`, is checked as the content of a
+`div`. Only a model, such as `r4Model`, types `text.div` as
 `xhtml`; without one it is a string and is checked as `div` content. Other items
 and collections give an empty result.
 

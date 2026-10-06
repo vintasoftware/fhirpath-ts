@@ -172,13 +172,14 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 /**
  * Validate narrative against the FHIR rules. An xhtml element is checked as the
- * whole Narrative.div; a string is checked as the content of a div (FHIR-56303).
- * Any other item, or more than one item, gives empty.
+ * whole Narrative.div; a string, including a model subtype of FHIR.string such
+ * as markdown or code, is checked as the content of a div (FHIR-56303). Any
+ * other item, or more than one item, gives empty.
  */
 registerFunction('htmlChecks', {
   minArity: 0,
   maxArity: 0,
-  evaluate: (_context, input) => {
+  evaluate: (context, input) => {
     const item = input.length === 1 ? (input[0] as TypedValue) : undefined
     if (typeof item?.value !== 'string') {
       return []
@@ -186,7 +187,7 @@ registerFunction('htmlChecks', {
     if (item.type === 'FHIR.xhtml') {
       return wrapBoolean(validateNarrative(item.value))
     }
-    if (item.type === SYSTEM_STRING || item.type === 'FHIR.string') {
+    if (item.type === SYSTEM_STRING || context.model?.isSubtypeOf(item.type, 'FHIR.string') === true) {
       return wrapBoolean(validateNarrative(`<div xmlns="http://www.w3.org/1999/xhtml">${item.value}</div>`))
     }
     return []

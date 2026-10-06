@@ -305,8 +305,14 @@ describe('htmlChecks', () => {
     expect(evaluate('{}.htmlChecks()')).toEqual([])
     expect(evaluate("('<b>a</b>' | '<i>b</i>').htmlChecks()")).toEqual([])
     expect(evaluate('1.htmlChecks()')).toEqual([])
-    const patient = { resourceType: 'Patient', gender: 'male' }
-    expect(evaluate('gender.htmlChecks()', patient, { model: r4Model })).toEqual([])
+    const patient = { resourceType: 'Patient', birthDate: '1974-12-25' }
+    expect(evaluate('birthDate.htmlChecks()', patient, { model: r4Model })).toEqual([])
+  })
+
+  it('checks model subtypes of FHIR.string as div content', () => {
+    const observation = { resourceType: 'Observation', status: '<script>x()</script>', note: [{ text: '<b>ok</b>' }] }
+    expect(evaluate('note.text.htmlChecks()', observation, { model: r4Model })).toEqual([true])
+    expect(evaluate('status.htmlChecks()', observation, { model: r4Model })).toEqual([false])
   })
 })
 
