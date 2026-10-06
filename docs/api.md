@@ -244,6 +244,7 @@ name.
 | `trace` | Sink for `trace()` calls |
 | `functions` | Host or expression-defined functions |
 | `regex` | Regular expression implementation |
+| `narrativeSanitizer` | HTML sanitizer `htmlChecks()` also requires to accept a narrative; see [Narrative checking](../README.md#narrative-checking) |
 | `cacheSize` | Engine parse-cache capacity; construction only |
 | `type` | Compile-time result declaration for `evaluate()` or `first()`; per-call only |
 

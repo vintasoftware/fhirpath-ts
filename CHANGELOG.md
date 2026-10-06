@@ -8,8 +8,17 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+### Added
+
+- `narrativeSanitizer` option and `domPurifySanitizer()` adapter. With a
+  sanitizer set, `htmlChecks()` also returns `false` for a narrative the
+  sanitizer would change. DOMPurify is not a dependency; pass your own instance.
+
 ### Security
 
+- Fixed `htmlChecks()` accepting `javascript:` links written with numeric
+  references that lack a `;`, such as `&#106avascript:`. A browser decodes these
+  forms, so the link ran a script.
 - Fixed `htmlChecks()` accepting narratives with active content hidden in a
   comment or CDATA section that an HTML parser ends early, such as
   `<!--><script>…</script>-->` or `<![CDATA[><script>…</script>]]>`. Rendered
@@ -17,6 +26,16 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
+- The README no longer describes a `true` `htmlChecks()` result as free of
+  active content. `htmlChecks()` checks the FHIR narrative rules, which are not
+  an HTML sanitizer; sanitize narrative before rendering it as HTML.
+- `htmlChecks()` requires well-formed XHTML. It now rejects an unclosed `<br>`,
+  uppercase element names, attributes without a value or without whitespace
+  between them, duplicate attributes, a bare `&`, characters XML does not allow,
+  and an `xmlns` other than the XHTML namespace.
+- `htmlChecks()` returns `false` for a narrative without non-whitespace text or
+  an image, as FHIR invariant `txt-2` requires. `txt-2` uses `htmlChecks()` as
+  its expression in R4 and R5.
 - `htmlChecks()` checks a string, including a model subtype of `string` such as
   `markdown` or `code`, as the content of a narrative `div`, as the current FHIR
   build specifies (FHIR-56303); an `xhtml` element is still checked

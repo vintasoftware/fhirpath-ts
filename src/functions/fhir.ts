@@ -174,7 +174,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
  * Validate narrative against the FHIR rules. An xhtml element is checked as the
  * whole Narrative.div; a string, including a model subtype of FHIR.string such
  * as markdown or code, is checked as the content of a div (FHIR-56303). Any
- * other item, or more than one item, gives empty.
+ * other item, or more than one item, gives empty. A configured narrative
+ * sanitizer must also accept the narrative.
  */
 registerFunction('htmlChecks', {
   minArity: 0,
@@ -184,13 +185,15 @@ registerFunction('htmlChecks', {
     if (typeof item?.value !== 'string') {
       return []
     }
+    let narrative: string
     if (item.type === 'FHIR.xhtml') {
-      return wrapBoolean(validateNarrative(item.value))
+      narrative = item.value
+    } else if (item.type === SYSTEM_STRING || context.model?.isSubtypeOf(item.type, 'FHIR.string') === true) {
+      narrative = `<div xmlns="http://www.w3.org/1999/xhtml">${item.value}</div>`
+    } else {
+      return []
     }
-    if (item.type === SYSTEM_STRING || context.model?.isSubtypeOf(item.type, 'FHIR.string') === true) {
-      return wrapBoolean(validateNarrative(`<div xmlns="http://www.w3.org/1999/xhtml">${item.value}</div>`))
-    }
-    return []
+    return wrapBoolean(validateNarrative(narrative) && (context.narrativeSanitizer?.accepts(narrative) ?? true))
   },
 })
 

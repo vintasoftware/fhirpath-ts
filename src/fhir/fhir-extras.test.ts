@@ -256,6 +256,28 @@ describe('htmlChecks', () => {
     ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- unterminated></div>'],
     ['<div xmlns="http://www.w3.org/1999/xhtml"><![CDATA[ unterminated></div>'],
     ['<div xmlns="http://www.w3.org/1999/xhtml"><!DOCTYPE html></div>'],
+    // A browser decodes numeric references without ';', so these become javascript:.
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="&#106avascript:x()">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="javascript&#58x()">hi</a></div>'],
+    // XML well-formedness: every & starts a complete, known reference to a legal character.
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>a & b</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&constructor;</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&#0;</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&#xD800;</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&#X41;</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&#x110000;</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>\u0001</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>a ]]> b</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p title=x>t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p title="a"class="b">t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p title="a" title="b">t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p title="a<b">t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p title>t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p xmlns="http://example.org">t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><B>t</B></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml">line<br>break</div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><?php x ?></div>'],
+    ['<![CDATA[x]]><div xmlns="http://www.w3.org/1999/xhtml">t</div>'],
   ])('rejects %s', html => {
     expect(validateNarrative(html)).toBe(false)
   })
@@ -269,6 +291,29 @@ describe('htmlChecks', () => {
     expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><!----><p>a<![CDATA[b & c]]></p></div>')).toBe(
       true
     )
+  })
+
+  it('requires non-whitespace content: text or an image (txt-2)', () => {
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"></div>')).toBe(false)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml">\n <p> </p><!-- note --><br/></div>')).toBe(
+      false
+    )
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><p>&#32;&#x9;</p></div>')).toBe(false)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"/>')).toBe(false)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><img src="a.png" alt=""/></div>')).toBe(true)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><p><![CDATA[x]]></p></div>')).toBe(true)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><p>&#160;</p></div>')).toBe(true)
+    expect(evaluate("' '.htmlChecks()")).toEqual([false])
+  })
+
+  it.each([
+    ['<div xmlns="http://www.w3.org/1999/xhtml">a<br></br>b<p/></div>'],
+    ['<div xmlns = "http://www.w3.org/1999/xhtml" >t</div>'],
+    ["<div xmlns='http://www.w3.org/1999/xhtml'><p\n\ttitle = 'a &quot;b&quot;'>t</p ></div>"],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&#x6A;&#106;&lt;&gt;&amp;&apos;&#x1F600;</p></div>'],
+    ['<!-- before -->\n<div xmlns="http://www.w3.org/1999/xhtml">t</div>\n'],
+  ])('accepts well-formed XHTML %s', html => {
+    expect(validateNarrative(html)).toBe(true)
   })
 
   it.each([
@@ -313,6 +358,10 @@ describe('htmlChecks', () => {
     const observation = { resourceType: 'Observation', status: '<script>x()</script>', note: [{ text: '<b>ok</b>' }] }
     expect(evaluate('note.text.htmlChecks()', observation, { model: r4Model })).toEqual([true])
     expect(evaluate('status.htmlChecks()', observation, { model: r4Model })).toEqual([false])
+    const patient = { resourceType: 'Patient', id: 'abc', photo: [{ url: 'https://example.org/a.png' }] }
+    expect(evaluate('id.htmlChecks()', patient, { model: r4Model })).toEqual([true])
+    // url derives from uri, not string.
+    expect(evaluate('photo.url.htmlChecks()', patient, { model: r4Model })).toEqual([])
   })
 })
 

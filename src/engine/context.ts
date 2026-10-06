@@ -107,6 +107,16 @@ export interface RegexEngine {
   }
 }
 
+/**
+ * An HTML sanitizer that htmlChecks() consults after the FHIR narrative rules
+ * pass. The FHIR rules do not make a narrative safe to render as HTML, so hosts
+ * that render narrative should supply one (see README, Narrative checking).
+ */
+export interface NarrativeSanitizer {
+  /** True when the sanitizer would keep `xhtml` unchanged. */
+  accepts(xhtml: string): boolean
+}
+
 /** `$this` / `$index` / `$total` bindings; iteration functions push one frame per element. */
 export interface Frame {
   parent: Frame | undefined
@@ -146,6 +156,8 @@ export interface EvaluationContext {
   activeExpressionFunctions: Set<string>
   /** Regex engine for the matches() family; undefined means the built-in RegExp. */
   regex: RegexEngine | undefined
+  /** Sanitizer htmlChecks() also requires to accept the narrative; undefined means none. */
+  narrativeSanitizer: NarrativeSanitizer | undefined
   frame: Frame
 }
 
@@ -215,6 +227,7 @@ export function createContext(options: {
   trace?: ((name: string, values: TypedValue[]) => void) | undefined
   functions?: Record<string, HostFunction> | undefined
   regex?: RegexEngine | undefined
+  narrativeSanitizer?: NarrativeSanitizer | undefined
 }): EvaluationContext {
   const env = new Map<string, TypedValue[]>()
   for (const [name, url] of BUILTIN_CONSTANTS) {
@@ -245,6 +258,7 @@ export function createContext(options: {
     functions: hostFunctions,
     activeExpressionFunctions: new Set(),
     regex: options.regex,
+    narrativeSanitizer: options.narrativeSanitizer,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
 }
