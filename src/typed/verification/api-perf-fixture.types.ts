@@ -58,6 +58,20 @@ export const apiPerfDtoRows = registered.project(observations, ObservationSummar
   envTypes: { requestedStatus: { type: 'code' } },
 })
 
+class IdentifiedObservation extends registered.defineDto('Observation') {
+  id = this.column('id', { required: true })
+
+  lastUpdated = this.column('meta.lastUpdated', { required: true })
+
+  status = this.column('status')
+}
+
+declare const identified: readonly (Observation & { id: string; meta: { lastUpdated: string } })[]
+
+export const apiPerfFromRows = IdentifiedObservation.from(identified)
+
+export const apiPerfFromRow = IdentifiedObservation.from(identified[0]!)
+
 export const apiPerfRows = engine.project(
   observations,
   {

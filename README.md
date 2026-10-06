@@ -74,10 +74,15 @@ class PatientRow extends r4.defineView('Patient') {
   }
 }
 
-const rows = r4.project([patient], PatientRow)
+const rows = PatientRow.from([patient])
 rows[0] // PatientRow { id: '', family: '', givenNames: [], active: true }
 rows[0]?.label // ''
 ```
+
+`PatientRow.from()` accepts a `Patient`, an array of them, or a Bundle, and
+rejects anything else at compile time. Mark a column `required: true` when the
+input must carry its path; the field then has no `undefined` and
+`DtoInput<typeof PatientRow>` names what `from()` accepts.
 
 Define DTOs and register them to call their columns from any expression.
 `register()` returns a new engine whose types know those functions:

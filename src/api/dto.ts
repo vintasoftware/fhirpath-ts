@@ -4,7 +4,7 @@ import { bareEnvironmentName, mergeEnvKeys, normalizeEnvKeys } from '../engine/c
 import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import type { R4Elements, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
 import type {
   EmptyFhirpathTypeContext,
   FhirpathTypeContextOf,
@@ -13,7 +13,7 @@ import type {
 } from '../typed/infer.ts'
 import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
 import type { TypedValue } from '../values/typed-value.ts'
-import { toSubjects } from './bundle.ts'
+import { type BundleLike, toSubjects } from './bundle.ts'
 import { columnSignature, criteriaSignature } from './column-signature.ts'
 import {
   type AnyExpression,
@@ -25,10 +25,10 @@ import {
   type SingleCustomFunction,
 } from './compile.ts'
 import type { FhirPathEngine } from './engine.ts'
-import type { ColumnOptions, ColumnResult, ProjectionColumn } from './project.ts'
+import type { ColumnOptions, ColumnResult, PathColumn, RequiredColumn, RequiredColumnOptions } from './project.ts'
 
-/** The object forms of ProjectionColumn: what `this.column()` and `this.criteria()` record. */
-export type ColumnSpec = Exclude<ProjectionColumn, string>
+/** The object forms of a column: what `this.column()` and `this.criteria()` record. */
+export type ColumnSpec = PathColumn | { test: string }
 
 /**
  * Ties `pick` to the table's row keys: with a table `choices`, `pick` must name
@@ -51,12 +51,18 @@ export type DtoKind = 'dto' | 'view'
  * function that returns its expression's own result, so options that convert
  * the projected value (`as`, `choices`) belong in a view.
  */
-export interface DtoColumnOptions {
-  collection?: boolean
-  type?: keyof R4TypeOf
-  default?: unknown
-  enum?: readonly string[]
-}
+export type DtoColumnOptions =
+  | {
+      collection?: boolean
+      type?: keyof R4TypeOf
+      default?: unknown
+      enum?: readonly string[]
+      required?: never
+    }
+  | RequiredColumnOptions
+
+/** The column options of a view: every projection option, or a required column. */
+export type ViewColumnOptions = ColumnOptions | RequiredColumnOptions
 
 /** Data a DTO reads in addition to the projected resource. */
 export interface DtoOptions {
@@ -121,10 +127,72 @@ class ColumnMarker {
 }
 
 /** The options a column of this kind accepts. */
-type ColumnOptionsOf<Kind extends DtoKind> = Kind extends 'dto' ? DtoColumnOptions : ColumnOptions
+type ColumnOptionsOf<Kind extends DtoKind> = Kind extends 'dto' ? DtoColumnOptions : ViewColumnOptions
 
 /** The `pick` check applies to view columns, the only ones with `choices`. */
 type KindConstraint<Kind extends DtoKind, Options> = Kind extends 'dto' ? unknown : PickConstraint<Options>
+
+/**
+ * `required` is allowed only where the input type can name what it demands: a
+ * path of singular element names from the root. Any other expression is
+ * rejected at the option, and `default` covers it instead.
+ */
+type RequiredConstraint<Root extends string, Expr extends string, Options> = Options extends { required: true }
+  ? [RequiredPathInput<Root, Expr>] extends [never]
+    ? { required: 'a required column reads a path of singular element names, such as id or meta.lastUpdated' }
+    : unknown
+  : unknown
+
+/** The element information of `Element` on `Type`, walking the model's base types. */
+type ModelElement<Type extends string, Element extends string> = Type extends keyof R4Elements
+  ? Element extends keyof R4Elements[Type]
+    ? R4Elements[Type][Element]
+    : InheritedElement<Type, Element>
+  : InheritedElement<Type, Element>
+
+type InheritedElement<Type extends string, Element extends string> = Type extends keyof R4Bases
+  ? R4Bases[Type] extends infer Base extends string
+    ? ModelElement<Base, Element>
+    : never
+  : never
+
+type UnionToIntersection<Union> = (Union extends unknown ? (member: Union) => void : never) extends (
+  member: infer Intersection
+) => void
+  ? Intersection
+  : never
+
+type IsUnion<Type> = [Type] extends [UnionToIntersection<Type>] ? false : true
+
+/** The one type of a singular, non-choice element, or `never`. */
+type SingularElementType<Type extends string, Element extends string> = [Type] extends [never]
+  ? never
+  : ModelElement<Type, Element> extends { t: infer Named extends string; a: false }
+    ? IsUnion<Named> extends true
+      ? never
+      : Named
+    : never
+
+/**
+ * The input shape a required path demands: nested objects down to the
+ * element's TypeScript type. `never` when a segment is not a singular,
+ * non-choice element of the type before it.
+ */
+type RequiredPathInput<Type extends string, Path extends string> = string extends Path
+  ? never
+  : Path extends `${infer Head}.${infer Rest}`
+    ? RequiredPathInput<SingularElementType<Type, Head>, Rest> extends infer Nested
+      ? [Nested] extends [never]
+        ? never
+        : { readonly [Key in Head]: Nested }
+      : never
+    : SingularElementType<Type, Path> extends infer Leaf
+      ? [Leaf] extends [never]
+        ? never
+        : Leaf extends keyof R4TypeOf
+          ? { readonly [Key in Path]: R4TypeOf[Leaf] }
+          : never
+      : never
 
 /**
  * The instance side of every DTO and view. `engine.defineDto()` and
@@ -153,9 +221,9 @@ export class DtoBase<
   protected column<const Expr extends string>(path: Expr): ColumnResult<{ path: Expr }, Root, Context>
   protected column<const Expr extends string, const Options extends ColumnOptionsOf<Kind>>(
     path: Expr,
-    options: Options & KindConstraint<Kind, Options>
+    options: Options & KindConstraint<Kind, Options> & RequiredConstraint<Root, Expr, Options>
   ): ColumnResult<{ path: Expr } & Options, Root, Context>
-  protected column(path: string, options?: ColumnOptions): unknown {
+  protected column(path: string, options?: ColumnOptions | RequiredColumnOptions): unknown {
     return mark(this, { path, ...options })
   }
 
@@ -198,10 +266,38 @@ function assertLastMarkerStored(instance: object, found: readonly ColumnMarker[]
 }
 
 /** A DTO or view class: an engine's `defineDto()`/`defineView()` base, or any class extending one. */
-export type DtoClass = (new () => { readonly fhirType: string }) & { readonly fhirType: string }
+export type DtoClass<Root extends string = string> = (new () => { readonly fhirType: Root }) & {
+  readonly fhirType: Root
+}
 
 /** The DTO instance type returned by projection, including getters and methods. */
 export type DtoRow<C extends DtoClass> = InstanceType<C>
+
+/** What a resource root accepts: a value carrying its `resourceType`. A datatype root accepts any object. */
+type RootInput<Root extends string> = Root extends keyof R4Resources ? { readonly resourceType: Root } : object
+
+type IsAny<Type> = 0 extends 1 & Type ? true : false
+
+/** The paths the required columns of an instance carry (see `RequiredColumn`). */
+type RequiredPaths<Instance> = {
+  [Key in keyof Instance]: IsAny<Instance[Key]> extends true
+    ? never
+    : Instance[Key] extends RequiredColumn<infer Path extends string>
+      ? Path
+      : never
+}[keyof Instance]
+
+type RequiredInput<Root extends string, Paths extends string> = UnionToIntersection<
+  Paths extends Paths ? RequiredPathInput<Root, Paths> : never
+>
+
+/**
+ * The input a DTO or view projects: its root's `resourceType` (any object for
+ * a datatype root), plus every path its required columns read. Base classes
+ * contribute their required columns through the instance type.
+ */
+export type DtoInput<C extends DtoClass> = RootInput<C['fhirType']> &
+  RequiredInput<C['fhirType'], RequiredPaths<InstanceType<C>>>
 
 /**
  * The class `defineDto()`/`defineView()` returns: a base bound to one FHIR type
@@ -215,6 +311,21 @@ export type DtoBaseClass<
   Kind extends DtoKind = DtoKind,
 > = (new () => DtoBase<Root, Context, Kind> & Fields) & {
   readonly fhirType: Root
+  /**
+   * Projects on the defining engine: one row per input resource, typed like the
+   * engine's `project()`. The input must carry the root's `resourceType` and
+   * every required column's path.
+   */
+  from<This extends DtoClass, const Input extends readonly DtoInput<This>[] | BundleLike>(
+    this: This,
+    input: Input,
+    options?: EvaluateOptions
+  ): InstanceType<This>[]
+  from<This extends DtoClass, const Input extends DtoInput<This>>(
+    this: This,
+    input: Input,
+    options?: EvaluateOptions
+  ): InstanceType<This>
 }
 
 /** The class a registered DTO is: every non-method instance field is a column. */
@@ -369,6 +480,8 @@ export interface DtoDefinition {
   readonly engine: FhirPathEngine
   readonly kind: DtoKind
   readonly fhirType: string
+  /** Whether `fhirType` is a resource type of the engine's model; false without a model. */
+  readonly resource: boolean
   /** A column always records an object form, so a consumer never has to handle the plain-string column. */
   readonly columns: Readonly<Record<string, ColumnSpec>>
   /** The DTO's own environment values, with bare names. */
@@ -406,7 +519,11 @@ export function createDtoBase(
   fhirType: string,
   options: DtoOptions = {}
 ): DtoBaseClass<string, object> {
-  const base = class extends DtoBase {}
+  const base = class extends DtoBase {
+    static from(this: DtoClass, input: unknown, options?: EvaluateOptions): unknown {
+      return engine.project(input as never, this, options)
+    }
+  }
   // A readable name for project()/registration errors; a subclass replaces it.
   Object.defineProperty(base, 'name', { value: `${fhirType}${kind === 'dto' ? 'Dto' : 'View'}` })
   Object.defineProperty(base, 'fhirType', { value: fhirType, enumerable: true })
@@ -446,12 +563,27 @@ function baseDefinition(
     engine,
     kind,
     fhirType,
+    resource: isResourceType(engine.defaults.model, fhirType),
     env: normalizedEnv !== undefined && Object.keys(normalizedEnv).length > 0 ? normalizedEnv : undefined,
     columnEnv: Object.keys(columnEnv).length > 0 ? columnEnv : undefined,
     vars,
     callerEnvNames,
     callerEnvTypes: callerEnvIsNames ? undefined : callerEnv,
   }
+}
+
+/** Whether the model knows `fhirType` as `Resource` or a type derived from it. */
+function isResourceType(model: ModelProvider | undefined, fhirType: string): boolean {
+  if (model === undefined) {
+    return false
+  }
+  const canonical = canonicalFocusType(model, fhirType)
+  const resource = canonicalFocusType(model, 'Resource')
+  return (
+    canonical !== undefined &&
+    resource !== undefined &&
+    (canonical === resource || model.isSubtypeOf(canonical, resource))
+  )
 }
 
 function isCallerEnvNames(
@@ -741,20 +873,48 @@ function columnFunction(
 }
 
 /**
- * Checks each resource against the DTO type before projection. Without this
- * check, a wrong resource could produce a typed row filled with defaults.
- * Datatype inputs have no `resourceType` to check.
+ * Checks each subject against the DTO type before projection. Without this
+ * check, a wrong value could produce a typed row filled with defaults. A
+ * resource root demands an object carrying its `resourceType`; a datatype root
+ * has no `resourceType` to check, and without a model only a present
+ * `resourceType` is compared.
  */
 export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
-  const { fhirType } = dtoDefinition(dto)
+  const { fhirType, resource } = dtoDefinition(dto)
   toSubjects(input).forEach((subject, index) => {
-    const resourceType = (subject.value as { resourceType?: unknown } | null | undefined)?.resourceType
+    const { value } = subject
+    const resourceType =
+      typeof value === 'object' && value !== null ? (value as { resourceType?: unknown }).resourceType : undefined
     if (typeof resourceType === 'string' && resourceType !== fhirType) {
       throw new FhirPathTypeError(
         `project(): row ${index} is a ${resourceType}, but ${dto.name} declares fhirType '${fhirType}'`
       )
     }
+    if (!resource) {
+      return
+    }
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new FhirPathTypeError(
+        `project(): row ${index} is ${describeValue(value)}, not a resource, but ${dto.name} declares fhirType '${fhirType}'`
+      )
+    }
+    if (typeof resourceType !== 'string') {
+      throw new FhirPathTypeError(
+        `project(): row ${index} has no resourceType, but ${dto.name} declares fhirType '${fhirType}'`
+      )
+    }
   })
+}
+
+/** A short description of a non-resource value for an error message; never its contents. */
+function describeValue(value: unknown): string {
+  if (value === null) {
+    return 'null'
+  }
+  if (Array.isArray(value)) {
+    return 'an array'
+  }
+  return `a ${typeof value}`
 }
 
 /**

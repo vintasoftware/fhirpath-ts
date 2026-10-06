@@ -18,19 +18,56 @@ import { assertStrictExpression } from './strict.ts'
  */
 export type ProjectionColumn = string | ({ path: string } & ColumnOptions) | { test: string }
 
-/** Options shared by plain project columns and DTO `this.column()` fields. */
+/**
+ * Options shared by plain project columns and DTO `this.column()` fields.
+ * `required` belongs to DTO columns only, where the class derives an input
+ * type from it; a plain column has no class to carry the requirement.
+ */
 export type ColumnOptions = {
   collection?: boolean
   type?: keyof R4TypeOf
   default?: unknown
-} & (
+  required?: never
+} & ColumnConversionOptions
+
+/** The value conversions a column may apply; at most one of `as`, `choices`, and `enum`. */
+export type ColumnConversionOptions =
   | { as?: 'Date' | ((value: unknown) => unknown); choices?: never; pick?: never; enum?: never }
   | { choices: Readonly<Record<string, unknown>>; as?: never; pick?: never; enum?: never }
   | { choices: readonly { code: string }[]; pick?: string; as?: never; enum?: never }
   | { enum: readonly string[]; as?: never; choices?: never; pick?: never }
-)
+
+/**
+ * The options of a required column, a DTO column whose path the input must
+ * carry (see `DtoInput`). Nothing may empty the value, so the fallback and the
+ * conversions that can drop it are excluded.
+ */
+export interface RequiredColumnOptions {
+  required: true
+  type?: keyof R4TypeOf
+  collection?: never
+  default?: never
+  as?: never
+  choices?: never
+  pick?: never
+  enum?: never
+}
+
+declare const requiredPath: unique symbol
+
+/**
+ * Marks the value of a required column with the path the input must carry.
+ * The marker is an optional symbol property, so the value still reads and
+ * assigns as its plain type; `DtoInput` reads the path back from the class.
+ */
+export interface RequiredColumn<Path extends string> {
+  readonly [requiredPath]?: Path
+}
 
 export type ProjectionColumns = Record<string, ProjectionColumn>
+
+/** A value column in object form: a plain column's options, or a DTO's required column. */
+export type PathColumn = { path: string } & (ColumnOptions | RequiredColumnOptions)
 
 type ColumnPath<Column> = Column extends string
   ? Column
@@ -70,7 +107,9 @@ export type ColumnResult<
     ? ColumnValues<Column, Root, Context>
     : Column extends { default: infer D }
       ? ColumnValues<Column, Root, Context>[number] | D
-      : ColumnValues<Column, Root, Context>[number] | undefined
+      : Column extends { required: true }
+        ? Exclude<ColumnValues<Column, Root, Context>[number], undefined> & RequiredColumn<ColumnPath<Column>>
+        : ColumnValues<Column, Root, Context>[number] | undefined
 
 /** The row shape `project()` produces: each column's type inferred from its expression. */
 export type Projection<
@@ -145,7 +184,7 @@ function isTable(
 }
 
 /** Resolve a column's `as`/`choices`/`enum` option into its values mapping. */
-function coercion(spec: Extract<ProjectionColumn, { path: string }>): (values: unknown[]) => unknown[] {
+function coercion(spec: PathColumn): (values: unknown[]) => unknown[] {
   if (spec.choices !== undefined) {
     return isTable(spec.choices) ? tableLookup(spec.choices, spec.pick) : recordLookup(spec.choices)
   }
@@ -163,12 +202,20 @@ function coercion(spec: Extract<ProjectionColumn, { path: string }>): (values: u
 }
 
 /** Checks conversion options for JavaScript callers and transpile-only code. */
-function assertShaperOptions(name: string, spec: Extract<ProjectionColumn, { path: string }>): void {
+function assertShaperOptions(name: string, spec: PathColumn): void {
   const shapers = [spec.as, spec.choices, spec.enum].filter(option => option !== undefined).length
   if (shapers > 1) {
     throw new FhirPathRuntimeError(
       `project(): column '${name}' declares more than one of 'as', 'choices', 'enum'; use one`
     )
+  }
+  if (spec.required === true) {
+    const excluded = ['collection', 'default', 'as', 'choices', 'enum'].find(option => option in spec)
+    if (excluded !== undefined) {
+      throw new FhirPathRuntimeError(
+        `project(): column '${name}' is required and sets '${excluded}'; a required column takes no fallback or conversion`
+      )
+    }
   }
   if (spec.pick !== undefined && !Array.isArray(spec.choices)) {
     throw new FhirPathRuntimeError(
@@ -212,7 +259,7 @@ function inRow({ index, total }: RowPosition): string {
 }
 
 /** Take the column union apart once, at plan time; rows only run the result. */
-function planColumn(name: string, column: ProjectionColumn, compile: Compiler): PlannedColumn {
+function planColumn(name: string, column: ProjectionColumn | PathColumn, compile: Compiler): PlannedColumn {
   if (typeof column !== 'string' && 'test' in column) {
     const criteria = compile(column.test)
     return {
@@ -220,7 +267,7 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
       read: (root, context) => criteriaBoolean(evaluateNode(criteria.ast, forkVariables(context), root)),
     }
   }
-  const spec: Extract<ProjectionColumn, { path: string }> = typeof column === 'string' ? { path: column } : column
+  const spec: PathColumn = typeof column === 'string' ? { path: column } : column
   assertShaperOptions(name, spec)
   const expression = compile(spec.path)
   const applyAs = coercion(spec)
@@ -254,7 +301,7 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
  */
 export function projectRows(
   input: unknown,
-  columns: ProjectionColumns,
+  columns: Readonly<Record<string, ProjectionColumn | PathColumn>>,
   options: EvaluateOptions,
   compile: Compiler
 ): Record<string, unknown>[] {

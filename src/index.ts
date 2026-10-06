@@ -19,11 +19,13 @@ export type {
   DtoColumnOptions,
   DtoContext,
   DtoFunctions,
+  DtoInput,
   DtoKind,
   DtoOptions,
   DtoRow,
   RegisteredDtoClass,
   RegisteredOptions,
+  ViewColumnOptions,
 } from './api/dto.ts'
 export type {
   EngineDtoContext,
@@ -39,7 +41,17 @@ export type {
 } from './api/engine.ts'
 export { BoundExpression, FhirPathEngine, recordEngines } from './api/engine.ts'
 export { evaluate } from './api/evaluate.ts'
-export type { ColumnOptions, ColumnResult, Projection, ProjectionColumn, ProjectionColumns } from './api/project.ts'
+export type {
+  ColumnConversionOptions,
+  ColumnOptions,
+  ColumnResult,
+  PathColumn,
+  Projection,
+  ProjectionColumn,
+  ProjectionColumns,
+  RequiredColumn,
+  RequiredColumnOptions,
+} from './api/project.ts'
 export { fhirpath } from './api/tagged.ts'
 export type { HostNativeFunction, NarrativeSanitizer, RegexEngine } from './engine/context.ts'
 export type { SourceSpan } from './errors.ts'
