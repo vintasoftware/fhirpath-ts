@@ -465,8 +465,29 @@ type RequiredInput<Root extends string, Paths extends string> = UnionToIntersect
 export type BundleInput<C extends DtoClass> = [RequiredPaths<InstanceType<C>>] extends [never]
   ? BundleLike
   : {
+      // The pin makes TypeScript elaborate a refused Bundle against this member, so the error names the recipe.
+      readonly resourceType: 'Bundle'
       readonly bundleNotAccepted: 'this DTO has required columns, which a Bundle entry cannot prove; read the entries with Bundle.entry.resource.ofType(...) and narrow them'
     }
+
+/**
+ * One subject is never a Bundle: the runtime unwraps a Bundle into its entries
+ * and returns one row per entry, so a Bundle enters only through `BundleInput`.
+ * A `Resource` root would otherwise admit one through `SubtypesOf`, and a
+ * datatype root through `object`.
+ */
+type NotBundle = { readonly resourceType?: Exclude<keyof R4Resources, 'Bundle'> }
+
+/**
+ * What a DTO or view projects: one subject, an array of them, or a Bundle. A
+ * Bundle and an array give one row per entry; one subject gives one row.
+ */
+export type DtoProjectionInput<C extends DtoClass> = readonly DtoInput<C>[] | BundleInput<C> | (DtoInput<C> & NotBundle)
+
+/** The rows a projection returns for its input, by the same rule the runtime applies. */
+export type DtoProjection<C extends DtoClass, Input> = Input extends readonly unknown[] | BundleLike
+  ? InstanceType<C>[]
+  : InstanceType<C>
 
 /**
  * The input a DTO or view projects: its root's `resourceType` (any object for
@@ -500,16 +521,11 @@ export type DtoBaseClass<
    * engine's `project()`. The input must carry the root's `resourceType` and
    * every required column's path.
    */
-  from<This extends DtoClass, const Input extends readonly DtoInput<This>[] | BundleInput<This>>(
+  from<This extends DtoClass, const Input extends DtoProjectionInput<This>>(
     this: This,
     input: Input,
     options?: EvaluateOptions
-  ): InstanceType<This>[]
-  from<This extends DtoClass, const Input extends DtoInput<This>>(
-    this: This,
-    input: Input,
-    options?: EvaluateOptions
-  ): InstanceType<This>
+  ): DtoProjection<This, Input>
 }
 
 /** The class a registered DTO is: every non-method instance field is a column. */

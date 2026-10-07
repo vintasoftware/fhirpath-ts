@@ -24,6 +24,8 @@ export type {
   DtoInput,
   DtoKind,
   DtoOptions,
+  DtoProjection,
+  DtoProjectionInput,
   DtoRow,
   RegisteredDtoClass,
   RegisteredOptions,

@@ -498,8 +498,33 @@ describe('DTO projection', () => {
     const alsoFromBundle = ScheduledAppointment.from(bundle)
     expect(alsoFromBundle).toHaveLength(1)
     expectTypeOf<BundleInput<typeof ScheduledAppointment>>().toEqualTypeOf<{
+      readonly resourceType: 'Bundle'
       readonly bundleNotAccepted: 'this DTO has required columns, which a Bundle entry cannot prove; read the entries with Bundle.entry.resource.ofType(...) and narrow them'
     }>()
+    // A Bundle cannot slip in as one subject either: a `Resource` root names
+    // Bundle among its subtypes and a datatype root accepts any object, and the
+    // runtime unwraps a Bundle wherever it appears.
+    class AnyResourceId extends r4.defineDto('Resource') {
+      id = this.column('id', { required: true })
+    }
+    const bundleWithId: Bundle & { id: string } = { resourceType: 'Bundle', id: 'b1', type: 'collection', entry: [] }
+    // @ts-expect-error -- a Bundle is not one Resource subject
+    const asSubject = AnyResourceId.from(bundleWithId)
+    expect(asSubject).toEqual([])
+    class ConceptText extends r4.defineDto('CodeableConcept') {
+      text = this.column('text', { required: true })
+    }
+    // @ts-expect-error -- a Bundle is not one datatype subject
+    const asDatatype = ConceptText.from({ resourceType: 'Bundle', type: 'collection', text: 'x' })
+    expect(asDatatype).toEqual([])
+    // The return type follows the runtime: a Bundle or an array gives rows, one subject gives a row.
+    class AnyResource extends r4.defineDto('Resource') {
+      id = this.column('id')
+    }
+    expectTypeOf(AnyResource.from(bundleWithId)).toEqualTypeOf<AnyResource[]>()
+    expectTypeOf(AnyResource.from([bundleWithId])).toEqualTypeOf<AnyResource[]>()
+    expectTypeOf(AnyResource.from({ resourceType: 'Patient' })).toEqualTypeOf<AnyResource>()
+    expect(AnyResource.from([bundleWithId]).map(row => row.id)).toEqual(['b1'])
     const scheduled = r4
       .evaluate('Bundle.entry.resource.ofType(Appointment)', bundle)
       .filter((entry): entry is DtoInput<typeof ScheduledAppointment> & Appointment => entry.start !== undefined)
