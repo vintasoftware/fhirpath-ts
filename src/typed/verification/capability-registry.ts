@@ -787,8 +787,9 @@ export const INFERENCE_CAPABILITIES = {
     source: { expression: '%report.status', corpusGap: 'host declaration route assertion' },
     typeContext: { env: { report: { type: 'DiagnosticReport' } } },
     context: { variables: { report: { types: ['DiagnosticReport'], single: true } } },
-    expectedType: 'string[]',
-    compositionType: 'string[]',
+    // A required binding infers its code union through a declared value too.
+    expectedType: "R4TypeOf['DiagnosticReport']['status'][]",
+    compositionType: "R4TypeOf['DiagnosticReport']['status'][]",
     runtime: false,
     analyzer: { types: ['FHIR.code'], single: true },
     degradation: '%report.nope',

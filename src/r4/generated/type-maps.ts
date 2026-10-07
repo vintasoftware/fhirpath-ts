@@ -48,7 +48,7 @@ export interface Annotation extends Element {
   authorString?: string
   extension?: Extension[]
   id?: string
-  text?: string
+  text: string
   time?: string
 }
 
@@ -109,8 +109,8 @@ export interface Contributor extends Element {
   contact?: ContactDetail[]
   extension?: Extension[]
   id?: string
-  name?: string
-  type?: 'author' | 'editor' | 'reviewer' | 'endorser'
+  name: string
+  type: 'author' | 'editor' | 'reviewer' | 'endorser'
 }
 
 export interface Count extends Quantity {
@@ -134,7 +134,220 @@ export interface DataRequirement extends Element {
   sort?: DataRequirementSort[]
   subjectCodeableConcept?: CodeableConcept
   subjectReference?: Reference
-  type?: string
+  type:
+    | 'Address'
+    | 'Age'
+    | 'Annotation'
+    | 'Attachment'
+    | 'BackboneElement'
+    | 'CodeableConcept'
+    | 'Coding'
+    | 'ContactDetail'
+    | 'ContactPoint'
+    | 'Contributor'
+    | 'Count'
+    | 'DataRequirement'
+    | 'Distance'
+    | 'Dosage'
+    | 'Duration'
+    | 'Element'
+    | 'ElementDefinition'
+    | 'Expression'
+    | 'Extension'
+    | 'HumanName'
+    | 'Identifier'
+    | 'MarketingStatus'
+    | 'Meta'
+    | 'Money'
+    | 'MoneyQuantity'
+    | 'Narrative'
+    | 'ParameterDefinition'
+    | 'Period'
+    | 'Population'
+    | 'ProdCharacteristic'
+    | 'ProductShelfLife'
+    | 'Quantity'
+    | 'Range'
+    | 'Ratio'
+    | 'Reference'
+    | 'RelatedArtifact'
+    | 'SampledData'
+    | 'Signature'
+    | 'SimpleQuantity'
+    | 'SubstanceAmount'
+    | 'Timing'
+    | 'TriggerDefinition'
+    | 'UsageContext'
+    | 'base64Binary'
+    | 'boolean'
+    | 'canonical'
+    | 'code'
+    | 'date'
+    | 'dateTime'
+    | 'decimal'
+    | 'id'
+    | 'instant'
+    | 'integer'
+    | 'markdown'
+    | 'oid'
+    | 'positiveInt'
+    | 'string'
+    | 'time'
+    | 'unsignedInt'
+    | 'uri'
+    | 'url'
+    | 'uuid'
+    | 'xhtml'
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
+    | 'Type'
+    | 'Any'
 }
 
 export interface DataRequirementCodeFilter extends Element {
@@ -157,10 +370,10 @@ export interface DataRequirementDateFilter extends Element {
 }
 
 export interface DataRequirementSort extends Element {
-  direction?: 'ascending' | 'descending'
+  direction: 'ascending' | 'descending'
   extension?: Extension[]
   id?: string
-  path?: string
+  path: string
 }
 
 export interface Distance extends Quantity {
@@ -362,7 +575,7 @@ export interface ElementDefinition extends BackboneElement {
   modifierExtension?: Extension[]
   mustSupport?: boolean
   orderMeaning?: string
-  path?: string
+  path: string
   patternBase64Binary?: string
   patternBoolean?: boolean
   patternCanonical?: string
@@ -425,27 +638,27 @@ export interface ElementDefinition extends BackboneElement {
 export interface ElementDefinitionBase extends Element {
   extension?: Extension[]
   id?: string
-  max?: string
-  min?: number
-  path?: string
+  max: string
+  min: number
+  path: string
 }
 
 export interface ElementDefinitionBinding extends Element {
   description?: string
   extension?: Extension[]
   id?: string
-  strength?: 'required' | 'extensible' | 'preferred' | 'example'
+  strength: 'required' | 'extensible' | 'preferred' | 'example'
   valueSet?: string
 }
 
 export interface ElementDefinitionConstraint extends Element {
   expression?: string
   extension?: Extension[]
-  human?: string
+  human: string
   id?: string
-  key?: string
+  key: string
   requirements?: string
-  severity?: 'error' | 'warning'
+  severity: 'error' | 'warning'
   source?: string
   xpath?: string
 }
@@ -453,7 +666,7 @@ export interface ElementDefinitionConstraint extends Element {
 export interface ElementDefinitionExample extends Element {
   extension?: Extension[]
   id?: string
-  label?: string
+  label: string
   valueBase64Binary?: string
   valueBoolean?: boolean
   valueCanonical?: string
@@ -510,9 +723,9 @@ export interface ElementDefinitionMapping extends Element {
   comment?: string
   extension?: Extension[]
   id?: string
-  identity?: string
+  identity: string
   language?: string
-  map?: string
+  map: string
 }
 
 export interface ElementDefinitionSlicing extends Element {
@@ -521,19 +734,19 @@ export interface ElementDefinitionSlicing extends Element {
   extension?: Extension[]
   id?: string
   ordered?: boolean
-  rules?: 'closed' | 'open' | 'openAtEnd'
+  rules: 'closed' | 'open' | 'openAtEnd'
 }
 
 export interface ElementDefinitionSlicingDiscriminator extends Element {
   extension?: Extension[]
   id?: string
-  path?: string
-  type?: 'value' | 'exists' | 'pattern' | 'type' | 'profile'
+  path: string
+  type: 'value' | 'exists' | 'pattern' | 'type' | 'profile'
 }
 
 export interface ElementDefinitionType extends Element {
   aggregation?: ('contained' | 'referenced' | 'bundled')[]
-  code?: string
+  code: string
   extension?: Extension[]
   id?: string
   profile?: string[]
@@ -546,7 +759,7 @@ export interface Expression extends Element {
   expression?: string
   extension?: Extension[]
   id?: string
-  language?: string
+  language: 'text/cql' | 'text/fhirpath' | 'application/x-fhir-query'
   name?: string
   reference?: string
 }
@@ -554,7 +767,7 @@ export interface Expression extends Element {
 export interface Extension extends Element {
   extension?: Extension[]
   id?: string
-  url?: string
+  url: string
   valueBase64Binary?: string
   valueBoolean?: boolean
   valueCanonical?: string
@@ -631,14 +844,14 @@ export interface Identifier extends Element {
 }
 
 export interface MarketingStatus extends BackboneElement {
-  country?: CodeableConcept
-  dateRange?: Period
+  country: CodeableConcept
+  dateRange: Period
   extension?: Extension[]
   id?: string
   jurisdiction?: CodeableConcept
   modifierExtension?: Extension[]
   restoreDate?: string
-  status?: CodeableConcept
+  status: CodeableConcept
 }
 
 export interface Meta extends Element {
@@ -660,7 +873,186 @@ export interface Meta extends Element {
 }
 
 export interface Money extends Element {
-  currency?: string
+  currency?:
+    | 'AFN'
+    | 'EUR'
+    | 'ALL'
+    | 'DZD'
+    | 'USD'
+    | 'AOA'
+    | 'XCD'
+    | 'ARS'
+    | 'AMD'
+    | 'AWG'
+    | 'AUD'
+    | 'AZN'
+    | 'BSD'
+    | 'BHD'
+    | 'BDT'
+    | 'BBD'
+    | 'BYN'
+    | 'BZD'
+    | 'XOF'
+    | 'BMD'
+    | 'INR'
+    | 'BTN'
+    | 'BOB'
+    | 'BOV'
+    | 'BAM'
+    | 'BWP'
+    | 'NOK'
+    | 'BRL'
+    | 'BND'
+    | 'BGN'
+    | 'BIF'
+    | 'CVE'
+    | 'KHR'
+    | 'XAF'
+    | 'CAD'
+    | 'KYD'
+    | 'CLP'
+    | 'CLF'
+    | 'CNY'
+    | 'COP'
+    | 'COU'
+    | 'KMF'
+    | 'CDF'
+    | 'NZD'
+    | 'CRC'
+    | 'CUP'
+    | 'CUC'
+    | 'ANG'
+    | 'CZK'
+    | 'DKK'
+    | 'DJF'
+    | 'DOP'
+    | 'EGP'
+    | 'SVC'
+    | 'ERN'
+    | 'SZL'
+    | 'ETB'
+    | 'FKP'
+    | 'FJD'
+    | 'XPF'
+    | 'GMD'
+    | 'GEL'
+    | 'GHS'
+    | 'GIP'
+    | 'GTQ'
+    | 'GBP'
+    | 'GNF'
+    | 'GYD'
+    | 'HTG'
+    | 'HNL'
+    | 'HKD'
+    | 'HUF'
+    | 'ISK'
+    | 'IDR'
+    | 'XDR'
+    | 'IRR'
+    | 'IQD'
+    | 'ILS'
+    | 'JMD'
+    | 'JPY'
+    | 'JOD'
+    | 'KZT'
+    | 'KES'
+    | 'KPW'
+    | 'KRW'
+    | 'KWD'
+    | 'KGS'
+    | 'LAK'
+    | 'LBP'
+    | 'LSL'
+    | 'ZAR'
+    | 'LRD'
+    | 'LYD'
+    | 'CHF'
+    | 'MOP'
+    | 'MKD'
+    | 'MGA'
+    | 'MWK'
+    | 'MYR'
+    | 'MVR'
+    | 'MRU'
+    | 'MUR'
+    | 'XUA'
+    | 'MXN'
+    | 'MXV'
+    | 'MDL'
+    | 'MNT'
+    | 'MAD'
+    | 'MZN'
+    | 'MMK'
+    | 'NAD'
+    | 'NPR'
+    | 'NIO'
+    | 'NGN'
+    | 'OMR'
+    | 'PKR'
+    | 'PAB'
+    | 'PGK'
+    | 'PYG'
+    | 'PEN'
+    | 'PHP'
+    | 'PLN'
+    | 'QAR'
+    | 'RON'
+    | 'RUB'
+    | 'RWF'
+    | 'SHP'
+    | 'WST'
+    | 'STN'
+    | 'SAR'
+    | 'RSD'
+    | 'SCR'
+    | 'SLE'
+    | 'SGD'
+    | 'XSU'
+    | 'SBD'
+    | 'SOS'
+    | 'SSP'
+    | 'LKR'
+    | 'SDG'
+    | 'SRD'
+    | 'SEK'
+    | 'CHE'
+    | 'CHW'
+    | 'SYP'
+    | 'TWD'
+    | 'TJS'
+    | 'TZS'
+    | 'THB'
+    | 'TOP'
+    | 'TTD'
+    | 'TND'
+    | 'TRY'
+    | 'TMT'
+    | 'UGX'
+    | 'UAH'
+    | 'AED'
+    | 'USN'
+    | 'UYU'
+    | 'UYI'
+    | 'UYW'
+    | 'UZS'
+    | 'VUV'
+    | 'VES'
+    | 'VED'
+    | 'VND'
+    | 'YER'
+    | 'ZMW'
+    | 'ZWG'
+    | 'XBA'
+    | 'XBB'
+    | 'XBC'
+    | 'XBD'
+    | 'XTS'
+    | 'XXX'
+    | 'XAU'
+    | 'XPD'
+    | 'XPT'
+    | 'XAG'
   extension?: Extension[]
   id?: string
   value?: number
@@ -669,10 +1061,10 @@ export interface Money extends Element {
 export type MoneyQuantity = Quantity
 
 export interface Narrative extends Element {
-  div?: string
+  div: string
   extension?: Extension[]
   id?: string
-  status?: 'generated' | 'extensions' | 'additional' | 'empty'
+  status: 'generated' | 'extensions' | 'additional' | 'empty'
 }
 
 export interface ParameterDefinition extends Element {
@@ -683,8 +1075,221 @@ export interface ParameterDefinition extends Element {
   min?: number
   name?: string
   profile?: string
-  type?: string
-  use?: 'in' | 'out'
+  type:
+    | 'Address'
+    | 'Age'
+    | 'Annotation'
+    | 'Attachment'
+    | 'BackboneElement'
+    | 'CodeableConcept'
+    | 'Coding'
+    | 'ContactDetail'
+    | 'ContactPoint'
+    | 'Contributor'
+    | 'Count'
+    | 'DataRequirement'
+    | 'Distance'
+    | 'Dosage'
+    | 'Duration'
+    | 'Element'
+    | 'ElementDefinition'
+    | 'Expression'
+    | 'Extension'
+    | 'HumanName'
+    | 'Identifier'
+    | 'MarketingStatus'
+    | 'Meta'
+    | 'Money'
+    | 'MoneyQuantity'
+    | 'Narrative'
+    | 'ParameterDefinition'
+    | 'Period'
+    | 'Population'
+    | 'ProdCharacteristic'
+    | 'ProductShelfLife'
+    | 'Quantity'
+    | 'Range'
+    | 'Ratio'
+    | 'Reference'
+    | 'RelatedArtifact'
+    | 'SampledData'
+    | 'Signature'
+    | 'SimpleQuantity'
+    | 'SubstanceAmount'
+    | 'Timing'
+    | 'TriggerDefinition'
+    | 'UsageContext'
+    | 'base64Binary'
+    | 'boolean'
+    | 'canonical'
+    | 'code'
+    | 'date'
+    | 'dateTime'
+    | 'decimal'
+    | 'id'
+    | 'instant'
+    | 'integer'
+    | 'markdown'
+    | 'oid'
+    | 'positiveInt'
+    | 'string'
+    | 'time'
+    | 'unsignedInt'
+    | 'uri'
+    | 'url'
+    | 'uuid'
+    | 'xhtml'
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
+    | 'Type'
+    | 'Any'
+  use: 'in' | 'out'
 }
 
 export interface Period extends Element {
@@ -727,9 +1332,9 @@ export interface ProductShelfLife extends BackboneElement {
   id?: string
   identifier?: Identifier
   modifierExtension?: Extension[]
-  period?: Quantity
+  period: Quantity
   specialPrecautionsForStorage?: CodeableConcept[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface Quantity extends Element {
@@ -762,7 +1367,154 @@ export interface Reference extends Element {
   id?: string
   identifier?: Identifier
   reference?: string
-  type?: string
+  type?:
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'SubscriptionStatus'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
 }
 
 export interface RelatedArtifact extends Element {
@@ -773,7 +1525,7 @@ export interface RelatedArtifact extends Element {
   id?: string
   label?: string
   resource?: string
-  type?:
+  type:
     | 'documentation'
     | 'justification'
     | 'citation'
@@ -787,13 +1539,13 @@ export interface RelatedArtifact extends Element {
 
 export interface SampledData extends Element {
   data?: string
-  dimensions?: number
+  dimensions: number
   extension?: Extension[]
   factor?: number
   id?: string
   lowerLimit?: number
-  origin?: Quantity
-  period?: number
+  origin: Quantity
+  period: number
   upperLimit?: number
 }
 
@@ -804,9 +1556,9 @@ export interface Signature extends Element {
   onBehalfOf?: Reference
   sigFormat?: string
   targetFormat?: string
-  type?: Coding[]
-  when?: string
-  who?: Reference
+  type: Coding[]
+  when: string
+  who: Reference
 }
 
 export type SimpleQuantity = Quantity
@@ -898,7 +1650,7 @@ export interface TriggerDefinition extends Element {
   timingReference?: Reference
   timingDate?: string
   timingDateTime?: string
-  type?:
+  type:
     | 'named-event'
     | 'periodic'
     | 'data-changed'
@@ -910,7 +1662,7 @@ export interface TriggerDefinition extends Element {
 }
 
 export interface UsageContext extends Element {
-  code?: Coding
+  code: Coding
   extension?: Extension[]
   id?: string
   valueCodeableConcept?: CodeableConcept
@@ -936,14 +1688,14 @@ export interface Account extends DomainResource {
   owner?: Reference
   partOf?: Reference
   servicePeriod?: Period
-  status?: 'active' | 'inactive' | 'entered-in-error' | 'on-hold' | 'unknown'
+  status: 'active' | 'inactive' | 'entered-in-error' | 'on-hold' | 'unknown'
   subject?: Reference[]
   text?: Narrative
   type?: CodeableConcept
 }
 
 export interface AccountCoverage extends BackboneElement {
-  coverage?: Reference
+  coverage: Reference
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -955,7 +1707,7 @@ export interface AccountGuarantor extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   onHold?: boolean
-  party?: Reference
+  party: Reference
   period?: Period
 }
 
@@ -1028,7 +1780,7 @@ export interface ActivityDefinition extends DomainResource {
   relatedArtifact?: RelatedArtifact[]
   reviewer?: ContactDetail[]
   specimenRequirement?: Reference[]
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   subjectCodeableConcept?: CodeableConcept
   subjectReference?: Reference
   subtitle?: string
@@ -1049,11 +1801,11 @@ export interface ActivityDefinition extends DomainResource {
 }
 
 export interface ActivityDefinitionDynamicValue extends BackboneElement {
-  expression?: Expression
+  expression: Expression
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  path?: string
+  path: string
 }
 
 export interface ActivityDefinitionParticipant extends BackboneElement {
@@ -1061,12 +1813,12 @@ export interface ActivityDefinitionParticipant extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   role?: CodeableConcept
-  type?: 'patient' | 'practitioner' | 'related-person' | 'device'
+  type: 'patient' | 'practitioner' | 'related-person' | 'device'
 }
 
 export interface AdverseEvent extends DomainResource {
   resourceType: 'AdverseEvent'
-  actuality?: 'actual' | 'potential'
+  actuality: 'actual' | 'potential'
   category?: CodeableConcept[]
   contained?: FhirResource[]
   contributor?: Reference[]
@@ -1090,7 +1842,7 @@ export interface AdverseEvent extends DomainResource {
   seriousness?: CodeableConcept
   severity?: CodeableConcept
   study?: Reference[]
-  subject?: Reference
+  subject: Reference
   subjectMedicalHistory?: Reference[]
   suspectEntity?: AdverseEventSuspectEntity[]
   text?: Narrative
@@ -1100,7 +1852,7 @@ export interface AdverseEventSuspectEntity extends BackboneElement {
   causality?: AdverseEventSuspectEntityCausality[]
   extension?: Extension[]
   id?: string
-  instance?: Reference
+  instance: Reference
   modifierExtension?: Extension[]
 }
 
@@ -1137,7 +1889,7 @@ export interface AllergyIntolerance extends DomainResource {
   onsetPeriod?: Period
   onsetRange?: Range
   onsetString?: string
-  patient?: Reference
+  patient: Reference
   reaction?: AllergyIntoleranceReaction[]
   recordedDate?: string
   recorder?: Reference
@@ -1151,7 +1903,7 @@ export interface AllergyIntoleranceReaction extends BackboneElement {
   exposureRoute?: CodeableConcept
   extension?: Extension[]
   id?: string
-  manifestation?: CodeableConcept[]
+  manifestation: CodeableConcept[]
   modifierExtension?: Extension[]
   note?: Annotation[]
   onset?: string
@@ -1177,7 +1929,7 @@ export interface Appointment extends DomainResource {
   meta?: Meta
   minutesDuration?: number
   modifierExtension?: Extension[]
-  participant?: AppointmentParticipant[]
+  participant: AppointmentParticipant[]
   patientInstruction?: string
   priority?: number
   reasonCode?: CodeableConcept[]
@@ -1188,7 +1940,7 @@ export interface Appointment extends DomainResource {
   slot?: Reference[]
   specialty?: CodeableConcept[]
   start?: string
-  status?:
+  status:
     | 'proposed'
     | 'pending'
     | 'booked'
@@ -1210,14 +1962,14 @@ export interface AppointmentParticipant extends BackboneElement {
   modifierExtension?: Extension[]
   period?: Period
   required?: 'required' | 'optional' | 'information-only'
-  status?: 'accepted' | 'declined' | 'tentative' | 'needs-action'
+  status: 'accepted' | 'declined' | 'tentative' | 'needs-action'
   type?: CodeableConcept[]
 }
 
 export interface AppointmentResponse extends DomainResource {
   resourceType: 'AppointmentResponse'
   actor?: Reference
-  appointment?: Reference
+  appointment: Reference
   comment?: string
   contained?: FhirResource[]
   end?: string
@@ -1228,7 +1980,7 @@ export interface AppointmentResponse extends DomainResource {
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  participantStatus?: 'accepted' | 'declined' | 'tentative' | 'needs-action'
+  participantStatus: 'accepted' | 'declined' | 'tentative' | 'needs-action'
   participantType?: CodeableConcept[]
   start?: string
   text?: Narrative
@@ -1237,7 +1989,7 @@ export interface AppointmentResponse extends DomainResource {
 export interface AuditEvent extends DomainResource {
   resourceType: 'AuditEvent'
   action?: 'C' | 'R' | 'U' | 'D' | 'E'
-  agent?: AuditEventAgent[]
+  agent: AuditEventAgent[]
   contained?: FhirResource[]
   entity?: AuditEventEntity[]
   extension?: Extension[]
@@ -1250,11 +2002,11 @@ export interface AuditEvent extends DomainResource {
   outcomeDesc?: string
   period?: Period
   purposeOfEvent?: CodeableConcept[]
-  recorded?: string
-  source?: AuditEventSource
+  recorded: string
+  source: AuditEventSource
   subtype?: Coding[]
   text?: Narrative
-  type?: Coding
+  type: Coding
 }
 
 export interface AuditEventAgent extends BackboneElement {
@@ -1268,7 +2020,7 @@ export interface AuditEventAgent extends BackboneElement {
   network?: AuditEventAgentNetwork
   policy?: string[]
   purposeOfUse?: CodeableConcept[]
-  requestor?: boolean
+  requestor: boolean
   role?: CodeableConcept[]
   type?: CodeableConcept
   who?: Reference
@@ -1301,7 +2053,7 @@ export interface AuditEventEntityDetail extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: string
+  type: string
   valueString?: string
   valueBase64Binary?: string
 }
@@ -1310,7 +2062,7 @@ export interface AuditEventSource extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  observer?: Reference
+  observer: Reference
   site?: string
   type?: Coding[]
 }
@@ -1318,7 +2070,7 @@ export interface AuditEventSource extends BackboneElement {
 export interface Basic extends DomainResource {
   resourceType: 'Basic'
   author?: Reference
-  code?: CodeableConcept
+  code: CodeableConcept
   contained?: FhirResource[]
   created?: string
   extension?: Extension[]
@@ -1334,7 +2086,7 @@ export interface Basic extends DomainResource {
 
 export interface Binary extends Resource {
   resourceType: 'Binary'
-  contentType?: string
+  contentType: string
   data?: string
   id?: string
   implicitRules?: string
@@ -1423,7 +2175,7 @@ export interface BodyStructure extends DomainResource {
   meta?: Meta
   modifierExtension?: Extension[]
   morphology?: CodeableConcept
-  patient?: Reference
+  patient: Reference
   text?: Narrative
 }
 
@@ -1439,7 +2191,7 @@ export interface Bundle extends Resource {
   signature?: Signature
   timestamp?: string
   total?: number
-  type?:
+  type:
     | 'document'
     | 'message'
     | 'transaction'
@@ -1470,9 +2222,9 @@ export interface BundleEntryRequest extends BackboneElement {
   ifModifiedSince?: string
   ifNoneExist?: string
   ifNoneMatch?: string
-  method?: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+  method: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
   modifierExtension?: Extension[]
-  url?: string
+  url: string
 }
 
 export interface BundleEntryResponse extends BackboneElement {
@@ -1483,7 +2235,7 @@ export interface BundleEntryResponse extends BackboneElement {
   location?: string
   modifierExtension?: Extension[]
   outcome?: OperationOutcome
-  status?: string
+  status: string
 }
 
 export interface BundleEntrySearch extends BackboneElement {
@@ -1498,8 +2250,8 @@ export interface BundleLink extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  relation?: string
-  url?: string
+  relation: string
+  url: string
 }
 
 export interface CapabilityStatement extends DomainResource {
@@ -1507,12 +2259,12 @@ export interface CapabilityStatement extends DomainResource {
   contact?: ContactDetail[]
   contained?: FhirResource[]
   copyright?: string
-  date?: string
+  date: string
   description?: string
   document?: CapabilityStatementDocument[]
   experimental?: boolean
   extension?: Extension[]
-  fhirVersion?:
+  fhirVersion:
     | '0.01'
     | '0.05'
     | '0.06'
@@ -1535,7 +2287,7 @@ export interface CapabilityStatement extends DomainResource {
     | '3.5.0'
     | '4.0.0'
     | '4.0.1'
-  format?: string[]
+  format: string[]
   id?: string
   implementation?: CapabilityStatementImplementation
   implementationGuide?: string[]
@@ -1543,7 +2295,7 @@ export interface CapabilityStatement extends DomainResource {
   imports?: string[]
   instantiates?: string[]
   jurisdiction?: CodeableConcept[]
-  kind?: 'instance' | 'capability' | 'requirements'
+  kind: 'instance' | 'capability' | 'requirements'
   language?: string
   messaging?: CapabilityStatementMessaging[]
   meta?: Meta
@@ -1554,7 +2306,7 @@ export interface CapabilityStatement extends DomainResource {
   purpose?: string
   rest?: CapabilityStatementRest[]
   software?: CapabilityStatementSoftware
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
   title?: string
   url?: string
@@ -1566,14 +2318,14 @@ export interface CapabilityStatementDocument extends BackboneElement {
   documentation?: string
   extension?: Extension[]
   id?: string
-  mode?: 'producer' | 'consumer'
+  mode: 'producer' | 'consumer'
   modifierExtension?: Extension[]
-  profile?: string
+  profile: string
 }
 
 export interface CapabilityStatementImplementation extends BackboneElement {
   custodian?: Reference
-  description?: string
+  description: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -1591,18 +2343,18 @@ export interface CapabilityStatementMessaging extends BackboneElement {
 }
 
 export interface CapabilityStatementMessagingEndpoint extends BackboneElement {
-  address?: string
+  address: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  protocol?: Coding
+  protocol: Coding
 }
 
 export interface CapabilityStatementMessagingSupportedMessage extends BackboneElement {
-  definition?: string
+  definition: string
   extension?: Extension[]
   id?: string
-  mode?: 'sender' | 'receiver'
+  mode: 'sender' | 'receiver'
   modifierExtension?: Extension[]
 }
 
@@ -1612,7 +2364,7 @@ export interface CapabilityStatementRest extends BackboneElement {
   extension?: Extension[]
   id?: string
   interaction?: CapabilityStatementRestInteraction[]
-  mode?: 'client' | 'server'
+  mode: 'client' | 'server'
   modifierExtension?: Extension[]
   operation?: CapabilityStatementRestResourceOperation[]
   resource?: CapabilityStatementRestResource[]
@@ -1621,7 +2373,7 @@ export interface CapabilityStatementRest extends BackboneElement {
 }
 
 export interface CapabilityStatementRestInteraction extends BackboneElement {
-  code?: 'transaction' | 'batch' | 'search-system' | 'history-system'
+  code: 'transaction' | 'batch' | 'search-system' | 'history-system'
   documentation?: string
   extension?: Extension[]
   id?: string
@@ -1646,13 +2398,161 @@ export interface CapabilityStatementRestResource extends BackboneElement {
   searchParam?: CapabilityStatementRestResourceSearchParam[]
   searchRevInclude?: string[]
   supportedProfile?: string[]
-  type?: string
+  type:
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
   updateCreate?: boolean
   versioning?: 'no-version' | 'versioned' | 'versioned-update'
 }
 
 export interface CapabilityStatementRestResourceInteraction extends BackboneElement {
-  code?:
+  code:
     'read' | 'vread' | 'update' | 'patch' | 'delete' | 'history-instance' | 'history-type' | 'create' | 'search-type'
   documentation?: string
   extension?: Extension[]
@@ -1661,12 +2561,12 @@ export interface CapabilityStatementRestResourceInteraction extends BackboneElem
 }
 
 export interface CapabilityStatementRestResourceOperation extends BackboneElement {
-  definition?: string
+  definition: string
   documentation?: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
 }
 
 export interface CapabilityStatementRestResourceSearchParam extends BackboneElement {
@@ -1675,8 +2575,8 @@ export interface CapabilityStatementRestResourceSearchParam extends BackboneElem
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
-  type?: 'number' | 'date' | 'string' | 'token' | 'reference' | 'composite' | 'quantity' | 'uri' | 'special'
+  name: string
+  type: 'number' | 'date' | 'string' | 'token' | 'reference' | 'composite' | 'quantity' | 'uri' | 'special'
 }
 
 export interface CapabilityStatementRestSecurity extends BackboneElement {
@@ -1692,7 +2592,7 @@ export interface CapabilityStatementSoftware extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   releaseDate?: string
   version?: string
 }
@@ -1717,7 +2617,7 @@ export interface CarePlan extends DomainResource {
   implicitRules?: string
   instantiatesCanonical?: string[]
   instantiatesUri?: string[]
-  intent?: 'proposal' | 'plan' | 'order' | 'option'
+  intent: 'proposal' | 'plan' | 'order' | 'option'
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
@@ -1725,8 +2625,8 @@ export interface CarePlan extends DomainResource {
   partOf?: Reference[]
   period?: Period
   replaces?: Reference[]
-  status?: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
-  subject?: Reference
+  status: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+  subject: Reference
   supportingInfo?: Reference[]
   text?: Narrative
   title?: string
@@ -1773,7 +2673,7 @@ export interface CarePlanActivityDetail extends BackboneElement {
   scheduledTiming?: Timing
   scheduledPeriod?: Period
   scheduledString?: string
-  status?:
+  status:
     | 'not-started'
     | 'scheduled'
     | 'in-progress'
@@ -1836,8 +2736,8 @@ export interface CatalogEntry extends DomainResource {
   lastUpdated?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  orderable?: boolean
-  referencedItem?: Reference
+  orderable: boolean
+  referencedItem: Reference
   relatedEntry?: CatalogEntryRelatedEntry[]
   status?: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
@@ -1849,16 +2749,16 @@ export interface CatalogEntry extends DomainResource {
 export interface CatalogEntryRelatedEntry extends BackboneElement {
   extension?: Extension[]
   id?: string
-  item?: Reference
+  item: Reference
   modifierExtension?: Extension[]
-  relationtype?: 'triggers' | 'is-replaced-by'
+  relationtype: 'triggers' | 'is-replaced-by'
 }
 
 export interface ChargeItem extends DomainResource {
   resourceType: 'ChargeItem'
   account?: Reference[]
   bodysite?: CodeableConcept[]
-  code?: CodeableConcept
+  code: CodeableConcept
   contained?: FhirResource[]
   context?: Reference
   costCenter?: Reference
@@ -1889,14 +2789,14 @@ export interface ChargeItem extends DomainResource {
   reason?: CodeableConcept[]
   requestingOrganization?: Reference
   service?: Reference[]
-  status?: 'planned' | 'billable' | 'not-billable' | 'aborted' | 'billed' | 'entered-in-error' | 'unknown'
-  subject?: Reference
+  status: 'planned' | 'billable' | 'not-billable' | 'aborted' | 'billed' | 'entered-in-error' | 'unknown'
+  subject: Reference
   supportingInformation?: Reference[]
   text?: Narrative
 }
 
 export interface ChargeItemPerformer extends BackboneElement {
-  actor?: Reference
+  actor: Reference
   extension?: Extension[]
   function?: CodeableConcept
   id?: string
@@ -1930,10 +2830,10 @@ export interface ChargeItemDefinition extends DomainResource {
   propertyGroup?: ChargeItemDefinitionPropertyGroup[]
   publisher?: string
   replaces?: string[]
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
   title?: string
-  url?: string
+  url: string
   useContext?: UsageContext[]
   version?: string
 }
@@ -1962,7 +2862,7 @@ export interface ChargeItemDefinitionPropertyGroupPriceComponent extends Backbon
   factor?: number
   id?: string
   modifierExtension?: Extension[]
-  type?: 'base' | 'surcharge' | 'deduction' | 'discount' | 'tax' | 'informational'
+  type: 'base' | 'surcharge' | 'deduction' | 'discount' | 'tax' | 'informational'
 }
 
 export interface Claim extends DomainResource {
@@ -1971,7 +2871,7 @@ export interface Claim extends DomainResource {
   billablePeriod?: Period
   careTeam?: ClaimCareTeam[]
   contained?: FhirResource[]
-  created?: string
+  created: string
   diagnosis?: ClaimDiagnosis[]
   enterer?: Reference
   extension?: Extension[]
@@ -1980,32 +2880,32 @@ export interface Claim extends DomainResource {
   id?: string
   identifier?: Identifier[]
   implicitRules?: string
-  insurance?: ClaimInsurance[]
+  insurance: ClaimInsurance[]
   insurer?: Reference
   item?: ClaimItem[]
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
   originalPrescription?: Reference
-  patient?: Reference
+  patient: Reference
   payee?: ClaimPayee
   prescription?: Reference
-  priority?: CodeableConcept
+  priority: CodeableConcept
   procedure?: ClaimProcedure[]
-  provider?: Reference
+  provider: Reference
   referral?: Reference
   related?: ClaimRelated[]
-  status?: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
+  status: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
   subType?: CodeableConcept
   supportingInfo?: ClaimSupportingInfo[]
   text?: Narrative
   total?: Money
-  type?: CodeableConcept
-  use?: 'claim' | 'preauthorization' | 'predetermination'
+  type: CodeableConcept
+  use: 'claim' | 'preauthorization' | 'predetermination'
 }
 
 export interface ClaimAccident extends BackboneElement {
-  date?: string
+  date: string
   extension?: Extension[]
   id?: string
   locationAddress?: Address
@@ -2018,11 +2918,11 @@ export interface ClaimCareTeam extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  provider?: Reference
+  provider: Reference
   qualification?: CodeableConcept
   responsible?: boolean
   role?: CodeableConcept
-  sequence?: number
+  sequence: number
 }
 
 export interface ClaimDiagnosis extends BackboneElement {
@@ -2033,21 +2933,21 @@ export interface ClaimDiagnosis extends BackboneElement {
   modifierExtension?: Extension[]
   onAdmission?: CodeableConcept
   packageCode?: CodeableConcept
-  sequence?: number
+  sequence: number
   type?: CodeableConcept[]
 }
 
 export interface ClaimInsurance extends BackboneElement {
   businessArrangement?: string
   claimResponse?: Reference
-  coverage?: Reference
+  coverage: Reference
   extension?: Extension[]
-  focal?: boolean
+  focal: boolean
   id?: string
   identifier?: Identifier
   modifierExtension?: Extension[]
   preAuthRef?: string[]
-  sequence?: number
+  sequence: number
 }
 
 export interface ClaimItem extends BackboneElement {
@@ -2068,11 +2968,11 @@ export interface ClaimItem extends BackboneElement {
   modifierExtension?: Extension[]
   net?: Money
   procedureSequence?: number[]
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   programCode?: CodeableConcept[]
   quantity?: Quantity
   revenue?: CodeableConcept
-  sequence?: number
+  sequence: number
   servicedDate?: string
   servicedPeriod?: Period
   subSite?: CodeableConcept[]
@@ -2088,11 +2988,11 @@ export interface ClaimItemDetail extends BackboneElement {
   modifier?: CodeableConcept[]
   modifierExtension?: Extension[]
   net?: Money
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   programCode?: CodeableConcept[]
   quantity?: Quantity
   revenue?: CodeableConcept
-  sequence?: number
+  sequence: number
   subDetail?: ClaimItemDetailSubDetail[]
   udi?: Reference[]
   unitPrice?: Money
@@ -2106,11 +3006,11 @@ export interface ClaimItemDetailSubDetail extends BackboneElement {
   modifier?: CodeableConcept[]
   modifierExtension?: Extension[]
   net?: Money
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   programCode?: CodeableConcept[]
   quantity?: Quantity
   revenue?: CodeableConcept
-  sequence?: number
+  sequence: number
   udi?: Reference[]
   unitPrice?: Money
 }
@@ -2120,7 +3020,7 @@ export interface ClaimPayee extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   party?: Reference
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface ClaimProcedure extends BackboneElement {
@@ -2130,7 +3030,7 @@ export interface ClaimProcedure extends BackboneElement {
   modifierExtension?: Extension[]
   procedureCodeableConcept?: CodeableConcept
   procedureReference?: Reference
-  sequence?: number
+  sequence: number
   type?: CodeableConcept[]
   udi?: Reference[]
 }
@@ -2145,13 +3045,13 @@ export interface ClaimRelated extends BackboneElement {
 }
 
 export interface ClaimSupportingInfo extends BackboneElement {
-  category?: CodeableConcept
+  category: CodeableConcept
   code?: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
   reason?: CodeableConcept
-  sequence?: number
+  sequence: number
   timingDate?: string
   timingPeriod?: Period
   valueBoolean?: boolean
@@ -2167,7 +3067,7 @@ export interface ClaimResponse extends DomainResource {
   adjudication?: ClaimResponseItemAdjudication[]
   communicationRequest?: Reference[]
   contained?: FhirResource[]
-  created?: string
+  created: string
   disposition?: string
   error?: ClaimResponseError[]
   extension?: Extension[]
@@ -2178,13 +3078,13 @@ export interface ClaimResponse extends DomainResource {
   identifier?: Identifier[]
   implicitRules?: string
   insurance?: ClaimResponseInsurance[]
-  insurer?: Reference
+  insurer: Reference
   item?: ClaimResponseItem[]
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  outcome?: 'queued' | 'complete' | 'error' | 'partial'
-  patient?: Reference
+  outcome: 'queued' | 'complete' | 'error' | 'partial'
+  patient: Reference
   payeeType?: CodeableConcept
   payment?: ClaimResponsePayment
   preAuthPeriod?: Period
@@ -2192,16 +3092,16 @@ export interface ClaimResponse extends DomainResource {
   processNote?: ClaimResponseProcessNote[]
   request?: Reference
   requestor?: Reference
-  status?: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
+  status: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
   subType?: CodeableConcept
   text?: Narrative
   total?: ClaimResponseTotal[]
-  type?: CodeableConcept
-  use?: 'claim' | 'preauthorization' | 'predetermination'
+  type: CodeableConcept
+  use: 'claim' | 'preauthorization' | 'predetermination'
 }
 
 export interface ClaimResponseAddItem extends BackboneElement {
-  adjudication?: ClaimResponseItemAdjudication[]
+  adjudication: ClaimResponseItemAdjudication[]
   bodySite?: CodeableConcept
   detail?: ClaimResponseAddItemDetail[]
   detailSequence?: number[]
@@ -2216,7 +3116,7 @@ export interface ClaimResponseAddItem extends BackboneElement {
   modifierExtension?: Extension[]
   net?: Money
   noteNumber?: number[]
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   programCode?: CodeableConcept[]
   provider?: Reference[]
   quantity?: Quantity
@@ -2228,7 +3128,7 @@ export interface ClaimResponseAddItem extends BackboneElement {
 }
 
 export interface ClaimResponseAddItemDetail extends BackboneElement {
-  adjudication?: ClaimResponseItemAdjudication[]
+  adjudication: ClaimResponseItemAdjudication[]
   extension?: Extension[]
   factor?: number
   id?: string
@@ -2236,14 +3136,14 @@ export interface ClaimResponseAddItemDetail extends BackboneElement {
   modifierExtension?: Extension[]
   net?: Money
   noteNumber?: number[]
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   quantity?: Quantity
   subDetail?: ClaimResponseAddItemDetailSubDetail[]
   unitPrice?: Money
 }
 
 export interface ClaimResponseAddItemDetailSubDetail extends BackboneElement {
-  adjudication?: ClaimResponseItemAdjudication[]
+  adjudication: ClaimResponseItemAdjudication[]
   extension?: Extension[]
   factor?: number
   id?: string
@@ -2251,13 +3151,13 @@ export interface ClaimResponseAddItemDetailSubDetail extends BackboneElement {
   modifierExtension?: Extension[]
   net?: Money
   noteNumber?: number[]
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   quantity?: Quantity
   unitPrice?: Money
 }
 
 export interface ClaimResponseError extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   detailSequence?: number
   extension?: Extension[]
   id?: string
@@ -2269,27 +3169,27 @@ export interface ClaimResponseError extends BackboneElement {
 export interface ClaimResponseInsurance extends BackboneElement {
   businessArrangement?: string
   claimResponse?: Reference
-  coverage?: Reference
+  coverage: Reference
   extension?: Extension[]
-  focal?: boolean
+  focal: boolean
   id?: string
   modifierExtension?: Extension[]
-  sequence?: number
+  sequence: number
 }
 
 export interface ClaimResponseItem extends BackboneElement {
-  adjudication?: ClaimResponseItemAdjudication[]
+  adjudication: ClaimResponseItemAdjudication[]
   detail?: ClaimResponseItemDetail[]
   extension?: Extension[]
   id?: string
-  itemSequence?: number
+  itemSequence: number
   modifierExtension?: Extension[]
   noteNumber?: number[]
 }
 
 export interface ClaimResponseItemAdjudication extends BackboneElement {
   amount?: Money
-  category?: CodeableConcept
+  category: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -2298,8 +3198,8 @@ export interface ClaimResponseItemAdjudication extends BackboneElement {
 }
 
 export interface ClaimResponseItemDetail extends BackboneElement {
-  adjudication?: ClaimResponseItemAdjudication[]
-  detailSequence?: number
+  adjudication: ClaimResponseItemAdjudication[]
+  detailSequence: number
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -2313,19 +3213,19 @@ export interface ClaimResponseItemDetailSubDetail extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   noteNumber?: number[]
-  subDetailSequence?: number
+  subDetailSequence: number
 }
 
 export interface ClaimResponsePayment extends BackboneElement {
   adjustment?: Money
   adjustmentReason?: CodeableConcept
-  amount?: Money
+  amount: Money
   date?: string
   extension?: Extension[]
   id?: string
   identifier?: Identifier
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface ClaimResponseProcessNote extends BackboneElement {
@@ -2334,13 +3234,13 @@ export interface ClaimResponseProcessNote extends BackboneElement {
   language?: CodeableConcept
   modifierExtension?: Extension[]
   number?: number
-  text?: string
+  text: string
   type?: 'display' | 'print' | 'printoper'
 }
 
 export interface ClaimResponseTotal extends BackboneElement {
-  amount?: Money
-  category?: CodeableConcept
+  amount: Money
+  category: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -2371,9 +3271,9 @@ export interface ClinicalImpression extends DomainResource {
   prognosisCodeableConcept?: CodeableConcept[]
   prognosisReference?: Reference[]
   protocol?: string[]
-  status?: 'in-progress' | 'completed' | 'entered-in-error'
+  status: 'in-progress' | 'completed' | 'entered-in-error'
   statusReason?: CodeableConcept
-  subject?: Reference
+  subject: Reference
   summary?: string
   supportingInfo?: Reference[]
   text?: Narrative
@@ -2389,7 +3289,7 @@ export interface ClinicalImpressionFinding extends BackboneElement {
 }
 
 export interface ClinicalImpressionInvestigation extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   extension?: Extension[]
   id?: string
   item?: Reference[]
@@ -2403,7 +3303,7 @@ export interface CodeSystem extends DomainResource {
   concept?: CodeSystemConcept[]
   contact?: ContactDetail[]
   contained?: FhirResource[]
-  content?: 'not-present' | 'example' | 'fragment' | 'complete' | 'supplement'
+  content: 'not-present' | 'example' | 'fragment' | 'complete' | 'supplement'
   copyright?: string
   count?: number
   date?: string
@@ -2423,7 +3323,7 @@ export interface CodeSystem extends DomainResource {
   property?: CodeSystemProperty[]
   publisher?: string
   purpose?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   supplements?: string
   text?: Narrative
   title?: string
@@ -2435,7 +3335,7 @@ export interface CodeSystem extends DomainResource {
 }
 
 export interface CodeSystemConcept extends BackboneElement {
-  code?: string
+  code: string
   concept?: CodeSystemConcept[]
   definition?: string
   designation?: CodeSystemConceptDesignation[]
@@ -2452,11 +3352,11 @@ export interface CodeSystemConceptDesignation extends BackboneElement {
   language?: string
   modifierExtension?: Extension[]
   use?: Coding
-  value?: string
+  value: string
 }
 
 export interface CodeSystemConceptProperty extends BackboneElement {
-  code?: string
+  code: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -2470,22 +3370,22 @@ export interface CodeSystemConceptProperty extends BackboneElement {
 }
 
 export interface CodeSystemFilter extends BackboneElement {
-  code?: string
+  code: string
   description?: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  operator?: ('=' | 'is-a' | 'descendent-of' | 'is-not-a' | 'regex' | 'in' | 'not-in' | 'generalizes' | 'exists')[]
-  value?: string
+  operator: ('=' | 'is-a' | 'descendent-of' | 'is-not-a' | 'regex' | 'in' | 'not-in' | 'generalizes' | 'exists')[]
+  value: string
 }
 
 export interface CodeSystemProperty extends BackboneElement {
-  code?: string
+  code: string
   description?: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: 'code' | 'Coding' | 'string' | 'integer' | 'boolean' | 'dateTime' | 'decimal'
+  type: 'code' | 'Coding' | 'string' | 'integer' | 'boolean' | 'dateTime' | 'decimal'
   uri?: string
 }
 
@@ -2517,7 +3417,7 @@ export interface Communication extends DomainResource {
   recipient?: Reference[]
   sender?: Reference
   sent?: string
-  status?:
+  status:
     'preparation' | 'in-progress' | 'not-done' | 'on-hold' | 'stopped' | 'completed' | 'entered-in-error' | 'unknown'
   statusReason?: CodeableConcept
   subject?: Reference
@@ -2563,7 +3463,7 @@ export interface CommunicationRequest extends DomainResource {
   replaces?: Reference[]
   requester?: Reference
   sender?: Reference
-  status?: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+  status: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
   statusReason?: CodeableConcept
   subject?: Reference
   text?: Narrative
@@ -2580,7 +3480,7 @@ export interface CommunicationRequestPayload extends BackboneElement {
 
 export interface CompartmentDefinition extends DomainResource {
   resourceType: 'CompartmentDefinition'
-  code?: 'Patient' | 'Encounter' | 'RelatedPerson' | 'Practitioner' | 'Device'
+  code: 'Patient' | 'Encounter' | 'RelatedPerson' | 'Practitioner' | 'Device'
   contact?: ContactDetail[]
   contained?: FhirResource[]
   date?: string
@@ -2592,20 +3492,168 @@ export interface CompartmentDefinition extends DomainResource {
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   publisher?: string
   purpose?: string
   resource?: CompartmentDefinitionResource[]
-  search?: boolean
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  search: boolean
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
-  url?: string
+  url: string
   useContext?: UsageContext[]
   version?: string
 }
 
 export interface CompartmentDefinitionResource extends BackboneElement {
-  code?: string
+  code:
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
   documentation?: string
   extension?: Extension[]
   id?: string
@@ -2616,12 +3664,12 @@ export interface CompartmentDefinitionResource extends BackboneElement {
 export interface Composition extends DomainResource {
   resourceType: 'Composition'
   attester?: CompositionAttester[]
-  author?: Reference[]
+  author: Reference[]
   category?: CodeableConcept[]
   confidentiality?: string
   contained?: FhirResource[]
   custodian?: Reference
-  date?: string
+  date: string
   encounter?: Reference
   event?: CompositionEvent[]
   extension?: Extension[]
@@ -2633,17 +3681,17 @@ export interface Composition extends DomainResource {
   modifierExtension?: Extension[]
   relatesTo?: CompositionRelatesTo[]
   section?: CompositionSection[]
-  status?: 'preliminary' | 'final' | 'amended' | 'entered-in-error'
+  status: 'preliminary' | 'final' | 'amended' | 'entered-in-error'
   subject?: Reference
   text?: Narrative
-  title?: string
-  type?: CodeableConcept
+  title: string
+  type: CodeableConcept
 }
 
 export interface CompositionAttester extends BackboneElement {
   extension?: Extension[]
   id?: string
-  mode?: 'personal' | 'professional' | 'legal' | 'official'
+  mode: 'personal' | 'professional' | 'legal' | 'official'
   modifierExtension?: Extension[]
   party?: Reference
   time?: string
@@ -2659,7 +3707,7 @@ export interface CompositionEvent extends BackboneElement {
 }
 
 export interface CompositionRelatesTo extends BackboneElement {
-  code?: 'replaces' | 'transforms' | 'signs' | 'appends'
+  code: 'replaces' | 'transforms' | 'signs' | 'appends'
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -2705,7 +3753,7 @@ export interface ConceptMap extends DomainResource {
   purpose?: string
   sourceUri?: string
   sourceCanonical?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   targetUri?: string
   targetCanonical?: string
   text?: Narrative
@@ -2716,7 +3764,7 @@ export interface ConceptMap extends DomainResource {
 }
 
 export interface ConceptMapGroup extends BackboneElement {
-  element?: ConceptMapGroupElement[]
+  element: ConceptMapGroupElement[]
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -2741,7 +3789,7 @@ export interface ConceptMapGroupElementTarget extends BackboneElement {
   comment?: string
   dependsOn?: ConceptMapGroupElementTargetDependsOn[]
   display?: string
-  equivalence?:
+  equivalence:
     | 'relatedto'
     | 'equivalent'
     | 'equal'
@@ -2763,9 +3811,9 @@ export interface ConceptMapGroupElementTargetDependsOn extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  property?: string
+  property: string
   system?: string
-  value?: string
+  value: string
 }
 
 export interface ConceptMapGroupUnmapped extends BackboneElement {
@@ -2773,7 +3821,7 @@ export interface ConceptMapGroupUnmapped extends BackboneElement {
   display?: string
   extension?: Extension[]
   id?: string
-  mode?: 'provided' | 'fixed' | 'other-map'
+  mode: 'provided' | 'fixed' | 'other-map'
   modifierExtension?: Extension[]
   url?: string
 }
@@ -2810,7 +3858,7 @@ export interface Condition extends DomainResource {
   recorder?: Reference
   severity?: CodeableConcept
   stage?: ConditionStage[]
-  subject?: Reference
+  subject: Reference
   text?: Narrative
   verificationStatus?: CodeableConcept
 }
@@ -2834,7 +3882,7 @@ export interface ConditionStage extends BackboneElement {
 
 export interface Consent extends DomainResource {
   resourceType: 'Consent'
-  category?: CodeableConcept[]
+  category: CodeableConcept[]
   contained?: FhirResource[]
   dateTime?: string
   extension?: Extension[]
@@ -2850,10 +3898,10 @@ export interface Consent extends DomainResource {
   policy?: ConsentPolicy[]
   policyRule?: CodeableConcept
   provision?: ConsentProvision
-  scope?: CodeableConcept
+  scope: CodeableConcept
   sourceAttachment?: Attachment
   sourceReference?: Reference
-  status?: 'draft' | 'proposed' | 'active' | 'rejected' | 'inactive' | 'entered-in-error'
+  status: 'draft' | 'proposed' | 'active' | 'rejected' | 'inactive' | 'entered-in-error'
   text?: Narrative
   verification?: ConsentVerification[]
 }
@@ -2887,16 +3935,16 @@ export interface ConsentProvisionActor extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  reference?: Reference
-  role?: CodeableConcept
+  reference: Reference
+  role: CodeableConcept
 }
 
 export interface ConsentProvisionData extends BackboneElement {
   extension?: Extension[]
   id?: string
-  meaning?: 'instance' | 'related' | 'dependents' | 'authoredby'
+  meaning: 'instance' | 'related' | 'dependents' | 'authoredby'
   modifierExtension?: Extension[]
-  reference?: Reference
+  reference: Reference
 }
 
 export interface ConsentVerification extends BackboneElement {
@@ -2904,7 +3952,7 @@ export interface ConsentVerification extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   verificationDate?: string
-  verified?: boolean
+  verified: boolean
   verifiedWith?: Reference
 }
 
@@ -2976,7 +4024,7 @@ export interface ContractContentDefinition extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   publicationDate?: string
-  publicationStatus?:
+  publicationStatus:
     | 'amended'
     | 'appended'
     | 'cancelled'
@@ -2994,7 +4042,7 @@ export interface ContractContentDefinition extends BackboneElement {
     | 'terminated'
   publisher?: Reference
   subType?: CodeableConcept
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface ContractFriendly extends BackboneElement {
@@ -3025,9 +4073,9 @@ export interface ContractSigner extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  party?: Reference
-  signature?: Signature[]
-  type?: Coding
+  party: Reference
+  signature: Signature[]
+  type: Coding
 }
 
 export interface ContractTerm extends BackboneElement {
@@ -3040,7 +4088,7 @@ export interface ContractTerm extends BackboneElement {
   identifier?: Identifier
   issued?: string
   modifierExtension?: Extension[]
-  offer?: ContractTermOffer
+  offer: ContractTermOffer
   securityLabel?: ContractTermSecurityLabel[]
   subType?: CodeableConcept
   text?: string
@@ -3055,7 +4103,7 @@ export interface ContractTermAction extends BackboneElement {
   doNotPerform?: boolean
   extension?: Extension[]
   id?: string
-  intent?: CodeableConcept
+  intent: CodeableConcept
   linkId?: string[]
   modifierExtension?: Extension[]
   note?: Annotation[]
@@ -3073,16 +4121,16 @@ export interface ContractTermAction extends BackboneElement {
   requester?: Reference[]
   requesterLinkId?: string[]
   securityLabelNumber?: number[]
-  status?: CodeableConcept
+  status: CodeableConcept
   subject?: ContractTermActionSubject[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface ContractTermActionSubject extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  reference?: Reference[]
+  reference: Reference[]
   role?: CodeableConcept
 }
 
@@ -3175,13 +4223,13 @@ export interface ContractTermOfferParty extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  reference?: Reference[]
-  role?: CodeableConcept
+  reference: Reference[]
+  role: CodeableConcept
 }
 
 export interface ContractTermSecurityLabel extends BackboneElement {
   category?: Coding[]
-  classification?: Coding
+  classification: Coding
   control?: Coding[]
   extension?: Extension[]
   id?: string
@@ -3191,7 +4239,7 @@ export interface ContractTermSecurityLabel extends BackboneElement {
 
 export interface Coverage extends DomainResource {
   resourceType: 'Coverage'
-  beneficiary?: Reference
+  beneficiary: Reference
   class?: CoverageClass[]
   contained?: FhirResource[]
   contract?: Reference[]
@@ -3206,11 +4254,11 @@ export interface Coverage extends DomainResource {
   modifierExtension?: Extension[]
   network?: string
   order?: number
-  payor?: Reference[]
+  payor: Reference[]
   period?: Period
   policyHolder?: Reference
   relationship?: CodeableConcept
-  status?: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
+  status: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
   subrogation?: boolean
   subscriber?: Reference
   subscriberId?: string
@@ -3223,8 +4271,8 @@ export interface CoverageClass extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   name?: string
-  type?: CodeableConcept
-  value?: string
+  type: CodeableConcept
+  value: string
 }
 
 export interface CoverageCostToBeneficiary extends BackboneElement {
@@ -3242,13 +4290,13 @@ export interface CoverageCostToBeneficiaryException extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   period?: Period
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface CoverageEligibilityRequest extends DomainResource {
   resourceType: 'CoverageEligibilityRequest'
   contained?: FhirResource[]
-  created?: string
+  created: string
   enterer?: Reference
   extension?: Extension[]
   facility?: Reference
@@ -3256,25 +4304,25 @@ export interface CoverageEligibilityRequest extends DomainResource {
   identifier?: Identifier[]
   implicitRules?: string
   insurance?: CoverageEligibilityRequestInsurance[]
-  insurer?: Reference
+  insurer: Reference
   item?: CoverageEligibilityRequestItem[]
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  patient?: Reference
+  patient: Reference
   priority?: CodeableConcept
   provider?: Reference
-  purpose?: ('auth-requirements' | 'benefits' | 'discovery' | 'validation')[]
+  purpose: ('auth-requirements' | 'benefits' | 'discovery' | 'validation')[]
   servicedDate?: string
   servicedPeriod?: Period
-  status?: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
+  status: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
   supportingInfo?: CoverageEligibilityRequestSupportingInfo[]
   text?: Narrative
 }
 
 export interface CoverageEligibilityRequestInsurance extends BackboneElement {
   businessArrangement?: string
-  coverage?: Reference
+  coverage: Reference
   extension?: Extension[]
   focal?: boolean
   id?: string
@@ -3309,15 +4357,15 @@ export interface CoverageEligibilityRequestSupportingInfo extends BackboneElemen
   appliesToAll?: boolean
   extension?: Extension[]
   id?: string
-  information?: Reference
+  information: Reference
   modifierExtension?: Extension[]
-  sequence?: number
+  sequence: number
 }
 
 export interface CoverageEligibilityResponse extends DomainResource {
   resourceType: 'CoverageEligibilityResponse'
   contained?: FhirResource[]
-  created?: string
+  created: string
   disposition?: string
   error?: CoverageEligibilityResponseError[]
   extension?: Extension[]
@@ -3326,24 +4374,24 @@ export interface CoverageEligibilityResponse extends DomainResource {
   identifier?: Identifier[]
   implicitRules?: string
   insurance?: CoverageEligibilityResponseInsurance[]
-  insurer?: Reference
+  insurer: Reference
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  outcome?: 'queued' | 'complete' | 'error' | 'partial'
-  patient?: Reference
+  outcome: 'queued' | 'complete' | 'error' | 'partial'
+  patient: Reference
   preAuthRef?: string
-  purpose?: ('auth-requirements' | 'benefits' | 'discovery' | 'validation')[]
-  request?: Reference
+  purpose: ('auth-requirements' | 'benefits' | 'discovery' | 'validation')[]
+  request: Reference
   requestor?: Reference
   servicedDate?: string
   servicedPeriod?: Period
-  status?: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
+  status: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
   text?: Narrative
 }
 
 export interface CoverageEligibilityResponseError extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -3351,7 +4399,7 @@ export interface CoverageEligibilityResponseError extends BackboneElement {
 
 export interface CoverageEligibilityResponseInsurance extends BackboneElement {
   benefitPeriod?: Period
-  coverage?: Reference
+  coverage: Reference
   extension?: Extension[]
   id?: string
   inforce?: boolean
@@ -3386,7 +4434,7 @@ export interface CoverageEligibilityResponseInsuranceItemBenefit extends Backbon
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
   usedUnsignedInt?: number
   usedString?: string
   usedMoney?: Money
@@ -3413,7 +4461,7 @@ export interface DetectedIssue extends DomainResource {
   patient?: Reference
   reference?: string
   severity?: 'high' | 'moderate' | 'low'
-  status?: 'preliminary' | 'final' | 'entered-in-error' | 'mitigated'
+  status: 'preliminary' | 'final' | 'entered-in-error' | 'mitigated'
   text?: Narrative
 }
 
@@ -3426,7 +4474,7 @@ export interface DetectedIssueEvidence extends BackboneElement {
 }
 
 export interface DetectedIssueMitigation extends BackboneElement {
-  action?: CodeableConcept
+  action: CodeableConcept
   author?: Reference
   date?: string
   extension?: Extension[]
@@ -3476,16 +4524,15 @@ export interface DeviceDeviceName extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
-  type?:
-    'udi-label-name' | 'user-friendly-name' | 'patient-reported-name' | 'manufacturer-name' | 'model-name' | 'other'
+  name: string
+  type: 'udi-label-name' | 'user-friendly-name' | 'patient-reported-name' | 'manufacturer-name' | 'model-name' | 'other'
 }
 
 export interface DeviceProperty extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
   valueCode?: CodeableConcept[]
   valueQuantity?: Quantity[]
 }
@@ -3494,7 +4541,7 @@ export interface DeviceSpecialization extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  systemType?: CodeableConcept
+  systemType: CodeableConcept
   version?: string
 }
 
@@ -3516,7 +4563,7 @@ export interface DeviceVersion extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   type?: CodeableConcept
-  value?: string
+  value: string
 }
 
 export interface DeviceDefinition extends DomainResource {
@@ -3561,7 +4608,7 @@ export interface DeviceDefinitionCapability extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface DeviceDefinitionClassification extends BackboneElement {
@@ -3569,16 +4616,15 @@ export interface DeviceDefinitionClassification extends BackboneElement {
   id?: string
   justification?: RelatedArtifact[]
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface DeviceDefinitionDeviceName extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
-  type?:
-    'udi-label-name' | 'user-friendly-name' | 'patient-reported-name' | 'manufacturer-name' | 'model-name' | 'other'
+  name: string
+  type: 'udi-label-name' | 'user-friendly-name' | 'patient-reported-name' | 'manufacturer-name' | 'model-name' | 'other'
 }
 
 export interface DeviceDefinitionMaterial extends BackboneElement {
@@ -3587,14 +4633,14 @@ export interface DeviceDefinitionMaterial extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  substance?: CodeableConcept
+  substance: CodeableConcept
 }
 
 export interface DeviceDefinitionProperty extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
   valueCode?: CodeableConcept[]
   valueQuantity?: Quantity[]
 }
@@ -3603,23 +4649,23 @@ export interface DeviceDefinitionSpecialization extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  systemType?: string
+  systemType: string
   version?: string
 }
 
 export interface DeviceDefinitionUdiDeviceIdentifier extends BackboneElement {
-  deviceIdentifier?: string
+  deviceIdentifier: string
   extension?: Extension[]
   id?: string
-  issuer?: string
-  jurisdiction?: string
+  issuer: string
+  jurisdiction: string
   modifierExtension?: Extension[]
 }
 
 export interface DeviceMetric extends DomainResource {
   resourceType: 'DeviceMetric'
   calibration?: DeviceMetricCalibration[]
-  category?: 'measurement' | 'setting' | 'calculation' | 'unspecified'
+  category: 'measurement' | 'setting' | 'calculation' | 'unspecified'
   color?: 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white'
   contained?: FhirResource[]
   extension?: Extension[]
@@ -3634,7 +4680,7 @@ export interface DeviceMetric extends DomainResource {
   parent?: Reference
   source?: Reference
   text?: Narrative
-  type?: CodeableConcept
+  type: CodeableConcept
   unit?: CodeableConcept
 }
 
@@ -3663,7 +4709,7 @@ export interface DeviceRequest extends DomainResource {
   instantiatesCanonical?: string[]
   instantiatesUri?: string[]
   insurance?: Reference[]
-  intent?:
+  intent:
     | 'proposal'
     | 'plan'
     | 'directive'
@@ -3690,7 +4736,7 @@ export interface DeviceRequest extends DomainResource {
   relevantHistory?: Reference[]
   requester?: Reference
   status?: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
-  subject?: Reference
+  subject: Reference
   supportingInfo?: Reference[]
   text?: Narrative
 }
@@ -3712,7 +4758,7 @@ export interface DeviceUseStatement extends DomainResource {
   bodySite?: CodeableConcept
   contained?: FhirResource[]
   derivedFrom?: Reference[]
-  device?: Reference
+  device: Reference
   extension?: Extension[]
   id?: string
   identifier?: Identifier[]
@@ -3725,8 +4771,8 @@ export interface DeviceUseStatement extends DomainResource {
   reasonReference?: Reference[]
   recordedOn?: string
   source?: Reference
-  status?: 'active' | 'completed' | 'entered-in-error' | 'intended' | 'stopped' | 'on-hold'
-  subject?: Reference
+  status: 'active' | 'completed' | 'entered-in-error' | 'intended' | 'stopped' | 'on-hold'
+  subject: Reference
   text?: Narrative
   timingTiming?: Timing
   timingPeriod?: Period
@@ -3737,7 +4783,7 @@ export interface DiagnosticReport extends DomainResource {
   resourceType: 'DiagnosticReport'
   basedOn?: Reference[]
   category?: CodeableConcept[]
-  code?: CodeableConcept
+  code: CodeableConcept
   conclusion?: string
   conclusionCode?: CodeableConcept[]
   contained?: FhirResource[]
@@ -3759,7 +4805,7 @@ export interface DiagnosticReport extends DomainResource {
   result?: Reference[]
   resultsInterpreter?: Reference[]
   specimen?: Reference[]
-  status?:
+  status:
     | 'registered'
     | 'partial'
     | 'preliminary'
@@ -3778,7 +4824,7 @@ export interface DiagnosticReportMedia extends BackboneElement {
   comment?: string
   extension?: Extension[]
   id?: string
-  link?: Reference
+  link: Reference
   modifierExtension?: Extension[]
 }
 
@@ -3786,7 +4832,7 @@ export interface DocumentManifest extends DomainResource {
   resourceType: 'DocumentManifest'
   author?: Reference[]
   contained?: FhirResource[]
-  content?: Reference[]
+  content: Reference[]
   created?: string
   description?: string
   extension?: Extension[]
@@ -3800,7 +4846,7 @@ export interface DocumentManifest extends DomainResource {
   recipient?: Reference[]
   related?: DocumentManifestRelated[]
   source?: string
-  status?: 'current' | 'superseded' | 'entered-in-error'
+  status: 'current' | 'superseded' | 'entered-in-error'
   subject?: Reference
   text?: Narrative
   type?: CodeableConcept
@@ -3820,7 +4866,7 @@ export interface DocumentReference extends DomainResource {
   author?: Reference[]
   category?: CodeableConcept[]
   contained?: FhirResource[]
-  content?: DocumentReferenceContent[]
+  content: DocumentReferenceContent[]
   context?: DocumentReferenceContext
   custodian?: Reference
   date?: string
@@ -3836,14 +4882,14 @@ export interface DocumentReference extends DomainResource {
   modifierExtension?: Extension[]
   relatesTo?: DocumentReferenceRelatesTo[]
   securityLabel?: CodeableConcept[]
-  status?: 'current' | 'superseded' | 'entered-in-error'
+  status: 'current' | 'superseded' | 'entered-in-error'
   subject?: Reference
   text?: Narrative
   type?: CodeableConcept
 }
 
 export interface DocumentReferenceContent extends BackboneElement {
-  attachment?: Attachment
+  attachment: Attachment
   extension?: Extension[]
   format?: Coding
   id?: string
@@ -3864,11 +4910,11 @@ export interface DocumentReferenceContext extends BackboneElement {
 }
 
 export interface DocumentReferenceRelatesTo extends BackboneElement {
-  code?: 'replaces' | 'transforms' | 'signs' | 'appends'
+  code: 'replaces' | 'transforms' | 'signs' | 'appends'
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  target?: Reference
+  target: Reference
 }
 
 export interface DomainResource extends Resource {
@@ -3896,8 +4942,8 @@ export interface EffectEvidenceSynthesis extends DomainResource {
   effectEstimate?: EffectEvidenceSynthesisEffectEstimate[]
   effectivePeriod?: Period
   endorser?: ContactDetail[]
-  exposure?: Reference
-  exposureAlternative?: Reference
+  exposure: Reference
+  exposureAlternative: Reference
   extension?: Extension[]
   id?: string
   identifier?: Identifier[]
@@ -3909,14 +4955,14 @@ export interface EffectEvidenceSynthesis extends DomainResource {
   modifierExtension?: Extension[]
   name?: string
   note?: Annotation[]
-  outcome?: Reference
-  population?: Reference
+  outcome: Reference
+  population: Reference
   publisher?: string
   relatedArtifact?: RelatedArtifact[]
   resultsByExposure?: EffectEvidenceSynthesisResultsByExposure[]
   reviewer?: ContactDetail[]
   sampleSize?: EffectEvidenceSynthesisSampleSize
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   studyType?: CodeableConcept
   synthesisType?: CodeableConcept
   text?: Narrative
@@ -3973,7 +5019,7 @@ export interface EffectEvidenceSynthesisResultsByExposure extends BackboneElemen
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  riskEvidenceSynthesis?: Reference
+  riskEvidenceSynthesis: Reference
   variantState?: CodeableConcept
 }
 
@@ -3991,7 +5037,7 @@ export interface Encounter extends DomainResource {
   account?: Reference[]
   appointment?: Reference[]
   basedOn?: Reference[]
-  class?: Coding
+  class: Coding
   classHistory?: EncounterClassHistory[]
   contained?: FhirResource[]
   diagnosis?: EncounterDiagnosis[]
@@ -4014,7 +5060,7 @@ export interface Encounter extends DomainResource {
   reasonReference?: Reference[]
   serviceProvider?: Reference
   serviceType?: CodeableConcept
-  status?:
+  status:
     | 'planned'
     | 'arrived'
     | 'triaged'
@@ -4031,15 +5077,15 @@ export interface Encounter extends DomainResource {
 }
 
 export interface EncounterClassHistory extends BackboneElement {
-  class?: Coding
+  class: Coding
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  period?: Period
+  period: Period
 }
 
 export interface EncounterDiagnosis extends BackboneElement {
-  condition?: Reference
+  condition: Reference
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -4065,7 +5111,7 @@ export interface EncounterHospitalization extends BackboneElement {
 export interface EncounterLocation extends BackboneElement {
   extension?: Extension[]
   id?: string
-  location?: Reference
+  location: Reference
   modifierExtension?: Extension[]
   period?: Period
   physicalType?: CodeableConcept
@@ -4085,8 +5131,8 @@ export interface EncounterStatusHistory extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  period?: Period
-  status?:
+  period: Period
+  status:
     | 'planned'
     | 'arrived'
     | 'triaged'
@@ -4100,8 +5146,8 @@ export interface EncounterStatusHistory extends BackboneElement {
 
 export interface Endpoint extends DomainResource {
   resourceType: 'Endpoint'
-  address?: string
-  connectionType?: Coding
+  address: string
+  connectionType: Coding
   contact?: ContactPoint[]
   contained?: FhirResource[]
   extension?: Extension[]
@@ -4115,9 +5161,9 @@ export interface Endpoint extends DomainResource {
   modifierExtension?: Extension[]
   name?: string
   payloadMimeType?: string[]
-  payloadType?: CodeableConcept[]
+  payloadType: CodeableConcept[]
   period?: Period
-  status?: 'active' | 'suspended' | 'error' | 'off' | 'entered-in-error' | 'test'
+  status: 'active' | 'suspended' | 'error' | 'off' | 'entered-in-error' | 'test'
   text?: Narrative
 }
 
@@ -4174,10 +5220,10 @@ export interface EpisodeOfCare extends DomainResource {
   managingOrganization?: Reference
   meta?: Meta
   modifierExtension?: Extension[]
-  patient?: Reference
+  patient: Reference
   period?: Period
   referralRequest?: Reference[]
-  status?: 'planned' | 'waitlist' | 'active' | 'onhold' | 'finished' | 'cancelled' | 'entered-in-error'
+  status: 'planned' | 'waitlist' | 'active' | 'onhold' | 'finished' | 'cancelled' | 'entered-in-error'
   statusHistory?: EpisodeOfCareStatusHistory[]
   team?: Reference[]
   text?: Narrative
@@ -4185,7 +5231,7 @@ export interface EpisodeOfCare extends DomainResource {
 }
 
 export interface EpisodeOfCareDiagnosis extends BackboneElement {
-  condition?: Reference
+  condition: Reference
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -4197,8 +5243,8 @@ export interface EpisodeOfCareStatusHistory extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  period?: Period
-  status?: 'planned' | 'waitlist' | 'active' | 'onhold' | 'finished' | 'cancelled' | 'entered-in-error'
+  period: Period
+  status: 'planned' | 'waitlist' | 'active' | 'onhold' | 'finished' | 'cancelled' | 'entered-in-error'
 }
 
 export interface EventDefinition extends DomainResource {
@@ -4228,14 +5274,14 @@ export interface EventDefinition extends DomainResource {
   purpose?: string
   relatedArtifact?: RelatedArtifact[]
   reviewer?: ContactDetail[]
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   subjectCodeableConcept?: CodeableConcept
   subjectReference?: Reference
   subtitle?: string
   text?: Narrative
   title?: string
   topic?: CodeableConcept[]
-  trigger?: TriggerDefinition[]
+  trigger: TriggerDefinition[]
   url?: string
   usage?: string
   useContext?: UsageContext[]
@@ -4254,7 +5300,7 @@ export interface Evidence extends DomainResource {
   editor?: ContactDetail[]
   effectivePeriod?: Period
   endorser?: ContactDetail[]
-  exposureBackground?: Reference
+  exposureBackground: Reference
   exposureVariant?: Reference[]
   extension?: Extension[]
   id?: string
@@ -4272,7 +5318,7 @@ export interface Evidence extends DomainResource {
   relatedArtifact?: RelatedArtifact[]
   reviewer?: ContactDetail[]
   shortTitle?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   subtitle?: string
   text?: Narrative
   title?: string
@@ -4310,7 +5356,7 @@ export interface EvidenceVariable extends DomainResource {
   relatedArtifact?: RelatedArtifact[]
   reviewer?: ContactDetail[]
   shortTitle?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   subtitle?: string
   text?: Narrative
   title?: string
@@ -4344,8 +5390,8 @@ export interface EvidenceVariableCharacteristic extends BackboneElement {
 }
 
 export interface EvidenceVariableCharacteristicDefinitionByCombination extends BackboneElement {
-  characteristic?: EvidenceVariableCharacteristic[]
-  code?: string
+  characteristic: EvidenceVariableCharacteristic[]
+  code: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -4359,7 +5405,7 @@ export interface EvidenceVariableCharacteristicDefinitionByTypeAndValue extends 
   method?: CodeableConcept[]
   modifierExtension?: Extension[]
   offset?: CodeableConcept
-  type?: CodeableConcept
+  type: CodeableConcept
   valueCodeableConcept?: CodeableConcept
   valueBoolean?: boolean
   valueQuantity?: Quantity
@@ -4403,7 +5449,7 @@ export interface ExampleScenario extends DomainResource {
   process?: ExampleScenarioProcess[]
   publisher?: string
   purpose?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
   url?: string
   useContext?: UsageContext[]
@@ -4412,13 +5458,13 @@ export interface ExampleScenario extends DomainResource {
 }
 
 export interface ExampleScenarioActor extends BackboneElement {
-  actorId?: string
+  actorId: string
   description?: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
   name?: string
-  type?: 'person' | 'entity'
+  type: 'person' | 'entity'
 }
 
 export interface ExampleScenarioInstance extends BackboneElement {
@@ -4428,8 +5474,156 @@ export interface ExampleScenarioInstance extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   name?: string
-  resourceId?: string
-  resourceType?: string
+  resourceId: string
+  resourceType:
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
   version?: ExampleScenarioInstanceVersion[]
 }
 
@@ -4437,16 +5631,16 @@ export interface ExampleScenarioInstanceContainedInstance extends BackboneElemen
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  resourceId?: string
+  resourceId: string
   versionId?: string
 }
 
 export interface ExampleScenarioInstanceVersion extends BackboneElement {
-  description?: string
+  description: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  versionId?: string
+  versionId: string
 }
 
 export interface ExampleScenarioProcess extends BackboneElement {
@@ -4457,7 +5651,7 @@ export interface ExampleScenarioProcess extends BackboneElement {
   postConditions?: string
   preConditions?: string
   step?: ExampleScenarioProcessStep[]
-  title?: string
+  title: string
 }
 
 export interface ExampleScenarioProcessStep extends BackboneElement {
@@ -4476,7 +5670,7 @@ export interface ExampleScenarioProcessStepAlternative extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   step?: ExampleScenarioProcessStep[]
-  title?: string
+  title: string
 }
 
 export interface ExampleScenarioProcessStepOperation extends BackboneElement {
@@ -4487,7 +5681,7 @@ export interface ExampleScenarioProcessStepOperation extends BackboneElement {
   initiatorActive?: boolean
   modifierExtension?: Extension[]
   name?: string
-  number?: string
+  number: string
   receiver?: string
   receiverActive?: boolean
   request?: ExampleScenarioInstanceContainedInstance
@@ -4507,7 +5701,7 @@ export interface ExplanationOfBenefit extends DomainResource {
   claim?: Reference
   claimResponse?: Reference
   contained?: FhirResource[]
-  created?: string
+  created: string
   diagnosis?: ExplanationOfBenefitDiagnosis[]
   disposition?: string
   enterer?: Reference
@@ -4520,15 +5714,15 @@ export interface ExplanationOfBenefit extends DomainResource {
   id?: string
   identifier?: Identifier[]
   implicitRules?: string
-  insurance?: ExplanationOfBenefitInsurance[]
-  insurer?: Reference
+  insurance: ExplanationOfBenefitInsurance[]
+  insurer: Reference
   item?: ExplanationOfBenefitItem[]
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
   originalPrescription?: Reference
-  outcome?: 'queued' | 'complete' | 'error' | 'partial'
-  patient?: Reference
+  outcome: 'queued' | 'complete' | 'error' | 'partial'
+  patient: Reference
   payee?: ExplanationOfBenefitPayee
   payment?: ExplanationOfBenefitPayment
   preAuthRef?: string[]
@@ -4538,16 +5732,16 @@ export interface ExplanationOfBenefit extends DomainResource {
   priority?: CodeableConcept
   procedure?: ExplanationOfBenefitProcedure[]
   processNote?: ExplanationOfBenefitProcessNote[]
-  provider?: Reference
+  provider: Reference
   referral?: Reference
   related?: ExplanationOfBenefitRelated[]
-  status?: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
+  status: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
   subType?: CodeableConcept
   supportingInfo?: ExplanationOfBenefitSupportingInfo[]
   text?: Narrative
   total?: ExplanationOfBenefitTotal[]
-  type?: CodeableConcept
-  use?: 'claim' | 'preauthorization' | 'predetermination'
+  type: CodeableConcept
+  use: 'claim' | 'preauthorization' | 'predetermination'
 }
 
 export interface ExplanationOfBenefitAccident extends BackboneElement {
@@ -4576,7 +5770,7 @@ export interface ExplanationOfBenefitAddItem extends BackboneElement {
   modifierExtension?: Extension[]
   net?: Money
   noteNumber?: number[]
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   programCode?: CodeableConcept[]
   provider?: Reference[]
   quantity?: Quantity
@@ -4596,7 +5790,7 @@ export interface ExplanationOfBenefitAddItemDetail extends BackboneElement {
   modifierExtension?: Extension[]
   net?: Money
   noteNumber?: number[]
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   quantity?: Quantity
   subDetail?: ExplanationOfBenefitAddItemDetailSubDetail[]
   unitPrice?: Money
@@ -4611,13 +5805,13 @@ export interface ExplanationOfBenefitAddItemDetailSubDetail extends BackboneElem
   modifierExtension?: Extension[]
   net?: Money
   noteNumber?: number[]
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   quantity?: Quantity
   unitPrice?: Money
 }
 
 export interface ExplanationOfBenefitBenefitBalance extends BackboneElement {
-  category?: CodeableConcept
+  category: CodeableConcept
   description?: string
   excluded?: boolean
   extension?: Extension[]
@@ -4637,7 +5831,7 @@ export interface ExplanationOfBenefitBenefitBalanceFinancial extends BackboneEle
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
   usedUnsignedInt?: number
   usedMoney?: Money
 }
@@ -4646,11 +5840,11 @@ export interface ExplanationOfBenefitCareTeam extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  provider?: Reference
+  provider: Reference
   qualification?: CodeableConcept
   responsible?: boolean
   role?: CodeableConcept
-  sequence?: number
+  sequence: number
 }
 
 export interface ExplanationOfBenefitDiagnosis extends BackboneElement {
@@ -4661,14 +5855,14 @@ export interface ExplanationOfBenefitDiagnosis extends BackboneElement {
   modifierExtension?: Extension[]
   onAdmission?: CodeableConcept
   packageCode?: CodeableConcept
-  sequence?: number
+  sequence: number
   type?: CodeableConcept[]
 }
 
 export interface ExplanationOfBenefitInsurance extends BackboneElement {
-  coverage?: Reference
+  coverage: Reference
   extension?: Extension[]
-  focal?: boolean
+  focal: boolean
   id?: string
   modifierExtension?: Extension[]
   preAuthRef?: string[]
@@ -4694,11 +5888,11 @@ export interface ExplanationOfBenefitItem extends BackboneElement {
   net?: Money
   noteNumber?: number[]
   procedureSequence?: number[]
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   programCode?: CodeableConcept[]
   quantity?: Quantity
   revenue?: CodeableConcept
-  sequence?: number
+  sequence: number
   servicedDate?: string
   servicedPeriod?: Period
   subSite?: CodeableConcept[]
@@ -4708,7 +5902,7 @@ export interface ExplanationOfBenefitItem extends BackboneElement {
 
 export interface ExplanationOfBenefitItemAdjudication extends BackboneElement {
   amount?: Money
-  category?: CodeableConcept
+  category: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -4726,11 +5920,11 @@ export interface ExplanationOfBenefitItemDetail extends BackboneElement {
   modifierExtension?: Extension[]
   net?: Money
   noteNumber?: number[]
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   programCode?: CodeableConcept[]
   quantity?: Quantity
   revenue?: CodeableConcept
-  sequence?: number
+  sequence: number
   subDetail?: ExplanationOfBenefitItemDetailSubDetail[]
   udi?: Reference[]
   unitPrice?: Money
@@ -4746,11 +5940,11 @@ export interface ExplanationOfBenefitItemDetailSubDetail extends BackboneElement
   modifierExtension?: Extension[]
   net?: Money
   noteNumber?: number[]
-  productOrService?: CodeableConcept
+  productOrService: CodeableConcept
   programCode?: CodeableConcept[]
   quantity?: Quantity
   revenue?: CodeableConcept
-  sequence?: number
+  sequence: number
   udi?: Reference[]
   unitPrice?: Money
 }
@@ -4782,7 +5976,7 @@ export interface ExplanationOfBenefitProcedure extends BackboneElement {
   modifierExtension?: Extension[]
   procedureCodeableConcept?: CodeableConcept
   procedureReference?: Reference
-  sequence?: number
+  sequence: number
   type?: CodeableConcept[]
   udi?: Reference[]
 }
@@ -4807,13 +6001,13 @@ export interface ExplanationOfBenefitRelated extends BackboneElement {
 }
 
 export interface ExplanationOfBenefitSupportingInfo extends BackboneElement {
-  category?: CodeableConcept
+  category: CodeableConcept
   code?: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
   reason?: Coding
-  sequence?: number
+  sequence: number
   timingDate?: string
   timingPeriod?: Period
   valueBoolean?: boolean
@@ -4824,8 +6018,8 @@ export interface ExplanationOfBenefitSupportingInfo extends BackboneElement {
 }
 
 export interface ExplanationOfBenefitTotal extends BackboneElement {
-  amount?: Money
-  category?: CodeableConcept
+  amount: Money
+  category: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -4860,17 +6054,17 @@ export interface FamilyMemberHistory extends DomainResource {
   modifierExtension?: Extension[]
   name?: string
   note?: Annotation[]
-  patient?: Reference
+  patient: Reference
   reasonCode?: CodeableConcept[]
   reasonReference?: Reference[]
-  relationship?: CodeableConcept
+  relationship: CodeableConcept
   sex?: CodeableConcept
-  status?: 'partial' | 'completed' | 'entered-in-error' | 'health-unknown'
+  status: 'partial' | 'completed' | 'entered-in-error' | 'health-unknown'
   text?: Narrative
 }
 
 export interface FamilyMemberHistoryCondition extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   contributedToDeath?: boolean
   extension?: Extension[]
   id?: string
@@ -4887,7 +6081,7 @@ export interface Flag extends DomainResource {
   resourceType: 'Flag'
   author?: Reference
   category?: CodeableConcept[]
-  code?: CodeableConcept
+  code: CodeableConcept
   contained?: FhirResource[]
   encounter?: Reference
   extension?: Extension[]
@@ -4898,8 +6092,8 @@ export interface Flag extends DomainResource {
   meta?: Meta
   modifierExtension?: Extension[]
   period?: Period
-  status?: 'active' | 'inactive' | 'entered-in-error'
-  subject?: Reference
+  status: 'active' | 'inactive' | 'entered-in-error'
+  subject: Reference
   text?: Narrative
 }
 
@@ -4909,14 +6103,14 @@ export interface Goal extends DomainResource {
   addresses?: Reference[]
   category?: CodeableConcept[]
   contained?: FhirResource[]
-  description?: CodeableConcept
+  description: CodeableConcept
   expressedBy?: Reference
   extension?: Extension[]
   id?: string
   identifier?: Identifier[]
   implicitRules?: string
   language?: string
-  lifecycleStatus?:
+  lifecycleStatus:
     | 'proposed'
     | 'planned'
     | 'accepted'
@@ -4936,7 +6130,7 @@ export interface Goal extends DomainResource {
   startCodeableConcept?: CodeableConcept
   statusDate?: string
   statusReason?: string
-  subject?: Reference
+  subject: Reference
   target?: GoalTarget[]
   text?: Narrative
 }
@@ -4972,12 +6166,160 @@ export interface GraphDefinition extends DomainResource {
   link?: GraphDefinitionLink[]
   meta?: Meta
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   profile?: string
   publisher?: string
   purpose?: string
-  start?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  start:
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
   url?: string
   useContext?: UsageContext[]
@@ -5004,24 +6346,172 @@ export interface GraphDefinitionLinkTarget extends BackboneElement {
   modifierExtension?: Extension[]
   params?: string
   profile?: string
-  type?: string
+  type:
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
 }
 
 export interface GraphDefinitionLinkTargetCompartment extends BackboneElement {
-  code?: 'Patient' | 'Encounter' | 'RelatedPerson' | 'Practitioner' | 'Device'
+  code: 'Patient' | 'Encounter' | 'RelatedPerson' | 'Practitioner' | 'Device'
   description?: string
   expression?: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  rule?: 'identical' | 'matching' | 'different' | 'custom'
-  use?: 'condition' | 'requirement'
+  rule: 'identical' | 'matching' | 'different' | 'custom'
+  use: 'condition' | 'requirement'
 }
 
 export interface Group extends DomainResource {
   resourceType: 'Group'
   active?: boolean
-  actual?: boolean
+  actual: boolean
   characteristic?: GroupCharacteristic[]
   code?: CodeableConcept
   contained?: FhirResource[]
@@ -5037,12 +6527,12 @@ export interface Group extends DomainResource {
   name?: string
   quantity?: number
   text?: Narrative
-  type?: 'person' | 'animal' | 'practitioner' | 'device' | 'medication' | 'substance'
+  type: 'person' | 'animal' | 'practitioner' | 'device' | 'medication' | 'substance'
 }
 
 export interface GroupCharacteristic extends BackboneElement {
-  code?: CodeableConcept
-  exclude?: boolean
+  code: CodeableConcept
+  exclude: boolean
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -5055,7 +6545,7 @@ export interface GroupCharacteristic extends BackboneElement {
 }
 
 export interface GroupMember extends BackboneElement {
-  entity?: Reference
+  entity: Reference
   extension?: Extension[]
   id?: string
   inactive?: boolean
@@ -5087,7 +6577,7 @@ export interface GuidanceResponse extends DomainResource {
   reasonReference?: Reference[]
   requestIdentifier?: Identifier
   result?: Reference
-  status?: 'success' | 'data-requested' | 'data-required' | 'in-progress' | 'failure' | 'entered-in-error'
+  status: 'success' | 'data-requested' | 'data-required' | 'in-progress' | 'failure' | 'entered-in-error'
   subject?: Reference
   text?: Narrative
 }
@@ -5148,7 +6638,7 @@ export interface HealthcareServiceEligibility extends BackboneElement {
 }
 
 export interface HealthcareServiceNotAvailable extends BackboneElement {
-  description?: string
+  description: string
   during?: Period
   extension?: Extension[]
   id?: string
@@ -5182,8 +6672,8 @@ export interface ImagingStudy extends DomainResource {
   referrer?: Reference
   series?: ImagingStudySeries[]
   started?: string
-  status?: 'registered' | 'available' | 'cancelled' | 'entered-in-error' | 'unknown'
-  subject?: Reference
+  status: 'registered' | 'available' | 'cancelled' | 'entered-in-error' | 'unknown'
+  subject: Reference
   text?: Narrative
 }
 
@@ -5195,14 +6685,14 @@ export interface ImagingStudySeries extends BackboneElement {
   id?: string
   instance?: ImagingStudySeriesInstance[]
   laterality?: Coding
-  modality?: Coding
+  modality: Coding
   modifierExtension?: Extension[]
   number?: number
   numberOfInstances?: number
   performer?: ImagingStudySeriesPerformer[]
   specimen?: Reference[]
   started?: string
-  uid?: string
+  uid: string
 }
 
 export interface ImagingStudySeriesInstance extends BackboneElement {
@@ -5210,13 +6700,13 @@ export interface ImagingStudySeriesInstance extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   number?: number
-  sopClass?: Coding
+  sopClass: Coding
   title?: string
-  uid?: string
+  uid: string
 }
 
 export interface ImagingStudySeriesPerformer extends BackboneElement {
-  actor?: Reference
+  actor: Reference
   extension?: Extension[]
   function?: CodeableConcept
   id?: string
@@ -5245,7 +6735,7 @@ export interface Immunization extends DomainResource {
   note?: Annotation[]
   occurrenceDateTime?: string
   occurrenceString?: string
-  patient?: Reference
+  patient: Reference
   performer?: ImmunizationPerformer[]
   primarySource?: boolean
   programEligibility?: CodeableConcept[]
@@ -5257,11 +6747,11 @@ export interface Immunization extends DomainResource {
   reportOrigin?: CodeableConcept
   route?: CodeableConcept
   site?: CodeableConcept
-  status?: 'completed' | 'entered-in-error' | 'not-done'
+  status: 'completed' | 'entered-in-error' | 'not-done'
   statusReason?: CodeableConcept
   subpotentReason?: CodeableConcept[]
   text?: Narrative
-  vaccineCode?: CodeableConcept
+  vaccineCode: CodeableConcept
 }
 
 export interface ImmunizationEducation extends BackboneElement {
@@ -5275,7 +6765,7 @@ export interface ImmunizationEducation extends BackboneElement {
 }
 
 export interface ImmunizationPerformer extends BackboneElement {
-  actor?: Reference
+  actor: Reference
   extension?: Extension[]
   function?: CodeableConcept
   id?: string
@@ -5312,22 +6802,22 @@ export interface ImmunizationEvaluation extends DomainResource {
   description?: string
   doseNumberPositiveInt?: number
   doseNumberString?: string
-  doseStatus?: CodeableConcept
+  doseStatus: CodeableConcept
   doseStatusReason?: CodeableConcept[]
   extension?: Extension[]
   id?: string
   identifier?: Identifier[]
-  immunizationEvent?: Reference
+  immunizationEvent: Reference
   implicitRules?: string
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  patient?: Reference
+  patient: Reference
   series?: string
   seriesDosesPositiveInt?: number
   seriesDosesString?: string
-  status?: 'completed' | 'entered-in-error'
-  targetDisease?: CodeableConcept
+  status: 'completed' | 'entered-in-error'
+  targetDisease: CodeableConcept
   text?: Narrative
 }
 
@@ -5335,7 +6825,7 @@ export interface ImmunizationRecommendation extends DomainResource {
   resourceType: 'ImmunizationRecommendation'
   authority?: Reference
   contained?: FhirResource[]
-  date?: string
+  date: string
   extension?: Extension[]
   id?: string
   identifier?: Identifier[]
@@ -5343,8 +6833,8 @@ export interface ImmunizationRecommendation extends DomainResource {
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  patient?: Reference
-  recommendation?: ImmunizationRecommendationRecommendation[]
+  patient: Reference
+  recommendation: ImmunizationRecommendationRecommendation[]
   text?: Narrative
 }
 
@@ -5356,7 +6846,7 @@ export interface ImmunizationRecommendationRecommendation extends BackboneElemen
   doseNumberString?: string
   extension?: Extension[]
   forecastReason?: CodeableConcept[]
-  forecastStatus?: CodeableConcept
+  forecastStatus: CodeableConcept
   id?: string
   modifierExtension?: Extension[]
   series?: string
@@ -5369,11 +6859,11 @@ export interface ImmunizationRecommendationRecommendation extends BackboneElemen
 }
 
 export interface ImmunizationRecommendationRecommendationDateCriterion extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  value?: string
+  value: string
 }
 
 export interface ImplementationGuide extends DomainResource {
@@ -5387,7 +6877,7 @@ export interface ImplementationGuide extends DomainResource {
   description?: string
   experimental?: boolean
   extension?: Extension[]
-  fhirVersion?: (
+  fhirVersion: (
     | '0.01'
     | '0.05'
     | '0.06'
@@ -5416,17 +6906,363 @@ export interface ImplementationGuide extends DomainResource {
   implicitRules?: string
   jurisdiction?: CodeableConcept[]
   language?: string
-  license?: string
+  license?:
+    | 'not-open-source'
+    | '0BSD'
+    | 'AAL'
+    | 'Abstyles'
+    | 'Adobe-2006'
+    | 'Adobe-Glyph'
+    | 'ADSL'
+    | 'AFL-1.1'
+    | 'AFL-1.2'
+    | 'AFL-2.0'
+    | 'AFL-2.1'
+    | 'AFL-3.0'
+    | 'Afmparse'
+    | 'AGPL-1.0-only'
+    | 'AGPL-1.0-or-later'
+    | 'AGPL-3.0-only'
+    | 'AGPL-3.0-or-later'
+    | 'Aladdin'
+    | 'AMDPLPA'
+    | 'AML'
+    | 'AMPAS'
+    | 'ANTLR-PD'
+    | 'Apache-1.0'
+    | 'Apache-1.1'
+    | 'Apache-2.0'
+    | 'APAFML'
+    | 'APL-1.0'
+    | 'APSL-1.0'
+    | 'APSL-1.1'
+    | 'APSL-1.2'
+    | 'APSL-2.0'
+    | 'Artistic-1.0-cl8'
+    | 'Artistic-1.0-Perl'
+    | 'Artistic-1.0'
+    | 'Artistic-2.0'
+    | 'Bahyph'
+    | 'Barr'
+    | 'Beerware'
+    | 'BitTorrent-1.0'
+    | 'BitTorrent-1.1'
+    | 'Borceux'
+    | 'BSD-1-Clause'
+    | 'BSD-2-Clause-FreeBSD'
+    | 'BSD-2-Clause-NetBSD'
+    | 'BSD-2-Clause-Patent'
+    | 'BSD-2-Clause'
+    | 'BSD-3-Clause-Attribution'
+    | 'BSD-3-Clause-Clear'
+    | 'BSD-3-Clause-LBNL'
+    | 'BSD-3-Clause-No-Nuclear-License-2014'
+    | 'BSD-3-Clause-No-Nuclear-License'
+    | 'BSD-3-Clause-No-Nuclear-Warranty'
+    | 'BSD-3-Clause'
+    | 'BSD-4-Clause-UC'
+    | 'BSD-4-Clause'
+    | 'BSD-Protection'
+    | 'BSD-Source-Code'
+    | 'BSL-1.0'
+    | 'bzip2-1.0.5'
+    | 'bzip2-1.0.6'
+    | 'Caldera'
+    | 'CATOSL-1.1'
+    | 'CC-BY-1.0'
+    | 'CC-BY-2.0'
+    | 'CC-BY-2.5'
+    | 'CC-BY-3.0'
+    | 'CC-BY-4.0'
+    | 'CC-BY-NC-1.0'
+    | 'CC-BY-NC-2.0'
+    | 'CC-BY-NC-2.5'
+    | 'CC-BY-NC-3.0'
+    | 'CC-BY-NC-4.0'
+    | 'CC-BY-NC-ND-1.0'
+    | 'CC-BY-NC-ND-2.0'
+    | 'CC-BY-NC-ND-2.5'
+    | 'CC-BY-NC-ND-3.0'
+    | 'CC-BY-NC-ND-4.0'
+    | 'CC-BY-NC-SA-1.0'
+    | 'CC-BY-NC-SA-2.0'
+    | 'CC-BY-NC-SA-2.5'
+    | 'CC-BY-NC-SA-3.0'
+    | 'CC-BY-NC-SA-4.0'
+    | 'CC-BY-ND-1.0'
+    | 'CC-BY-ND-2.0'
+    | 'CC-BY-ND-2.5'
+    | 'CC-BY-ND-3.0'
+    | 'CC-BY-ND-4.0'
+    | 'CC-BY-SA-1.0'
+    | 'CC-BY-SA-2.0'
+    | 'CC-BY-SA-2.5'
+    | 'CC-BY-SA-3.0'
+    | 'CC-BY-SA-4.0'
+    | 'CC0-1.0'
+    | 'CDDL-1.0'
+    | 'CDDL-1.1'
+    | 'CDLA-Permissive-1.0'
+    | 'CDLA-Sharing-1.0'
+    | 'CECILL-1.0'
+    | 'CECILL-1.1'
+    | 'CECILL-2.0'
+    | 'CECILL-2.1'
+    | 'CECILL-B'
+    | 'CECILL-C'
+    | 'ClArtistic'
+    | 'CNRI-Jython'
+    | 'CNRI-Python-GPL-Compatible'
+    | 'CNRI-Python'
+    | 'Condor-1.1'
+    | 'CPAL-1.0'
+    | 'CPL-1.0'
+    | 'CPOL-1.02'
+    | 'Crossword'
+    | 'CrystalStacker'
+    | 'CUA-OPL-1.0'
+    | 'Cube'
+    | 'curl'
+    | 'D-FSL-1.0'
+    | 'diffmark'
+    | 'DOC'
+    | 'Dotseqn'
+    | 'DSDP'
+    | 'dvipdfm'
+    | 'ECL-1.0'
+    | 'ECL-2.0'
+    | 'EFL-1.0'
+    | 'EFL-2.0'
+    | 'eGenix'
+    | 'Entessa'
+    | 'EPL-1.0'
+    | 'EPL-2.0'
+    | 'ErlPL-1.1'
+    | 'EUDatagrid'
+    | 'EUPL-1.0'
+    | 'EUPL-1.1'
+    | 'EUPL-1.2'
+    | 'Eurosym'
+    | 'Fair'
+    | 'Frameworx-1.0'
+    | 'FreeImage'
+    | 'FSFAP'
+    | 'FSFUL'
+    | 'FSFULLR'
+    | 'FTL'
+    | 'GFDL-1.1-only'
+    | 'GFDL-1.1-or-later'
+    | 'GFDL-1.2-only'
+    | 'GFDL-1.2-or-later'
+    | 'GFDL-1.3-only'
+    | 'GFDL-1.3-or-later'
+    | 'Giftware'
+    | 'GL2PS'
+    | 'Glide'
+    | 'Glulxe'
+    | 'gnuplot'
+    | 'GPL-1.0-only'
+    | 'GPL-1.0-or-later'
+    | 'GPL-2.0-only'
+    | 'GPL-2.0-or-later'
+    | 'GPL-3.0-only'
+    | 'GPL-3.0-or-later'
+    | 'gSOAP-1.3b'
+    | 'HaskellReport'
+    | 'HPND'
+    | 'IBM-pibs'
+    | 'ICU'
+    | 'IJG'
+    | 'ImageMagick'
+    | 'iMatix'
+    | 'Imlib2'
+    | 'Info-ZIP'
+    | 'Intel-ACPI'
+    | 'Intel'
+    | 'Interbase-1.0'
+    | 'IPA'
+    | 'IPL-1.0'
+    | 'ISC'
+    | 'JasPer-2.0'
+    | 'JSON'
+    | 'LAL-1.2'
+    | 'LAL-1.3'
+    | 'Latex2e'
+    | 'Leptonica'
+    | 'LGPL-2.0-only'
+    | 'LGPL-2.0-or-later'
+    | 'LGPL-2.1-only'
+    | 'LGPL-2.1-or-later'
+    | 'LGPL-3.0-only'
+    | 'LGPL-3.0-or-later'
+    | 'LGPLLR'
+    | 'Libpng'
+    | 'libtiff'
+    | 'LiLiQ-P-1.1'
+    | 'LiLiQ-R-1.1'
+    | 'LiLiQ-Rplus-1.1'
+    | 'Linux-OpenIB'
+    | 'LPL-1.0'
+    | 'LPL-1.02'
+    | 'LPPL-1.0'
+    | 'LPPL-1.1'
+    | 'LPPL-1.2'
+    | 'LPPL-1.3a'
+    | 'LPPL-1.3c'
+    | 'MakeIndex'
+    | 'MirOS'
+    | 'MIT-0'
+    | 'MIT-advertising'
+    | 'MIT-CMU'
+    | 'MIT-enna'
+    | 'MIT-feh'
+    | 'MIT'
+    | 'MITNFA'
+    | 'Motosoto'
+    | 'mpich2'
+    | 'MPL-1.0'
+    | 'MPL-1.1'
+    | 'MPL-2.0-no-copyleft-exception'
+    | 'MPL-2.0'
+    | 'MS-PL'
+    | 'MS-RL'
+    | 'MTLL'
+    | 'Multics'
+    | 'Mup'
+    | 'NASA-1.3'
+    | 'Naumen'
+    | 'NBPL-1.0'
+    | 'NCSA'
+    | 'Net-SNMP'
+    | 'NetCDF'
+    | 'Newsletr'
+    | 'NGPL'
+    | 'NLOD-1.0'
+    | 'NLPL'
+    | 'Nokia'
+    | 'NOSL'
+    | 'Noweb'
+    | 'NPL-1.0'
+    | 'NPL-1.1'
+    | 'NPOSL-3.0'
+    | 'NRL'
+    | 'NTP'
+    | 'OCCT-PL'
+    | 'OCLC-2.0'
+    | 'ODbL-1.0'
+    | 'OFL-1.0'
+    | 'OFL-1.1'
+    | 'OGTSL'
+    | 'OLDAP-1.1'
+    | 'OLDAP-1.2'
+    | 'OLDAP-1.3'
+    | 'OLDAP-1.4'
+    | 'OLDAP-2.0.1'
+    | 'OLDAP-2.0'
+    | 'OLDAP-2.1'
+    | 'OLDAP-2.2.1'
+    | 'OLDAP-2.2.2'
+    | 'OLDAP-2.2'
+    | 'OLDAP-2.3'
+    | 'OLDAP-2.4'
+    | 'OLDAP-2.5'
+    | 'OLDAP-2.6'
+    | 'OLDAP-2.7'
+    | 'OLDAP-2.8'
+    | 'OML'
+    | 'OpenSSL'
+    | 'OPL-1.0'
+    | 'OSET-PL-2.1'
+    | 'OSL-1.0'
+    | 'OSL-1.1'
+    | 'OSL-2.0'
+    | 'OSL-2.1'
+    | 'OSL-3.0'
+    | 'PDDL-1.0'
+    | 'PHP-3.0'
+    | 'PHP-3.01'
+    | 'Plexus'
+    | 'PostgreSQL'
+    | 'psfrag'
+    | 'psutils'
+    | 'Python-2.0'
+    | 'Qhull'
+    | 'QPL-1.0'
+    | 'Rdisc'
+    | 'RHeCos-1.1'
+    | 'RPL-1.1'
+    | 'RPL-1.5'
+    | 'RPSL-1.0'
+    | 'RSA-MD'
+    | 'RSCPL'
+    | 'Ruby'
+    | 'SAX-PD'
+    | 'Saxpath'
+    | 'SCEA'
+    | 'Sendmail'
+    | 'SGI-B-1.0'
+    | 'SGI-B-1.1'
+    | 'SGI-B-2.0'
+    | 'SimPL-2.0'
+    | 'SISSL-1.2'
+    | 'SISSL'
+    | 'Sleepycat'
+    | 'SMLNJ'
+    | 'SMPPL'
+    | 'SNIA'
+    | 'Spencer-86'
+    | 'Spencer-94'
+    | 'Spencer-99'
+    | 'SPL-1.0'
+    | 'SugarCRM-1.1.3'
+    | 'SWL'
+    | 'TCL'
+    | 'TCP-wrappers'
+    | 'TMate'
+    | 'TORQUE-1.1'
+    | 'TOSL'
+    | 'Unicode-DFS-2015'
+    | 'Unicode-DFS-2016'
+    | 'Unicode-TOU'
+    | 'Unlicense'
+    | 'UPL-1.0'
+    | 'Vim'
+    | 'VOSTROM'
+    | 'VSL-1.0'
+    | 'W3C-19980720'
+    | 'W3C-20150513'
+    | 'W3C'
+    | 'Watcom-1.0'
+    | 'Wsuipa'
+    | 'WTFPL'
+    | 'X11'
+    | 'Xerox'
+    | 'XFree86-1.1'
+    | 'xinetd'
+    | 'Xnet'
+    | 'xpp'
+    | 'XSkat'
+    | 'YPL-1.0'
+    | 'YPL-1.1'
+    | 'Zed'
+    | 'Zend-2.0'
+    | 'Zimbra-1.3'
+    | 'Zimbra-1.4'
+    | 'zlib-acknowledgement'
+    | 'Zlib'
+    | 'ZPL-1.1'
+    | 'ZPL-2.0'
+    | 'ZPL-2.1'
   manifest?: ImplementationGuideManifest
   meta?: Meta
   modifierExtension?: Extension[]
-  name?: string
-  packageId?: string
+  name: string
+  packageId: string
   publisher?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
   title?: string
-  url?: string
+  url: string
   useContext?: UsageContext[]
   version?: string
 }
@@ -5438,7 +7274,7 @@ export interface ImplementationGuideDefinition extends BackboneElement {
   modifierExtension?: Extension[]
   page?: ImplementationGuideDefinitionPage
   parameter?: ImplementationGuideDefinitionParameter[]
-  resource?: ImplementationGuideDefinitionResource[]
+  resource: ImplementationGuideDefinitionResource[]
   template?: ImplementationGuideDefinitionTemplate[]
 }
 
@@ -5447,22 +7283,22 @@ export interface ImplementationGuideDefinitionGrouping extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
 }
 
 export interface ImplementationGuideDefinitionPage extends BackboneElement {
   extension?: Extension[]
-  generation?: 'html' | 'markdown' | 'xml' | 'generated'
+  generation: 'html' | 'markdown' | 'xml' | 'generated'
   id?: string
   modifierExtension?: Extension[]
   nameUrl?: string
   nameReference?: Reference
   page?: ImplementationGuideDefinitionPage[]
-  title?: string
+  title: string
 }
 
 export interface ImplementationGuideDefinitionParameter extends BackboneElement {
-  code?:
+  code:
     | 'apply'
     | 'path-resource'
     | 'path-pages'
@@ -5476,7 +7312,7 @@ export interface ImplementationGuideDefinitionParameter extends BackboneElement 
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  value?: string
+  value: string
 }
 
 export interface ImplementationGuideDefinitionResource extends BackboneElement {
@@ -5512,16 +7348,16 @@ export interface ImplementationGuideDefinitionResource extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   name?: string
-  reference?: Reference
+  reference: Reference
 }
 
 export interface ImplementationGuideDefinitionTemplate extends BackboneElement {
-  code?: string
+  code: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
   scope?: string
-  source?: string
+  source: string
 }
 
 export interface ImplementationGuideDependsOn extends BackboneElement {
@@ -5529,7 +7365,7 @@ export interface ImplementationGuideDependsOn extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   packageId?: string
-  uri?: string
+  uri: string
   version?: string
 }
 
@@ -5537,8 +7373,156 @@ export interface ImplementationGuideGlobal extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  profile?: string
-  type?: string
+  profile: string
+  type:
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
 }
 
 export interface ImplementationGuideManifest extends BackboneElement {
@@ -5549,7 +7533,7 @@ export interface ImplementationGuideManifest extends BackboneElement {
   other?: string[]
   page?: ImplementationGuideManifestPage[]
   rendering?: string
-  resource?: ImplementationGuideManifestResource[]
+  resource: ImplementationGuideManifestResource[]
 }
 
 export interface ImplementationGuideManifestPage extends BackboneElement {
@@ -5557,7 +7541,7 @@ export interface ImplementationGuideManifestPage extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   title?: string
 }
 
@@ -5567,7 +7551,7 @@ export interface ImplementationGuideManifestResource extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  reference?: Reference
+  reference: Reference
   relativePath?: string
 }
 
@@ -5608,12 +7592,12 @@ export interface InsurancePlanContact extends BackboneElement {
 }
 
 export interface InsurancePlanCoverage extends BackboneElement {
-  benefit?: InsurancePlanCoverageBenefit[]
+  benefit: InsurancePlanCoverageBenefit[]
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
   network?: Reference[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface InsurancePlanCoverageBenefit extends BackboneElement {
@@ -5622,7 +7606,7 @@ export interface InsurancePlanCoverageBenefit extends BackboneElement {
   limit?: InsurancePlanCoverageBenefitLimit[]
   modifierExtension?: Extension[]
   requirement?: string
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface InsurancePlanCoverageBenefitLimit extends BackboneElement {
@@ -5657,7 +7641,7 @@ export interface InsurancePlanPlanGeneralCost extends BackboneElement {
 
 export interface InsurancePlanPlanSpecificCost extends BackboneElement {
   benefit?: InsurancePlanPlanSpecificCostBenefit[]
-  category?: CodeableConcept
+  category: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -5668,7 +7652,7 @@ export interface InsurancePlanPlanSpecificCostBenefit extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface InsurancePlanPlanSpecificCostBenefitCost extends BackboneElement {
@@ -5677,7 +7661,7 @@ export interface InsurancePlanPlanSpecificCostBenefitCost extends BackboneElemen
   id?: string
   modifierExtension?: Extension[]
   qualifiers?: CodeableConcept[]
-  type?: CodeableConcept
+  type: CodeableConcept
   value?: Quantity
 }
 
@@ -5700,7 +7684,7 @@ export interface Invoice extends DomainResource {
   participant?: InvoiceParticipant[]
   paymentTerms?: string
   recipient?: Reference
-  status?: 'draft' | 'issued' | 'balanced' | 'cancelled' | 'entered-in-error'
+  status: 'draft' | 'issued' | 'balanced' | 'cancelled' | 'entered-in-error'
   subject?: Reference
   text?: Narrative
   totalGross?: Money
@@ -5726,11 +7710,11 @@ export interface InvoiceLineItemPriceComponent extends BackboneElement {
   factor?: number
   id?: string
   modifierExtension?: Extension[]
-  type?: 'base' | 'surcharge' | 'deduction' | 'discount' | 'tax' | 'informational'
+  type: 'base' | 'surcharge' | 'deduction' | 'discount' | 'tax' | 'informational'
 }
 
 export interface InvoiceParticipant extends BackboneElement {
-  actor?: Reference
+  actor: Reference
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -5767,14 +7751,14 @@ export interface Library extends DomainResource {
   purpose?: string
   relatedArtifact?: RelatedArtifact[]
   reviewer?: ContactDetail[]
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   subjectCodeableConcept?: CodeableConcept
   subjectReference?: Reference
   subtitle?: string
   text?: Narrative
   title?: string
   topic?: CodeableConcept[]
-  type?: CodeableConcept
+  type: CodeableConcept
   url?: string
   usage?: string
   useContext?: UsageContext[]
@@ -5789,7 +7773,7 @@ export interface Linkage extends DomainResource {
   extension?: Extension[]
   id?: string
   implicitRules?: string
-  item?: LinkageItem[]
+  item: LinkageItem[]
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
@@ -5800,8 +7784,8 @@ export interface LinkageItem extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  resource?: Reference
-  type?: 'source' | 'alternate' | 'historical'
+  resource: Reference
+  type: 'source' | 'alternate' | 'historical'
 }
 
 export interface List extends DomainResource {
@@ -5818,12 +7802,12 @@ export interface List extends DomainResource {
   implicitRules?: string
   language?: string
   meta?: Meta
-  mode?: 'working' | 'snapshot' | 'changes'
+  mode: 'working' | 'snapshot' | 'changes'
   modifierExtension?: Extension[]
   note?: Annotation[]
   orderedBy?: CodeableConcept
   source?: Reference
-  status?: 'current' | 'retired' | 'entered-in-error'
+  status: 'current' | 'retired' | 'entered-in-error'
   subject?: Reference
   text?: Narrative
   title?: string
@@ -5835,7 +7819,7 @@ export interface ListEntry extends BackboneElement {
   extension?: Extension[]
   flag?: CodeableConcept
   id?: string
-  item?: Reference
+  item: Reference
   modifierExtension?: Extension[]
 }
 
@@ -5882,8 +7866,8 @@ export interface LocationPosition extends BackboneElement {
   altitude?: number
   extension?: Extension[]
   id?: string
-  latitude?: number
-  longitude?: number
+  latitude: number
+  longitude: number
   modifierExtension?: Extension[]
 }
 
@@ -5926,7 +7910,7 @@ export interface Measure extends DomainResource {
   reviewer?: ContactDetail[]
   riskAdjustment?: string
   scoring?: CodeableConcept
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   subjectCodeableConcept?: CodeableConcept
   subjectReference?: Reference
   subtitle?: string
@@ -5953,7 +7937,7 @@ export interface MeasureGroup extends BackboneElement {
 
 export interface MeasureGroupPopulation extends BackboneElement {
   code?: CodeableConcept
-  criteria?: Expression
+  criteria: Expression
   description?: string
   extension?: Extension[]
   id?: string
@@ -5972,7 +7956,7 @@ export interface MeasureGroupStratifier extends BackboneElement {
 
 export interface MeasureGroupStratifierComponent extends BackboneElement {
   code?: CodeableConcept
-  criteria?: Expression
+  criteria: Expression
   description?: string
   extension?: Extension[]
   id?: string
@@ -5981,7 +7965,7 @@ export interface MeasureGroupStratifierComponent extends BackboneElement {
 
 export interface MeasureSupplementalData extends BackboneElement {
   code?: CodeableConcept
-  criteria?: Expression
+  criteria: Expression
   description?: string
   extension?: Extension[]
   id?: string
@@ -6001,15 +7985,15 @@ export interface MeasureReport extends DomainResource {
   implicitRules?: string
   improvementNotation?: CodeableConcept
   language?: string
-  measure?: string
+  measure: string
   meta?: Meta
   modifierExtension?: Extension[]
-  period?: Period
+  period: Period
   reporter?: Reference
-  status?: 'complete' | 'pending' | 'error'
+  status: 'complete' | 'pending' | 'error'
   subject?: Reference
   text?: Narrative
-  type?: 'individual' | 'subject-list' | 'summary' | 'data-collection'
+  type: 'individual' | 'subject-list' | 'summary' | 'data-collection'
 }
 
 export interface MeasureReportGroup extends BackboneElement {
@@ -6050,11 +8034,11 @@ export interface MeasureReportGroupStratifierStratum extends BackboneElement {
 }
 
 export interface MeasureReportGroupStratifierStratumComponent extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  value?: CodeableConcept
+  value: CodeableConcept
 }
 
 export interface MeasureReportGroupStratifierStratumPopulation extends BackboneElement {
@@ -6071,7 +8055,7 @@ export interface Media extends DomainResource {
   basedOn?: Reference[]
   bodySite?: CodeableConcept
   contained?: FhirResource[]
-  content?: Attachment
+  content: Attachment
   createdDateTime?: string
   createdPeriod?: Period
   device?: Reference
@@ -6093,7 +8077,7 @@ export interface Media extends DomainResource {
   operator?: Reference
   partOf?: Reference[]
   reasonCode?: CodeableConcept[]
-  status?:
+  status:
     'preparation' | 'in-progress' | 'not-done' | 'on-hold' | 'stopped' | 'completed' | 'entered-in-error' | 'unknown'
   subject?: Reference
   text?: Narrative
@@ -6166,9 +8150,9 @@ export interface MedicationAdministration extends DomainResource {
   reasonCode?: CodeableConcept[]
   reasonReference?: Reference[]
   request?: Reference
-  status?: 'in-progress' | 'not-done' | 'on-hold' | 'completed' | 'entered-in-error' | 'stopped' | 'unknown'
+  status: 'in-progress' | 'not-done' | 'on-hold' | 'completed' | 'entered-in-error' | 'stopped' | 'unknown'
   statusReason?: CodeableConcept[]
-  subject?: Reference
+  subject: Reference
   supportingInformation?: Reference[]
   text?: Narrative
 }
@@ -6187,7 +8171,7 @@ export interface MedicationAdministrationDosage extends BackboneElement {
 }
 
 export interface MedicationAdministrationPerformer extends BackboneElement {
-  actor?: Reference
+  actor: Reference
   extension?: Extension[]
   function?: CodeableConcept
   id?: string
@@ -6220,7 +8204,7 @@ export interface MedicationDispense extends DomainResource {
   performer?: MedicationDispensePerformer[]
   quantity?: Quantity
   receiver?: Reference[]
-  status?:
+  status:
     | 'preparation'
     | 'in-progress'
     | 'cancelled'
@@ -6242,7 +8226,7 @@ export interface MedicationDispense extends DomainResource {
 }
 
 export interface MedicationDispensePerformer extends BackboneElement {
-  actor?: Reference
+  actor: Reference
   extension?: Extension[]
   function?: CodeableConcept
   id?: string
@@ -6256,7 +8240,7 @@ export interface MedicationDispenseSubstitution extends BackboneElement {
   reason?: CodeableConcept[]
   responsibleParty?: Reference[]
   type?: CodeableConcept
-  wasSubstituted?: boolean
+  wasSubstituted: boolean
 }
 
 export interface MedicationKnowledge extends DomainResource {
@@ -6304,11 +8288,11 @@ export interface MedicationKnowledgeAdministrationGuidelines extends BackboneEle
 }
 
 export interface MedicationKnowledgeAdministrationGuidelinesDosage extends BackboneElement {
-  dosage?: Dosage[]
+  dosage: Dosage[]
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface MedicationKnowledgeAdministrationGuidelinesPatientCharacteristics extends BackboneElement {
@@ -6321,12 +8305,12 @@ export interface MedicationKnowledgeAdministrationGuidelinesPatientCharacteristi
 }
 
 export interface MedicationKnowledgeCost extends BackboneElement {
-  cost?: Money
+  cost: Money
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
   source?: string
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface MedicationKnowledgeDrugCharacteristic extends BackboneElement {
@@ -6364,7 +8348,7 @@ export interface MedicationKnowledgeMedicineClassification extends BackboneEleme
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface MedicationKnowledgeMonitoringProgram extends BackboneElement {
@@ -6396,7 +8380,7 @@ export interface MedicationKnowledgeRegulatory extends BackboneElement {
   id?: string
   maxDispense?: MedicationKnowledgeRegulatoryMaxDispense
   modifierExtension?: Extension[]
-  regulatoryAuthority?: Reference
+  regulatoryAuthority: Reference
   schedule?: MedicationKnowledgeRegulatorySchedule[]
   substitution?: MedicationKnowledgeRegulatorySubstitution[]
 }
@@ -6406,30 +8390,30 @@ export interface MedicationKnowledgeRegulatoryMaxDispense extends BackboneElemen
   id?: string
   modifierExtension?: Extension[]
   period?: Duration
-  quantity?: Quantity
+  quantity: Quantity
 }
 
 export interface MedicationKnowledgeRegulatorySchedule extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  schedule?: CodeableConcept
+  schedule: CodeableConcept
 }
 
 export interface MedicationKnowledgeRegulatorySubstitution extends BackboneElement {
-  allowed?: boolean
+  allowed: boolean
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface MedicationKnowledgeRelatedMedicationKnowledge extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  reference?: Reference[]
-  type?: CodeableConcept
+  reference: Reference[]
+  type: CodeableConcept
 }
 
 export interface MedicationRequest extends DomainResource {
@@ -6453,7 +8437,7 @@ export interface MedicationRequest extends DomainResource {
   instantiatesCanonical?: string[]
   instantiatesUri?: string[]
   insurance?: Reference[]
-  intent?:
+  intent:
     'proposal' | 'plan' | 'order' | 'original-order' | 'reflex-order' | 'filler-order' | 'instance-order' | 'option'
   language?: string
   medicationCodeableConcept?: CodeableConcept
@@ -6471,9 +8455,9 @@ export interface MedicationRequest extends DomainResource {
   reportedBoolean?: boolean
   reportedReference?: Reference
   requester?: Reference
-  status?: 'active' | 'on-hold' | 'cancelled' | 'completed' | 'entered-in-error' | 'stopped' | 'draft' | 'unknown'
+  status: 'active' | 'on-hold' | 'cancelled' | 'completed' | 'entered-in-error' | 'stopped' | 'draft' | 'unknown'
   statusReason?: CodeableConcept
-  subject?: Reference
+  subject: Reference
   substitution?: MedicationRequestSubstitution
   supportingInformation?: Reference[]
   text?: Narrative
@@ -6534,9 +8518,9 @@ export interface MedicationStatement extends DomainResource {
   partOf?: Reference[]
   reasonCode?: CodeableConcept[]
   reasonReference?: Reference[]
-  status?: 'active' | 'completed' | 'entered-in-error' | 'intended' | 'stopped' | 'on-hold' | 'unknown' | 'not-taken'
+  status: 'active' | 'completed' | 'entered-in-error' | 'intended' | 'stopped' | 'on-hold' | 'unknown' | 'not-taken'
   statusReason?: CodeableConcept[]
-  subject?: Reference
+  subject: Reference
   text?: Narrative
 }
 
@@ -6561,7 +8545,7 @@ export interface MedicinalProduct extends DomainResource {
   masterFile?: Reference[]
   meta?: Meta
   modifierExtension?: Extension[]
-  name?: MedicinalProductName[]
+  name: MedicinalProductName[]
   packagedMedicinalProduct?: Reference[]
   paediatricUseIndicator?: CodeableConcept
   pharmaceuticalProduct?: Reference[]
@@ -6590,15 +8574,15 @@ export interface MedicinalProductName extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   namePart?: MedicinalProductNameNamePart[]
-  productName?: string
+  productName: string
 }
 
 export interface MedicinalProductNameCountryLanguage extends BackboneElement {
-  country?: CodeableConcept
+  country: CodeableConcept
   extension?: Extension[]
   id?: string
   jurisdiction?: CodeableConcept
-  language?: CodeableConcept
+  language: CodeableConcept
   modifierExtension?: Extension[]
 }
 
@@ -6606,8 +8590,8 @@ export interface MedicinalProductNameNamePart extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  part?: string
-  type?: Coding
+  part: string
+  type: Coding
 }
 
 export interface MedicinalProductSpecialDesignation extends BackboneElement {
@@ -6671,7 +8655,7 @@ export interface MedicinalProductAuthorizationProcedure extends BackboneElement 
   id?: string
   identifier?: Identifier
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface MedicinalProductContraindication extends DomainResource {
@@ -6699,7 +8683,7 @@ export interface MedicinalProductContraindicationOtherTherapy extends BackboneEl
   medicationCodeableConcept?: CodeableConcept
   medicationReference?: Reference
   modifierExtension?: Extension[]
-  therapyRelationshipType?: CodeableConcept
+  therapyRelationshipType: CodeableConcept
 }
 
 export interface MedicinalProductIndication extends DomainResource {
@@ -6729,7 +8713,7 @@ export interface MedicinalProductIndicationOtherTherapy extends BackboneElement 
   medicationCodeableConcept?: CodeableConcept
   medicationReference?: Reference
   modifierExtension?: Extension[]
-  therapyRelationshipType?: CodeableConcept
+  therapyRelationshipType: CodeableConcept
 }
 
 export interface MedicinalProductIngredient extends DomainResource {
@@ -6744,17 +8728,17 @@ export interface MedicinalProductIngredient extends DomainResource {
   manufacturer?: Reference[]
   meta?: Meta
   modifierExtension?: Extension[]
-  role?: CodeableConcept
+  role: CodeableConcept
   specifiedSubstance?: MedicinalProductIngredientSpecifiedSubstance[]
   substance?: MedicinalProductIngredientSubstance
   text?: Narrative
 }
 
 export interface MedicinalProductIngredientSpecifiedSubstance extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   confidentiality?: CodeableConcept
   extension?: Extension[]
-  group?: CodeableConcept
+  group: CodeableConcept
   id?: string
   modifierExtension?: Extension[]
   strength?: MedicinalProductIngredientSpecifiedSubstanceStrength[]
@@ -6768,7 +8752,7 @@ export interface MedicinalProductIngredientSpecifiedSubstanceStrength extends Ba
   id?: string
   measurementPoint?: string
   modifierExtension?: Extension[]
-  presentation?: Ratio
+  presentation: Ratio
   presentationLowLimit?: Ratio
   referenceStrength?: MedicinalProductIngredientSpecifiedSubstanceStrengthReferenceStrength[]
 }
@@ -6779,13 +8763,13 @@ export interface MedicinalProductIngredientSpecifiedSubstanceStrengthReferenceSt
   id?: string
   measurementPoint?: string
   modifierExtension?: Extension[]
-  strength?: Ratio
+  strength: Ratio
   strengthLowLimit?: Ratio
   substance?: CodeableConcept
 }
 
 export interface MedicinalProductIngredientSubstance extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -6827,13 +8811,13 @@ export interface MedicinalProductManufactured extends DomainResource {
   implicitRules?: string
   ingredient?: Reference[]
   language?: string
-  manufacturedDoseForm?: CodeableConcept
+  manufacturedDoseForm: CodeableConcept
   manufacturer?: Reference[]
   meta?: Meta
   modifierExtension?: Extension[]
   otherCharacteristics?: CodeableConcept[]
   physicalCharacteristics?: ProdCharacteristic
-  quantity?: Quantity
+  quantity: Quantity
   text?: Narrative
   unitOfPresentation?: CodeableConcept
 }
@@ -6854,7 +8838,7 @@ export interface MedicinalProductPackaged extends DomainResource {
   marketingStatus?: MarketingStatus[]
   meta?: Meta
   modifierExtension?: Extension[]
-  packageItem?: MedicinalProductPackagedPackageItem[]
+  packageItem: MedicinalProductPackagedPackageItem[]
   subject?: Reference[]
   text?: Narrative
 }
@@ -6864,7 +8848,7 @@ export interface MedicinalProductPackagedBatchIdentifier extends BackboneElement
   id?: string
   immediatePackaging?: Identifier
   modifierExtension?: Extension[]
-  outerPackaging?: Identifier
+  outerPackaging: Identifier
 }
 
 export interface MedicinalProductPackagedPackageItem extends BackboneElement {
@@ -6880,14 +8864,14 @@ export interface MedicinalProductPackagedPackageItem extends BackboneElement {
   otherCharacteristics?: CodeableConcept[]
   packageItem?: MedicinalProductPackagedPackageItem[]
   physicalCharacteristics?: ProdCharacteristic
-  quantity?: Quantity
+  quantity: Quantity
   shelfLifeStorage?: ProductShelfLife[]
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface MedicinalProductPharmaceutical extends DomainResource {
   resourceType: 'MedicinalProductPharmaceutical'
-  administrableDoseForm?: CodeableConcept
+  administrableDoseForm: CodeableConcept
   characteristics?: MedicinalProductPharmaceuticalCharacteristics[]
   contained?: FhirResource[]
   device?: Reference[]
@@ -6899,13 +8883,13 @@ export interface MedicinalProductPharmaceutical extends DomainResource {
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  routeOfAdministration?: MedicinalProductPharmaceuticalRouteOfAdministration[]
+  routeOfAdministration: MedicinalProductPharmaceuticalRouteOfAdministration[]
   text?: Narrative
   unitOfPresentation?: CodeableConcept
 }
 
 export interface MedicinalProductPharmaceuticalCharacteristics extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -6913,7 +8897,7 @@ export interface MedicinalProductPharmaceuticalCharacteristics extends BackboneE
 }
 
 export interface MedicinalProductPharmaceuticalRouteOfAdministration extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   extension?: Extension[]
   firstDose?: Quantity
   id?: string
@@ -6926,7 +8910,7 @@ export interface MedicinalProductPharmaceuticalRouteOfAdministration extends Bac
 }
 
 export interface MedicinalProductPharmaceuticalRouteOfAdministrationTargetSpecies extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -6938,8 +8922,8 @@ export interface MedicinalProductPharmaceuticalRouteOfAdministrationTargetSpecie
   id?: string
   modifierExtension?: Extension[]
   supportingInformation?: string
-  tissue?: CodeableConcept
-  value?: Quantity
+  tissue: CodeableConcept
+  value: Quantity
 }
 
 export interface MedicinalProductUndesirableEffect extends DomainResource {
@@ -6967,7 +8951,7 @@ export interface MessageDefinition extends DomainResource {
   contact?: ContactDetail[]
   contained?: FhirResource[]
   copyright?: string
-  date?: string
+  date: string
   description?: string
   eventCoding?: Coding
   eventUri?: string
@@ -6988,7 +8972,7 @@ export interface MessageDefinition extends DomainResource {
   purpose?: string
   replaces?: string[]
   responseRequired?: 'always' | 'on-error' | 'never' | 'on-success'
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
   title?: string
   url?: string
@@ -6999,17 +8983,165 @@ export interface MessageDefinition extends DomainResource {
 export interface MessageDefinitionAllowedResponse extends BackboneElement {
   extension?: Extension[]
   id?: string
-  message?: string
+  message: string
   modifierExtension?: Extension[]
   situation?: string
 }
 
 export interface MessageDefinitionFocus extends BackboneElement {
-  code?: string
+  code:
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
   extension?: Extension[]
   id?: string
   max?: string
-  min?: number
+  min: number
   modifierExtension?: Extension[]
   profile?: string
 }
@@ -7034,12 +9166,12 @@ export interface MessageHeader extends DomainResource {
   response?: MessageHeaderResponse
   responsible?: Reference
   sender?: Reference
-  source?: MessageHeaderSource
+  source: MessageHeaderSource
   text?: Narrative
 }
 
 export interface MessageHeaderDestination extends BackboneElement {
-  endpoint?: string
+  endpoint: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -7049,17 +9181,17 @@ export interface MessageHeaderDestination extends BackboneElement {
 }
 
 export interface MessageHeaderResponse extends BackboneElement {
-  code?: 'ok' | 'transient-error' | 'fatal-error'
+  code: 'ok' | 'transient-error' | 'fatal-error'
   details?: Reference
   extension?: Extension[]
   id?: string
-  identifier?: string
+  identifier: string
   modifierExtension?: Extension[]
 }
 
 export interface MessageHeaderSource extends BackboneElement {
   contact?: ContactPoint
-  endpoint?: string
+  endpoint: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -7071,7 +9203,7 @@ export interface MessageHeaderSource extends BackboneElement {
 export interface MolecularSequence extends DomainResource {
   resourceType: 'MolecularSequence'
   contained?: FhirResource[]
-  coordinateSystem?: number
+  coordinateSystem: number
   device?: Reference
   extension?: Extension[]
   id?: string
@@ -7114,7 +9246,7 @@ export interface MolecularSequenceQuality extends BackboneElement {
   start?: number
   truthFN?: number
   truthTP?: number
-  type?: 'indel' | 'snp' | 'unknown'
+  type: 'indel' | 'snp' | 'unknown'
 }
 
 export interface MolecularSequenceQualityRoc extends BackboneElement {
@@ -7152,7 +9284,7 @@ export interface MolecularSequenceRepository extends BackboneElement {
   modifierExtension?: Extension[]
   name?: string
   readsetId?: string
-  type?: 'directlink' | 'openapi' | 'login' | 'oauth' | 'other'
+  type: 'directlink' | 'openapi' | 'login' | 'oauth' | 'other'
   url?: string
   variantsetId?: string
 }
@@ -7200,23 +9332,23 @@ export interface NamingSystem extends DomainResource {
   resourceType: 'NamingSystem'
   contact?: ContactDetail[]
   contained?: FhirResource[]
-  date?: string
+  date: string
   description?: string
   extension?: Extension[]
   id?: string
   implicitRules?: string
   jurisdiction?: CodeableConcept[]
-  kind?: 'codesystem' | 'identifier' | 'root'
+  kind: 'codesystem' | 'identifier' | 'root'
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   publisher?: string
   responsible?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
   type?: CodeableConcept
-  uniqueId?: NamingSystemUniqueId[]
+  uniqueId: NamingSystemUniqueId[]
   usage?: string
   useContext?: UsageContext[]
 }
@@ -7228,15 +9360,15 @@ export interface NamingSystemUniqueId extends BackboneElement {
   modifierExtension?: Extension[]
   period?: Period
   preferred?: boolean
-  type?: 'oid' | 'uuid' | 'uri' | 'other'
-  value?: string
+  type: 'oid' | 'uuid' | 'uri' | 'other'
+  value: string
 }
 
 export interface NutritionOrder extends DomainResource {
   resourceType: 'NutritionOrder'
   allergyIntolerance?: Reference[]
   contained?: FhirResource[]
-  dateTime?: string
+  dateTime: string
   encounter?: Reference
   enteralFormula?: NutritionOrderEnteralFormula
   excludeFoodModifier?: CodeableConcept[]
@@ -7248,7 +9380,7 @@ export interface NutritionOrder extends DomainResource {
   instantiates?: string[]
   instantiatesCanonical?: string[]
   instantiatesUri?: string[]
-  intent?:
+  intent:
     | 'proposal'
     | 'plan'
     | 'directive'
@@ -7264,8 +9396,8 @@ export interface NutritionOrder extends DomainResource {
   note?: Annotation[]
   oralDiet?: NutritionOrderOralDiet
   orderer?: Reference
-  patient?: Reference
-  status?: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+  patient: Reference
+  status: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
   supplement?: NutritionOrderSupplement[]
   text?: Narrative
 }
@@ -7339,7 +9471,7 @@ export interface Observation extends DomainResource {
   basedOn?: Reference[]
   bodySite?: CodeableConcept
   category?: CodeableConcept[]
-  code?: CodeableConcept
+  code: CodeableConcept
   component?: ObservationComponent[]
   contained?: FhirResource[]
   dataAbsentReason?: CodeableConcept
@@ -7367,7 +9499,7 @@ export interface Observation extends DomainResource {
   performer?: Reference[]
   referenceRange?: ObservationReferenceRange[]
   specimen?: Reference
-  status?:
+  status:
     'registered' | 'preliminary' | 'final' | 'amended' | 'corrected' | 'cancelled' | 'entered-in-error' | 'unknown'
   subject?: Reference
   text?: Narrative
@@ -7385,7 +9517,7 @@ export interface Observation extends DomainResource {
 }
 
 export interface ObservationComponent extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   dataAbsentReason?: CodeableConcept
   extension?: Extension[]
   id?: string
@@ -7421,7 +9553,7 @@ export interface ObservationDefinition extends DomainResource {
   resourceType: 'ObservationDefinition'
   abnormalCodedValueSet?: Reference
   category?: CodeableConcept[]
-  code?: CodeableConcept
+  code: CodeableConcept
   contained?: FhirResource[]
   criticalCodedValueSet?: Reference
   extension?: Extension[]
@@ -7483,7 +9615,7 @@ export interface OperationDefinition extends DomainResource {
   resourceType: 'OperationDefinition'
   affectsState?: boolean
   base?: string
-  code?: string
+  code: string
   comment?: string
   contact?: ContactDetail[]
   contained?: FhirResource[]
@@ -7494,24 +9626,173 @@ export interface OperationDefinition extends DomainResource {
   id?: string
   implicitRules?: string
   inputProfile?: string
-  instance?: boolean
+  instance: boolean
   jurisdiction?: CodeableConcept[]
-  kind?: 'operation' | 'query'
+  kind: 'operation' | 'query'
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   outputProfile?: string
   overload?: OperationDefinitionOverload[]
   parameter?: OperationDefinitionParameter[]
   publisher?: string
   purpose?: string
-  resource?: string[]
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
-  system?: boolean
+  resource?: (
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
+  )[]
+  status: 'draft' | 'active' | 'retired' | 'unknown'
+  system: boolean
   text?: Narrative
   title?: string
-  type?: boolean
+  type: boolean
   url?: string
   useContext?: UsageContext[]
   version?: string
@@ -7530,31 +9811,244 @@ export interface OperationDefinitionParameter extends BackboneElement {
   documentation?: string
   extension?: Extension[]
   id?: string
-  max?: string
-  min?: number
+  max: string
+  min: number
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   part?: OperationDefinitionParameter[]
   referencedFrom?: OperationDefinitionParameterReferencedFrom[]
   searchType?: 'number' | 'date' | 'string' | 'token' | 'reference' | 'composite' | 'quantity' | 'uri' | 'special'
   targetProfile?: string[]
-  type?: string
-  use?: 'in' | 'out'
+  type?:
+    | 'Address'
+    | 'Age'
+    | 'Annotation'
+    | 'Attachment'
+    | 'BackboneElement'
+    | 'CodeableConcept'
+    | 'Coding'
+    | 'ContactDetail'
+    | 'ContactPoint'
+    | 'Contributor'
+    | 'Count'
+    | 'DataRequirement'
+    | 'Distance'
+    | 'Dosage'
+    | 'Duration'
+    | 'Element'
+    | 'ElementDefinition'
+    | 'Expression'
+    | 'Extension'
+    | 'HumanName'
+    | 'Identifier'
+    | 'MarketingStatus'
+    | 'Meta'
+    | 'Money'
+    | 'MoneyQuantity'
+    | 'Narrative'
+    | 'ParameterDefinition'
+    | 'Period'
+    | 'Population'
+    | 'ProdCharacteristic'
+    | 'ProductShelfLife'
+    | 'Quantity'
+    | 'Range'
+    | 'Ratio'
+    | 'Reference'
+    | 'RelatedArtifact'
+    | 'SampledData'
+    | 'Signature'
+    | 'SimpleQuantity'
+    | 'SubstanceAmount'
+    | 'Timing'
+    | 'TriggerDefinition'
+    | 'UsageContext'
+    | 'base64Binary'
+    | 'boolean'
+    | 'canonical'
+    | 'code'
+    | 'date'
+    | 'dateTime'
+    | 'decimal'
+    | 'id'
+    | 'instant'
+    | 'integer'
+    | 'markdown'
+    | 'oid'
+    | 'positiveInt'
+    | 'string'
+    | 'time'
+    | 'unsignedInt'
+    | 'uri'
+    | 'url'
+    | 'uuid'
+    | 'xhtml'
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
+    | 'Type'
+    | 'Any'
+  use: 'in' | 'out'
 }
 
 export interface OperationDefinitionParameterBinding extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  strength?: 'required' | 'extensible' | 'preferred' | 'example'
-  valueSet?: string
+  strength: 'required' | 'extensible' | 'preferred' | 'example'
+  valueSet: string
 }
 
 export interface OperationDefinitionParameterReferencedFrom extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  source?: string
+  source: string
   sourceId?: string
 }
 
@@ -7564,7 +10058,7 @@ export interface OperationOutcome extends DomainResource {
   extension?: Extension[]
   id?: string
   implicitRules?: string
-  issue?: OperationOutcomeIssue[]
+  issue: OperationOutcomeIssue[]
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
@@ -7572,7 +10066,7 @@ export interface OperationOutcome extends DomainResource {
 }
 
 export interface OperationOutcomeIssue extends BackboneElement {
-  code?:
+  code:
     | 'invalid'
     | 'structure'
     | 'required'
@@ -7611,7 +10105,7 @@ export interface OperationOutcomeIssue extends BackboneElement {
   id?: string
   location?: string[]
   modifierExtension?: Extension[]
-  severity?: 'fatal' | 'error' | 'warning' | 'information'
+  severity: 'fatal' | 'error' | 'warning' | 'information'
 }
 
 export interface Organization extends DomainResource {
@@ -7683,7 +10177,7 @@ export interface ParametersParameter extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   part?: ParametersParameter[]
   resource?: FhirResource
   valueBase64Binary?: string
@@ -7771,7 +10265,7 @@ export interface Patient extends DomainResource {
 export interface PatientCommunication extends BackboneElement {
   extension?: Extension[]
   id?: string
-  language?: CodeableConcept
+  language: CodeableConcept
   modifierExtension?: Extension[]
   preferred?: boolean
 }
@@ -7793,15 +10287,15 @@ export interface PatientLink extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  other?: Reference
-  type?: 'replaced-by' | 'replaces' | 'refer' | 'seealso'
+  other: Reference
+  type: 'replaced-by' | 'replaces' | 'refer' | 'seealso'
 }
 
 export interface PaymentNotice extends DomainResource {
   resourceType: 'PaymentNotice'
-  amount?: Money
+  amount: Money
   contained?: FhirResource[]
-  created?: string
+  created: string
   extension?: Extension[]
   id?: string
   identifier?: Identifier[]
@@ -7810,21 +10304,21 @@ export interface PaymentNotice extends DomainResource {
   meta?: Meta
   modifierExtension?: Extension[]
   payee?: Reference
-  payment?: Reference
+  payment: Reference
   paymentDate?: string
   paymentStatus?: CodeableConcept
   provider?: Reference
-  recipient?: Reference
+  recipient: Reference
   request?: Reference
   response?: Reference
-  status?: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
+  status: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
   text?: Narrative
 }
 
 export interface PaymentReconciliation extends DomainResource {
   resourceType: 'PaymentReconciliation'
   contained?: FhirResource[]
-  created?: string
+  created: string
   detail?: PaymentReconciliationDetail[]
   disposition?: string
   extension?: Extension[]
@@ -7836,15 +10330,15 @@ export interface PaymentReconciliation extends DomainResource {
   meta?: Meta
   modifierExtension?: Extension[]
   outcome?: 'queued' | 'complete' | 'error' | 'partial'
-  paymentAmount?: Money
-  paymentDate?: string
+  paymentAmount: Money
+  paymentDate: string
   paymentIdentifier?: Identifier
   paymentIssuer?: Reference
   period?: Period
   processNote?: PaymentReconciliationProcessNote[]
   request?: Reference
   requestor?: Reference
-  status?: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
+  status: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
   text?: Narrative
 }
 
@@ -7861,7 +10355,7 @@ export interface PaymentReconciliationDetail extends BackboneElement {
   response?: Reference
   responsible?: Reference
   submitter?: Reference
-  type?: CodeableConcept
+  type: CodeableConcept
 }
 
 export interface PaymentReconciliationProcessNote extends BackboneElement {
@@ -7899,7 +10393,7 @@ export interface PersonLink extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  target?: Reference
+  target: Reference
 }
 
 export interface PlanDefinition extends DomainResource {
@@ -7932,7 +10426,7 @@ export interface PlanDefinition extends DomainResource {
   purpose?: string
   relatedArtifact?: RelatedArtifact[]
   reviewer?: ContactDetail[]
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   subjectCodeableConcept?: CodeableConcept
   subjectReference?: Reference
   subtitle?: string
@@ -7990,7 +10484,7 @@ export interface PlanDefinitionActionCondition extends BackboneElement {
   expression?: Expression
   extension?: Extension[]
   id?: string
-  kind?: 'applicability' | 'start' | 'stop'
+  kind: 'applicability' | 'start' | 'stop'
   modifierExtension?: Extension[]
 }
 
@@ -8007,17 +10501,17 @@ export interface PlanDefinitionActionParticipant extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   role?: CodeableConcept
-  type?: 'patient' | 'practitioner' | 'related-person' | 'device'
+  type: 'patient' | 'practitioner' | 'related-person' | 'device'
 }
 
 export interface PlanDefinitionActionRelatedAction extends BackboneElement {
-  actionId?: string
+  actionId: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
   offsetDuration?: Duration
   offsetRange?: Range
-  relationship?:
+  relationship:
     | 'before-start'
     | 'before'
     | 'before-end'
@@ -8032,7 +10526,7 @@ export interface PlanDefinitionActionRelatedAction extends BackboneElement {
 export interface PlanDefinitionGoal extends BackboneElement {
   addresses?: CodeableConcept[]
   category?: CodeableConcept
-  description?: CodeableConcept
+  description: CodeableConcept
   documentation?: RelatedArtifact[]
   extension?: Extension[]
   id?: string
@@ -8076,7 +10570,7 @@ export interface Practitioner extends DomainResource {
 }
 
 export interface PractitionerQualification extends BackboneElement {
-  code?: CodeableConcept
+  code: CodeableConcept
   extension?: Extension[]
   id?: string
   identifier?: Identifier[]
@@ -8122,7 +10616,7 @@ export interface PractitionerRoleAvailableTime extends BackboneElement {
 }
 
 export interface PractitionerRoleNotAvailable extends BackboneElement {
-  description?: string
+  description: string
   during?: Period
   extension?: Extension[]
   id?: string
@@ -8165,10 +10659,10 @@ export interface Procedure extends DomainResource {
   reasonReference?: Reference[]
   recorder?: Reference
   report?: Reference[]
-  status?:
+  status:
     'preparation' | 'in-progress' | 'not-done' | 'on-hold' | 'stopped' | 'completed' | 'entered-in-error' | 'unknown'
   statusReason?: CodeableConcept
-  subject?: Reference
+  subject: Reference
   text?: Narrative
   usedCode?: CodeableConcept[]
   usedReference?: Reference[]
@@ -8178,12 +10672,12 @@ export interface ProcedureFocalDevice extends BackboneElement {
   action?: CodeableConcept
   extension?: Extension[]
   id?: string
-  manipulated?: Reference
+  manipulated: Reference
   modifierExtension?: Extension[]
 }
 
 export interface ProcedurePerformer extends BackboneElement {
-  actor?: Reference
+  actor: Reference
   extension?: Extension[]
   function?: CodeableConcept
   id?: string
@@ -8194,7 +10688,7 @@ export interface ProcedurePerformer extends BackboneElement {
 export interface Provenance extends DomainResource {
   resourceType: 'Provenance'
   activity?: CodeableConcept
-  agent?: ProvenanceAgent[]
+  agent: ProvenanceAgent[]
   contained?: FhirResource[]
   entity?: ProvenanceEntity[]
   extension?: Extension[]
@@ -8208,9 +10702,9 @@ export interface Provenance extends DomainResource {
   occurredDateTime?: string
   policy?: string[]
   reason?: CodeableConcept[]
-  recorded?: string
+  recorded: string
   signature?: Signature[]
-  target?: Reference[]
+  target: Reference[]
   text?: Narrative
 }
 
@@ -8221,7 +10715,7 @@ export interface ProvenanceAgent extends BackboneElement {
   onBehalfOf?: Reference
   role?: CodeableConcept[]
   type?: CodeableConcept
-  who?: Reference
+  who: Reference
 }
 
 export interface ProvenanceEntity extends BackboneElement {
@@ -8229,8 +10723,8 @@ export interface ProvenanceEntity extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  role?: 'derivation' | 'revision' | 'quotation' | 'source' | 'removal'
-  what?: Reference
+  role: 'derivation' | 'revision' | 'quotation' | 'source' | 'removal'
+  what: Reference
 }
 
 export interface Questionnaire extends DomainResource {
@@ -8258,8 +10752,157 @@ export interface Questionnaire extends DomainResource {
   name?: string
   publisher?: string
   purpose?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
-  subjectType?: string[]
+  status: 'draft' | 'active' | 'retired' | 'unknown'
+  subjectType?: (
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
+  )[]
   text?: Narrative
   title?: string
   url?: string
@@ -8278,7 +10921,7 @@ export interface QuestionnaireItem extends BackboneElement {
   id?: string
   initial?: QuestionnaireItemInitial[]
   item?: QuestionnaireItem[]
-  linkId?: string
+  linkId: string
   maxLength?: number
   modifierExtension?: Extension[]
   prefix?: string
@@ -8286,7 +10929,7 @@ export interface QuestionnaireItem extends BackboneElement {
   repeats?: boolean
   required?: boolean
   text?: string
-  type?:
+  type:
     | 'group'
     | 'display'
     | 'question'
@@ -8333,8 +10976,8 @@ export interface QuestionnaireItemEnableWhen extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  operator?: 'exists' | '=' | '!=' | '>' | '<' | '>=' | '<='
-  question?: string
+  operator: 'exists' | '=' | '!=' | '>' | '<' | '>=' | '<='
+  question: string
 }
 
 export interface QuestionnaireItemInitial extends BackboneElement {
@@ -8373,7 +11016,7 @@ export interface QuestionnaireResponse extends DomainResource {
   partOf?: Reference[]
   questionnaire?: string
   source?: Reference
-  status?: 'in-progress' | 'completed' | 'amended' | 'entered-in-error' | 'stopped'
+  status: 'in-progress' | 'completed' | 'amended' | 'entered-in-error' | 'stopped'
   subject?: Reference
   text?: Narrative
 }
@@ -8384,7 +11027,7 @@ export interface QuestionnaireResponseItem extends BackboneElement {
   extension?: Extension[]
   id?: string
   item?: QuestionnaireResponseItem[]
-  linkId?: string
+  linkId: string
   modifierExtension?: Extension[]
   text?: string
 }
@@ -8424,7 +11067,7 @@ export interface RelatedPerson extends DomainResource {
   meta?: Meta
   modifierExtension?: Extension[]
   name?: HumanName[]
-  patient?: Reference
+  patient: Reference
   period?: Period
   photo?: Attachment[]
   relationship?: CodeableConcept[]
@@ -8435,7 +11078,7 @@ export interface RelatedPerson extends DomainResource {
 export interface RelatedPersonCommunication extends BackboneElement {
   extension?: Extension[]
   id?: string
-  language?: CodeableConcept
+  language: CodeableConcept
   modifierExtension?: Extension[]
   preferred?: boolean
 }
@@ -8456,7 +11099,7 @@ export interface RequestGroup extends DomainResource {
   implicitRules?: string
   instantiatesCanonical?: string[]
   instantiatesUri?: string[]
-  intent?:
+  intent:
     | 'proposal'
     | 'plan'
     | 'directive'
@@ -8474,7 +11117,7 @@ export interface RequestGroup extends DomainResource {
   reasonCode?: CodeableConcept[]
   reasonReference?: Reference[]
   replaces?: Reference[]
-  status?: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+  status: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
   subject?: Reference
   text?: Narrative
 }
@@ -8513,18 +11156,18 @@ export interface RequestGroupActionCondition extends BackboneElement {
   expression?: Expression
   extension?: Extension[]
   id?: string
-  kind?: 'applicability' | 'start' | 'stop'
+  kind: 'applicability' | 'start' | 'stop'
   modifierExtension?: Extension[]
 }
 
 export interface RequestGroupActionRelatedAction extends BackboneElement {
-  actionId?: string
+  actionId: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
   offsetDuration?: Duration
   offsetRange?: Range
-  relationship?:
+  relationship:
     | 'before-start'
     | 'before'
     | 'before-end'
@@ -8564,13 +11207,13 @@ export interface ResearchDefinition extends DomainResource {
   modifierExtension?: Extension[]
   name?: string
   outcome?: Reference
-  population?: Reference
+  population: Reference
   publisher?: string
   purpose?: string
   relatedArtifact?: RelatedArtifact[]
   reviewer?: ContactDetail[]
   shortTitle?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   subjectCodeableConcept?: CodeableConcept
   subjectReference?: Reference
   subtitle?: string
@@ -8587,7 +11230,7 @@ export interface ResearchElementDefinition extends DomainResource {
   resourceType: 'ResearchElementDefinition'
   approvalDate?: string
   author?: ContactDetail[]
-  characteristic?: ResearchElementDefinitionCharacteristic[]
+  characteristic: ResearchElementDefinitionCharacteristic[]
   comment?: string[]
   contact?: ContactDetail[]
   contained?: FhirResource[]
@@ -8614,14 +11257,14 @@ export interface ResearchElementDefinition extends DomainResource {
   relatedArtifact?: RelatedArtifact[]
   reviewer?: ContactDetail[]
   shortTitle?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   subjectCodeableConcept?: CodeableConcept
   subjectReference?: Reference
   subtitle?: string
   text?: Narrative
   title?: string
   topic?: CodeableConcept[]
-  type?: 'population' | 'exposure' | 'outcome'
+  type: 'population' | 'exposure' | 'outcome'
   url?: string
   usage?: string
   useContext?: UsageContext[]
@@ -8700,7 +11343,7 @@ export interface ResearchStudy extends DomainResource {
   result?: Reference[]
   site?: Reference[]
   sponsor?: Reference
-  status?:
+  status:
     | 'active'
     | 'administratively-completed'
     | 'approved'
@@ -8723,7 +11366,7 @@ export interface ResearchStudyArm extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   type?: CodeableConcept
 }
 
@@ -8735,7 +11378,7 @@ export interface ResearchStudyAssociatedParty extends BackboneElement {
   name?: string
   party?: Reference
   period?: Period[]
-  role?: CodeableConcept
+  role: CodeableConcept
 }
 
 export interface ResearchStudyComparisonGroup extends BackboneElement {
@@ -8745,7 +11388,7 @@ export interface ResearchStudyComparisonGroup extends BackboneElement {
   intendedExposure?: Reference[]
   linkId?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   observedGroup?: Reference
   type?: CodeableConcept
 }
@@ -8783,7 +11426,7 @@ export interface ResearchStudyProgressStatus extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   period?: Period
-  state?: CodeableConcept
+  state: CodeableConcept
 }
 
 export interface ResearchStudyRecruitment extends BackboneElement {
@@ -8806,12 +11449,12 @@ export interface ResearchSubject extends DomainResource {
   id?: string
   identifier?: Identifier[]
   implicitRules?: string
-  individual?: Reference
+  individual: Reference
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
   period?: Period
-  status?:
+  status:
     | 'candidate'
     | 'eligible'
     | 'follow-up'
@@ -8825,7 +11468,7 @@ export interface ResearchSubject extends DomainResource {
     | 'potential-candidate'
     | 'screening'
     | 'withdrawn'
-  study?: Reference
+  study: Reference
   text?: Narrative
 }
 
@@ -8861,9 +11504,9 @@ export interface RiskAssessment extends DomainResource {
   prediction?: RiskAssessmentPrediction[]
   reasonCode?: CodeableConcept[]
   reasonReference?: Reference[]
-  status?:
+  status:
     'registered' | 'preliminary' | 'final' | 'amended' | 'corrected' | 'cancelled' | 'entered-in-error' | 'unknown'
-  subject?: Reference
+  subject: Reference
   text?: Narrative
 }
 
@@ -8906,14 +11549,14 @@ export interface RiskEvidenceSynthesis extends DomainResource {
   modifierExtension?: Extension[]
   name?: string
   note?: Annotation[]
-  outcome?: Reference
-  population?: Reference
+  outcome: Reference
+  population: Reference
   publisher?: string
   relatedArtifact?: RelatedArtifact[]
   reviewer?: ContactDetail[]
   riskEstimate?: RiskEvidenceSynthesisRiskEstimate
   sampleSize?: RiskEvidenceSynthesisSampleSize
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   studyType?: CodeableConcept
   synthesisType?: CodeableConcept
   text?: Narrative
@@ -8977,7 +11620,7 @@ export interface RiskEvidenceSynthesisSampleSize extends BackboneElement {
 export interface Schedule extends DomainResource {
   resourceType: 'Schedule'
   active?: boolean
-  actor?: Reference[]
+  actor: Reference[]
   comment?: string
   contained?: FhirResource[]
   extension?: Extension[]
@@ -8996,16 +11639,165 @@ export interface Schedule extends DomainResource {
 
 export interface SearchParameter extends DomainResource {
   resourceType: 'SearchParameter'
-  base?: string[]
+  base: (
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
+  )[]
   chain?: string[]
-  code?: string
+  code: string
   comparator?: ('eq' | 'ne' | 'gt' | 'lt' | 'ge' | 'le' | 'sa' | 'eb' | 'ap')[]
   component?: SearchParameterComponent[]
   contact?: ContactDetail[]
   contained?: FhirResource[]
   date?: string
   derivedFrom?: string
-  description?: string
+  description: string
   experimental?: boolean
   expression?: string
   extension?: Extension[]
@@ -9031,14 +11823,163 @@ export interface SearchParameter extends DomainResource {
   modifierExtension?: Extension[]
   multipleAnd?: boolean
   multipleOr?: boolean
-  name?: string
+  name: string
   publisher?: string
   purpose?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
-  target?: string[]
+  status: 'draft' | 'active' | 'retired' | 'unknown'
+  target?: (
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
+  )[]
   text?: Narrative
-  type?: 'number' | 'date' | 'string' | 'token' | 'reference' | 'composite' | 'quantity' | 'uri' | 'special'
-  url?: string
+  type: 'number' | 'date' | 'string' | 'token' | 'reference' | 'composite' | 'quantity' | 'uri' | 'special'
+  url: string
   useContext?: UsageContext[]
   version?: string
   xpath?: string
@@ -9046,8 +11987,8 @@ export interface SearchParameter extends DomainResource {
 }
 
 export interface SearchParameterComponent extends BackboneElement {
-  definition?: string
-  expression?: string
+  definition: string
+  expression: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -9072,7 +12013,7 @@ export interface ServiceRequest extends DomainResource {
   instantiatesCanonical?: string[]
   instantiatesUri?: string[]
   insurance?: Reference[]
-  intent?:
+  intent:
     | 'proposal'
     | 'plan'
     | 'directive'
@@ -9106,8 +12047,8 @@ export interface ServiceRequest extends DomainResource {
   requester?: Reference
   requisition?: Identifier
   specimen?: Reference[]
-  status?: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
-  subject?: Reference
+  status: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+  subject: Reference
   supportingInfo?: Reference[]
   text?: Narrative
 }
@@ -9117,7 +12058,7 @@ export interface Slot extends DomainResource {
   appointmentType?: CodeableConcept
   comment?: string
   contained?: FhirResource[]
-  end?: string
+  end: string
   extension?: Extension[]
   id?: string
   identifier?: Identifier[]
@@ -9126,12 +12067,12 @@ export interface Slot extends DomainResource {
   meta?: Meta
   modifierExtension?: Extension[]
   overbooked?: boolean
-  schedule?: Reference
+  schedule: Reference
   serviceCategory?: CodeableConcept[]
   serviceType?: CodeableConcept[]
   specialty?: CodeableConcept[]
-  start?: string
-  status?: 'busy' | 'free' | 'busy-unavailable' | 'busy-tentative' | 'entered-in-error'
+  start: string
+  status: 'busy' | 'free' | 'busy-unavailable' | 'busy-tentative' | 'entered-in-error'
   text?: Narrative
 }
 
@@ -9224,7 +12165,7 @@ export interface SpecimenDefinitionTypeTested extends BackboneElement {
   id?: string
   isDerived?: boolean
   modifierExtension?: Extension[]
-  preference?: 'preferred' | 'alternate'
+  preference: 'preferred' | 'alternate'
   rejectionCriterion?: CodeableConcept[]
   requirement?: string
   retentionTime?: Duration
@@ -9266,7 +12207,7 @@ export interface SpecimenDefinitionTypeTestedHandling extends BackboneElement {
 
 export interface StructureDefinition extends DomainResource {
   resourceType: 'StructureDefinition'
-  abstract?: boolean
+  abstract: boolean
   baseDefinition?: string
   contact?: ContactDetail[]
   contained?: FhirResource[]
@@ -9307,34 +12248,34 @@ export interface StructureDefinition extends DomainResource {
   implicitRules?: string
   jurisdiction?: CodeableConcept[]
   keyword?: Coding[]
-  kind?: 'primitive-type' | 'complex-type' | 'resource' | 'logical'
+  kind: 'primitive-type' | 'complex-type' | 'resource' | 'logical'
   language?: string
   mapping?: StructureDefinitionMapping[]
   meta?: Meta
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   publisher?: string
   purpose?: string
   snapshot?: StructureDefinitionSnapshot
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
   title?: string
-  type?: string
-  url?: string
+  type: string
+  url: string
   useContext?: UsageContext[]
   version?: string
 }
 
 export interface StructureDefinitionContext extends BackboneElement {
-  expression?: string
+  expression: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: 'fhirpath' | 'element' | 'extension'
+  type: 'fhirpath' | 'element' | 'extension'
 }
 
 export interface StructureDefinitionDifferential extends BackboneElement {
-  element?: ElementDefinition[]
+  element: ElementDefinition[]
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -9344,14 +12285,14 @@ export interface StructureDefinitionMapping extends BackboneElement {
   comment?: string
   extension?: Extension[]
   id?: string
-  identity?: string
+  identity: string
   modifierExtension?: Extension[]
   name?: string
   uri?: string
 }
 
 export interface StructureDefinitionSnapshot extends BackboneElement {
-  element?: ElementDefinition[]
+  element: ElementDefinition[]
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -9366,7 +12307,7 @@ export interface StructureMap extends DomainResource {
   description?: string
   experimental?: boolean
   extension?: Extension[]
-  group?: StructureMapGroup[]
+  group: StructureMapGroup[]
   id?: string
   identifier?: Identifier[]
   implicitRules?: string
@@ -9375,14 +12316,14 @@ export interface StructureMap extends DomainResource {
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   publisher?: string
   purpose?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   structure?: StructureMapStructure[]
   text?: Narrative
   title?: string
-  url?: string
+  url: string
   useContext?: UsageContext[]
   version?: string
 }
@@ -9392,20 +12333,20 @@ export interface StructureMapGroup extends BackboneElement {
   extends?: string
   extension?: Extension[]
   id?: string
-  input?: StructureMapGroupInput[]
+  input: StructureMapGroupInput[]
   modifierExtension?: Extension[]
-  name?: string
-  rule?: StructureMapGroupRule[]
-  typeMode?: 'none' | 'types' | 'type-and-types'
+  name: string
+  rule: StructureMapGroupRule[]
+  typeMode: 'none' | 'types' | 'type-and-types'
 }
 
 export interface StructureMapGroupInput extends BackboneElement {
   documentation?: string
   extension?: Extension[]
   id?: string
-  mode?: 'source' | 'target'
+  mode: 'source' | 'target'
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   type?: string
 }
 
@@ -9415,9 +12356,9 @@ export interface StructureMapGroupRule extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   rule?: StructureMapGroupRule[]
-  source?: StructureMapGroupRuleSource[]
+  source: StructureMapGroupRuleSource[]
   target?: StructureMapGroupRuleTarget[]
 }
 
@@ -9425,14 +12366,14 @@ export interface StructureMapGroupRuleDependent extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
-  variable?: string[]
+  name: string
+  variable: string[]
 }
 
 export interface StructureMapGroupRuleSource extends BackboneElement {
   check?: string
   condition?: string
-  context?: string
+  context: string
   defaultValueBase64Binary?: string
   defaultValueBoolean?: boolean
   defaultValueCanonical?: string
@@ -9542,17 +12483,17 @@ export interface StructureMapStructure extends BackboneElement {
   documentation?: string
   extension?: Extension[]
   id?: string
-  mode?: 'source' | 'queried' | 'target' | 'produced'
+  mode: 'source' | 'queried' | 'target' | 'produced'
   modifierExtension?: Extension[]
-  url?: string
+  url: string
 }
 
 export interface Subscription extends DomainResource {
   resourceType: 'Subscription'
-  channel?: SubscriptionChannel
+  channel: SubscriptionChannel
   contact?: ContactPoint[]
   contained?: FhirResource[]
-  criteria?: string
+  criteria: string
   end?: string
   error?: string
   extension?: Extension[]
@@ -9561,8 +12502,8 @@ export interface Subscription extends DomainResource {
   language?: string
   meta?: Meta
   modifierExtension?: Extension[]
-  reason?: string
-  status?: 'requested' | 'active' | 'error' | 'off'
+  reason: string
+  status: 'requested' | 'active' | 'error' | 'off'
   text?: Narrative
 }
 
@@ -9573,7 +12514,7 @@ export interface SubscriptionChannel extends BackboneElement {
   id?: string
   modifierExtension?: Extension[]
   payload?: string
-  type?: 'rest-hook' | 'websocket' | 'email' | 'sms' | 'message'
+  type: 'rest-hook' | 'websocket' | 'email' | 'sms' | 'message'
 }
 
 export interface SubscriptionStatus extends DomainResource {
@@ -9589,15 +12530,15 @@ export interface SubscriptionStatus extends DomainResource {
   modifierExtension?: Extension[]
   notificationEvent?: SubscriptionStatusNotificationEvent[]
   status?: 'requested' | 'active' | 'error' | 'off'
-  subscription?: Reference
+  subscription: Reference
   text?: Narrative
   topic?: string
-  type?: string
+  type: string
 }
 
 export interface SubscriptionStatusNotificationEvent extends BackboneElement {
   additionalContext?: Reference[]
-  eventNumber?: string
+  eventNumber: string
   extension?: Extension[]
   focus?: Reference
   id?: string
@@ -9608,7 +12549,7 @@ export interface SubscriptionStatusNotificationEvent extends BackboneElement {
 export interface Substance extends DomainResource {
   resourceType: 'Substance'
   category?: CodeableConcept[]
-  code?: CodeableConcept
+  code: CodeableConcept
   contained?: FhirResource[]
   description?: string
   extension?: Extension[]
@@ -10004,7 +12945,7 @@ export interface SubstanceSpecificationName extends BackboneElement {
   jurisdiction?: CodeableConcept[]
   language?: CodeableConcept[]
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   official?: SubstanceSpecificationNameOfficial[]
   preferred?: boolean
   source?: Reference[]
@@ -10151,7 +13092,7 @@ export interface SupplyRequest extends DomainResource {
   occurrenceTiming?: Timing
   parameter?: SupplyRequestParameter[]
   priority?: 'routine' | 'urgent' | 'asap' | 'stat'
-  quantity?: Quantity
+  quantity: Quantity
   reasonCode?: CodeableConcept[]
   reasonReference?: Reference[]
   requester?: Reference
@@ -10192,7 +13133,7 @@ export interface Task extends DomainResource {
   instantiatesCanonical?: string
   instantiatesUri?: string
   insurance?: Reference[]
-  intent?:
+  intent:
     | 'unknown'
     | 'proposal'
     | 'plan'
@@ -10218,7 +13159,7 @@ export interface Task extends DomainResource {
   relevantHistory?: Reference[]
   requester?: Reference
   restriction?: TaskRestriction
-  status?:
+  status:
     | 'draft'
     | 'requested'
     | 'received'
@@ -10239,7 +13180,7 @@ export interface TaskInput extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
   valueBase64Binary?: string
   valueBoolean?: boolean
   valueCanonical?: string
@@ -10296,7 +13237,7 @@ export interface TaskOutput extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: CodeableConcept
+  type: CodeableConcept
   valueBase64Binary?: string
   valueBoolean?: boolean
   valueCanonical?: string
@@ -10366,7 +13307,7 @@ export interface TerminologyCapabilities extends DomainResource {
   contact?: ContactDetail[]
   contained?: FhirResource[]
   copyright?: string
-  date?: string
+  date: string
   description?: string
   expansion?: TerminologyCapabilitiesExpansion
   experimental?: boolean
@@ -10375,7 +13316,7 @@ export interface TerminologyCapabilities extends DomainResource {
   implementation?: TerminologyCapabilitiesImplementation
   implicitRules?: string
   jurisdiction?: CodeableConcept[]
-  kind?: 'instance' | 'capability' | 'requirements'
+  kind: 'instance' | 'capability' | 'requirements'
   language?: string
   lockedDate?: boolean
   meta?: Meta
@@ -10384,7 +13325,7 @@ export interface TerminologyCapabilities extends DomainResource {
   publisher?: string
   purpose?: string
   software?: TerminologyCapabilitiesSoftware
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
   title?: string
   translation?: TerminologyCapabilitiesTranslation
@@ -10423,11 +13364,11 @@ export interface TerminologyCapabilitiesCodeSystemVersion extends BackboneElemen
 }
 
 export interface TerminologyCapabilitiesCodeSystemVersionFilter extends BackboneElement {
-  code?: string
+  code: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  op?: string[]
+  op: string[]
 }
 
 export interface TerminologyCapabilitiesExpansion extends BackboneElement {
@@ -10446,11 +13387,11 @@ export interface TerminologyCapabilitiesExpansionParameter extends BackboneEleme
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
 }
 
 export interface TerminologyCapabilitiesImplementation extends BackboneElement {
-  description?: string
+  description: string
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -10461,7 +13402,7 @@ export interface TerminologyCapabilitiesSoftware extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   version?: string
 }
 
@@ -10469,14 +13410,14 @@ export interface TerminologyCapabilitiesTranslation extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  needsMap?: boolean
+  needsMap: boolean
 }
 
 export interface TerminologyCapabilitiesValidateCode extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  translations?: boolean
+  translations: boolean
 }
 
 export interface TestReport extends DomainResource {
@@ -10492,13 +13433,13 @@ export interface TestReport extends DomainResource {
   modifierExtension?: Extension[]
   name?: string
   participant?: TestReportParticipant[]
-  result?: 'pass' | 'fail' | 'pending'
+  result: 'pass' | 'fail' | 'pending'
   score?: number
   setup?: TestReportSetup
-  status?: 'completed' | 'in-progress' | 'waiting' | 'stopped' | 'entered-in-error'
+  status: 'completed' | 'in-progress' | 'waiting' | 'stopped' | 'entered-in-error'
   teardown?: TestReportTeardown
   test?: TestReportTest[]
-  testScript?: Reference
+  testScript: Reference
   tester?: string
   text?: Narrative
 }
@@ -10508,12 +13449,12 @@ export interface TestReportParticipant extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  type?: 'test-engine' | 'client' | 'server'
-  uri?: string
+  type: 'test-engine' | 'client' | 'server'
+  uri: string
 }
 
 export interface TestReportSetup extends BackboneElement {
-  action?: TestReportSetupAction[]
+  action: TestReportSetupAction[]
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -10533,7 +13474,7 @@ export interface TestReportSetupActionAssert extends BackboneElement {
   id?: string
   message?: string
   modifierExtension?: Extension[]
-  result?: 'pass' | 'skip' | 'fail' | 'warning' | 'error'
+  result: 'pass' | 'skip' | 'fail' | 'warning' | 'error'
 }
 
 export interface TestReportSetupActionOperation extends BackboneElement {
@@ -10542,11 +13483,11 @@ export interface TestReportSetupActionOperation extends BackboneElement {
   id?: string
   message?: string
   modifierExtension?: Extension[]
-  result?: 'pass' | 'skip' | 'fail' | 'warning' | 'error'
+  result: 'pass' | 'skip' | 'fail' | 'warning' | 'error'
 }
 
 export interface TestReportTeardown extends BackboneElement {
-  action?: TestReportTeardownAction[]
+  action: TestReportTeardownAction[]
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -10556,11 +13497,11 @@ export interface TestReportTeardownAction extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  operation?: TestReportSetupActionOperation
+  operation: TestReportSetupActionOperation
 }
 
 export interface TestReportTest extends BackboneElement {
-  action?: TestReportTestAction[]
+  action: TestReportTestAction[]
   description?: string
   extension?: Extension[]
   id?: string
@@ -10595,18 +13536,18 @@ export interface TestScript extends DomainResource {
   meta?: Meta
   metadata?: TestScriptMetadata
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   origin?: TestScriptOrigin[]
   profile?: Reference[]
   publisher?: string
   purpose?: string
   setup?: TestScriptSetup
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   teardown?: TestScriptTeardown
   test?: TestScriptTest[]
   text?: Narrative
   title?: string
-  url?: string
+  url: string
   useContext?: UsageContext[]
   variable?: TestScriptVariable[]
   version?: string
@@ -10615,14 +13556,14 @@ export interface TestScript extends DomainResource {
 export interface TestScriptDestination extends BackboneElement {
   extension?: Extension[]
   id?: string
-  index?: number
+  index: number
   modifierExtension?: Extension[]
-  profile?: Coding
+  profile: Coding
 }
 
 export interface TestScriptFixture extends BackboneElement {
-  autocreate?: boolean
-  autodelete?: boolean
+  autocreate: boolean
+  autodelete: boolean
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -10630,7 +13571,7 @@ export interface TestScriptFixture extends BackboneElement {
 }
 
 export interface TestScriptMetadata extends BackboneElement {
-  capability?: TestScriptMetadataCapability[]
+  capability: TestScriptMetadataCapability[]
   extension?: Extension[]
   id?: string
   link?: TestScriptMetadataLink[]
@@ -10638,7 +13579,7 @@ export interface TestScriptMetadata extends BackboneElement {
 }
 
 export interface TestScriptMetadataCapability extends BackboneElement {
-  capabilities?: string
+  capabilities: string
   description?: string
   destination?: number
   extension?: Extension[]
@@ -10646,8 +13587,8 @@ export interface TestScriptMetadataCapability extends BackboneElement {
   link?: string[]
   modifierExtension?: Extension[]
   origin?: number[]
-  required?: boolean
-  validated?: boolean
+  required: boolean
+  validated: boolean
 }
 
 export interface TestScriptMetadataLink extends BackboneElement {
@@ -10655,19 +13596,19 @@ export interface TestScriptMetadataLink extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  url?: string
+  url: string
 }
 
 export interface TestScriptOrigin extends BackboneElement {
   extension?: Extension[]
   id?: string
-  index?: number
+  index: number
   modifierExtension?: Extension[]
-  profile?: Coding
+  profile: Coding
 }
 
 export interface TestScriptSetup extends BackboneElement {
-  action?: TestScriptSetupAction[]
+  action: TestScriptSetupAction[]
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -10711,7 +13652,218 @@ export interface TestScriptSetupActionAssert extends BackboneElement {
   path?: string
   requestMethod?: 'delete' | 'get' | 'options' | 'patch' | 'post' | 'put' | 'head'
   requestURL?: string
-  resource?: string
+  resource?:
+    | 'Address'
+    | 'Age'
+    | 'Annotation'
+    | 'Attachment'
+    | 'BackboneElement'
+    | 'CodeableConcept'
+    | 'Coding'
+    | 'ContactDetail'
+    | 'ContactPoint'
+    | 'Contributor'
+    | 'Count'
+    | 'DataRequirement'
+    | 'Distance'
+    | 'Dosage'
+    | 'Duration'
+    | 'Element'
+    | 'ElementDefinition'
+    | 'Expression'
+    | 'Extension'
+    | 'HumanName'
+    | 'Identifier'
+    | 'MarketingStatus'
+    | 'Meta'
+    | 'Money'
+    | 'MoneyQuantity'
+    | 'Narrative'
+    | 'ParameterDefinition'
+    | 'Period'
+    | 'Population'
+    | 'ProdCharacteristic'
+    | 'ProductShelfLife'
+    | 'Quantity'
+    | 'Range'
+    | 'Ratio'
+    | 'Reference'
+    | 'RelatedArtifact'
+    | 'SampledData'
+    | 'Signature'
+    | 'SimpleQuantity'
+    | 'SubstanceAmount'
+    | 'Timing'
+    | 'TriggerDefinition'
+    | 'UsageContext'
+    | 'base64Binary'
+    | 'boolean'
+    | 'canonical'
+    | 'code'
+    | 'date'
+    | 'dateTime'
+    | 'decimal'
+    | 'id'
+    | 'instant'
+    | 'integer'
+    | 'markdown'
+    | 'oid'
+    | 'positiveInt'
+    | 'string'
+    | 'time'
+    | 'unsignedInt'
+    | 'uri'
+    | 'url'
+    | 'uuid'
+    | 'xhtml'
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
   response?:
     | 'okay'
     | 'created'
@@ -10729,7 +13881,7 @@ export interface TestScriptSetupActionAssert extends BackboneElement {
   sourceId?: string
   validateProfileId?: string
   value?: string
-  warningOnly?: boolean
+  warningOnly: boolean
 }
 
 export interface TestScriptSetupActionOperation extends BackboneElement {
@@ -10737,7 +13889,7 @@ export interface TestScriptSetupActionOperation extends BackboneElement {
   contentType?: string
   description?: string
   destination?: number
-  encodeRequestUrl?: boolean
+  encodeRequestUrl: boolean
   extension?: Extension[]
   id?: string
   label?: string
@@ -10747,7 +13899,218 @@ export interface TestScriptSetupActionOperation extends BackboneElement {
   params?: string
   requestHeader?: TestScriptSetupActionOperationRequestHeader[]
   requestId?: string
-  resource?: string
+  resource?:
+    | 'Address'
+    | 'Age'
+    | 'Annotation'
+    | 'Attachment'
+    | 'BackboneElement'
+    | 'CodeableConcept'
+    | 'Coding'
+    | 'ContactDetail'
+    | 'ContactPoint'
+    | 'Contributor'
+    | 'Count'
+    | 'DataRequirement'
+    | 'Distance'
+    | 'Dosage'
+    | 'Duration'
+    | 'Element'
+    | 'ElementDefinition'
+    | 'Expression'
+    | 'Extension'
+    | 'HumanName'
+    | 'Identifier'
+    | 'MarketingStatus'
+    | 'Meta'
+    | 'Money'
+    | 'MoneyQuantity'
+    | 'Narrative'
+    | 'ParameterDefinition'
+    | 'Period'
+    | 'Population'
+    | 'ProdCharacteristic'
+    | 'ProductShelfLife'
+    | 'Quantity'
+    | 'Range'
+    | 'Ratio'
+    | 'Reference'
+    | 'RelatedArtifact'
+    | 'SampledData'
+    | 'Signature'
+    | 'SimpleQuantity'
+    | 'SubstanceAmount'
+    | 'Timing'
+    | 'TriggerDefinition'
+    | 'UsageContext'
+    | 'base64Binary'
+    | 'boolean'
+    | 'canonical'
+    | 'code'
+    | 'date'
+    | 'dateTime'
+    | 'decimal'
+    | 'id'
+    | 'instant'
+    | 'integer'
+    | 'markdown'
+    | 'oid'
+    | 'positiveInt'
+    | 'string'
+    | 'time'
+    | 'unsignedInt'
+    | 'uri'
+    | 'url'
+    | 'uuid'
+    | 'xhtml'
+    | 'Account'
+    | 'ActivityDefinition'
+    | 'AdverseEvent'
+    | 'AllergyIntolerance'
+    | 'Appointment'
+    | 'AppointmentResponse'
+    | 'AuditEvent'
+    | 'Basic'
+    | 'Binary'
+    | 'BiologicallyDerivedProduct'
+    | 'BodyStructure'
+    | 'Bundle'
+    | 'CapabilityStatement'
+    | 'CarePlan'
+    | 'CareTeam'
+    | 'CatalogEntry'
+    | 'ChargeItem'
+    | 'ChargeItemDefinition'
+    | 'Claim'
+    | 'ClaimResponse'
+    | 'ClinicalImpression'
+    | 'CodeSystem'
+    | 'Communication'
+    | 'CommunicationRequest'
+    | 'CompartmentDefinition'
+    | 'Composition'
+    | 'ConceptMap'
+    | 'Condition'
+    | 'Consent'
+    | 'Contract'
+    | 'Coverage'
+    | 'CoverageEligibilityRequest'
+    | 'CoverageEligibilityResponse'
+    | 'DetectedIssue'
+    | 'Device'
+    | 'DeviceDefinition'
+    | 'DeviceMetric'
+    | 'DeviceRequest'
+    | 'DeviceUseStatement'
+    | 'DiagnosticReport'
+    | 'DocumentManifest'
+    | 'DocumentReference'
+    | 'DomainResource'
+    | 'EffectEvidenceSynthesis'
+    | 'Encounter'
+    | 'Endpoint'
+    | 'EnrollmentRequest'
+    | 'EnrollmentResponse'
+    | 'EpisodeOfCare'
+    | 'EventDefinition'
+    | 'Evidence'
+    | 'EvidenceVariable'
+    | 'ExampleScenario'
+    | 'ExplanationOfBenefit'
+    | 'FamilyMemberHistory'
+    | 'Flag'
+    | 'Goal'
+    | 'GraphDefinition'
+    | 'Group'
+    | 'GuidanceResponse'
+    | 'HealthcareService'
+    | 'ImagingStudy'
+    | 'Immunization'
+    | 'ImmunizationEvaluation'
+    | 'ImmunizationRecommendation'
+    | 'ImplementationGuide'
+    | 'InsurancePlan'
+    | 'Invoice'
+    | 'Library'
+    | 'Linkage'
+    | 'List'
+    | 'Location'
+    | 'Measure'
+    | 'MeasureReport'
+    | 'Media'
+    | 'Medication'
+    | 'MedicationAdministration'
+    | 'MedicationDispense'
+    | 'MedicationKnowledge'
+    | 'MedicationRequest'
+    | 'MedicationStatement'
+    | 'MedicinalProduct'
+    | 'MedicinalProductAuthorization'
+    | 'MedicinalProductContraindication'
+    | 'MedicinalProductIndication'
+    | 'MedicinalProductIngredient'
+    | 'MedicinalProductInteraction'
+    | 'MedicinalProductManufactured'
+    | 'MedicinalProductPackaged'
+    | 'MedicinalProductPharmaceutical'
+    | 'MedicinalProductUndesirableEffect'
+    | 'MessageDefinition'
+    | 'MessageHeader'
+    | 'MolecularSequence'
+    | 'NamingSystem'
+    | 'NutritionOrder'
+    | 'Observation'
+    | 'ObservationDefinition'
+    | 'OperationDefinition'
+    | 'OperationOutcome'
+    | 'Organization'
+    | 'OrganizationAffiliation'
+    | 'Parameters'
+    | 'Patient'
+    | 'PaymentNotice'
+    | 'PaymentReconciliation'
+    | 'Person'
+    | 'PlanDefinition'
+    | 'Practitioner'
+    | 'PractitionerRole'
+    | 'Procedure'
+    | 'Provenance'
+    | 'Questionnaire'
+    | 'QuestionnaireResponse'
+    | 'RelatedPerson'
+    | 'RequestGroup'
+    | 'ResearchDefinition'
+    | 'ResearchElementDefinition'
+    | 'ResearchStudy'
+    | 'ResearchSubject'
+    | 'Resource'
+    | 'RiskAssessment'
+    | 'RiskEvidenceSynthesis'
+    | 'Schedule'
+    | 'SearchParameter'
+    | 'ServiceRequest'
+    | 'Slot'
+    | 'Specimen'
+    | 'SpecimenDefinition'
+    | 'StructureDefinition'
+    | 'StructureMap'
+    | 'Subscription'
+    | 'Substance'
+    | 'SubstanceNucleicAcid'
+    | 'SubstancePolymer'
+    | 'SubstanceProtein'
+    | 'SubstanceReferenceInformation'
+    | 'SubstanceSourceMaterial'
+    | 'SubstanceSpecification'
+    | 'SupplyDelivery'
+    | 'SupplyRequest'
+    | 'Task'
+    | 'TerminologyCapabilities'
+    | 'TestReport'
+    | 'TestScript'
+    | 'ValueSet'
+    | 'VerificationResult'
+    | 'VisionPrescription'
   responseId?: string
   sourceId?: string
   targetId?: string
@@ -10757,14 +14120,14 @@ export interface TestScriptSetupActionOperation extends BackboneElement {
 
 export interface TestScriptSetupActionOperationRequestHeader extends BackboneElement {
   extension?: Extension[]
-  field?: string
+  field: string
   id?: string
   modifierExtension?: Extension[]
-  value?: string
+  value: string
 }
 
 export interface TestScriptTeardown extends BackboneElement {
-  action?: TestScriptTeardownAction[]
+  action: TestScriptTeardownAction[]
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
@@ -10774,11 +14137,11 @@ export interface TestScriptTeardownAction extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  operation?: TestScriptSetupActionOperation
+  operation: TestScriptSetupActionOperation
 }
 
 export interface TestScriptTest extends BackboneElement {
-  action?: TestScriptTestAction[]
+  action: TestScriptTestAction[]
   description?: string
   extension?: Extension[]
   id?: string
@@ -10803,7 +14166,7 @@ export interface TestScriptVariable extends BackboneElement {
   hint?: string
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   path?: string
   sourceId?: string
 }
@@ -10830,7 +14193,7 @@ export interface ValueSet extends DomainResource {
   name?: string
   publisher?: string
   purpose?: string
-  status?: 'draft' | 'active' | 'retired' | 'unknown'
+  status: 'draft' | 'active' | 'retired' | 'unknown'
   text?: Narrative
   title?: string
   url?: string
@@ -10843,7 +14206,7 @@ export interface ValueSetCompose extends BackboneElement {
   extension?: Extension[]
   id?: string
   inactive?: boolean
-  include?: ValueSetComposeInclude[]
+  include: ValueSetComposeInclude[]
   lockedDate?: string
   modifierExtension?: Extension[]
 }
@@ -10860,7 +14223,7 @@ export interface ValueSetComposeInclude extends BackboneElement {
 }
 
 export interface ValueSetComposeIncludeConcept extends BackboneElement {
-  code?: string
+  code: string
   designation?: ValueSetComposeIncludeConceptDesignation[]
   display?: string
   extension?: Extension[]
@@ -10874,16 +14237,16 @@ export interface ValueSetComposeIncludeConceptDesignation extends BackboneElemen
   language?: string
   modifierExtension?: Extension[]
   use?: Coding
-  value?: string
+  value: string
 }
 
 export interface ValueSetComposeIncludeFilter extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  op?: '=' | 'is-a' | 'descendent-of' | 'is-not-a' | 'regex' | 'in' | 'not-in' | 'generalizes' | 'exists'
-  property?: string
-  value?: string
+  op: '=' | 'is-a' | 'descendent-of' | 'is-not-a' | 'regex' | 'in' | 'not-in' | 'generalizes' | 'exists'
+  property: string
+  value: string
 }
 
 export interface ValueSetExpansion extends BackboneElement {
@@ -10894,7 +14257,7 @@ export interface ValueSetExpansion extends BackboneElement {
   modifierExtension?: Extension[]
   offset?: number
   parameter?: ValueSetExpansionParameter[]
-  timestamp?: string
+  timestamp: string
   total?: number
 }
 
@@ -10916,7 +14279,7 @@ export interface ValueSetExpansionParameter extends BackboneElement {
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
-  name?: string
+  name: string
   valueString?: string
   valueBoolean?: boolean
   valueInteger?: number
@@ -10942,7 +14305,7 @@ export interface VerificationResult extends DomainResource {
   need?: CodeableConcept
   nextScheduled?: string
   primarySource?: VerificationResultPrimarySource[]
-  status?: 'attested' | 'validated' | 'in-process' | 'req-revalid' | 'val-fail' | 'reval-fail'
+  status: 'attested' | 'validated' | 'in-process' | 'req-revalid' | 'val-fail' | 'reval-fail'
   statusDate?: string
   target?: Reference[]
   targetLocation?: string[]
@@ -10985,26 +14348,26 @@ export interface VerificationResultValidator extends BackboneElement {
   id?: string
   identityCertificate?: string
   modifierExtension?: Extension[]
-  organization?: Reference
+  organization: Reference
 }
 
 export interface VisionPrescription extends DomainResource {
   resourceType: 'VisionPrescription'
   contained?: FhirResource[]
-  created?: string
-  dateWritten?: string
+  created: string
+  dateWritten: string
   encounter?: Reference
   extension?: Extension[]
   id?: string
   identifier?: Identifier[]
   implicitRules?: string
   language?: string
-  lensSpecification?: VisionPrescriptionLensSpecification[]
+  lensSpecification: VisionPrescriptionLensSpecification[]
   meta?: Meta
   modifierExtension?: Extension[]
-  patient?: Reference
-  prescriber?: Reference
-  status?: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
+  patient: Reference
+  prescriber: Reference
+  status: 'active' | 'cancelled' | 'draft' | 'entered-in-error'
   text?: Narrative
 }
 
@@ -11018,25 +14381,30 @@ export interface VisionPrescriptionLensSpecification extends BackboneElement {
   diameter?: number
   duration?: Quantity
   extension?: Extension[]
-  eye?: 'right' | 'left'
+  eye: 'right' | 'left'
   id?: string
   modifierExtension?: Extension[]
   note?: Annotation[]
   power?: number
   prism?: VisionPrescriptionLensSpecificationPrism[]
-  product?: CodeableConcept
+  product: CodeableConcept
   sphere?: number
 }
 
 export interface VisionPrescriptionLensSpecificationPrism extends BackboneElement {
-  amount?: number
-  base?: 'up' | 'down' | 'in' | 'out'
+  amount: number
+  base: 'up' | 'down' | 'in' | 'out'
   extension?: Extension[]
   id?: string
   modifierExtension?: Extension[]
 }
 
-/** Element map for type-level path inference: name -> { t: type-name(s), a: array }. */
+/**
+ * Element map for type-level path inference: name -> { t: type-name(s), a: array,
+ * codes?: the codes of a required binding }. `codes` is the union the interface
+ * carries, so a navigated `code` infers it; an extensible binding admits other
+ * codes, so it has none here and infers string.
+ */
 export interface R4Elements {
   Address: {
     city: { t: 'string'; a: false }
@@ -11049,12 +14417,12 @@ export interface R4Elements {
     postalCode: { t: 'string'; a: false }
     state: { t: 'string'; a: false }
     text: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
-    use: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'postal' | 'physical' | 'both' }
+    use: { t: 'code'; a: false; codes: 'home' | 'work' | 'temp' | 'old' | 'billing' }
   }
   Age: {
     code: { t: 'code'; a: false }
-    comparator: { t: 'code'; a: false }
+    comparator: { t: 'code'; a: false; codes: '<' | '<=' | '>=' | '>' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     system: { t: 'uri'; a: false }
@@ -11111,8 +14479,8 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     period: { t: 'Period'; a: false }
     rank: { t: 'positiveInt'; a: false }
-    system: { t: 'code'; a: false }
-    use: { t: 'code'; a: false }
+    system: { t: 'code'; a: false; codes: 'phone' | 'fax' | 'email' | 'pager' | 'url' | 'sms' | 'other' }
+    use: { t: 'code'; a: false; codes: 'home' | 'work' | 'temp' | 'old' | 'mobile' }
     value: { t: 'string'; a: false }
   }
   Contributor: {
@@ -11120,11 +14488,11 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     name: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'author' | 'editor' | 'reviewer' | 'endorser' }
   }
   Count: {
     code: { t: 'code'; a: false }
-    comparator: { t: 'code'; a: false }
+    comparator: { t: 'code'; a: false; codes: '<' | '<=' | '>=' | '>' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     system: { t: 'uri'; a: false }
@@ -11141,7 +14509,224 @@ export interface R4Elements {
     profile: { t: 'canonical'; a: true }
     sort: { t: 'DataRequirement.sort'; a: true }
     subject: { t: 'CodeableConcept' | 'Reference'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Address'
+        | 'Age'
+        | 'Annotation'
+        | 'Attachment'
+        | 'BackboneElement'
+        | 'CodeableConcept'
+        | 'Coding'
+        | 'ContactDetail'
+        | 'ContactPoint'
+        | 'Contributor'
+        | 'Count'
+        | 'DataRequirement'
+        | 'Distance'
+        | 'Dosage'
+        | 'Duration'
+        | 'Element'
+        | 'ElementDefinition'
+        | 'Expression'
+        | 'Extension'
+        | 'HumanName'
+        | 'Identifier'
+        | 'MarketingStatus'
+        | 'Meta'
+        | 'Money'
+        | 'MoneyQuantity'
+        | 'Narrative'
+        | 'ParameterDefinition'
+        | 'Period'
+        | 'Population'
+        | 'ProdCharacteristic'
+        | 'ProductShelfLife'
+        | 'Quantity'
+        | 'Range'
+        | 'Ratio'
+        | 'Reference'
+        | 'RelatedArtifact'
+        | 'SampledData'
+        | 'Signature'
+        | 'SimpleQuantity'
+        | 'SubstanceAmount'
+        | 'Timing'
+        | 'TriggerDefinition'
+        | 'UsageContext'
+        | 'base64Binary'
+        | 'boolean'
+        | 'canonical'
+        | 'code'
+        | 'date'
+        | 'dateTime'
+        | 'decimal'
+        | 'id'
+        | 'instant'
+        | 'integer'
+        | 'markdown'
+        | 'oid'
+        | 'positiveInt'
+        | 'string'
+        | 'time'
+        | 'unsignedInt'
+        | 'uri'
+        | 'url'
+        | 'uuid'
+        | 'xhtml'
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+        | 'Type'
+        | 'Any'
+    }
   }
   'DataRequirement.codeFilter': {
     code: { t: 'Coding'; a: true }
@@ -11159,14 +14744,14 @@ export interface R4Elements {
     value: { t: 'dateTime' | 'Period' | 'Duration'; a: false }
   }
   'DataRequirement.sort': {
-    direction: { t: 'code'; a: false }
+    direction: { t: 'code'; a: false; codes: 'ascending' | 'descending' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     path: { t: 'string'; a: false }
   }
   Distance: {
     code: { t: 'code'; a: false }
-    comparator: { t: 'code'; a: false }
+    comparator: { t: 'code'; a: false; codes: '<' | '<=' | '>=' | '>' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     system: { t: 'uri'; a: false }
@@ -11200,7 +14785,7 @@ export interface R4Elements {
   }
   Duration: {
     code: { t: 'code'; a: false }
-    comparator: { t: 'code'; a: false }
+    comparator: { t: 'code'; a: false; codes: '<' | '<=' | '>=' | '>' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     system: { t: 'uri'; a: false }
@@ -11407,7 +14992,7 @@ export interface R4Elements {
         | 'Meta'
       a: false
     }
-    representation: { t: 'code'; a: true }
+    representation: { t: 'code'; a: true; codes: 'xmlAttr' | 'xmlText' | 'typeAttr' | 'cdaText' | 'xhtml' }
     requirements: { t: 'markdown'; a: false }
     short: { t: 'string'; a: false }
     sliceIsConstraining: { t: 'boolean'; a: false }
@@ -11426,7 +15011,7 @@ export interface R4Elements {
     description: { t: 'string'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    strength: { t: 'code'; a: false }
+    strength: { t: 'code'; a: false; codes: 'required' | 'extensible' | 'preferred' | 'example' }
     valueSet: { t: 'canonical'; a: false }
   }
   'ElementDefinition.constraint': {
@@ -11436,7 +15021,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     key: { t: 'id'; a: false }
     requirements: { t: 'string'; a: false }
-    severity: { t: 'code'; a: false }
+    severity: { t: 'code'; a: false; codes: 'error' | 'warning' }
     source: { t: 'canonical'; a: false }
     xpath: { t: 'string'; a: false }
   }
@@ -11513,22 +15098,22 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     ordered: { t: 'boolean'; a: false }
-    rules: { t: 'code'; a: false }
+    rules: { t: 'code'; a: false; codes: 'closed' | 'open' | 'openAtEnd' }
   }
   'ElementDefinition.slicing.discriminator': {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     path: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'value' | 'exists' | 'pattern' | 'type' | 'profile' }
   }
   'ElementDefinition.type': {
-    aggregation: { t: 'code'; a: true }
+    aggregation: { t: 'code'; a: true; codes: 'contained' | 'referenced' | 'bundled' }
     code: { t: 'uri'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     profile: { t: 'canonical'; a: true }
     targetProfile: { t: 'canonical'; a: true }
-    versioning: { t: 'code'; a: false }
+    versioning: { t: 'code'; a: false; codes: 'either' | 'independent' | 'specific' }
   }
   Expression: {
     description: { t: 'string'; a: false }
@@ -11607,7 +15192,7 @@ export interface R4Elements {
     prefix: { t: 'string'; a: true }
     suffix: { t: 'string'; a: true }
     text: { t: 'string'; a: false }
-    use: { t: 'code'; a: false }
+    use: { t: 'code'; a: false; codes: 'usual' | 'official' | 'temp' | 'nickname' | 'anonymous' | 'old' | 'maiden' }
   }
   Identifier: {
     assigner: { t: 'Reference'; a: false }
@@ -11616,7 +15201,7 @@ export interface R4Elements {
     period: { t: 'Period'; a: false }
     system: { t: 'uri'; a: false }
     type: { t: 'CodeableConcept'; a: false }
-    use: { t: 'code'; a: false }
+    use: { t: 'code'; a: false; codes: 'usual' | 'official' | 'temp' | 'secondary' | 'old' }
     value: { t: 'string'; a: false }
   }
   MarketingStatus: {
@@ -11647,7 +15232,190 @@ export interface R4Elements {
     versionId: { t: 'id'; a: false }
   }
   Money: {
-    currency: { t: 'code'; a: false }
+    currency: {
+      t: 'code'
+      a: false
+      codes:
+        | 'AFN'
+        | 'EUR'
+        | 'ALL'
+        | 'DZD'
+        | 'USD'
+        | 'AOA'
+        | 'XCD'
+        | 'ARS'
+        | 'AMD'
+        | 'AWG'
+        | 'AUD'
+        | 'AZN'
+        | 'BSD'
+        | 'BHD'
+        | 'BDT'
+        | 'BBD'
+        | 'BYN'
+        | 'BZD'
+        | 'XOF'
+        | 'BMD'
+        | 'INR'
+        | 'BTN'
+        | 'BOB'
+        | 'BOV'
+        | 'BAM'
+        | 'BWP'
+        | 'NOK'
+        | 'BRL'
+        | 'BND'
+        | 'BGN'
+        | 'BIF'
+        | 'CVE'
+        | 'KHR'
+        | 'XAF'
+        | 'CAD'
+        | 'KYD'
+        | 'CLP'
+        | 'CLF'
+        | 'CNY'
+        | 'COP'
+        | 'COU'
+        | 'KMF'
+        | 'CDF'
+        | 'NZD'
+        | 'CRC'
+        | 'CUP'
+        | 'CUC'
+        | 'ANG'
+        | 'CZK'
+        | 'DKK'
+        | 'DJF'
+        | 'DOP'
+        | 'EGP'
+        | 'SVC'
+        | 'ERN'
+        | 'SZL'
+        | 'ETB'
+        | 'FKP'
+        | 'FJD'
+        | 'XPF'
+        | 'GMD'
+        | 'GEL'
+        | 'GHS'
+        | 'GIP'
+        | 'GTQ'
+        | 'GBP'
+        | 'GNF'
+        | 'GYD'
+        | 'HTG'
+        | 'HNL'
+        | 'HKD'
+        | 'HUF'
+        | 'ISK'
+        | 'IDR'
+        | 'XDR'
+        | 'IRR'
+        | 'IQD'
+        | 'ILS'
+        | 'JMD'
+        | 'JPY'
+        | 'JOD'
+        | 'KZT'
+        | 'KES'
+        | 'KPW'
+        | 'KRW'
+        | 'KWD'
+        | 'KGS'
+        | 'LAK'
+        | 'LBP'
+        | 'LSL'
+        | 'ZAR'
+        | 'LRD'
+        | 'LYD'
+        | 'CHF'
+        | 'MOP'
+        | 'MKD'
+        | 'MGA'
+        | 'MWK'
+        | 'MYR'
+        | 'MVR'
+        | 'MRU'
+        | 'MUR'
+        | 'XUA'
+        | 'MXN'
+        | 'MXV'
+        | 'MDL'
+        | 'MNT'
+        | 'MAD'
+        | 'MZN'
+        | 'MMK'
+        | 'NAD'
+        | 'NPR'
+        | 'NIO'
+        | 'NGN'
+        | 'OMR'
+        | 'PKR'
+        | 'PAB'
+        | 'PGK'
+        | 'PYG'
+        | 'PEN'
+        | 'PHP'
+        | 'PLN'
+        | 'QAR'
+        | 'RON'
+        | 'RUB'
+        | 'RWF'
+        | 'SHP'
+        | 'WST'
+        | 'STN'
+        | 'SAR'
+        | 'RSD'
+        | 'SCR'
+        | 'SLE'
+        | 'SGD'
+        | 'XSU'
+        | 'SBD'
+        | 'SOS'
+        | 'SSP'
+        | 'LKR'
+        | 'SDG'
+        | 'SRD'
+        | 'SEK'
+        | 'CHE'
+        | 'CHW'
+        | 'SYP'
+        | 'TWD'
+        | 'TJS'
+        | 'TZS'
+        | 'THB'
+        | 'TOP'
+        | 'TTD'
+        | 'TND'
+        | 'TRY'
+        | 'TMT'
+        | 'UGX'
+        | 'UAH'
+        | 'AED'
+        | 'USN'
+        | 'UYU'
+        | 'UYI'
+        | 'UYW'
+        | 'UZS'
+        | 'VUV'
+        | 'VES'
+        | 'VED'
+        | 'VND'
+        | 'YER'
+        | 'ZMW'
+        | 'ZWG'
+        | 'XBA'
+        | 'XBB'
+        | 'XBC'
+        | 'XBD'
+        | 'XTS'
+        | 'XXX'
+        | 'XAU'
+        | 'XPD'
+        | 'XPT'
+        | 'XAG'
+    }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     value: { t: 'decimal'; a: false }
@@ -11657,7 +15425,7 @@ export interface R4Elements {
     div: { t: 'xhtml'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'generated' | 'extensions' | 'additional' | 'empty' }
   }
   ParameterDefinition: {
     documentation: { t: 'string'; a: false }
@@ -11667,8 +15435,225 @@ export interface R4Elements {
     min: { t: 'integer'; a: false }
     name: { t: 'code'; a: false }
     profile: { t: 'canonical'; a: false }
-    type: { t: 'code'; a: false }
-    use: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Address'
+        | 'Age'
+        | 'Annotation'
+        | 'Attachment'
+        | 'BackboneElement'
+        | 'CodeableConcept'
+        | 'Coding'
+        | 'ContactDetail'
+        | 'ContactPoint'
+        | 'Contributor'
+        | 'Count'
+        | 'DataRequirement'
+        | 'Distance'
+        | 'Dosage'
+        | 'Duration'
+        | 'Element'
+        | 'ElementDefinition'
+        | 'Expression'
+        | 'Extension'
+        | 'HumanName'
+        | 'Identifier'
+        | 'MarketingStatus'
+        | 'Meta'
+        | 'Money'
+        | 'MoneyQuantity'
+        | 'Narrative'
+        | 'ParameterDefinition'
+        | 'Period'
+        | 'Population'
+        | 'ProdCharacteristic'
+        | 'ProductShelfLife'
+        | 'Quantity'
+        | 'Range'
+        | 'Ratio'
+        | 'Reference'
+        | 'RelatedArtifact'
+        | 'SampledData'
+        | 'Signature'
+        | 'SimpleQuantity'
+        | 'SubstanceAmount'
+        | 'Timing'
+        | 'TriggerDefinition'
+        | 'UsageContext'
+        | 'base64Binary'
+        | 'boolean'
+        | 'canonical'
+        | 'code'
+        | 'date'
+        | 'dateTime'
+        | 'decimal'
+        | 'id'
+        | 'instant'
+        | 'integer'
+        | 'markdown'
+        | 'oid'
+        | 'positiveInt'
+        | 'string'
+        | 'time'
+        | 'unsignedInt'
+        | 'uri'
+        | 'url'
+        | 'uuid'
+        | 'xhtml'
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+        | 'Type'
+        | 'Any'
+    }
+    use: { t: 'code'; a: false; codes: 'in' | 'out' }
   }
   Period: {
     end: { t: 'dateTime'; a: false }
@@ -11712,7 +15697,7 @@ export interface R4Elements {
   }
   Quantity: {
     code: { t: 'code'; a: false }
-    comparator: { t: 'code'; a: false }
+    comparator: { t: 'code'; a: false; codes: '<' | '<=' | '>=' | '>' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     system: { t: 'uri'; a: false }
@@ -11747,7 +15732,19 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     label: { t: 'string'; a: false }
     resource: { t: 'canonical'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        | 'documentation'
+        | 'justification'
+        | 'citation'
+        | 'predecessor'
+        | 'successor'
+        | 'derived-from'
+        | 'depends-on'
+        | 'composed-of'
+    }
     url: { t: 'url'; a: false }
   }
   SampledData: {
@@ -11800,10 +15797,10 @@ export interface R4Elements {
     bounds: { t: 'Duration' | 'Range' | 'Period'; a: false }
     count: { t: 'positiveInt'; a: false }
     countMax: { t: 'positiveInt'; a: false }
-    dayOfWeek: { t: 'code'; a: true }
+    dayOfWeek: { t: 'code'; a: true; codes: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun' }
     duration: { t: 'decimal'; a: false }
     durationMax: { t: 'decimal'; a: false }
-    durationUnit: { t: 'code'; a: false }
+    durationUnit: { t: 'code'; a: false; codes: 's' | 'min' | 'h' | 'd' | 'wk' | 'mo' | 'a' }
     extension: { t: 'Extension'; a: true }
     frequency: { t: 'positiveInt'; a: false }
     frequencyMax: { t: 'positiveInt'; a: false }
@@ -11811,9 +15808,39 @@ export interface R4Elements {
     offset: { t: 'unsignedInt'; a: false }
     period: { t: 'decimal'; a: false }
     periodMax: { t: 'decimal'; a: false }
-    periodUnit: { t: 'code'; a: false }
+    periodUnit: { t: 'code'; a: false; codes: 's' | 'min' | 'h' | 'd' | 'wk' | 'mo' | 'a' }
     timeOfDay: { t: 'time'; a: true }
-    when: { t: 'code'; a: true }
+    when: {
+      t: 'code'
+      a: true
+      codes:
+        | 'MORN'
+        | 'MORN.early'
+        | 'MORN.late'
+        | 'NOON'
+        | 'AFT'
+        | 'AFT.early'
+        | 'AFT.late'
+        | 'EVE'
+        | 'EVE.early'
+        | 'EVE.late'
+        | 'NIGHT'
+        | 'PHS'
+        | 'HS'
+        | 'WAKE'
+        | 'C'
+        | 'CM'
+        | 'CD'
+        | 'CV'
+        | 'AC'
+        | 'ACM'
+        | 'ACD'
+        | 'ACV'
+        | 'PC'
+        | 'PCM'
+        | 'PCD'
+        | 'PCV'
+    }
   }
   TriggerDefinition: {
     condition: { t: 'Expression'; a: false }
@@ -11822,7 +15849,19 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     name: { t: 'string'; a: false }
     timing: { t: 'Timing' | 'Reference' | 'date' | 'dateTime'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        | 'named-event'
+        | 'periodic'
+        | 'data-changed'
+        | 'data-added'
+        | 'data-modified'
+        | 'data-removed'
+        | 'data-accessed'
+        | 'data-access-ended'
+    }
   }
   UsageContext: {
     code: { t: 'Coding'; a: false }
@@ -11946,7 +15985,7 @@ export interface R4Elements {
     owner: { t: 'Reference'; a: false }
     partOf: { t: 'Reference'; a: false }
     servicePeriod: { t: 'Period'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'inactive' | 'entered-in-error' | 'on-hold' | 'unknown' }
     subject: { t: 'Reference'; a: true }
     text: { t: 'Narrative'; a: false }
     type: { t: 'CodeableConcept'; a: false }
@@ -11987,9 +16026,41 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     identifier: { t: 'Identifier'; a: true }
     implicitRules: { t: 'uri'; a: false }
-    intent: { t: 'code'; a: false }
+    intent: {
+      t: 'code'
+      a: false
+      codes:
+        | 'proposal'
+        | 'plan'
+        | 'directive'
+        | 'order'
+        | 'original-order'
+        | 'reflex-order'
+        | 'filler-order'
+        | 'instance-order'
+        | 'option'
+    }
     jurisdiction: { t: 'CodeableConcept'; a: true }
-    kind: { t: 'code'; a: false }
+    kind: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'CarePlan'
+        | 'Claim'
+        | 'CommunicationRequest'
+        | 'Contract'
+        | 'DeviceRequest'
+        | 'EnrollmentRequest'
+        | 'ImmunizationRecommendation'
+        | 'MedicationRequest'
+        | 'NutritionOrder'
+        | 'ServiceRequest'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'VisionPrescription'
+    }
     language: { t: 'code'; a: false }
     lastReviewDate: { t: 'date'; a: false }
     library: { t: 'canonical'; a: true }
@@ -12000,7 +16071,7 @@ export interface R4Elements {
     observationRequirement: { t: 'Reference'; a: true }
     observationResultRequirement: { t: 'Reference'; a: true }
     participant: { t: 'ActivityDefinition.participant'; a: true }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     product: { t: 'Reference' | 'CodeableConcept'; a: false }
     profile: { t: 'canonical'; a: false }
     publisher: { t: 'string'; a: false }
@@ -12009,7 +16080,7 @@ export interface R4Elements {
     relatedArtifact: { t: 'RelatedArtifact'; a: true }
     reviewer: { t: 'ContactDetail'; a: true }
     specimenRequirement: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     subject: { t: 'CodeableConcept' | 'Reference'; a: false }
     subtitle: { t: 'string'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -12034,10 +16105,10 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     role: { t: 'CodeableConcept'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'patient' | 'practitioner' | 'related-person' | 'device' }
   }
   AdverseEvent: {
-    actuality: { t: 'code'; a: false }
+    actuality: { t: 'code'; a: false; codes: 'actual' | 'potential' }
     category: { t: 'CodeableConcept'; a: true }
     contained: { t: 'Resource'; a: true }
     contributor: { t: 'Reference'; a: true }
@@ -12084,11 +16155,11 @@ export interface R4Elements {
   }
   AllergyIntolerance: {
     asserter: { t: 'Reference'; a: false }
-    category: { t: 'code'; a: true }
+    category: { t: 'code'; a: true; codes: 'food' | 'medication' | 'environment' | 'biologic' }
     clinicalStatus: { t: 'CodeableConcept'; a: false }
     code: { t: 'CodeableConcept'; a: false }
     contained: { t: 'Resource'; a: true }
-    criticality: { t: 'code'; a: false }
+    criticality: { t: 'code'; a: false; codes: 'low' | 'high' | 'unable-to-assess' }
     encounter: { t: 'Reference'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
@@ -12105,7 +16176,7 @@ export interface R4Elements {
     recordedDate: { t: 'dateTime'; a: false }
     recorder: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'allergy' | 'intolerance' }
     verificationStatus: { t: 'CodeableConcept'; a: false }
   }
   'AllergyIntolerance.reaction': {
@@ -12117,7 +16188,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     note: { t: 'Annotation'; a: true }
     onset: { t: 'dateTime'; a: false }
-    severity: { t: 'code'; a: false }
+    severity: { t: 'code'; a: false; codes: 'mild' | 'moderate' | 'severe' }
     substance: { t: 'CodeableConcept'; a: false }
   }
   Appointment: {
@@ -12148,7 +16219,21 @@ export interface R4Elements {
     slot: { t: 'Reference'; a: true }
     specialty: { t: 'CodeableConcept'; a: true }
     start: { t: 'instant'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'proposed'
+        | 'pending'
+        | 'booked'
+        | 'arrived'
+        | 'fulfilled'
+        | 'cancelled'
+        | 'noshow'
+        | 'entered-in-error'
+        | 'checked-in'
+        | 'waitlist'
+    }
     supportingInformation: { t: 'Reference'; a: true }
     text: { t: 'Narrative'; a: false }
   }
@@ -12158,8 +16243,8 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     period: { t: 'Period'; a: false }
-    required: { t: 'code'; a: false }
-    status: { t: 'code'; a: false }
+    required: { t: 'code'; a: false; codes: 'required' | 'optional' | 'information-only' }
+    status: { t: 'code'; a: false; codes: 'accepted' | 'declined' | 'tentative' | 'needs-action' }
     type: { t: 'CodeableConcept'; a: true }
   }
   AppointmentResponse: {
@@ -12175,13 +16260,13 @@ export interface R4Elements {
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    participantStatus: { t: 'code'; a: false }
+    participantStatus: { t: 'code'; a: false; codes: 'accepted' | 'declined' | 'tentative' | 'needs-action' }
     participantType: { t: 'CodeableConcept'; a: true }
     start: { t: 'instant'; a: false }
     text: { t: 'Narrative'; a: false }
   }
   AuditEvent: {
-    action: { t: 'code'; a: false }
+    action: { t: 'code'; a: false; codes: 'C' | 'R' | 'U' | 'D' | 'E' }
     agent: { t: 'AuditEvent.agent'; a: true }
     contained: { t: 'Resource'; a: true }
     entity: { t: 'AuditEvent.entity'; a: true }
@@ -12191,7 +16276,7 @@ export interface R4Elements {
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    outcome: { t: 'code'; a: false }
+    outcome: { t: 'code'; a: false; codes: '0' | '4' | '8' | '12' }
     outcomeDesc: { t: 'string'; a: false }
     period: { t: 'Period'; a: false }
     purposeOfEvent: { t: 'CodeableConcept'; a: true }
@@ -12222,7 +16307,7 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: '1' | '2' | '3' | '4' | '5' }
   }
   'AuditEvent.entity': {
     description: { t: 'string'; a: false }
@@ -12291,11 +16376,11 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     parent: { t: 'Reference'; a: true }
     processing: { t: 'BiologicallyDerivedProduct.processing'; a: true }
-    productCategory: { t: 'code'; a: false }
+    productCategory: { t: 'code'; a: false; codes: 'organ' | 'tissue' | 'fluid' | 'cells' | 'biologicalAgent' }
     productCode: { t: 'CodeableConcept'; a: false }
     quantity: { t: 'integer'; a: false }
     request: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'available' | 'unavailable' }
     storage: { t: 'BiologicallyDerivedProduct.storage'; a: true }
     text: { t: 'Narrative'; a: false }
   }
@@ -12329,7 +16414,7 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    scale: { t: 'code'; a: false }
+    scale: { t: 'code'; a: false; codes: 'farenheit' | 'celsius' | 'kelvin' }
     temperature: { t: 'decimal'; a: false }
   }
   BodyStructure: {
@@ -12361,7 +16446,20 @@ export interface R4Elements {
     signature: { t: 'Signature'; a: false }
     timestamp: { t: 'instant'; a: false }
     total: { t: 'unsignedInt'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        | 'document'
+        | 'message'
+        | 'transaction'
+        | 'transaction-response'
+        | 'batch'
+        | 'batch-response'
+        | 'history'
+        | 'searchset'
+        | 'collection'
+    }
   }
   'Bundle.entry': {
     extension: { t: 'Extension'; a: true }
@@ -12381,7 +16479,7 @@ export interface R4Elements {
     ifModifiedSince: { t: 'instant'; a: false }
     ifNoneExist: { t: 'string'; a: false }
     ifNoneMatch: { t: 'string'; a: false }
-    method: { t: 'code'; a: false }
+    method: { t: 'code'; a: false; codes: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' }
     modifierExtension: { t: 'Extension'; a: true }
     url: { t: 'uri'; a: false }
   }
@@ -12398,7 +16496,7 @@ export interface R4Elements {
   'Bundle.entry.search': {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'match' | 'include' | 'outcome' }
     modifierExtension: { t: 'Extension'; a: true }
     score: { t: 'decimal'; a: false }
   }
@@ -12418,7 +16516,33 @@ export interface R4Elements {
     document: { t: 'CapabilityStatement.document'; a: true }
     experimental: { t: 'boolean'; a: false }
     extension: { t: 'Extension'; a: true }
-    fhirVersion: { t: 'code'; a: false }
+    fhirVersion: {
+      t: 'code'
+      a: false
+      codes:
+        | '0.01'
+        | '0.05'
+        | '0.06'
+        | '0.11'
+        | '0.0.80'
+        | '0.0.81'
+        | '0.0.82'
+        | '0.4.0'
+        | '0.5.0'
+        | '1.0.0'
+        | '1.0.1'
+        | '1.0.2'
+        | '1.1.0'
+        | '1.4.0'
+        | '1.6.0'
+        | '1.8.0'
+        | '3.0.0'
+        | '3.0.1'
+        | '3.3.0'
+        | '3.5.0'
+        | '4.0.0'
+        | '4.0.1'
+    }
     format: { t: 'code'; a: true }
     id: { t: 'System.String'; a: false }
     implementation: { t: 'CapabilityStatement.implementation'; a: false }
@@ -12427,7 +16551,7 @@ export interface R4Elements {
     imports: { t: 'canonical'; a: true }
     instantiates: { t: 'canonical'; a: true }
     jurisdiction: { t: 'CodeableConcept'; a: true }
-    kind: { t: 'code'; a: false }
+    kind: { t: 'code'; a: false; codes: 'instance' | 'capability' | 'requirements' }
     language: { t: 'code'; a: false }
     messaging: { t: 'CapabilityStatement.messaging'; a: true }
     meta: { t: 'Meta'; a: false }
@@ -12438,7 +16562,7 @@ export interface R4Elements {
     purpose: { t: 'markdown'; a: false }
     rest: { t: 'CapabilityStatement.rest'; a: true }
     software: { t: 'CapabilityStatement.software'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
     url: { t: 'uri'; a: false }
@@ -12449,7 +16573,7 @@ export interface R4Elements {
     documentation: { t: 'markdown'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'producer' | 'consumer' }
     modifierExtension: { t: 'Extension'; a: true }
     profile: { t: 'canonical'; a: false }
   }
@@ -12481,7 +16605,7 @@ export interface R4Elements {
     definition: { t: 'canonical'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'sender' | 'receiver' }
     modifierExtension: { t: 'Extension'; a: true }
   }
   'CapabilityStatement.rest': {
@@ -12490,7 +16614,7 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     interaction: { t: 'CapabilityStatement.rest.interaction'; a: true }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'client' | 'server' }
     modifierExtension: { t: 'Extension'; a: true }
     operation: { t: 'CapabilityStatement.rest.resource.operation'; a: true }
     resource: { t: 'CapabilityStatement.rest.resource'; a: true }
@@ -12498,7 +16622,7 @@ export interface R4Elements {
     security: { t: 'CapabilityStatement.rest.security'; a: false }
   }
   'CapabilityStatement.rest.interaction': {
-    code: { t: 'code'; a: false }
+    code: { t: 'code'; a: false; codes: 'transaction' | 'batch' | 'search-system' | 'history-system' }
     documentation: { t: 'markdown'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
@@ -12506,8 +16630,8 @@ export interface R4Elements {
   }
   'CapabilityStatement.rest.resource': {
     conditionalCreate: { t: 'boolean'; a: false }
-    conditionalDelete: { t: 'code'; a: false }
-    conditionalRead: { t: 'code'; a: false }
+    conditionalDelete: { t: 'code'; a: false; codes: 'not-supported' | 'single' | 'multiple' }
+    conditionalRead: { t: 'code'; a: false; codes: 'not-supported' | 'modified-since' | 'not-match' | 'full-support' }
     conditionalUpdate: { t: 'boolean'; a: false }
     documentation: { t: 'markdown'; a: false }
     extension: { t: 'Extension'; a: true }
@@ -12517,17 +16641,182 @@ export interface R4Elements {
     operation: { t: 'CapabilityStatement.rest.resource.operation'; a: true }
     profile: { t: 'canonical'; a: false }
     readHistory: { t: 'boolean'; a: false }
-    referencePolicy: { t: 'code'; a: true }
+    referencePolicy: { t: 'code'; a: true; codes: 'literal' | 'logical' | 'resolves' | 'enforced' | 'local' }
     searchInclude: { t: 'string'; a: true }
     searchParam: { t: 'CapabilityStatement.rest.resource.searchParam'; a: true }
     searchRevInclude: { t: 'string'; a: true }
     supportedProfile: { t: 'canonical'; a: true }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
     updateCreate: { t: 'boolean'; a: false }
-    versioning: { t: 'code'; a: false }
+    versioning: { t: 'code'; a: false; codes: 'no-version' | 'versioned' | 'versioned-update' }
   }
   'CapabilityStatement.rest.resource.interaction': {
-    code: { t: 'code'; a: false }
+    code: {
+      t: 'code'
+      a: false
+      codes:
+        | 'read'
+        | 'vread'
+        | 'update'
+        | 'patch'
+        | 'delete'
+        | 'history-instance'
+        | 'history-type'
+        | 'create'
+        | 'search-type'
+    }
     documentation: { t: 'markdown'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
@@ -12548,7 +16837,11 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes: 'number' | 'date' | 'string' | 'token' | 'reference' | 'composite' | 'quantity' | 'uri' | 'special'
+    }
   }
   'CapabilityStatement.rest.security': {
     cors: { t: 'boolean'; a: false }
@@ -12585,7 +16878,7 @@ export interface R4Elements {
     implicitRules: { t: 'uri'; a: false }
     instantiatesCanonical: { t: 'canonical'; a: true }
     instantiatesUri: { t: 'uri'; a: true }
-    intent: { t: 'code'; a: false }
+    intent: { t: 'code'; a: false; codes: 'proposal' | 'plan' | 'order' | 'option' }
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -12593,7 +16886,11 @@ export interface R4Elements {
     partOf: { t: 'Reference'; a: true }
     period: { t: 'Period'; a: false }
     replaces: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+    }
     subject: { t: 'Reference'; a: false }
     supportingInfo: { t: 'Reference'; a: true }
     text: { t: 'Narrative'; a: false }
@@ -12619,7 +16916,19 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     instantiatesCanonical: { t: 'canonical'; a: true }
     instantiatesUri: { t: 'uri'; a: true }
-    kind: { t: 'code'; a: false }
+    kind: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Appointment'
+        | 'CommunicationRequest'
+        | 'DeviceRequest'
+        | 'MedicationRequest'
+        | 'NutritionOrder'
+        | 'Task'
+        | 'ServiceRequest'
+        | 'VisionPrescription'
+    }
     location: { t: 'Reference'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     performer: { t: 'Reference'; a: true }
@@ -12628,7 +16937,20 @@ export interface R4Elements {
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
     scheduled: { t: 'Timing' | 'Period' | 'string'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'not-started'
+        | 'scheduled'
+        | 'in-progress'
+        | 'on-hold'
+        | 'completed'
+        | 'cancelled'
+        | 'stopped'
+        | 'unknown'
+        | 'entered-in-error'
+    }
     statusReason: { t: 'CodeableConcept'; a: false }
   }
   CareTeam: {
@@ -12649,7 +16971,7 @@ export interface R4Elements {
     period: { t: 'Period'; a: false }
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'proposed' | 'active' | 'suspended' | 'inactive' | 'entered-in-error' }
     subject: { t: 'Reference'; a: false }
     telecom: { t: 'ContactPoint'; a: true }
     text: { t: 'Narrative'; a: false }
@@ -12680,7 +17002,7 @@ export interface R4Elements {
     orderable: { t: 'boolean'; a: false }
     referencedItem: { t: 'Reference'; a: false }
     relatedEntry: { t: 'CatalogEntry.relatedEntry'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     type: { t: 'CodeableConcept'; a: false }
     validTo: { t: 'dateTime'; a: false }
@@ -12691,7 +17013,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     item: { t: 'Reference'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    relationtype: { t: 'code'; a: false }
+    relationtype: { t: 'code'; a: false; codes: 'triggers' | 'is-replaced-by' }
   }
   ChargeItem: {
     account: { t: 'Reference'; a: true }
@@ -12724,7 +17046,11 @@ export interface R4Elements {
     reason: { t: 'CodeableConcept'; a: true }
     requestingOrganization: { t: 'Reference'; a: false }
     service: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'planned' | 'billable' | 'not-billable' | 'aborted' | 'billed' | 'entered-in-error' | 'unknown'
+    }
     subject: { t: 'Reference'; a: false }
     supportingInformation: { t: 'Reference'; a: true }
     text: { t: 'Narrative'; a: false }
@@ -12762,7 +17088,7 @@ export interface R4Elements {
     propertyGroup: { t: 'ChargeItemDefinition.propertyGroup'; a: true }
     publisher: { t: 'string'; a: false }
     replaces: { t: 'canonical'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
     url: { t: 'uri'; a: false }
@@ -12791,7 +17117,7 @@ export interface R4Elements {
     factor: { t: 'decimal'; a: false }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'base' | 'surcharge' | 'deduction' | 'discount' | 'tax' | 'informational' }
   }
   Claim: {
     accident: { t: 'Claim.accident'; a: false }
@@ -12822,13 +17148,13 @@ export interface R4Elements {
     provider: { t: 'Reference'; a: false }
     referral: { t: 'Reference'; a: false }
     related: { t: 'Claim.related'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     subType: { t: 'CodeableConcept'; a: false }
     supportingInfo: { t: 'Claim.supportingInfo'; a: true }
     text: { t: 'Narrative'; a: false }
     total: { t: 'Money'; a: false }
     type: { t: 'CodeableConcept'; a: false }
-    use: { t: 'code'; a: false }
+    use: { t: 'code'; a: false; codes: 'claim' | 'preauthorization' | 'predetermination' }
   }
   'Claim.accident': {
     date: { t: 'date'; a: false }
@@ -12986,7 +17312,7 @@ export interface R4Elements {
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    outcome: { t: 'code'; a: false }
+    outcome: { t: 'code'; a: false; codes: 'queued' | 'complete' | 'error' | 'partial' }
     patient: { t: 'Reference'; a: false }
     payeeType: { t: 'CodeableConcept'; a: false }
     payment: { t: 'ClaimResponse.payment'; a: false }
@@ -12995,12 +17321,12 @@ export interface R4Elements {
     processNote: { t: 'ClaimResponse.processNote'; a: true }
     request: { t: 'Reference'; a: false }
     requestor: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     subType: { t: 'CodeableConcept'; a: false }
     text: { t: 'Narrative'; a: false }
     total: { t: 'ClaimResponse.total'; a: true }
     type: { t: 'CodeableConcept'; a: false }
-    use: { t: 'code'; a: false }
+    use: { t: 'code'; a: false; codes: 'claim' | 'preauthorization' | 'predetermination' }
   }
   'ClaimResponse.addItem': {
     adjudication: { t: 'ClaimResponse.item.adjudication'; a: true }
@@ -13124,7 +17450,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     number: { t: 'positiveInt'; a: false }
     text: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'display' | 'print' | 'printoper' }
   }
   'ClaimResponse.total': {
     amount: { t: 'Money'; a: false }
@@ -13156,7 +17482,7 @@ export interface R4Elements {
     prognosisCodeableConcept: { t: 'CodeableConcept'; a: true }
     prognosisReference: { t: 'Reference'; a: true }
     protocol: { t: 'uri'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'in-progress' | 'completed' | 'entered-in-error' }
     statusReason: { t: 'CodeableConcept'; a: false }
     subject: { t: 'Reference'; a: false }
     summary: { t: 'string'; a: false }
@@ -13184,7 +17510,7 @@ export interface R4Elements {
     concept: { t: 'CodeSystem.concept'; a: true }
     contact: { t: 'ContactDetail'; a: true }
     contained: { t: 'Resource'; a: true }
-    content: { t: 'code'; a: false }
+    content: { t: 'code'; a: false; codes: 'not-present' | 'example' | 'fragment' | 'complete' | 'supplement' }
     copyright: { t: 'markdown'; a: false }
     count: { t: 'unsignedInt'; a: false }
     date: { t: 'dateTime'; a: false }
@@ -13192,7 +17518,7 @@ export interface R4Elements {
     experimental: { t: 'boolean'; a: false }
     extension: { t: 'Extension'; a: true }
     filter: { t: 'CodeSystem.filter'; a: true }
-    hierarchyMeaning: { t: 'code'; a: false }
+    hierarchyMeaning: { t: 'code'; a: false; codes: 'grouped-by' | 'is-a' | 'part-of' | 'classified-with' }
     id: { t: 'System.String'; a: false }
     identifier: { t: 'Identifier'; a: true }
     implicitRules: { t: 'uri'; a: false }
@@ -13204,7 +17530,7 @@ export interface R4Elements {
     property: { t: 'CodeSystem.property'; a: true }
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     supplements: { t: 'canonical'; a: false }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
@@ -13246,7 +17572,11 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    operator: { t: 'code'; a: true }
+    operator: {
+      t: 'code'
+      a: true
+      codes: '=' | 'is-a' | 'descendent-of' | 'is-not-a' | 'regex' | 'in' | 'not-in' | 'generalizes' | 'exists'
+    }
     value: { t: 'string'; a: false }
   }
   'CodeSystem.property': {
@@ -13255,7 +17585,7 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'code' | 'Coding' | 'string' | 'integer' | 'boolean' | 'dateTime' | 'decimal' }
     uri: { t: 'uri'; a: false }
   }
   Communication: {
@@ -13278,14 +17608,26 @@ export interface R4Elements {
     note: { t: 'Annotation'; a: true }
     partOf: { t: 'Reference'; a: true }
     payload: { t: 'Communication.payload'; a: true }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
     received: { t: 'dateTime'; a: false }
     recipient: { t: 'Reference'; a: true }
     sender: { t: 'Reference'; a: false }
     sent: { t: 'dateTime'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'preparation'
+        | 'in-progress'
+        | 'not-done'
+        | 'on-hold'
+        | 'stopped'
+        | 'completed'
+        | 'entered-in-error'
+        | 'unknown'
+    }
     statusReason: { t: 'CodeableConcept'; a: false }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -13317,14 +17659,18 @@ export interface R4Elements {
     note: { t: 'Annotation'; a: true }
     occurrence: { t: 'dateTime' | 'Period'; a: false }
     payload: { t: 'CommunicationRequest.payload'; a: true }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
     recipient: { t: 'Reference'; a: true }
     replaces: { t: 'Reference'; a: true }
     requester: { t: 'Reference'; a: false }
     sender: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+    }
     statusReason: { t: 'CodeableConcept'; a: false }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -13336,7 +17682,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
   }
   CompartmentDefinition: {
-    code: { t: 'code'; a: false }
+    code: { t: 'code'; a: false; codes: 'Patient' | 'Encounter' | 'RelatedPerson' | 'Practitioner' | 'Device' }
     contact: { t: 'ContactDetail'; a: true }
     contained: { t: 'Resource'; a: true }
     date: { t: 'dateTime'; a: false }
@@ -13353,14 +17699,166 @@ export interface R4Elements {
     purpose: { t: 'markdown'; a: false }
     resource: { t: 'CompartmentDefinition.resource'; a: true }
     search: { t: 'boolean'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     url: { t: 'uri'; a: false }
     useContext: { t: 'UsageContext'; a: true }
     version: { t: 'string'; a: false }
   }
   'CompartmentDefinition.resource': {
-    code: { t: 'code'; a: false }
+    code: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
     documentation: { t: 'string'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
@@ -13386,7 +17884,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     relatesTo: { t: 'Composition.relatesTo'; a: true }
     section: { t: 'Composition.section'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'preliminary' | 'final' | 'amended' | 'entered-in-error' }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
@@ -13395,7 +17893,7 @@ export interface R4Elements {
   'Composition.attester': {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'personal' | 'professional' | 'legal' | 'official' }
     modifierExtension: { t: 'Extension'; a: true }
     party: { t: 'Reference'; a: false }
     time: { t: 'dateTime'; a: false }
@@ -13409,7 +17907,7 @@ export interface R4Elements {
     period: { t: 'Period'; a: false }
   }
   'Composition.relatesTo': {
-    code: { t: 'code'; a: false }
+    code: { t: 'code'; a: false; codes: 'replaces' | 'transforms' | 'signs' | 'appends' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -13423,7 +17921,7 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     focus: { t: 'Reference'; a: false }
     id: { t: 'System.String'; a: false }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'working' | 'snapshot' | 'changes' }
     modifierExtension: { t: 'Extension'; a: true }
     orderedBy: { t: 'CodeableConcept'; a: false }
     section: { t: 'Composition.section'; a: true }
@@ -13450,7 +17948,7 @@ export interface R4Elements {
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
     source: { t: 'uri' | 'canonical'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     target: { t: 'uri' | 'canonical'; a: false }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
@@ -13482,7 +17980,21 @@ export interface R4Elements {
     comment: { t: 'string'; a: false }
     dependsOn: { t: 'ConceptMap.group.element.target.dependsOn'; a: true }
     display: { t: 'string'; a: false }
-    equivalence: { t: 'code'; a: false }
+    equivalence: {
+      t: 'code'
+      a: false
+      codes:
+        | 'relatedto'
+        | 'equivalent'
+        | 'equal'
+        | 'wider'
+        | 'subsumes'
+        | 'narrower'
+        | 'specializes'
+        | 'inexact'
+        | 'unmatched'
+        | 'disjoint'
+    }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -13502,7 +18014,7 @@ export interface R4Elements {
     display: { t: 'string'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'provided' | 'fixed' | 'other-map' }
     modifierExtension: { t: 'Extension'; a: true }
     url: { t: 'canonical'; a: false }
   }
@@ -13567,7 +18079,11 @@ export interface R4Elements {
     provision: { t: 'Consent.provision'; a: false }
     scope: { t: 'CodeableConcept'; a: false }
     source: { t: 'Attachment' | 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'draft' | 'proposed' | 'active' | 'rejected' | 'inactive' | 'entered-in-error'
+    }
     text: { t: 'Narrative'; a: false }
     verification: { t: 'Consent.verification'; a: true }
   }
@@ -13592,7 +18108,7 @@ export interface R4Elements {
     provision: { t: 'Consent.provision'; a: true }
     purpose: { t: 'Coding'; a: true }
     securityLabel: { t: 'Coding'; a: true }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'deny' | 'permit' }
   }
   'Consent.provision.actor': {
     extension: { t: 'Extension'; a: true }
@@ -13604,7 +18120,7 @@ export interface R4Elements {
   'Consent.provision.data': {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    meaning: { t: 'code'; a: false }
+    meaning: { t: 'code'; a: false; codes: 'instance' | 'related' | 'dependents' | 'authoredby' }
     modifierExtension: { t: 'Extension'; a: true }
     reference: { t: 'Reference'; a: false }
   }
@@ -13646,7 +18162,26 @@ export interface R4Elements {
     scope: { t: 'CodeableConcept'; a: false }
     signer: { t: 'Contract.signer'; a: true }
     site: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'amended'
+        | 'appended'
+        | 'cancelled'
+        | 'disputed'
+        | 'entered-in-error'
+        | 'executable'
+        | 'executed'
+        | 'negotiable'
+        | 'offered'
+        | 'policy'
+        | 'rejected'
+        | 'renewed'
+        | 'revoked'
+        | 'resolved'
+        | 'terminated'
+    }
     subType: { t: 'CodeableConcept'; a: true }
     subject: { t: 'Reference'; a: true }
     subtitle: { t: 'string'; a: false }
@@ -13665,7 +18200,26 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     publicationDate: { t: 'dateTime'; a: false }
-    publicationStatus: { t: 'code'; a: false }
+    publicationStatus: {
+      t: 'code'
+      a: false
+      codes:
+        | 'amended'
+        | 'appended'
+        | 'cancelled'
+        | 'disputed'
+        | 'entered-in-error'
+        | 'executable'
+        | 'executed'
+        | 'negotiable'
+        | 'offered'
+        | 'policy'
+        | 'rejected'
+        | 'renewed'
+        | 'revoked'
+        | 'resolved'
+        | 'terminated'
+    }
     publisher: { t: 'Reference'; a: false }
     subType: { t: 'CodeableConcept'; a: false }
     type: { t: 'CodeableConcept'; a: false }
@@ -13865,7 +18419,7 @@ export interface R4Elements {
     period: { t: 'Period'; a: false }
     policyHolder: { t: 'Reference'; a: false }
     relationship: { t: 'CodeableConcept'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     subrogation: { t: 'boolean'; a: false }
     subscriber: { t: 'Reference'; a: false }
     subscriberId: { t: 'string'; a: false }
@@ -13913,9 +18467,9 @@ export interface R4Elements {
     patient: { t: 'Reference'; a: false }
     priority: { t: 'CodeableConcept'; a: false }
     provider: { t: 'Reference'; a: false }
-    purpose: { t: 'code'; a: true }
+    purpose: { t: 'code'; a: true; codes: 'auth-requirements' | 'benefits' | 'discovery' | 'validation' }
     serviced: { t: 'date' | 'Period'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     supportingInfo: { t: 'CoverageEligibilityRequest.supportingInfo'; a: true }
     text: { t: 'Narrative'; a: false }
   }
@@ -13971,14 +18525,14 @@ export interface R4Elements {
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    outcome: { t: 'code'; a: false }
+    outcome: { t: 'code'; a: false; codes: 'queued' | 'complete' | 'error' | 'partial' }
     patient: { t: 'Reference'; a: false }
     preAuthRef: { t: 'string'; a: false }
-    purpose: { t: 'code'; a: true }
+    purpose: { t: 'code'; a: true; codes: 'auth-requirements' | 'benefits' | 'discovery' | 'validation' }
     request: { t: 'Reference'; a: false }
     requestor: { t: 'Reference'; a: false }
     serviced: { t: 'date' | 'Period'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     text: { t: 'Narrative'; a: false }
   }
   'CoverageEligibilityResponse.error': {
@@ -14041,8 +18595,8 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     patient: { t: 'Reference'; a: false }
     reference: { t: 'uri'; a: false }
-    severity: { t: 'code'; a: false }
-    status: { t: 'code'; a: false }
+    severity: { t: 'code'; a: false; codes: 'high' | 'moderate' | 'low' }
+    status: { t: 'code'; a: false; codes: 'preliminary' | 'final' | 'entered-in-error' | 'mitigated' }
     text: { t: 'Narrative'; a: false }
   }
   'DetectedIssue.evidence': {
@@ -14088,7 +18642,7 @@ export interface R4Elements {
     safety: { t: 'CodeableConcept'; a: true }
     serialNumber: { t: 'string'; a: false }
     specialization: { t: 'Device.specialization'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'inactive' | 'entered-in-error' | 'unknown' }
     statusReason: { t: 'CodeableConcept'; a: true }
     text: { t: 'Narrative'; a: false }
     type: { t: 'CodeableConcept'; a: false }
@@ -14101,7 +18655,12 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        'udi-label-name' | 'user-friendly-name' | 'patient-reported-name' | 'manufacturer-name' | 'model-name' | 'other'
+    }
   }
   'Device.property': {
     extension: { t: 'Extension'; a: true }
@@ -14122,7 +18681,7 @@ export interface R4Elements {
     carrierAIDC: { t: 'base64Binary'; a: false }
     carrierHRF: { t: 'string'; a: false }
     deviceIdentifier: { t: 'string'; a: false }
-    entryType: { t: 'code'; a: false }
+    entryType: { t: 'code'; a: false; codes: 'barcode' | 'rfid' | 'manual' | 'card' | 'self-reported' | 'unknown' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     issuer: { t: 'uri'; a: false }
@@ -14190,7 +18749,12 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        'udi-label-name' | 'user-friendly-name' | 'patient-reported-name' | 'manufacturer-name' | 'model-name' | 'other'
+    }
   }
   'DeviceDefinition.material': {
     allergenicIndicator: { t: 'boolean'; a: false }
@@ -14225,8 +18789,8 @@ export interface R4Elements {
   }
   DeviceMetric: {
     calibration: { t: 'DeviceMetric.calibration'; a: true }
-    category: { t: 'code'; a: false }
-    color: { t: 'code'; a: false }
+    category: { t: 'code'; a: false; codes: 'measurement' | 'setting' | 'calculation' | 'unspecified' }
+    color: { t: 'code'; a: false; codes: 'black' | 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'white' }
     contained: { t: 'Resource'; a: true }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
@@ -14236,7 +18800,7 @@ export interface R4Elements {
     measurementPeriod: { t: 'Timing'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    operationalStatus: { t: 'code'; a: false }
+    operationalStatus: { t: 'code'; a: false; codes: 'on' | 'off' | 'standby' | 'entered-in-error' }
     parent: { t: 'Reference'; a: false }
     source: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -14247,9 +18811,9 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    state: { t: 'code'; a: false }
+    state: { t: 'code'; a: false; codes: 'not-calibrated' | 'calibration-required' | 'calibrated' | 'unspecified' }
     time: { t: 'instant'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'unspecified' | 'offset' | 'gain' | 'two-point' }
   }
   DeviceRequest: {
     authoredOn: { t: 'dateTime'; a: false }
@@ -14265,7 +18829,20 @@ export interface R4Elements {
     instantiatesCanonical: { t: 'canonical'; a: true }
     instantiatesUri: { t: 'uri'; a: true }
     insurance: { t: 'Reference'; a: true }
-    intent: { t: 'code'; a: false }
+    intent: {
+      t: 'code'
+      a: false
+      codes:
+        | 'proposal'
+        | 'plan'
+        | 'directive'
+        | 'order'
+        | 'original-order'
+        | 'reflex-order'
+        | 'filler-order'
+        | 'instance-order'
+        | 'option'
+    }
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -14275,12 +18852,16 @@ export interface R4Elements {
     performer: { t: 'Reference'; a: false }
     performerType: { t: 'CodeableConcept'; a: false }
     priorRequest: { t: 'Reference'; a: true }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
     relevantHistory: { t: 'Reference'; a: true }
     requester: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+    }
     subject: { t: 'Reference'; a: false }
     supportingInfo: { t: 'Reference'; a: true }
     text: { t: 'Narrative'; a: false }
@@ -14310,7 +18891,11 @@ export interface R4Elements {
     reasonReference: { t: 'Reference'; a: true }
     recordedOn: { t: 'dateTime'; a: false }
     source: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'active' | 'completed' | 'entered-in-error' | 'intended' | 'stopped' | 'on-hold'
+    }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
     timing: { t: 'Timing' | 'Period' | 'dateTime'; a: false }
@@ -14339,7 +18924,21 @@ export interface R4Elements {
     result: { t: 'Reference'; a: true }
     resultsInterpreter: { t: 'Reference'; a: true }
     specimen: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'registered'
+        | 'partial'
+        | 'preliminary'
+        | 'final'
+        | 'amended'
+        | 'corrected'
+        | 'appended'
+        | 'cancelled'
+        | 'entered-in-error'
+        | 'unknown'
+    }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
   }
@@ -14367,7 +18966,7 @@ export interface R4Elements {
     recipient: { t: 'Reference'; a: true }
     related: { t: 'DocumentManifest.related'; a: true }
     source: { t: 'uri'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'current' | 'superseded' | 'entered-in-error' }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
     type: { t: 'CodeableConcept'; a: false }
@@ -14389,7 +18988,7 @@ export interface R4Elements {
     custodian: { t: 'Reference'; a: false }
     date: { t: 'instant'; a: false }
     description: { t: 'string'; a: false }
-    docStatus: { t: 'code'; a: false }
+    docStatus: { t: 'code'; a: false; codes: 'preliminary' | 'final' | 'amended' | 'entered-in-error' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     identifier: { t: 'Identifier'; a: true }
@@ -14400,7 +18999,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     relatesTo: { t: 'DocumentReference.relatesTo'; a: true }
     securityLabel: { t: 'CodeableConcept'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'current' | 'superseded' | 'entered-in-error' }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
     type: { t: 'CodeableConcept'; a: false }
@@ -14425,7 +19024,7 @@ export interface R4Elements {
     sourcePatientInfo: { t: 'Reference'; a: false }
   }
   'DocumentReference.relatesTo': {
-    code: { t: 'code'; a: false }
+    code: { t: 'code'; a: false; codes: 'replaces' | 'transforms' | 'signs' | 'appends' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -14474,7 +19073,7 @@ export interface R4Elements {
     resultsByExposure: { t: 'EffectEvidenceSynthesis.resultsByExposure'; a: true }
     reviewer: { t: 'ContactDetail'; a: true }
     sampleSize: { t: 'EffectEvidenceSynthesis.sampleSize'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     studyType: { t: 'CodeableConcept'; a: false }
     synthesisType: { t: 'CodeableConcept'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -14522,7 +19121,7 @@ export interface R4Elements {
   }
   'EffectEvidenceSynthesis.resultsByExposure': {
     description: { t: 'string'; a: false }
-    exposureState: { t: 'code'; a: false }
+    exposureState: { t: 'code'; a: false; codes: 'exposure' | 'exposure-alternative' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -14564,7 +19163,20 @@ export interface R4Elements {
     reasonReference: { t: 'Reference'; a: true }
     serviceProvider: { t: 'Reference'; a: false }
     serviceType: { t: 'CodeableConcept'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'planned'
+        | 'arrived'
+        | 'triaged'
+        | 'in-progress'
+        | 'onleave'
+        | 'finished'
+        | 'cancelled'
+        | 'entered-in-error'
+        | 'unknown'
+    }
     statusHistory: { t: 'Encounter.statusHistory'; a: true }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -14606,7 +19218,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     period: { t: 'Period'; a: false }
     physicalType: { t: 'CodeableConcept'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'planned' | 'active' | 'reserved' | 'completed' }
   }
   'Encounter.participant': {
     extension: { t: 'Extension'; a: true }
@@ -14621,7 +19233,20 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     period: { t: 'Period'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'planned'
+        | 'arrived'
+        | 'triaged'
+        | 'in-progress'
+        | 'onleave'
+        | 'finished'
+        | 'cancelled'
+        | 'entered-in-error'
+        | 'unknown'
+    }
   }
   Endpoint: {
     address: { t: 'url'; a: false }
@@ -14641,7 +19266,7 @@ export interface R4Elements {
     payloadMimeType: { t: 'code'; a: true }
     payloadType: { t: 'CodeableConcept'; a: true }
     period: { t: 'Period'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'suspended' | 'error' | 'off' | 'entered-in-error' | 'test' }
     text: { t: 'Narrative'; a: false }
   }
   EnrollmentRequest: {
@@ -14658,7 +19283,7 @@ export interface R4Elements {
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     provider: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     text: { t: 'Narrative'; a: false }
   }
   EnrollmentResponse: {
@@ -14673,10 +19298,10 @@ export interface R4Elements {
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     organization: { t: 'Reference'; a: false }
-    outcome: { t: 'code'; a: false }
+    outcome: { t: 'code'; a: false; codes: 'queued' | 'complete' | 'error' | 'partial' }
     request: { t: 'Reference'; a: false }
     requestProvider: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     text: { t: 'Narrative'; a: false }
   }
   EpisodeOfCare: {
@@ -14695,7 +19320,11 @@ export interface R4Elements {
     patient: { t: 'Reference'; a: false }
     period: { t: 'Period'; a: false }
     referralRequest: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'planned' | 'waitlist' | 'active' | 'onhold' | 'finished' | 'cancelled' | 'entered-in-error'
+    }
     statusHistory: { t: 'EpisodeOfCare.statusHistory'; a: true }
     team: { t: 'Reference'; a: true }
     text: { t: 'Narrative'; a: false }
@@ -14714,7 +19343,11 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     period: { t: 'Period'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'planned' | 'waitlist' | 'active' | 'onhold' | 'finished' | 'cancelled' | 'entered-in-error'
+    }
   }
   EventDefinition: {
     approvalDate: { t: 'date'; a: false }
@@ -14742,7 +19375,7 @@ export interface R4Elements {
     purpose: { t: 'markdown'; a: false }
     relatedArtifact: { t: 'RelatedArtifact'; a: true }
     reviewer: { t: 'ContactDetail'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     subject: { t: 'CodeableConcept' | 'Reference'; a: false }
     subtitle: { t: 'string'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -14783,7 +19416,7 @@ export interface R4Elements {
     relatedArtifact: { t: 'RelatedArtifact'; a: true }
     reviewer: { t: 'ContactDetail'; a: true }
     shortTitle: { t: 'string'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     subtitle: { t: 'string'; a: false }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
@@ -14819,12 +19452,12 @@ export interface R4Elements {
     relatedArtifact: { t: 'RelatedArtifact'; a: true }
     reviewer: { t: 'ContactDetail'; a: true }
     shortTitle: { t: 'string'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     subtitle: { t: 'string'; a: false }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
     topic: { t: 'CodeableConcept'; a: true }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'dichotomous' | 'continuous' | 'descriptive' }
     url: { t: 'uri'; a: false }
     useContext: { t: 'UsageContext'; a: true }
     version: { t: 'string'; a: false }
@@ -14896,7 +19529,7 @@ export interface R4Elements {
     process: { t: 'ExampleScenario.process'; a: true }
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     url: { t: 'uri'; a: false }
     useContext: { t: 'UsageContext'; a: true }
@@ -14910,7 +19543,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'person' | 'entity' }
   }
   'ExampleScenario.instance': {
     containedInstance: { t: 'ExampleScenario.instance.containedInstance'; a: true }
@@ -14920,7 +19553,159 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
     resourceId: { t: 'string'; a: false }
-    resourceType: { t: 'code'; a: false }
+    resourceType: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
     version: { t: 'ExampleScenario.instance.version'; a: true }
   }
   'ExampleScenario.instance.containedInstance': {
@@ -15010,7 +19795,7 @@ export interface R4Elements {
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     originalPrescription: { t: 'Reference'; a: false }
-    outcome: { t: 'code'; a: false }
+    outcome: { t: 'code'; a: false; codes: 'queued' | 'complete' | 'error' | 'partial' }
     patient: { t: 'Reference'; a: false }
     payee: { t: 'ExplanationOfBenefit.payee'; a: false }
     payment: { t: 'ExplanationOfBenefit.payment'; a: false }
@@ -15024,13 +19809,13 @@ export interface R4Elements {
     provider: { t: 'Reference'; a: false }
     referral: { t: 'Reference'; a: false }
     related: { t: 'ExplanationOfBenefit.related'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     subType: { t: 'CodeableConcept'; a: false }
     supportingInfo: { t: 'ExplanationOfBenefit.supportingInfo'; a: true }
     text: { t: 'Narrative'; a: false }
     total: { t: 'ExplanationOfBenefit.total'; a: true }
     type: { t: 'CodeableConcept'; a: false }
-    use: { t: 'code'; a: false }
+    use: { t: 'code'; a: false; codes: 'claim' | 'preauthorization' | 'predetermination' }
   }
   'ExplanationOfBenefit.accident': {
     date: { t: 'date'; a: false }
@@ -15248,7 +20033,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     number: { t: 'positiveInt'; a: false }
     text: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'display' | 'print' | 'printoper' }
   }
   'ExplanationOfBenefit.related': {
     claim: { t: 'Reference'; a: false }
@@ -15301,7 +20086,7 @@ export interface R4Elements {
     reasonReference: { t: 'Reference'; a: true }
     relationship: { t: 'CodeableConcept'; a: false }
     sex: { t: 'CodeableConcept'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'partial' | 'completed' | 'entered-in-error' | 'health-unknown' }
     text: { t: 'Narrative'; a: false }
   }
   'FamilyMemberHistory.condition': {
@@ -15328,7 +20113,7 @@ export interface R4Elements {
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     period: { t: 'Period'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'inactive' | 'entered-in-error' }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
   }
@@ -15344,7 +20129,20 @@ export interface R4Elements {
     identifier: { t: 'Identifier'; a: true }
     implicitRules: { t: 'uri'; a: false }
     language: { t: 'code'; a: false }
-    lifecycleStatus: { t: 'code'; a: false }
+    lifecycleStatus: {
+      t: 'code'
+      a: false
+      codes:
+        | 'proposed'
+        | 'planned'
+        | 'accepted'
+        | 'active'
+        | 'on-hold'
+        | 'completed'
+        | 'cancelled'
+        | 'entered-in-error'
+        | 'rejected'
+    }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     note: { t: 'Annotation'; a: true }
@@ -15384,8 +20182,160 @@ export interface R4Elements {
     profile: { t: 'canonical'; a: false }
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
-    start: { t: 'code'; a: false }
-    status: { t: 'code'; a: false }
+    start: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     url: { t: 'uri'; a: false }
     useContext: { t: 'UsageContext'; a: true }
@@ -15410,17 +20360,169 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     params: { t: 'string'; a: false }
     profile: { t: 'canonical'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
   }
   'GraphDefinition.link.target.compartment': {
-    code: { t: 'code'; a: false }
+    code: { t: 'code'; a: false; codes: 'Patient' | 'Encounter' | 'RelatedPerson' | 'Practitioner' | 'Device' }
     description: { t: 'string'; a: false }
     expression: { t: 'string'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    rule: { t: 'code'; a: false }
-    use: { t: 'code'; a: false }
+    rule: { t: 'code'; a: false; codes: 'identical' | 'matching' | 'different' | 'custom' }
+    use: { t: 'code'; a: false; codes: 'condition' | 'requirement' }
   }
   Group: {
     active: { t: 'boolean'; a: false }
@@ -15440,7 +20542,7 @@ export interface R4Elements {
     name: { t: 'string'; a: false }
     quantity: { t: 'unsignedInt'; a: false }
     text: { t: 'Narrative'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'person' | 'animal' | 'practitioner' | 'device' | 'medication' | 'substance' }
   }
   'Group.characteristic': {
     code: { t: 'CodeableConcept'; a: false }
@@ -15480,7 +20582,11 @@ export interface R4Elements {
     reasonReference: { t: 'Reference'; a: true }
     requestIdentifier: { t: 'Identifier'; a: false }
     result: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'success' | 'data-requested' | 'data-required' | 'in-progress' | 'failure' | 'entered-in-error'
+    }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
   }
@@ -15523,7 +20629,7 @@ export interface R4Elements {
     allDay: { t: 'boolean'; a: false }
     availableEndTime: { t: 'time'; a: false }
     availableStartTime: { t: 'time'; a: false }
-    daysOfWeek: { t: 'code'; a: true }
+    daysOfWeek: { t: 'code'; a: true; codes: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -15568,7 +20674,7 @@ export interface R4Elements {
     referrer: { t: 'Reference'; a: false }
     series: { t: 'ImagingStudy.series'; a: true }
     started: { t: 'dateTime'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'registered' | 'available' | 'cancelled' | 'entered-in-error' | 'unknown' }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
   }
@@ -15637,7 +20743,7 @@ export interface R4Elements {
     reportOrigin: { t: 'CodeableConcept'; a: false }
     route: { t: 'CodeableConcept'; a: false }
     site: { t: 'CodeableConcept'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'completed' | 'entered-in-error' | 'not-done' }
     statusReason: { t: 'CodeableConcept'; a: false }
     subpotentReason: { t: 'CodeableConcept'; a: true }
     text: { t: 'Narrative'; a: false }
@@ -15696,7 +20802,7 @@ export interface R4Elements {
     patient: { t: 'Reference'; a: false }
     series: { t: 'string'; a: false }
     seriesDoses: { t: 'positiveInt' | 'string'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'completed' | 'entered-in-error' }
     targetDisease: { t: 'CodeableConcept'; a: false }
     text: { t: 'Narrative'; a: false }
   }
@@ -15749,20 +20855,396 @@ export interface R4Elements {
     description: { t: 'markdown'; a: false }
     experimental: { t: 'boolean'; a: false }
     extension: { t: 'Extension'; a: true }
-    fhirVersion: { t: 'code'; a: true }
+    fhirVersion: {
+      t: 'code'
+      a: true
+      codes:
+        | '0.01'
+        | '0.05'
+        | '0.06'
+        | '0.11'
+        | '0.0.80'
+        | '0.0.81'
+        | '0.0.82'
+        | '0.4.0'
+        | '0.5.0'
+        | '1.0.0'
+        | '1.0.1'
+        | '1.0.2'
+        | '1.1.0'
+        | '1.4.0'
+        | '1.6.0'
+        | '1.8.0'
+        | '3.0.0'
+        | '3.0.1'
+        | '3.3.0'
+        | '3.5.0'
+        | '4.0.0'
+        | '4.0.1'
+    }
     global: { t: 'ImplementationGuide.global'; a: true }
     id: { t: 'System.String'; a: false }
     implicitRules: { t: 'uri'; a: false }
     jurisdiction: { t: 'CodeableConcept'; a: true }
     language: { t: 'code'; a: false }
-    license: { t: 'code'; a: false }
+    license: {
+      t: 'code'
+      a: false
+      codes:
+        | 'not-open-source'
+        | '0BSD'
+        | 'AAL'
+        | 'Abstyles'
+        | 'Adobe-2006'
+        | 'Adobe-Glyph'
+        | 'ADSL'
+        | 'AFL-1.1'
+        | 'AFL-1.2'
+        | 'AFL-2.0'
+        | 'AFL-2.1'
+        | 'AFL-3.0'
+        | 'Afmparse'
+        | 'AGPL-1.0-only'
+        | 'AGPL-1.0-or-later'
+        | 'AGPL-3.0-only'
+        | 'AGPL-3.0-or-later'
+        | 'Aladdin'
+        | 'AMDPLPA'
+        | 'AML'
+        | 'AMPAS'
+        | 'ANTLR-PD'
+        | 'Apache-1.0'
+        | 'Apache-1.1'
+        | 'Apache-2.0'
+        | 'APAFML'
+        | 'APL-1.0'
+        | 'APSL-1.0'
+        | 'APSL-1.1'
+        | 'APSL-1.2'
+        | 'APSL-2.0'
+        | 'Artistic-1.0-cl8'
+        | 'Artistic-1.0-Perl'
+        | 'Artistic-1.0'
+        | 'Artistic-2.0'
+        | 'Bahyph'
+        | 'Barr'
+        | 'Beerware'
+        | 'BitTorrent-1.0'
+        | 'BitTorrent-1.1'
+        | 'Borceux'
+        | 'BSD-1-Clause'
+        | 'BSD-2-Clause-FreeBSD'
+        | 'BSD-2-Clause-NetBSD'
+        | 'BSD-2-Clause-Patent'
+        | 'BSD-2-Clause'
+        | 'BSD-3-Clause-Attribution'
+        | 'BSD-3-Clause-Clear'
+        | 'BSD-3-Clause-LBNL'
+        | 'BSD-3-Clause-No-Nuclear-License-2014'
+        | 'BSD-3-Clause-No-Nuclear-License'
+        | 'BSD-3-Clause-No-Nuclear-Warranty'
+        | 'BSD-3-Clause'
+        | 'BSD-4-Clause-UC'
+        | 'BSD-4-Clause'
+        | 'BSD-Protection'
+        | 'BSD-Source-Code'
+        | 'BSL-1.0'
+        | 'bzip2-1.0.5'
+        | 'bzip2-1.0.6'
+        | 'Caldera'
+        | 'CATOSL-1.1'
+        | 'CC-BY-1.0'
+        | 'CC-BY-2.0'
+        | 'CC-BY-2.5'
+        | 'CC-BY-3.0'
+        | 'CC-BY-4.0'
+        | 'CC-BY-NC-1.0'
+        | 'CC-BY-NC-2.0'
+        | 'CC-BY-NC-2.5'
+        | 'CC-BY-NC-3.0'
+        | 'CC-BY-NC-4.0'
+        | 'CC-BY-NC-ND-1.0'
+        | 'CC-BY-NC-ND-2.0'
+        | 'CC-BY-NC-ND-2.5'
+        | 'CC-BY-NC-ND-3.0'
+        | 'CC-BY-NC-ND-4.0'
+        | 'CC-BY-NC-SA-1.0'
+        | 'CC-BY-NC-SA-2.0'
+        | 'CC-BY-NC-SA-2.5'
+        | 'CC-BY-NC-SA-3.0'
+        | 'CC-BY-NC-SA-4.0'
+        | 'CC-BY-ND-1.0'
+        | 'CC-BY-ND-2.0'
+        | 'CC-BY-ND-2.5'
+        | 'CC-BY-ND-3.0'
+        | 'CC-BY-ND-4.0'
+        | 'CC-BY-SA-1.0'
+        | 'CC-BY-SA-2.0'
+        | 'CC-BY-SA-2.5'
+        | 'CC-BY-SA-3.0'
+        | 'CC-BY-SA-4.0'
+        | 'CC0-1.0'
+        | 'CDDL-1.0'
+        | 'CDDL-1.1'
+        | 'CDLA-Permissive-1.0'
+        | 'CDLA-Sharing-1.0'
+        | 'CECILL-1.0'
+        | 'CECILL-1.1'
+        | 'CECILL-2.0'
+        | 'CECILL-2.1'
+        | 'CECILL-B'
+        | 'CECILL-C'
+        | 'ClArtistic'
+        | 'CNRI-Jython'
+        | 'CNRI-Python-GPL-Compatible'
+        | 'CNRI-Python'
+        | 'Condor-1.1'
+        | 'CPAL-1.0'
+        | 'CPL-1.0'
+        | 'CPOL-1.02'
+        | 'Crossword'
+        | 'CrystalStacker'
+        | 'CUA-OPL-1.0'
+        | 'Cube'
+        | 'curl'
+        | 'D-FSL-1.0'
+        | 'diffmark'
+        | 'DOC'
+        | 'Dotseqn'
+        | 'DSDP'
+        | 'dvipdfm'
+        | 'ECL-1.0'
+        | 'ECL-2.0'
+        | 'EFL-1.0'
+        | 'EFL-2.0'
+        | 'eGenix'
+        | 'Entessa'
+        | 'EPL-1.0'
+        | 'EPL-2.0'
+        | 'ErlPL-1.1'
+        | 'EUDatagrid'
+        | 'EUPL-1.0'
+        | 'EUPL-1.1'
+        | 'EUPL-1.2'
+        | 'Eurosym'
+        | 'Fair'
+        | 'Frameworx-1.0'
+        | 'FreeImage'
+        | 'FSFAP'
+        | 'FSFUL'
+        | 'FSFULLR'
+        | 'FTL'
+        | 'GFDL-1.1-only'
+        | 'GFDL-1.1-or-later'
+        | 'GFDL-1.2-only'
+        | 'GFDL-1.2-or-later'
+        | 'GFDL-1.3-only'
+        | 'GFDL-1.3-or-later'
+        | 'Giftware'
+        | 'GL2PS'
+        | 'Glide'
+        | 'Glulxe'
+        | 'gnuplot'
+        | 'GPL-1.0-only'
+        | 'GPL-1.0-or-later'
+        | 'GPL-2.0-only'
+        | 'GPL-2.0-or-later'
+        | 'GPL-3.0-only'
+        | 'GPL-3.0-or-later'
+        | 'gSOAP-1.3b'
+        | 'HaskellReport'
+        | 'HPND'
+        | 'IBM-pibs'
+        | 'ICU'
+        | 'IJG'
+        | 'ImageMagick'
+        | 'iMatix'
+        | 'Imlib2'
+        | 'Info-ZIP'
+        | 'Intel-ACPI'
+        | 'Intel'
+        | 'Interbase-1.0'
+        | 'IPA'
+        | 'IPL-1.0'
+        | 'ISC'
+        | 'JasPer-2.0'
+        | 'JSON'
+        | 'LAL-1.2'
+        | 'LAL-1.3'
+        | 'Latex2e'
+        | 'Leptonica'
+        | 'LGPL-2.0-only'
+        | 'LGPL-2.0-or-later'
+        | 'LGPL-2.1-only'
+        | 'LGPL-2.1-or-later'
+        | 'LGPL-3.0-only'
+        | 'LGPL-3.0-or-later'
+        | 'LGPLLR'
+        | 'Libpng'
+        | 'libtiff'
+        | 'LiLiQ-P-1.1'
+        | 'LiLiQ-R-1.1'
+        | 'LiLiQ-Rplus-1.1'
+        | 'Linux-OpenIB'
+        | 'LPL-1.0'
+        | 'LPL-1.02'
+        | 'LPPL-1.0'
+        | 'LPPL-1.1'
+        | 'LPPL-1.2'
+        | 'LPPL-1.3a'
+        | 'LPPL-1.3c'
+        | 'MakeIndex'
+        | 'MirOS'
+        | 'MIT-0'
+        | 'MIT-advertising'
+        | 'MIT-CMU'
+        | 'MIT-enna'
+        | 'MIT-feh'
+        | 'MIT'
+        | 'MITNFA'
+        | 'Motosoto'
+        | 'mpich2'
+        | 'MPL-1.0'
+        | 'MPL-1.1'
+        | 'MPL-2.0-no-copyleft-exception'
+        | 'MPL-2.0'
+        | 'MS-PL'
+        | 'MS-RL'
+        | 'MTLL'
+        | 'Multics'
+        | 'Mup'
+        | 'NASA-1.3'
+        | 'Naumen'
+        | 'NBPL-1.0'
+        | 'NCSA'
+        | 'Net-SNMP'
+        | 'NetCDF'
+        | 'Newsletr'
+        | 'NGPL'
+        | 'NLOD-1.0'
+        | 'NLPL'
+        | 'Nokia'
+        | 'NOSL'
+        | 'Noweb'
+        | 'NPL-1.0'
+        | 'NPL-1.1'
+        | 'NPOSL-3.0'
+        | 'NRL'
+        | 'NTP'
+        | 'OCCT-PL'
+        | 'OCLC-2.0'
+        | 'ODbL-1.0'
+        | 'OFL-1.0'
+        | 'OFL-1.1'
+        | 'OGTSL'
+        | 'OLDAP-1.1'
+        | 'OLDAP-1.2'
+        | 'OLDAP-1.3'
+        | 'OLDAP-1.4'
+        | 'OLDAP-2.0.1'
+        | 'OLDAP-2.0'
+        | 'OLDAP-2.1'
+        | 'OLDAP-2.2.1'
+        | 'OLDAP-2.2.2'
+        | 'OLDAP-2.2'
+        | 'OLDAP-2.3'
+        | 'OLDAP-2.4'
+        | 'OLDAP-2.5'
+        | 'OLDAP-2.6'
+        | 'OLDAP-2.7'
+        | 'OLDAP-2.8'
+        | 'OML'
+        | 'OpenSSL'
+        | 'OPL-1.0'
+        | 'OSET-PL-2.1'
+        | 'OSL-1.0'
+        | 'OSL-1.1'
+        | 'OSL-2.0'
+        | 'OSL-2.1'
+        | 'OSL-3.0'
+        | 'PDDL-1.0'
+        | 'PHP-3.0'
+        | 'PHP-3.01'
+        | 'Plexus'
+        | 'PostgreSQL'
+        | 'psfrag'
+        | 'psutils'
+        | 'Python-2.0'
+        | 'Qhull'
+        | 'QPL-1.0'
+        | 'Rdisc'
+        | 'RHeCos-1.1'
+        | 'RPL-1.1'
+        | 'RPL-1.5'
+        | 'RPSL-1.0'
+        | 'RSA-MD'
+        | 'RSCPL'
+        | 'Ruby'
+        | 'SAX-PD'
+        | 'Saxpath'
+        | 'SCEA'
+        | 'Sendmail'
+        | 'SGI-B-1.0'
+        | 'SGI-B-1.1'
+        | 'SGI-B-2.0'
+        | 'SimPL-2.0'
+        | 'SISSL-1.2'
+        | 'SISSL'
+        | 'Sleepycat'
+        | 'SMLNJ'
+        | 'SMPPL'
+        | 'SNIA'
+        | 'Spencer-86'
+        | 'Spencer-94'
+        | 'Spencer-99'
+        | 'SPL-1.0'
+        | 'SugarCRM-1.1.3'
+        | 'SWL'
+        | 'TCL'
+        | 'TCP-wrappers'
+        | 'TMate'
+        | 'TORQUE-1.1'
+        | 'TOSL'
+        | 'Unicode-DFS-2015'
+        | 'Unicode-DFS-2016'
+        | 'Unicode-TOU'
+        | 'Unlicense'
+        | 'UPL-1.0'
+        | 'Vim'
+        | 'VOSTROM'
+        | 'VSL-1.0'
+        | 'W3C-19980720'
+        | 'W3C-20150513'
+        | 'W3C'
+        | 'Watcom-1.0'
+        | 'Wsuipa'
+        | 'WTFPL'
+        | 'X11'
+        | 'Xerox'
+        | 'XFree86-1.1'
+        | 'xinetd'
+        | 'Xnet'
+        | 'xpp'
+        | 'XSkat'
+        | 'YPL-1.0'
+        | 'YPL-1.1'
+        | 'Zed'
+        | 'Zend-2.0'
+        | 'Zimbra-1.3'
+        | 'Zimbra-1.4'
+        | 'zlib-acknowledgement'
+        | 'Zlib'
+        | 'ZPL-1.1'
+        | 'ZPL-2.0'
+        | 'ZPL-2.1'
+    }
     manifest: { t: 'ImplementationGuide.manifest'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
     packageId: { t: 'id'; a: false }
     publisher: { t: 'string'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
     url: { t: 'uri'; a: false }
@@ -15788,7 +21270,7 @@ export interface R4Elements {
   }
   'ImplementationGuide.definition.page': {
     extension: { t: 'Extension'; a: true }
-    generation: { t: 'code'; a: false }
+    generation: { t: 'code'; a: false; codes: 'html' | 'markdown' | 'xml' | 'generated' }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'url' | 'Reference'; a: false }
@@ -15796,7 +21278,21 @@ export interface R4Elements {
     title: { t: 'string'; a: false }
   }
   'ImplementationGuide.definition.parameter': {
-    code: { t: 'code'; a: false }
+    code: {
+      t: 'code'
+      a: false
+      codes:
+        | 'apply'
+        | 'path-resource'
+        | 'path-pages'
+        | 'path-tx-cache'
+        | 'expansion-parameter'
+        | 'rule-broken-links'
+        | 'generate-xml'
+        | 'generate-json'
+        | 'generate-turtle'
+        | 'html-template'
+    }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -15806,7 +21302,33 @@ export interface R4Elements {
     description: { t: 'string'; a: false }
     example: { t: 'boolean' | 'canonical'; a: false }
     extension: { t: 'Extension'; a: true }
-    fhirVersion: { t: 'code'; a: true }
+    fhirVersion: {
+      t: 'code'
+      a: true
+      codes:
+        | '0.01'
+        | '0.05'
+        | '0.06'
+        | '0.11'
+        | '0.0.80'
+        | '0.0.81'
+        | '0.0.82'
+        | '0.4.0'
+        | '0.5.0'
+        | '1.0.0'
+        | '1.0.1'
+        | '1.0.2'
+        | '1.1.0'
+        | '1.4.0'
+        | '1.6.0'
+        | '1.8.0'
+        | '3.0.0'
+        | '3.0.1'
+        | '3.3.0'
+        | '3.5.0'
+        | '4.0.0'
+        | '4.0.1'
+    }
     groupingId: { t: 'id'; a: false }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -15834,7 +21356,159 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     profile: { t: 'canonical'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
   }
   'ImplementationGuide.manifest': {
     extension: { t: 'Extension'; a: true }
@@ -15882,7 +21556,7 @@ export interface R4Elements {
     ownedBy: { t: 'Reference'; a: false }
     period: { t: 'Period'; a: false }
     plan: { t: 'InsurancePlan.plan'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     type: { t: 'CodeableConcept'; a: true }
   }
@@ -15979,7 +21653,7 @@ export interface R4Elements {
     participant: { t: 'Invoice.participant'; a: true }
     paymentTerms: { t: 'markdown'; a: false }
     recipient: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'issued' | 'balanced' | 'cancelled' | 'entered-in-error' }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
     totalGross: { t: 'Money'; a: false }
@@ -16002,7 +21676,7 @@ export interface R4Elements {
     factor: { t: 'decimal'; a: false }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'base' | 'surcharge' | 'deduction' | 'discount' | 'tax' | 'informational' }
   }
   'Invoice.participant': {
     actor: { t: 'Reference'; a: false }
@@ -16040,7 +21714,7 @@ export interface R4Elements {
     purpose: { t: 'markdown'; a: false }
     relatedArtifact: { t: 'RelatedArtifact'; a: true }
     reviewer: { t: 'ContactDetail'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     subject: { t: 'CodeableConcept' | 'Reference'; a: false }
     subtitle: { t: 'string'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -16070,7 +21744,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     resource: { t: 'Reference'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'source' | 'alternate' | 'historical' }
   }
   List: {
     code: { t: 'CodeableConcept'; a: false }
@@ -16085,12 +21759,12 @@ export interface R4Elements {
     implicitRules: { t: 'uri'; a: false }
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'working' | 'snapshot' | 'changes' }
     modifierExtension: { t: 'Extension'; a: true }
     note: { t: 'Annotation'; a: true }
     orderedBy: { t: 'CodeableConcept'; a: false }
     source: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'current' | 'retired' | 'entered-in-error' }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
@@ -16119,14 +21793,14 @@ export interface R4Elements {
     language: { t: 'code'; a: false }
     managingOrganization: { t: 'Reference'; a: false }
     meta: { t: 'Meta'; a: false }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'instance' | 'kind' }
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
     operationalStatus: { t: 'Coding'; a: false }
     partOf: { t: 'Reference'; a: false }
     physicalType: { t: 'CodeableConcept'; a: false }
     position: { t: 'Location.position'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'suspended' | 'inactive' }
     telecom: { t: 'ContactPoint'; a: true }
     text: { t: 'Narrative'; a: false }
     type: { t: 'CodeableConcept'; a: true }
@@ -16134,7 +21808,7 @@ export interface R4Elements {
   'Location.hoursOfOperation': {
     allDay: { t: 'boolean'; a: false }
     closingTime: { t: 'time'; a: false }
-    daysOfWeek: { t: 'code'; a: true }
+    daysOfWeek: { t: 'code'; a: true; codes: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -16186,7 +21860,7 @@ export interface R4Elements {
     reviewer: { t: 'ContactDetail'; a: true }
     riskAdjustment: { t: 'string'; a: false }
     scoring: { t: 'CodeableConcept'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     subject: { t: 'CodeableConcept' | 'Reference'; a: false }
     subtitle: { t: 'string'; a: false }
     supplementalData: { t: 'Measure.supplementalData'; a: true }
@@ -16258,10 +21932,10 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     period: { t: 'Period'; a: false }
     reporter: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'complete' | 'pending' | 'error' }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'individual' | 'subject-list' | 'summary' | 'data-collection' }
   }
   'MeasureReport.group': {
     code: { t: 'CodeableConcept'; a: false }
@@ -16336,7 +22010,19 @@ export interface R4Elements {
     operator: { t: 'Reference'; a: false }
     partOf: { t: 'Reference'; a: true }
     reasonCode: { t: 'CodeableConcept'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'preparation'
+        | 'in-progress'
+        | 'not-done'
+        | 'on-hold'
+        | 'stopped'
+        | 'completed'
+        | 'entered-in-error'
+        | 'unknown'
+    }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
     type: { t: 'CodeableConcept'; a: false }
@@ -16358,7 +22044,7 @@ export interface R4Elements {
     manufacturer: { t: 'Reference'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'inactive' | 'entered-in-error' }
     text: { t: 'Narrative'; a: false }
   }
   'Medication.batch': {
@@ -16399,7 +22085,11 @@ export interface R4Elements {
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
     request: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'in-progress' | 'not-done' | 'on-hold' | 'completed' | 'entered-in-error' | 'stopped' | 'unknown'
+    }
     statusReason: { t: 'CodeableConcept'; a: true }
     subject: { t: 'Reference'; a: false }
     supportingInformation: { t: 'Reference'; a: true }
@@ -16447,7 +22137,20 @@ export interface R4Elements {
     performer: { t: 'MedicationDispense.performer'; a: true }
     quantity: { t: 'Quantity'; a: false }
     receiver: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'preparation'
+        | 'in-progress'
+        | 'cancelled'
+        | 'on-hold'
+        | 'completed'
+        | 'entered-in-error'
+        | 'stopped'
+        | 'declined'
+        | 'unknown'
+    }
     statusReason: { t: 'CodeableConcept' | 'Reference'; a: false }
     subject: { t: 'Reference'; a: false }
     substitution: { t: 'MedicationDispense.substitution'; a: false }
@@ -16501,7 +22204,7 @@ export interface R4Elements {
     productType: { t: 'CodeableConcept'; a: true }
     regulatory: { t: 'MedicationKnowledge.regulatory'; a: true }
     relatedMedicationKnowledge: { t: 'MedicationKnowledge.relatedMedicationKnowledge'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'inactive' | 'entered-in-error' }
     synonym: { t: 'string'; a: true }
     text: { t: 'Narrative'; a: false }
   }
@@ -16642,7 +22345,12 @@ export interface R4Elements {
     instantiatesCanonical: { t: 'canonical'; a: true }
     instantiatesUri: { t: 'uri'; a: true }
     insurance: { t: 'Reference'; a: true }
-    intent: { t: 'code'; a: false }
+    intent: {
+      t: 'code'
+      a: false
+      codes:
+        'proposal' | 'plan' | 'order' | 'original-order' | 'reflex-order' | 'filler-order' | 'instance-order' | 'option'
+    }
     language: { t: 'code'; a: false }
     medication: { t: 'CodeableConcept' | 'Reference'; a: false }
     meta: { t: 'Meta'; a: false }
@@ -16651,13 +22359,17 @@ export interface R4Elements {
     performer: { t: 'Reference'; a: false }
     performerType: { t: 'CodeableConcept'; a: false }
     priorPrescription: { t: 'Reference'; a: false }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
     recorder: { t: 'Reference'; a: false }
     reported: { t: 'boolean' | 'Reference'; a: false }
     requester: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'active' | 'on-hold' | 'cancelled' | 'completed' | 'entered-in-error' | 'stopped' | 'draft' | 'unknown'
+    }
     statusReason: { t: 'CodeableConcept'; a: false }
     subject: { t: 'Reference'; a: false }
     substitution: { t: 'MedicationRequest.substitution'; a: false }
@@ -16712,7 +22424,11 @@ export interface R4Elements {
     partOf: { t: 'Reference'; a: true }
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'active' | 'completed' | 'entered-in-error' | 'intended' | 'stopped' | 'on-hold' | 'unknown' | 'not-taken'
+    }
     statusReason: { t: 'CodeableConcept'; a: true }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -17097,7 +22813,7 @@ export interface R4Elements {
   MessageDefinition: {
     allowedResponse: { t: 'MessageDefinition.allowedResponse'; a: true }
     base: { t: 'canonical'; a: false }
-    category: { t: 'code'; a: false }
+    category: { t: 'code'; a: false; codes: 'consequence' | 'currency' | 'notification' }
     contact: { t: 'ContactDetail'; a: true }
     contained: { t: 'Resource'; a: true }
     copyright: { t: 'markdown'; a: false }
@@ -17120,8 +22836,8 @@ export interface R4Elements {
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
     replaces: { t: 'canonical'; a: true }
-    responseRequired: { t: 'code'; a: false }
-    status: { t: 'code'; a: false }
+    responseRequired: { t: 'code'; a: false; codes: 'always' | 'on-error' | 'never' | 'on-success' }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
     url: { t: 'uri'; a: false }
@@ -17136,7 +22852,159 @@ export interface R4Elements {
     situation: { t: 'markdown'; a: false }
   }
   'MessageDefinition.focus': {
-    code: { t: 'code'; a: false }
+    code: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     max: { t: 'string'; a: false }
@@ -17175,7 +23043,7 @@ export interface R4Elements {
     target: { t: 'Reference'; a: false }
   }
   'MessageHeader.response': {
-    code: { t: 'code'; a: false }
+    code: { t: 'code'; a: false; codes: 'ok' | 'transient-error' | 'fatal-error' }
     details: { t: 'Reference'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
@@ -17215,7 +23083,7 @@ export interface R4Elements {
     specimen: { t: 'Reference'; a: false }
     structureVariant: { t: 'MolecularSequence.structureVariant'; a: true }
     text: { t: 'Narrative'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'aa' | 'dna' | 'rna' }
     variant: { t: 'MolecularSequence.variant'; a: true }
   }
   'MolecularSequence.quality': {
@@ -17236,7 +23104,7 @@ export interface R4Elements {
     start: { t: 'integer'; a: false }
     truthFN: { t: 'decimal'; a: false }
     truthTP: { t: 'decimal'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'indel' | 'snp' | 'unknown' }
   }
   'MolecularSequence.quality.roc': {
     extension: { t: 'Extension'; a: true }
@@ -17256,11 +23124,11 @@ export interface R4Elements {
     genomeBuild: { t: 'string'; a: false }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    orientation: { t: 'code'; a: false }
+    orientation: { t: 'code'; a: false; codes: 'sense' | 'antisense' }
     referenceSeqId: { t: 'CodeableConcept'; a: false }
     referenceSeqPointer: { t: 'Reference'; a: false }
     referenceSeqString: { t: 'string'; a: false }
-    strand: { t: 'code'; a: false }
+    strand: { t: 'code'; a: false; codes: 'watson' | 'crick' }
     windowEnd: { t: 'integer'; a: false }
     windowStart: { t: 'integer'; a: false }
   }
@@ -17271,7 +23139,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
     readsetId: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'directlink' | 'openapi' | 'login' | 'oauth' | 'other' }
     url: { t: 'uri'; a: false }
     variantsetId: { t: 'string'; a: false }
   }
@@ -17319,14 +23187,14 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     implicitRules: { t: 'uri'; a: false }
     jurisdiction: { t: 'CodeableConcept'; a: true }
-    kind: { t: 'code'; a: false }
+    kind: { t: 'code'; a: false; codes: 'codesystem' | 'identifier' | 'root' }
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
     publisher: { t: 'string'; a: false }
     responsible: { t: 'string'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     type: { t: 'CodeableConcept'; a: false }
     uniqueId: { t: 'NamingSystem.uniqueId'; a: true }
@@ -17340,7 +23208,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     period: { t: 'Period'; a: false }
     preferred: { t: 'boolean'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'oid' | 'uuid' | 'uri' | 'other' }
     value: { t: 'string'; a: false }
   }
   NutritionOrder: {
@@ -17358,7 +23226,20 @@ export interface R4Elements {
     instantiates: { t: 'uri'; a: true }
     instantiatesCanonical: { t: 'canonical'; a: true }
     instantiatesUri: { t: 'uri'; a: true }
-    intent: { t: 'code'; a: false }
+    intent: {
+      t: 'code'
+      a: false
+      codes:
+        | 'proposal'
+        | 'plan'
+        | 'directive'
+        | 'order'
+        | 'original-order'
+        | 'reflex-order'
+        | 'filler-order'
+        | 'instance-order'
+        | 'option'
+    }
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -17366,7 +23247,11 @@ export interface R4Elements {
     oralDiet: { t: 'NutritionOrder.oralDiet'; a: false }
     orderer: { t: 'Reference'; a: false }
     patient: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+    }
     supplement: { t: 'NutritionOrder.supplement'; a: true }
     text: { t: 'Narrative'; a: false }
   }
@@ -17456,7 +23341,12 @@ export interface R4Elements {
     performer: { t: 'Reference'; a: true }
     referenceRange: { t: 'Observation.referenceRange'; a: true }
     specimen: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        'registered' | 'preliminary' | 'final' | 'amended' | 'corrected' | 'cancelled' | 'entered-in-error' | 'unknown'
+    }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
     value: {
@@ -17526,7 +23416,22 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     multipleResultsAllowed: { t: 'boolean'; a: false }
     normalCodedValueSet: { t: 'Reference'; a: false }
-    permittedDataType: { t: 'code'; a: true }
+    permittedDataType: {
+      t: 'code'
+      a: true
+      codes:
+        | 'Quantity'
+        | 'CodeableConcept'
+        | 'string'
+        | 'boolean'
+        | 'integer'
+        | 'Range'
+        | 'Ratio'
+        | 'SampledData'
+        | 'time'
+        | 'dateTime'
+        | 'Period'
+    }
     preferredReportName: { t: 'string'; a: false }
     publisher: { t: 'Reference'; a: false }
     qualifiedInterval: { t: 'ObservationDefinition.qualifiedInterval'; a: true }
@@ -17537,11 +23442,11 @@ export interface R4Elements {
   'ObservationDefinition.qualifiedInterval': {
     age: { t: 'Range'; a: false }
     appliesTo: { t: 'CodeableConcept'; a: true }
-    category: { t: 'code'; a: false }
+    category: { t: 'code'; a: false; codes: 'reference' | 'critical' | 'absolute' }
     condition: { t: 'string'; a: false }
     context: { t: 'CodeableConcept'; a: false }
     extension: { t: 'Extension'; a: true }
-    gender: { t: 'code'; a: false }
+    gender: { t: 'code'; a: false; codes: 'male' | 'female' | 'other' | 'unknown' }
     gestationalAge: { t: 'Range'; a: false }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -17572,7 +23477,7 @@ export interface R4Elements {
     inputProfile: { t: 'canonical'; a: false }
     instance: { t: 'boolean'; a: false }
     jurisdiction: { t: 'CodeableConcept'; a: true }
-    kind: { t: 'code'; a: false }
+    kind: { t: 'code'; a: false; codes: 'operation' | 'query' }
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -17582,8 +23487,160 @@ export interface R4Elements {
     parameter: { t: 'OperationDefinition.parameter'; a: true }
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
-    resource: { t: 'code'; a: true }
-    status: { t: 'code'; a: false }
+    resource: {
+      t: 'code'
+      a: true
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     system: { t: 'boolean'; a: false }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
@@ -17610,16 +23667,237 @@ export interface R4Elements {
     name: { t: 'code'; a: false }
     part: { t: 'OperationDefinition.parameter'; a: true }
     referencedFrom: { t: 'OperationDefinition.parameter.referencedFrom'; a: true }
-    searchType: { t: 'code'; a: false }
+    searchType: {
+      t: 'code'
+      a: false
+      codes: 'number' | 'date' | 'string' | 'token' | 'reference' | 'composite' | 'quantity' | 'uri' | 'special'
+    }
     targetProfile: { t: 'canonical'; a: true }
-    type: { t: 'code'; a: false }
-    use: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Address'
+        | 'Age'
+        | 'Annotation'
+        | 'Attachment'
+        | 'BackboneElement'
+        | 'CodeableConcept'
+        | 'Coding'
+        | 'ContactDetail'
+        | 'ContactPoint'
+        | 'Contributor'
+        | 'Count'
+        | 'DataRequirement'
+        | 'Distance'
+        | 'Dosage'
+        | 'Duration'
+        | 'Element'
+        | 'ElementDefinition'
+        | 'Expression'
+        | 'Extension'
+        | 'HumanName'
+        | 'Identifier'
+        | 'MarketingStatus'
+        | 'Meta'
+        | 'Money'
+        | 'MoneyQuantity'
+        | 'Narrative'
+        | 'ParameterDefinition'
+        | 'Period'
+        | 'Population'
+        | 'ProdCharacteristic'
+        | 'ProductShelfLife'
+        | 'Quantity'
+        | 'Range'
+        | 'Ratio'
+        | 'Reference'
+        | 'RelatedArtifact'
+        | 'SampledData'
+        | 'Signature'
+        | 'SimpleQuantity'
+        | 'SubstanceAmount'
+        | 'Timing'
+        | 'TriggerDefinition'
+        | 'UsageContext'
+        | 'base64Binary'
+        | 'boolean'
+        | 'canonical'
+        | 'code'
+        | 'date'
+        | 'dateTime'
+        | 'decimal'
+        | 'id'
+        | 'instant'
+        | 'integer'
+        | 'markdown'
+        | 'oid'
+        | 'positiveInt'
+        | 'string'
+        | 'time'
+        | 'unsignedInt'
+        | 'uri'
+        | 'url'
+        | 'uuid'
+        | 'xhtml'
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+        | 'Type'
+        | 'Any'
+    }
+    use: { t: 'code'; a: false; codes: 'in' | 'out' }
   }
   'OperationDefinition.parameter.binding': {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    strength: { t: 'code'; a: false }
+    strength: { t: 'code'; a: false; codes: 'required' | 'extensible' | 'preferred' | 'example' }
     valueSet: { t: 'canonical'; a: false }
   }
   'OperationDefinition.parameter.referencedFrom': {
@@ -17641,7 +23919,42 @@ export interface R4Elements {
     text: { t: 'Narrative'; a: false }
   }
   'OperationOutcome.issue': {
-    code: { t: 'code'; a: false }
+    code: {
+      t: 'code'
+      a: false
+      codes:
+        | 'invalid'
+        | 'structure'
+        | 'required'
+        | 'value'
+        | 'invariant'
+        | 'security'
+        | 'login'
+        | 'unknown'
+        | 'expired'
+        | 'forbidden'
+        | 'suppressed'
+        | 'processing'
+        | 'not-supported'
+        | 'duplicate'
+        | 'multiple-matches'
+        | 'not-found'
+        | 'deleted'
+        | 'too-long'
+        | 'code-invalid'
+        | 'extension'
+        | 'too-costly'
+        | 'business-rule'
+        | 'conflict'
+        | 'transient'
+        | 'lock-error'
+        | 'no-store'
+        | 'exception'
+        | 'timeout'
+        | 'incomplete'
+        | 'throttled'
+        | 'informational'
+    }
     details: { t: 'CodeableConcept'; a: false }
     diagnostics: { t: 'string'; a: false }
     expression: { t: 'string'; a: true }
@@ -17649,7 +23962,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     location: { t: 'string'; a: true }
     modifierExtension: { t: 'Extension'; a: true }
-    severity: { t: 'code'; a: false }
+    severity: { t: 'code'; a: false; codes: 'fatal' | 'error' | 'warning' | 'information' }
   }
   Organization: {
     active: { t: 'boolean'; a: false }
@@ -17780,7 +24093,7 @@ export interface R4Elements {
     contained: { t: 'Resource'; a: true }
     deceased: { t: 'boolean' | 'dateTime'; a: false }
     extension: { t: 'Extension'; a: true }
-    gender: { t: 'code'; a: false }
+    gender: { t: 'code'; a: false; codes: 'male' | 'female' | 'other' | 'unknown' }
     generalPractitioner: { t: 'Reference'; a: true }
     id: { t: 'System.String'; a: false }
     identifier: { t: 'Identifier'; a: true }
@@ -17807,7 +24120,7 @@ export interface R4Elements {
   'Patient.contact': {
     address: { t: 'Address'; a: false }
     extension: { t: 'Extension'; a: true }
-    gender: { t: 'code'; a: false }
+    gender: { t: 'code'; a: false; codes: 'male' | 'female' | 'other' | 'unknown' }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'HumanName'; a: false }
@@ -17821,7 +24134,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     other: { t: 'Reference'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'replaced-by' | 'replaces' | 'refer' | 'seealso' }
   }
   PaymentNotice: {
     amount: { t: 'Money'; a: false }
@@ -17842,7 +24155,7 @@ export interface R4Elements {
     recipient: { t: 'Reference'; a: false }
     request: { t: 'Reference'; a: false }
     response: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     text: { t: 'Narrative'; a: false }
   }
   PaymentReconciliation: {
@@ -17858,7 +24171,7 @@ export interface R4Elements {
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    outcome: { t: 'code'; a: false }
+    outcome: { t: 'code'; a: false; codes: 'queued' | 'complete' | 'error' | 'partial' }
     paymentAmount: { t: 'Money'; a: false }
     paymentDate: { t: 'date'; a: false }
     paymentIdentifier: { t: 'Identifier'; a: false }
@@ -17867,7 +24180,7 @@ export interface R4Elements {
     processNote: { t: 'PaymentReconciliation.processNote'; a: true }
     request: { t: 'Reference'; a: false }
     requestor: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     text: { t: 'Narrative'; a: false }
   }
   'PaymentReconciliation.detail': {
@@ -17890,7 +24203,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     text: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'display' | 'print' | 'printoper' }
   }
   Person: {
     active: { t: 'boolean'; a: false }
@@ -17898,7 +24211,7 @@ export interface R4Elements {
     birthDate: { t: 'date'; a: false }
     contained: { t: 'Resource'; a: true }
     extension: { t: 'Extension'; a: true }
-    gender: { t: 'code'; a: false }
+    gender: { t: 'code'; a: false; codes: 'male' | 'female' | 'other' | 'unknown' }
     id: { t: 'System.String'; a: false }
     identifier: { t: 'Identifier'; a: true }
     implicitRules: { t: 'uri'; a: false }
@@ -17913,7 +24226,7 @@ export interface R4Elements {
     text: { t: 'Narrative'; a: false }
   }
   'Person.link': {
-    assurance: { t: 'code'; a: false }
+    assurance: { t: 'code'; a: false; codes: 'level1' | 'level2' | 'level3' | 'level4' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -17948,7 +24261,7 @@ export interface R4Elements {
     purpose: { t: 'markdown'; a: false }
     relatedArtifact: { t: 'RelatedArtifact'; a: true }
     reviewer: { t: 'ContactDetail'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     subject: { t: 'CodeableConcept' | 'Reference'; a: false }
     subtitle: { t: 'string'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -17962,7 +24275,7 @@ export interface R4Elements {
   }
   'PlanDefinition.action': {
     action: { t: 'PlanDefinition.action'; a: true }
-    cardinalityBehavior: { t: 'code'; a: false }
+    cardinalityBehavior: { t: 'code'; a: false; codes: 'single' | 'multiple' }
     code: { t: 'CodeableConcept'; a: true }
     condition: { t: 'PlanDefinition.action.condition'; a: true }
     definition: { t: 'canonical' | 'uri'; a: false }
@@ -17971,19 +24284,23 @@ export interface R4Elements {
     dynamicValue: { t: 'PlanDefinition.action.dynamicValue'; a: true }
     extension: { t: 'Extension'; a: true }
     goalId: { t: 'id'; a: true }
-    groupingBehavior: { t: 'code'; a: false }
+    groupingBehavior: { t: 'code'; a: false; codes: 'visual-group' | 'logical-group' | 'sentence-group' }
     id: { t: 'System.String'; a: false }
     input: { t: 'DataRequirement'; a: true }
     modifierExtension: { t: 'Extension'; a: true }
     output: { t: 'DataRequirement'; a: true }
     participant: { t: 'PlanDefinition.action.participant'; a: true }
-    precheckBehavior: { t: 'code'; a: false }
+    precheckBehavior: { t: 'code'; a: false; codes: 'yes' | 'no' }
     prefix: { t: 'string'; a: false }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     reason: { t: 'CodeableConcept'; a: true }
     relatedAction: { t: 'PlanDefinition.action.relatedAction'; a: true }
-    requiredBehavior: { t: 'code'; a: false }
-    selectionBehavior: { t: 'code'; a: false }
+    requiredBehavior: { t: 'code'; a: false; codes: 'must' | 'could' | 'must-unless-documented' }
+    selectionBehavior: {
+      t: 'code'
+      a: false
+      codes: 'any' | 'all' | 'all-or-none' | 'exactly-one' | 'at-most-one' | 'one-or-more'
+    }
     subject: { t: 'CodeableConcept' | 'Reference'; a: false }
     textEquivalent: { t: 'string'; a: false }
     timing: { t: 'dateTime' | 'Age' | 'Period' | 'Duration' | 'Range' | 'Timing'; a: false }
@@ -17996,7 +24313,7 @@ export interface R4Elements {
     expression: { t: 'Expression'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    kind: { t: 'code'; a: false }
+    kind: { t: 'code'; a: false; codes: 'applicability' | 'start' | 'stop' }
     modifierExtension: { t: 'Extension'; a: true }
   }
   'PlanDefinition.action.dynamicValue': {
@@ -18011,7 +24328,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     role: { t: 'CodeableConcept'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'patient' | 'practitioner' | 'related-person' | 'device' }
   }
   'PlanDefinition.action.relatedAction': {
     actionId: { t: 'id'; a: false }
@@ -18019,7 +24336,20 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     offset: { t: 'Duration' | 'Range'; a: false }
-    relationship: { t: 'code'; a: false }
+    relationship: {
+      t: 'code'
+      a: false
+      codes:
+        | 'before-start'
+        | 'before'
+        | 'before-end'
+        | 'concurrent-with-start'
+        | 'concurrent'
+        | 'concurrent-with-end'
+        | 'after-start'
+        | 'after'
+        | 'after-end'
+    }
   }
   'PlanDefinition.goal': {
     addresses: { t: 'CodeableConcept'; a: true }
@@ -18048,7 +24378,7 @@ export interface R4Elements {
     communication: { t: 'CodeableConcept'; a: true }
     contained: { t: 'Resource'; a: true }
     extension: { t: 'Extension'; a: true }
-    gender: { t: 'code'; a: false }
+    gender: { t: 'code'; a: false; codes: 'male' | 'female' | 'other' | 'unknown' }
     id: { t: 'System.String'; a: false }
     identifier: { t: 'Identifier'; a: true }
     implicitRules: { t: 'uri'; a: false }
@@ -18098,7 +24428,7 @@ export interface R4Elements {
     allDay: { t: 'boolean'; a: false }
     availableEndTime: { t: 'time'; a: false }
     availableStartTime: { t: 'time'; a: false }
-    daysOfWeek: { t: 'code'; a: true }
+    daysOfWeek: { t: 'code'; a: true; codes: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
@@ -18141,7 +24471,19 @@ export interface R4Elements {
     reasonReference: { t: 'Reference'; a: true }
     recorder: { t: 'Reference'; a: false }
     report: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'preparation'
+        | 'in-progress'
+        | 'not-done'
+        | 'on-hold'
+        | 'stopped'
+        | 'completed'
+        | 'entered-in-error'
+        | 'unknown'
+    }
     statusReason: { t: 'CodeableConcept'; a: false }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -18197,7 +24539,7 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    role: { t: 'code'; a: false }
+    role: { t: 'code'; a: false; codes: 'derivation' | 'revision' | 'quotation' | 'source' | 'removal' }
     what: { t: 'Reference'; a: false }
   }
   Questionnaire: {
@@ -18224,8 +24566,160 @@ export interface R4Elements {
     name: { t: 'string'; a: false }
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
-    status: { t: 'code'; a: false }
-    subjectType: { t: 'code'; a: true }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
+    subjectType: {
+      t: 'code'
+      a: true
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
     url: { t: 'uri'; a: false }
@@ -18237,7 +24731,7 @@ export interface R4Elements {
     answerValueSet: { t: 'canonical'; a: false }
     code: { t: 'Coding'; a: true }
     definition: { t: 'uri'; a: false }
-    enableBehavior: { t: 'code'; a: false }
+    enableBehavior: { t: 'code'; a: false; codes: 'all' | 'any' }
     enableWhen: { t: 'Questionnaire.item.enableWhen'; a: true }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
@@ -18251,7 +24745,28 @@ export interface R4Elements {
     repeats: { t: 'boolean'; a: false }
     required: { t: 'boolean'; a: false }
     text: { t: 'string'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes:
+        | 'group'
+        | 'display'
+        | 'question'
+        | 'boolean'
+        | 'decimal'
+        | 'integer'
+        | 'date'
+        | 'dateTime'
+        | 'time'
+        | 'string'
+        | 'text'
+        | 'url'
+        | 'choice'
+        | 'open-choice'
+        | 'attachment'
+        | 'reference'
+        | 'quantity'
+    }
   }
   'Questionnaire.item.answerOption': {
     extension: { t: 'Extension'; a: true }
@@ -18278,7 +24793,7 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    operator: { t: 'code'; a: false }
+    operator: { t: 'code'; a: false; codes: 'exists' | '=' | '!=' | '>' | '<' | '>=' | '<=' }
     question: { t: 'string'; a: false }
   }
   'Questionnaire.item.initial': {
@@ -18319,7 +24834,7 @@ export interface R4Elements {
     partOf: { t: 'Reference'; a: true }
     questionnaire: { t: 'canonical'; a: false }
     source: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'in-progress' | 'completed' | 'amended' | 'entered-in-error' | 'stopped' }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
   }
@@ -18362,7 +24877,7 @@ export interface R4Elements {
     communication: { t: 'RelatedPerson.communication'; a: true }
     contained: { t: 'Resource'; a: true }
     extension: { t: 'Extension'; a: true }
-    gender: { t: 'code'; a: false }
+    gender: { t: 'code'; a: false; codes: 'male' | 'female' | 'other' | 'unknown' }
     id: { t: 'System.String'; a: false }
     identifier: { t: 'Identifier'; a: true }
     implicitRules: { t: 'uri'; a: false }
@@ -18399,38 +24914,59 @@ export interface R4Elements {
     implicitRules: { t: 'uri'; a: false }
     instantiatesCanonical: { t: 'canonical'; a: true }
     instantiatesUri: { t: 'uri'; a: true }
-    intent: { t: 'code'; a: false }
+    intent: {
+      t: 'code'
+      a: false
+      codes:
+        | 'proposal'
+        | 'plan'
+        | 'directive'
+        | 'order'
+        | 'original-order'
+        | 'reflex-order'
+        | 'filler-order'
+        | 'instance-order'
+        | 'option'
+    }
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     note: { t: 'Annotation'; a: true }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
     replaces: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+    }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
   }
   'RequestGroup.action': {
     action: { t: 'RequestGroup.action'; a: true }
-    cardinalityBehavior: { t: 'code'; a: false }
+    cardinalityBehavior: { t: 'code'; a: false; codes: 'single' | 'multiple' }
     code: { t: 'CodeableConcept'; a: true }
     condition: { t: 'RequestGroup.action.condition'; a: true }
     description: { t: 'string'; a: false }
     documentation: { t: 'RelatedArtifact'; a: true }
     extension: { t: 'Extension'; a: true }
-    groupingBehavior: { t: 'code'; a: false }
+    groupingBehavior: { t: 'code'; a: false; codes: 'visual-group' | 'logical-group' | 'sentence-group' }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     participant: { t: 'Reference'; a: true }
-    precheckBehavior: { t: 'code'; a: false }
+    precheckBehavior: { t: 'code'; a: false; codes: 'yes' | 'no' }
     prefix: { t: 'string'; a: false }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     relatedAction: { t: 'RequestGroup.action.relatedAction'; a: true }
-    requiredBehavior: { t: 'code'; a: false }
+    requiredBehavior: { t: 'code'; a: false; codes: 'must' | 'could' | 'must-unless-documented' }
     resource: { t: 'Reference'; a: false }
-    selectionBehavior: { t: 'code'; a: false }
+    selectionBehavior: {
+      t: 'code'
+      a: false
+      codes: 'any' | 'all' | 'all-or-none' | 'exactly-one' | 'at-most-one' | 'one-or-more'
+    }
     textEquivalent: { t: 'string'; a: false }
     timing: { t: 'dateTime' | 'Age' | 'Period' | 'Duration' | 'Range' | 'Timing'; a: false }
     title: { t: 'string'; a: false }
@@ -18440,7 +24976,7 @@ export interface R4Elements {
     expression: { t: 'Expression'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    kind: { t: 'code'; a: false }
+    kind: { t: 'code'; a: false; codes: 'applicability' | 'start' | 'stop' }
     modifierExtension: { t: 'Extension'; a: true }
   }
   'RequestGroup.action.relatedAction': {
@@ -18449,7 +24985,20 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     offset: { t: 'Duration' | 'Range'; a: false }
-    relationship: { t: 'code'; a: false }
+    relationship: {
+      t: 'code'
+      a: false
+      codes:
+        | 'before-start'
+        | 'before'
+        | 'before-end'
+        | 'concurrent-with-start'
+        | 'concurrent'
+        | 'concurrent-with-end'
+        | 'after-start'
+        | 'after'
+        | 'after-end'
+    }
   }
   ResearchDefinition: {
     approvalDate: { t: 'date'; a: false }
@@ -18484,7 +25033,7 @@ export interface R4Elements {
     relatedArtifact: { t: 'RelatedArtifact'; a: true }
     reviewer: { t: 'ContactDetail'; a: true }
     shortTitle: { t: 'string'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     subject: { t: 'CodeableConcept' | 'Reference'; a: false }
     subtitle: { t: 'string'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -18525,17 +25074,17 @@ export interface R4Elements {
     relatedArtifact: { t: 'RelatedArtifact'; a: true }
     reviewer: { t: 'ContactDetail'; a: true }
     shortTitle: { t: 'string'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     subject: { t: 'CodeableConcept' | 'Reference'; a: false }
     subtitle: { t: 'string'; a: false }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
     topic: { t: 'CodeableConcept'; a: true }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'population' | 'exposure' | 'outcome' }
     url: { t: 'uri'; a: false }
     usage: { t: 'string'; a: false }
     useContext: { t: 'UsageContext'; a: true }
-    variableType: { t: 'code'; a: false }
+    variableType: { t: 'code'; a: false; codes: 'dichotomous' | 'continuous' | 'descriptive' }
     version: { t: 'string'; a: false }
   }
   'ResearchElementDefinition.characteristic': {
@@ -18546,11 +25095,19 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     participantEffective: { t: 'dateTime' | 'Period' | 'Duration' | 'Timing'; a: false }
     participantEffectiveDescription: { t: 'string'; a: false }
-    participantEffectiveGroupMeasure: { t: 'code'; a: false }
+    participantEffectiveGroupMeasure: {
+      t: 'code'
+      a: false
+      codes: 'mean' | 'median' | 'mean-of-mean' | 'mean-of-median' | 'median-of-mean' | 'median-of-median'
+    }
     participantEffectiveTimeFromStart: { t: 'Duration'; a: false }
     studyEffective: { t: 'dateTime' | 'Period' | 'Duration' | 'Timing'; a: false }
     studyEffectiveDescription: { t: 'string'; a: false }
-    studyEffectiveGroupMeasure: { t: 'code'; a: false }
+    studyEffectiveGroupMeasure: {
+      t: 'code'
+      a: false
+      codes: 'mean' | 'median' | 'mean-of-mean' | 'mean-of-median' | 'median-of-mean' | 'median-of-median'
+    }
     studyEffectiveTimeFromStart: { t: 'Duration'; a: false }
     unitOfMeasure: { t: 'CodeableConcept'; a: false }
     usageContext: { t: 'UsageContext'; a: true }
@@ -18596,7 +25153,22 @@ export interface R4Elements {
     result: { t: 'Reference'; a: true }
     site: { t: 'Reference'; a: true }
     sponsor: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'active'
+        | 'administratively-completed'
+        | 'approved'
+        | 'closed-to-accrual'
+        | 'closed-to-accrual-and-intervention'
+        | 'completed'
+        | 'disapproved'
+        | 'in-review'
+        | 'temporarily-closed-to-accrual'
+        | 'temporarily-closed-to-accrual-and-intervention'
+        | 'withdrawn'
+    }
     studyDesign: { t: 'CodeableConcept'; a: true }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
@@ -18686,7 +25258,24 @@ export interface R4Elements {
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     period: { t: 'Period'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'candidate'
+        | 'eligible'
+        | 'follow-up'
+        | 'ineligible'
+        | 'not-registered'
+        | 'off-study'
+        | 'on-study'
+        | 'on-study-intervention'
+        | 'on-study-observation'
+        | 'pending-on-study'
+        | 'potential-candidate'
+        | 'screening'
+        | 'withdrawn'
+    }
     study: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
   }
@@ -18719,7 +25308,12 @@ export interface R4Elements {
     prediction: { t: 'RiskAssessment.prediction'; a: true }
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        'registered' | 'preliminary' | 'final' | 'amended' | 'corrected' | 'cancelled' | 'entered-in-error' | 'unknown'
+    }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
   }
@@ -18765,7 +25359,7 @@ export interface R4Elements {
     reviewer: { t: 'ContactDetail'; a: true }
     riskEstimate: { t: 'RiskEvidenceSynthesis.riskEstimate'; a: false }
     sampleSize: { t: 'RiskEvidenceSynthesis.sampleSize'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     studyType: { t: 'CodeableConcept'; a: false }
     synthesisType: { t: 'CodeableConcept'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -18839,10 +25433,162 @@ export interface R4Elements {
     text: { t: 'Narrative'; a: false }
   }
   SearchParameter: {
-    base: { t: 'code'; a: true }
+    base: {
+      t: 'code'
+      a: true
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
     chain: { t: 'string'; a: true }
     code: { t: 'code'; a: false }
-    comparator: { t: 'code'; a: true }
+    comparator: { t: 'code'; a: true; codes: 'eq' | 'ne' | 'gt' | 'lt' | 'ge' | 'le' | 'sa' | 'eb' | 'ap' }
     component: { t: 'SearchParameter.component'; a: true }
     contact: { t: 'ContactDetail'; a: true }
     contained: { t: 'Resource'; a: true }
@@ -18857,22 +25603,194 @@ export interface R4Elements {
     jurisdiction: { t: 'CodeableConcept'; a: true }
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
-    modifier: { t: 'code'; a: true }
+    modifier: {
+      t: 'code'
+      a: true
+      codes:
+        | 'missing'
+        | 'exact'
+        | 'contains'
+        | 'not'
+        | 'text'
+        | 'in'
+        | 'not-in'
+        | 'below'
+        | 'above'
+        | 'type'
+        | 'identifier'
+        | 'ofType'
+    }
     modifierExtension: { t: 'Extension'; a: true }
     multipleAnd: { t: 'boolean'; a: false }
     multipleOr: { t: 'boolean'; a: false }
     name: { t: 'string'; a: false }
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
-    status: { t: 'code'; a: false }
-    target: { t: 'code'; a: true }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
+    target: {
+      t: 'code'
+      a: true
+      codes:
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
     text: { t: 'Narrative'; a: false }
-    type: { t: 'code'; a: false }
+    type: {
+      t: 'code'
+      a: false
+      codes: 'number' | 'date' | 'string' | 'token' | 'reference' | 'composite' | 'quantity' | 'uri' | 'special'
+    }
     url: { t: 'uri'; a: false }
     useContext: { t: 'UsageContext'; a: true }
     version: { t: 'string'; a: false }
     xpath: { t: 'string'; a: false }
-    xpathUsage: { t: 'code'; a: false }
+    xpathUsage: { t: 'code'; a: false; codes: 'normal' | 'phonetic' | 'nearby' | 'distance' | 'other' }
   }
   'SearchParameter.component': {
     definition: { t: 'canonical'; a: false }
@@ -18898,7 +25816,20 @@ export interface R4Elements {
     instantiatesCanonical: { t: 'canonical'; a: true }
     instantiatesUri: { t: 'uri'; a: true }
     insurance: { t: 'Reference'; a: true }
-    intent: { t: 'code'; a: false }
+    intent: {
+      t: 'code'
+      a: false
+      codes:
+        | 'proposal'
+        | 'plan'
+        | 'directive'
+        | 'order'
+        | 'original-order'
+        | 'reflex-order'
+        | 'filler-order'
+        | 'instance-order'
+        | 'option'
+    }
     language: { t: 'code'; a: false }
     locationCode: { t: 'CodeableConcept'; a: true }
     locationReference: { t: 'Reference'; a: true }
@@ -18910,7 +25841,7 @@ export interface R4Elements {
     patientInstruction: { t: 'string'; a: false }
     performer: { t: 'Reference'; a: true }
     performerType: { t: 'CodeableConcept'; a: false }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     quantity: { t: 'Quantity' | 'Ratio' | 'Range'; a: false }
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
@@ -18919,7 +25850,11 @@ export interface R4Elements {
     requester: { t: 'Reference'; a: false }
     requisition: { t: 'Identifier'; a: false }
     specimen: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'draft' | 'active' | 'on-hold' | 'revoked' | 'completed' | 'entered-in-error' | 'unknown'
+    }
     subject: { t: 'Reference'; a: false }
     supportingInfo: { t: 'Reference'; a: true }
     text: { t: 'Narrative'; a: false }
@@ -18942,7 +25877,7 @@ export interface R4Elements {
     serviceType: { t: 'CodeableConcept'; a: true }
     specialty: { t: 'CodeableConcept'; a: true }
     start: { t: 'instant'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'busy' | 'free' | 'busy-unavailable' | 'busy-tentative' | 'entered-in-error' }
     text: { t: 'Narrative'; a: false }
   }
   Specimen: {
@@ -18963,7 +25898,7 @@ export interface R4Elements {
     processing: { t: 'Specimen.processing'; a: true }
     receivedTime: { t: 'dateTime'; a: false }
     request: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'available' | 'unavailable' | 'unsatisfactory' | 'entered-in-error' }
     subject: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
     type: { t: 'CodeableConcept'; a: false }
@@ -19023,7 +25958,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     isDerived: { t: 'boolean'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    preference: { t: 'code'; a: false }
+    preference: { t: 'code'; a: false; codes: 'preferred' | 'alternate' }
     rejectionCriterion: { t: 'CodeableConcept'; a: true }
     requirement: { t: 'string'; a: false }
     retentionTime: { t: 'Duration'; a: false }
@@ -19066,18 +26001,44 @@ export interface R4Elements {
     contextInvariant: { t: 'string'; a: true }
     copyright: { t: 'markdown'; a: false }
     date: { t: 'dateTime'; a: false }
-    derivation: { t: 'code'; a: false }
+    derivation: { t: 'code'; a: false; codes: 'specialization' | 'constraint' }
     description: { t: 'markdown'; a: false }
     differential: { t: 'StructureDefinition.differential'; a: false }
     experimental: { t: 'boolean'; a: false }
     extension: { t: 'Extension'; a: true }
-    fhirVersion: { t: 'code'; a: false }
+    fhirVersion: {
+      t: 'code'
+      a: false
+      codes:
+        | '0.01'
+        | '0.05'
+        | '0.06'
+        | '0.11'
+        | '0.0.80'
+        | '0.0.81'
+        | '0.0.82'
+        | '0.4.0'
+        | '0.5.0'
+        | '1.0.0'
+        | '1.0.1'
+        | '1.0.2'
+        | '1.1.0'
+        | '1.4.0'
+        | '1.6.0'
+        | '1.8.0'
+        | '3.0.0'
+        | '3.0.1'
+        | '3.3.0'
+        | '3.5.0'
+        | '4.0.0'
+        | '4.0.1'
+    }
     id: { t: 'System.String'; a: false }
     identifier: { t: 'Identifier'; a: true }
     implicitRules: { t: 'uri'; a: false }
     jurisdiction: { t: 'CodeableConcept'; a: true }
     keyword: { t: 'Coding'; a: true }
-    kind: { t: 'code'; a: false }
+    kind: { t: 'code'; a: false; codes: 'primitive-type' | 'complex-type' | 'resource' | 'logical' }
     language: { t: 'code'; a: false }
     mapping: { t: 'StructureDefinition.mapping'; a: true }
     meta: { t: 'Meta'; a: false }
@@ -19086,7 +26047,7 @@ export interface R4Elements {
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
     snapshot: { t: 'StructureDefinition.snapshot'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
     type: { t: 'uri'; a: false }
@@ -19099,7 +26060,7 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'fhirpath' | 'element' | 'extension' }
   }
   'StructureDefinition.differential': {
     element: { t: 'ElementDefinition'; a: true }
@@ -19142,7 +26103,7 @@ export interface R4Elements {
     name: { t: 'string'; a: false }
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     structure: { t: 'StructureMap.structure'; a: true }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
@@ -19159,13 +26120,13 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'id'; a: false }
     rule: { t: 'StructureMap.group.rule'; a: true }
-    typeMode: { t: 'code'; a: false }
+    typeMode: { t: 'code'; a: false; codes: 'none' | 'types' | 'type-and-types' }
   }
   'StructureMap.group.input': {
     documentation: { t: 'string'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'source' | 'target' }
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'id'; a: false }
     type: { t: 'string'; a: false }
@@ -19249,7 +26210,7 @@ export interface R4Elements {
     element: { t: 'string'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    listMode: { t: 'code'; a: false }
+    listMode: { t: 'code'; a: false; codes: 'first' | 'not_first' | 'last' | 'not_last' | 'only_one' }
     logMessage: { t: 'string'; a: false }
     max: { t: 'string'; a: false }
     min: { t: 'integer'; a: false }
@@ -19259,15 +26220,36 @@ export interface R4Elements {
   }
   'StructureMap.group.rule.target': {
     context: { t: 'id'; a: false }
-    contextType: { t: 'code'; a: false }
+    contextType: { t: 'code'; a: false; codes: 'type' | 'variable' }
     element: { t: 'string'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    listMode: { t: 'code'; a: true }
+    listMode: { t: 'code'; a: true; codes: 'first' | 'share' | 'last' | 'collate' }
     listRuleId: { t: 'id'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     parameter: { t: 'StructureMap.group.rule.target.parameter'; a: true }
-    transform: { t: 'code'; a: false }
+    transform: {
+      t: 'code'
+      a: false
+      codes:
+        | 'create'
+        | 'copy'
+        | 'truncate'
+        | 'escape'
+        | 'cast'
+        | 'append'
+        | 'translate'
+        | 'reference'
+        | 'dateOp'
+        | 'uuid'
+        | 'pointer'
+        | 'evaluate'
+        | 'cc'
+        | 'c'
+        | 'qty'
+        | 'id'
+        | 'cp'
+    }
     variable: { t: 'id'; a: false }
   }
   'StructureMap.group.rule.target.parameter': {
@@ -19281,7 +26263,7 @@ export interface R4Elements {
     documentation: { t: 'string'; a: false }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
-    mode: { t: 'code'; a: false }
+    mode: { t: 'code'; a: false; codes: 'source' | 'queried' | 'target' | 'produced' }
     modifierExtension: { t: 'Extension'; a: true }
     url: { t: 'canonical'; a: false }
   }
@@ -19299,7 +26281,7 @@ export interface R4Elements {
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     reason: { t: 'string'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'requested' | 'active' | 'error' | 'off' }
     text: { t: 'Narrative'; a: false }
   }
   'Subscription.channel': {
@@ -19309,7 +26291,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     payload: { t: 'code'; a: false }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'rest-hook' | 'websocket' | 'email' | 'sms' | 'message' }
   }
   SubscriptionStatus: {
     contained: { t: 'Resource'; a: true }
@@ -19322,7 +26304,7 @@ export interface R4Elements {
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     notificationEvent: { t: 'SubscriptionStatus.notificationEvent'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'requested' | 'active' | 'error' | 'off' }
     subscription: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
     topic: { t: 'canonical'; a: false }
@@ -19351,7 +26333,7 @@ export interface R4Elements {
     language: { t: 'code'; a: false }
     meta: { t: 'Meta'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'inactive' | 'entered-in-error' }
     text: { t: 'Narrative'; a: false }
   }
   'Substance.ingredient': {
@@ -19787,7 +26769,7 @@ export interface R4Elements {
     partOf: { t: 'Reference'; a: true }
     patient: { t: 'Reference'; a: false }
     receiver: { t: 'Reference'; a: true }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'in-progress' | 'completed' | 'abandoned' | 'entered-in-error' }
     suppliedItem: { t: 'SupplyDelivery.suppliedItem'; a: false }
     supplier: { t: 'Reference'; a: false }
     text: { t: 'Narrative'; a: false }
@@ -19816,12 +26798,16 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     occurrence: { t: 'dateTime' | 'Period' | 'Timing'; a: false }
     parameter: { t: 'SupplyRequest.parameter'; a: true }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     quantity: { t: 'Quantity'; a: false }
     reasonCode: { t: 'CodeableConcept'; a: true }
     reasonReference: { t: 'Reference'; a: true }
     requester: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'draft' | 'active' | 'suspended' | 'cancelled' | 'completed' | 'entered-in-error' | 'unknown'
+    }
     supplier: { t: 'Reference'; a: true }
     text: { t: 'Narrative'; a: false }
   }
@@ -19852,7 +26838,20 @@ export interface R4Elements {
     instantiatesCanonical: { t: 'canonical'; a: false }
     instantiatesUri: { t: 'uri'; a: false }
     insurance: { t: 'Reference'; a: true }
-    intent: { t: 'code'; a: false }
+    intent: {
+      t: 'code'
+      a: false
+      codes:
+        | 'unknown'
+        | 'proposal'
+        | 'plan'
+        | 'order'
+        | 'original-order'
+        | 'reflex-order'
+        | 'filler-order'
+        | 'instance-order'
+        | 'option'
+    }
     language: { t: 'code'; a: false }
     lastModified: { t: 'dateTime'; a: false }
     location: { t: 'Reference'; a: false }
@@ -19863,13 +26862,29 @@ export interface R4Elements {
     owner: { t: 'Reference'; a: false }
     partOf: { t: 'Reference'; a: true }
     performerType: { t: 'CodeableConcept'; a: true }
-    priority: { t: 'code'; a: false }
+    priority: { t: 'code'; a: false; codes: 'routine' | 'urgent' | 'asap' | 'stat' }
     reasonCode: { t: 'CodeableConcept'; a: false }
     reasonReference: { t: 'Reference'; a: false }
     relevantHistory: { t: 'Reference'; a: true }
     requester: { t: 'Reference'; a: false }
     restriction: { t: 'Task.restriction'; a: false }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes:
+        | 'draft'
+        | 'requested'
+        | 'received'
+        | 'accepted'
+        | 'rejected'
+        | 'ready'
+        | 'cancelled'
+        | 'in-progress'
+        | 'on-hold'
+        | 'failed'
+        | 'completed'
+        | 'entered-in-error'
+    }
     statusReason: { t: 'CodeableConcept'; a: false }
     text: { t: 'Narrative'; a: false }
   }
@@ -20003,7 +27018,7 @@ export interface R4Elements {
   }
   TerminologyCapabilities: {
     closure: { t: 'TerminologyCapabilities.closure'; a: false }
-    codeSearch: { t: 'code'; a: false }
+    codeSearch: { t: 'code'; a: false; codes: 'explicit' | 'all' }
     codeSystem: { t: 'TerminologyCapabilities.codeSystem'; a: true }
     contact: { t: 'ContactDetail'; a: true }
     contained: { t: 'Resource'; a: true }
@@ -20017,7 +27032,7 @@ export interface R4Elements {
     implementation: { t: 'TerminologyCapabilities.implementation'; a: false }
     implicitRules: { t: 'uri'; a: false }
     jurisdiction: { t: 'CodeableConcept'; a: true }
-    kind: { t: 'code'; a: false }
+    kind: { t: 'code'; a: false; codes: 'instance' | 'capability' | 'requirements' }
     language: { t: 'code'; a: false }
     lockedDate: { t: 'boolean'; a: false }
     meta: { t: 'Meta'; a: false }
@@ -20026,7 +27041,7 @@ export interface R4Elements {
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
     software: { t: 'TerminologyCapabilities.software'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
     translation: { t: 'TerminologyCapabilities.translation'; a: false }
@@ -20122,10 +27137,10 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     name: { t: 'string'; a: false }
     participant: { t: 'TestReport.participant'; a: true }
-    result: { t: 'code'; a: false }
+    result: { t: 'code'; a: false; codes: 'pass' | 'fail' | 'pending' }
     score: { t: 'decimal'; a: false }
     setup: { t: 'TestReport.setup'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'completed' | 'in-progress' | 'waiting' | 'stopped' | 'entered-in-error' }
     teardown: { t: 'TestReport.teardown'; a: false }
     test: { t: 'TestReport.test'; a: true }
     testScript: { t: 'Reference'; a: false }
@@ -20137,7 +27152,7 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    type: { t: 'code'; a: false }
+    type: { t: 'code'; a: false; codes: 'test-engine' | 'client' | 'server' }
     uri: { t: 'uri'; a: false }
   }
   'TestReport.setup': {
@@ -20159,7 +27174,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     message: { t: 'markdown'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    result: { t: 'code'; a: false }
+    result: { t: 'code'; a: false; codes: 'pass' | 'skip' | 'fail' | 'warning' | 'error' }
   }
   'TestReport.setup.action.operation': {
     detail: { t: 'uri'; a: false }
@@ -20167,7 +27182,7 @@ export interface R4Elements {
     id: { t: 'System.String'; a: false }
     message: { t: 'markdown'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    result: { t: 'code'; a: false }
+    result: { t: 'code'; a: false; codes: 'pass' | 'skip' | 'fail' | 'warning' | 'error' }
   }
   'TestReport.teardown': {
     action: { t: 'TestReport.teardown.action'; a: true }
@@ -20220,7 +27235,7 @@ export interface R4Elements {
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
     setup: { t: 'TestScript.setup'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     teardown: { t: 'TestScript.teardown'; a: false }
     test: { t: 'TestScript.test'; a: true }
     text: { t: 'Narrative'; a: false }
@@ -20297,7 +27312,7 @@ export interface R4Elements {
     compareToSourcePath: { t: 'string'; a: false }
     contentType: { t: 'code'; a: false }
     description: { t: 'string'; a: false }
-    direction: { t: 'code'; a: false }
+    direction: { t: 'code'; a: false; codes: 'response' | 'request' }
     expression: { t: 'string'; a: false }
     extension: { t: 'Extension'; a: true }
     headerField: { t: 'string'; a: false }
@@ -20306,12 +27321,258 @@ export interface R4Elements {
     minimumId: { t: 'string'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     navigationLinks: { t: 'boolean'; a: false }
-    operator: { t: 'code'; a: false }
+    operator: {
+      t: 'code'
+      a: false
+      codes:
+        | 'equals'
+        | 'notEquals'
+        | 'in'
+        | 'notIn'
+        | 'greaterThan'
+        | 'lessThan'
+        | 'empty'
+        | 'notEmpty'
+        | 'contains'
+        | 'notContains'
+        | 'eval'
+    }
     path: { t: 'string'; a: false }
-    requestMethod: { t: 'code'; a: false }
+    requestMethod: { t: 'code'; a: false; codes: 'delete' | 'get' | 'options' | 'patch' | 'post' | 'put' | 'head' }
     requestURL: { t: 'string'; a: false }
-    resource: { t: 'code'; a: false }
-    response: { t: 'code'; a: false }
+    resource: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Address'
+        | 'Age'
+        | 'Annotation'
+        | 'Attachment'
+        | 'BackboneElement'
+        | 'CodeableConcept'
+        | 'Coding'
+        | 'ContactDetail'
+        | 'ContactPoint'
+        | 'Contributor'
+        | 'Count'
+        | 'DataRequirement'
+        | 'Distance'
+        | 'Dosage'
+        | 'Duration'
+        | 'Element'
+        | 'ElementDefinition'
+        | 'Expression'
+        | 'Extension'
+        | 'HumanName'
+        | 'Identifier'
+        | 'MarketingStatus'
+        | 'Meta'
+        | 'Money'
+        | 'MoneyQuantity'
+        | 'Narrative'
+        | 'ParameterDefinition'
+        | 'Period'
+        | 'Population'
+        | 'ProdCharacteristic'
+        | 'ProductShelfLife'
+        | 'Quantity'
+        | 'Range'
+        | 'Ratio'
+        | 'Reference'
+        | 'RelatedArtifact'
+        | 'SampledData'
+        | 'Signature'
+        | 'SimpleQuantity'
+        | 'SubstanceAmount'
+        | 'Timing'
+        | 'TriggerDefinition'
+        | 'UsageContext'
+        | 'base64Binary'
+        | 'boolean'
+        | 'canonical'
+        | 'code'
+        | 'date'
+        | 'dateTime'
+        | 'decimal'
+        | 'id'
+        | 'instant'
+        | 'integer'
+        | 'markdown'
+        | 'oid'
+        | 'positiveInt'
+        | 'string'
+        | 'time'
+        | 'unsignedInt'
+        | 'uri'
+        | 'url'
+        | 'uuid'
+        | 'xhtml'
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
+    response: {
+      t: 'code'
+      a: false
+      codes:
+        | 'okay'
+        | 'created'
+        | 'noContent'
+        | 'notModified'
+        | 'bad'
+        | 'forbidden'
+        | 'notFound'
+        | 'methodNotAllowed'
+        | 'conflict'
+        | 'gone'
+        | 'preconditionFailed'
+        | 'unprocessable'
+    }
     responseCode: { t: 'string'; a: false }
     sourceId: { t: 'id'; a: false }
     validateProfileId: { t: 'id'; a: false }
@@ -20327,13 +27588,228 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     label: { t: 'string'; a: false }
-    method: { t: 'code'; a: false }
+    method: { t: 'code'; a: false; codes: 'delete' | 'get' | 'options' | 'patch' | 'post' | 'put' | 'head' }
     modifierExtension: { t: 'Extension'; a: true }
     origin: { t: 'integer'; a: false }
     params: { t: 'string'; a: false }
     requestHeader: { t: 'TestScript.setup.action.operation.requestHeader'; a: true }
     requestId: { t: 'id'; a: false }
-    resource: { t: 'code'; a: false }
+    resource: {
+      t: 'code'
+      a: false
+      codes:
+        | 'Address'
+        | 'Age'
+        | 'Annotation'
+        | 'Attachment'
+        | 'BackboneElement'
+        | 'CodeableConcept'
+        | 'Coding'
+        | 'ContactDetail'
+        | 'ContactPoint'
+        | 'Contributor'
+        | 'Count'
+        | 'DataRequirement'
+        | 'Distance'
+        | 'Dosage'
+        | 'Duration'
+        | 'Element'
+        | 'ElementDefinition'
+        | 'Expression'
+        | 'Extension'
+        | 'HumanName'
+        | 'Identifier'
+        | 'MarketingStatus'
+        | 'Meta'
+        | 'Money'
+        | 'MoneyQuantity'
+        | 'Narrative'
+        | 'ParameterDefinition'
+        | 'Period'
+        | 'Population'
+        | 'ProdCharacteristic'
+        | 'ProductShelfLife'
+        | 'Quantity'
+        | 'Range'
+        | 'Ratio'
+        | 'Reference'
+        | 'RelatedArtifact'
+        | 'SampledData'
+        | 'Signature'
+        | 'SimpleQuantity'
+        | 'SubstanceAmount'
+        | 'Timing'
+        | 'TriggerDefinition'
+        | 'UsageContext'
+        | 'base64Binary'
+        | 'boolean'
+        | 'canonical'
+        | 'code'
+        | 'date'
+        | 'dateTime'
+        | 'decimal'
+        | 'id'
+        | 'instant'
+        | 'integer'
+        | 'markdown'
+        | 'oid'
+        | 'positiveInt'
+        | 'string'
+        | 'time'
+        | 'unsignedInt'
+        | 'uri'
+        | 'url'
+        | 'uuid'
+        | 'xhtml'
+        | 'Account'
+        | 'ActivityDefinition'
+        | 'AdverseEvent'
+        | 'AllergyIntolerance'
+        | 'Appointment'
+        | 'AppointmentResponse'
+        | 'AuditEvent'
+        | 'Basic'
+        | 'Binary'
+        | 'BiologicallyDerivedProduct'
+        | 'BodyStructure'
+        | 'Bundle'
+        | 'CapabilityStatement'
+        | 'CarePlan'
+        | 'CareTeam'
+        | 'CatalogEntry'
+        | 'ChargeItem'
+        | 'ChargeItemDefinition'
+        | 'Claim'
+        | 'ClaimResponse'
+        | 'ClinicalImpression'
+        | 'CodeSystem'
+        | 'Communication'
+        | 'CommunicationRequest'
+        | 'CompartmentDefinition'
+        | 'Composition'
+        | 'ConceptMap'
+        | 'Condition'
+        | 'Consent'
+        | 'Contract'
+        | 'Coverage'
+        | 'CoverageEligibilityRequest'
+        | 'CoverageEligibilityResponse'
+        | 'DetectedIssue'
+        | 'Device'
+        | 'DeviceDefinition'
+        | 'DeviceMetric'
+        | 'DeviceRequest'
+        | 'DeviceUseStatement'
+        | 'DiagnosticReport'
+        | 'DocumentManifest'
+        | 'DocumentReference'
+        | 'DomainResource'
+        | 'EffectEvidenceSynthesis'
+        | 'Encounter'
+        | 'Endpoint'
+        | 'EnrollmentRequest'
+        | 'EnrollmentResponse'
+        | 'EpisodeOfCare'
+        | 'EventDefinition'
+        | 'Evidence'
+        | 'EvidenceVariable'
+        | 'ExampleScenario'
+        | 'ExplanationOfBenefit'
+        | 'FamilyMemberHistory'
+        | 'Flag'
+        | 'Goal'
+        | 'GraphDefinition'
+        | 'Group'
+        | 'GuidanceResponse'
+        | 'HealthcareService'
+        | 'ImagingStudy'
+        | 'Immunization'
+        | 'ImmunizationEvaluation'
+        | 'ImmunizationRecommendation'
+        | 'ImplementationGuide'
+        | 'InsurancePlan'
+        | 'Invoice'
+        | 'Library'
+        | 'Linkage'
+        | 'List'
+        | 'Location'
+        | 'Measure'
+        | 'MeasureReport'
+        | 'Media'
+        | 'Medication'
+        | 'MedicationAdministration'
+        | 'MedicationDispense'
+        | 'MedicationKnowledge'
+        | 'MedicationRequest'
+        | 'MedicationStatement'
+        | 'MedicinalProduct'
+        | 'MedicinalProductAuthorization'
+        | 'MedicinalProductContraindication'
+        | 'MedicinalProductIndication'
+        | 'MedicinalProductIngredient'
+        | 'MedicinalProductInteraction'
+        | 'MedicinalProductManufactured'
+        | 'MedicinalProductPackaged'
+        | 'MedicinalProductPharmaceutical'
+        | 'MedicinalProductUndesirableEffect'
+        | 'MessageDefinition'
+        | 'MessageHeader'
+        | 'MolecularSequence'
+        | 'NamingSystem'
+        | 'NutritionOrder'
+        | 'Observation'
+        | 'ObservationDefinition'
+        | 'OperationDefinition'
+        | 'OperationOutcome'
+        | 'Organization'
+        | 'OrganizationAffiliation'
+        | 'Parameters'
+        | 'Patient'
+        | 'PaymentNotice'
+        | 'PaymentReconciliation'
+        | 'Person'
+        | 'PlanDefinition'
+        | 'Practitioner'
+        | 'PractitionerRole'
+        | 'Procedure'
+        | 'Provenance'
+        | 'Questionnaire'
+        | 'QuestionnaireResponse'
+        | 'RelatedPerson'
+        | 'RequestGroup'
+        | 'ResearchDefinition'
+        | 'ResearchElementDefinition'
+        | 'ResearchStudy'
+        | 'ResearchSubject'
+        | 'Resource'
+        | 'RiskAssessment'
+        | 'RiskEvidenceSynthesis'
+        | 'Schedule'
+        | 'SearchParameter'
+        | 'ServiceRequest'
+        | 'Slot'
+        | 'Specimen'
+        | 'SpecimenDefinition'
+        | 'StructureDefinition'
+        | 'StructureMap'
+        | 'Subscription'
+        | 'Substance'
+        | 'SubstanceNucleicAcid'
+        | 'SubstancePolymer'
+        | 'SubstanceProtein'
+        | 'SubstanceReferenceInformation'
+        | 'SubstanceSourceMaterial'
+        | 'SubstanceSpecification'
+        | 'SupplyDelivery'
+        | 'SupplyRequest'
+        | 'Task'
+        | 'TerminologyCapabilities'
+        | 'TestReport'
+        | 'TestScript'
+        | 'ValueSet'
+        | 'VerificationResult'
+        | 'VisionPrescription'
+    }
     responseId: { t: 'id'; a: false }
     sourceId: { t: 'id'; a: false }
     targetId: { t: 'id'; a: false }
@@ -20408,7 +27884,7 @@ export interface R4Elements {
     name: { t: 'string'; a: false }
     publisher: { t: 'string'; a: false }
     purpose: { t: 'markdown'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'draft' | 'active' | 'retired' | 'unknown' }
     text: { t: 'Narrative'; a: false }
     title: { t: 'string'; a: false }
     url: { t: 'uri'; a: false }
@@ -20454,7 +27930,11 @@ export interface R4Elements {
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
-    op: { t: 'code'; a: false }
+    op: {
+      t: 'code'
+      a: false
+      codes: '=' | 'is-a' | 'descendent-of' | 'is-not-a' | 'regex' | 'in' | 'not-in' | 'generalizes' | 'exists'
+    }
     property: { t: 'code'; a: false }
     value: { t: 'string'; a: false }
   }
@@ -20504,7 +27984,11 @@ export interface R4Elements {
     need: { t: 'CodeableConcept'; a: false }
     nextScheduled: { t: 'date'; a: false }
     primarySource: { t: 'VerificationResult.primarySource'; a: true }
-    status: { t: 'code'; a: false }
+    status: {
+      t: 'code'
+      a: false
+      codes: 'attested' | 'validated' | 'in-process' | 'req-revalid' | 'val-fail' | 'reval-fail'
+    }
     statusDate: { t: 'dateTime'; a: false }
     target: { t: 'Reference'; a: true }
     targetLocation: { t: 'string'; a: true }
@@ -20561,7 +28045,7 @@ export interface R4Elements {
     modifierExtension: { t: 'Extension'; a: true }
     patient: { t: 'Reference'; a: false }
     prescriber: { t: 'Reference'; a: false }
-    status: { t: 'code'; a: false }
+    status: { t: 'code'; a: false; codes: 'active' | 'cancelled' | 'draft' | 'entered-in-error' }
     text: { t: 'Narrative'; a: false }
   }
   'VisionPrescription.lensSpecification': {
@@ -20574,7 +28058,7 @@ export interface R4Elements {
     diameter: { t: 'decimal'; a: false }
     duration: { t: 'Quantity'; a: false }
     extension: { t: 'Extension'; a: true }
-    eye: { t: 'code'; a: false }
+    eye: { t: 'code'; a: false; codes: 'right' | 'left' }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }
     note: { t: 'Annotation'; a: true }
@@ -20585,7 +28069,7 @@ export interface R4Elements {
   }
   'VisionPrescription.lensSpecification.prism': {
     amount: { t: 'decimal'; a: false }
-    base: { t: 'code'; a: false }
+    base: { t: 'code'; a: false; codes: 'up' | 'down' | 'in' | 'out' }
     extension: { t: 'Extension'; a: true }
     id: { t: 'System.String'; a: false }
     modifierExtension: { t: 'Extension'; a: true }

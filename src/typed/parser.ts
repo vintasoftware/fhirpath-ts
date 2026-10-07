@@ -646,8 +646,9 @@ type DefaultEnvironment = [[], 'unknown', never, EmptyContextMap, never]
 type EnvironmentCarrier<Environment extends InferenceEnvironment> = { readonly __environment: Environment }
 type HostValueCarrier<Value> = { readonly __hostValue: Value }
 /**
- * The literal strings a state's values are known to be. String literals attach
- * it and the union forms (`|`, `union`, `combine`, `iif`, `coalesce`) merge it.
+ * The literal strings a state's values are known to be. String literals and
+ * navigation to a required-binding code attach it, and the union forms (`|`,
+ * `union`, `combine`, `iif`, `coalesce`) merge it.
  * It survives only through paths that return a subset of their input: the
  * `['input']` function rules, `select` over an argument, an index, and a
  * group. Every result that computes a new value, arithmetic and string
@@ -2066,9 +2067,18 @@ type NavigateCore<Input extends InferenceState, Element extends string> =
             ? [Information] extends [never]
               ? UnknownState
               : Information extends { t: infer Types extends string }
-                ? [LocalTypeName<Types>, ReferenceTargets<Input[0], Element, Types>]
+                ? [LocalTypeName<Types>, ReferenceTargets<Input[0], Element, Types>] & ElementLiterals<Information>
                 : OpaqueState
             : OpaqueState
+
+/**
+ * The codes of a navigated element's required binding, as the literal carrier;
+ * nothing for other elements, an extensible binding included, since conformant
+ * data may hold a code outside it.
+ */
+type ElementLiterals<Information> = Information extends { codes: infer Codes extends string }
+  ? LiteralCarrier<Codes>
+  : unknown
 
 type NavigateHostValue<Value, Element extends string> = Value extends Value
   ? Element extends keyof Value

@@ -15,6 +15,7 @@ const patient: Patient = {
 const observation: Observation = {
   resourceType: 'Observation',
   status: 'final',
+  code: {},
   valueQuantity: { value: 72, unit: 'kg' },
 }
 

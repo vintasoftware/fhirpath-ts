@@ -6,13 +6,14 @@ import type {
   HumanName,
   Identifier,
   MedicationRequest,
+  Observation,
   Patient,
   PatientContact,
   Quantity,
   SystemQuantity,
 } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
-import { type FhirpathInput, type FhirpathResult } from './infer.ts'
+import { type FhirpathInput, type FhirpathResult, type InputOf, type LenientResource } from './infer.ts'
 
 const patient: Patient = {
   resourceType: 'Patient',
@@ -112,9 +113,35 @@ describe('type-level inference agrees with the runtime', () => {
     expectTypeOf(identifiers).toEqualTypeOf<Identifier[]>()
   })
 
-  it('the input type follows the root resource', () => {
-    expectTypeOf<FhirpathInput<'Patient.name'>>().toEqualTypeOf<Patient>()
+  it('the input type follows the root resource, with every element optional', () => {
+    expectTypeOf<FhirpathInput<'Patient.name'>>().toEqualTypeOf<LenientResource<'Patient'>>()
     expectTypeOf<FhirpathInput<'name.given'>>().toEqualTypeOf<unknown>()
+    // A full resource and a bare pin both fit; the generated interface's
+    // required elements are results, not an input requirement.
+    expectTypeOf<Observation>().toExtend<FhirpathInput<'Observation.status'>>()
+    expectTypeOf<{ resourceType: 'Observation' }>().toExtend<FhirpathInput<'Observation.status'>>()
+    expectTypeOf<{ resourceType: 'Patient' }>().not.toExtend<FhirpathInput<'Observation.status'>>()
+    // A misspelled property is still an excess-property error on a literal.
+    // @ts-expect-error -- 'nam' is not an element of Patient
+    compile('Patient.name').evaluate({ resourceType: 'Patient', nam: [] })
+    // A code keeps its union on input, so a misspelled code is rejected too.
+    // @ts-expect-error -- 'finall' is not an Observation status
+    compile('Observation.status').evaluate({ resourceType: 'Observation', status: 'finall' })
+    // A code set that names primitive types is still a code set.
+    // @ts-expect-error -- 'phon' is not a ContactPoint system
+    compile('Patient.telecom').evaluate({ resourceType: 'Patient', telecom: [{ system: 'phon' }] })
+    // A code set that names resources widens: another model adds names to Reference.type.
+    compile('Patient.managingOrganization.type').evaluate({
+      resourceType: 'Patient',
+      managingOrganization: { type: 'Bot' },
+    })
+    // The declared-root forms take the same lenient input.
+    expect(compile('status', 'Observation').evaluate({ resourceType: 'Observation', status: 'final' })).toEqual([
+      'final',
+    ])
+    // An extensible binding admits other codes, so navigation infers string there.
+    expectTypeOf(r4.evaluate('Patient.managingOrganization.type', patient)).toEqualTypeOf<string[]>()
+    expectTypeOf(r4.evaluate('Patient.gender', patient)).toEqualTypeOf<NonNullable<Patient['gender']>[]>()
   })
 })
 
@@ -308,9 +335,9 @@ describe('a declared root types a relative expression', () => {
     const kg = fhirpath("value.ofType(Quantity).toQuantity('kg').value", 'Observation')
     expectTypeOf(kg.evaluate).returns.toEqualTypeOf<number[]>()
     const status = compile('status', 'MedicationRequest')
-    expectTypeOf(status.evaluate).returns.toEqualTypeOf<string[]>()
+    expectTypeOf(status.evaluate).returns.toEqualTypeOf<MedicationRequest['status'][]>()
     // The declared root is also the input type, rather than one guessed from the path.
-    expectTypeOf(status.evaluate).parameter(0).toEqualTypeOf<MedicationRequest | undefined>()
+    expectTypeOf(status.evaluate).parameter(0).toEqualTypeOf<InputOf<'MedicationRequest'> | undefined>()
     // Without a root, a relative expression degrades as before.
     expectTypeOf(fhirpath('status').evaluate).returns.toEqualTypeOf<unknown[]>()
   })

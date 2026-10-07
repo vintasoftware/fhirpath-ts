@@ -9,6 +9,7 @@ import type {
   EmptyFhirpathTypeContext,
   FhirpathTypeContextOf,
   FhirpathTypeDeclarations,
+  InputOf,
   MergeFhirpathTypeContexts,
 } from '../typed/infer.ts'
 import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
@@ -228,7 +229,7 @@ type RequiredPathInput<Type extends string, Path extends string> = string extend
       ? [Leaf] extends [never]
         ? never
         : Leaf extends keyof R4TypeOf
-          ? { readonly [Key in Path]: R4TypeOf[Leaf] }
+          ? { readonly [Key in Path]: InputOf<Leaf> }
           : never
       : never
 

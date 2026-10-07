@@ -861,10 +861,24 @@ request-specific values through call options.
 `fhirpath-ts/r4` and `@medplum/fhirtypes` are generated from the same R4
 StructureDefinitions. Medplum resources can be passed directly to this engine.
 
-This package keeps every generated field optional, including fields that FHIR
-marks as required. The types describe data that can be navigated; they are not a
-profile validator. Required code bindings use generated literal unions where the
-code set is practical.
+The generated interfaces require the elements FHIR marks as required (minimum
+cardinality 1) and enumerate every required and extensible code binding the
+definitions can list, with `Reference.type` as the resource names: a superset
+of Medplum's enumerations, so a datatype result such as an `Extension`, an
+`Address`, or a `Quantity` is assignable to the Medplum type without a cast.
+Inferred results carry the union of a required binding:
+`r4.evaluate('Observation.status', observation)` infers the status codes, while
+`Reference.type` infers `string`, since an extensible binding admits other
+codes. A whole resource is not assignable to Medplum's: `contained` and
+`Bundle.entry.resource` hold any `{ resourceType }` here, while Medplum's
+`Resource` is a closed union that also names Medplum's own resources.
+
+Inputs stay lenient. A root-prefixed expression, a declared root, and a declared
+host value accept `{ resourceType: 'Observation' }` with every other element
+optional, because data read from a server, a fixture, or a form may be
+incomplete. A misspelled property or status is still rejected; only a code set
+that names resources, such as `Reference.type`, accepts any string, which is
+what lets a Medplum resource in. The types are not a profile validator.
 
 Pass explicit generics to use Medplum types for both input and result:
 

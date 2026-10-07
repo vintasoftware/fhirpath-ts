@@ -108,11 +108,12 @@ export type FhirpathTypeContextOf<Options> = {
   functions: NormalizeContextMap<ContextProperty<Options, 'functions'>>
 }
 
+/** A declared host value is an input, so it enters as any input of its type does. */
 type DeclarationElement<Declaration> = Declaration extends { readonly type: infer Type }
   ? Type extends readonly FhirTypeName[]
-    ? R4TypeOf[Type[number]]
+    ? InputOf<Type[number]>
     : Type extends FhirTypeName
-      ? R4TypeOf[Type]
+      ? InputOf<Type>
       : unknown
   : unknown
 
@@ -153,13 +154,45 @@ export type FhirpathRootOf<Input> = Input extends readonly (infer Item)[]
     ? Root
     : 'opaque'
 
+/**
+ * A value as an input may be incomplete: the generated interfaces require the
+ * elements FHIR requires, but data read from a server, a fixture, or a form
+ * need not carry them to be navigated. Every element becomes optional. A code
+ * keeps its union, so a misspelled status is still rejected, except a code set
+ * that names resources (`Reference.type`, `DataRequirement.type`,
+ * `SearchParameter.base`), which widens to string: another model adds
+ * resources, and `@medplum/fhirtypes` puts its own there and types the broad
+ * lists as string. The check is per member, so one resource name in a set
+ * widens the whole set; a set of primitive-type names such as
+ * `SearchParameter.type` keeps its union.
+ */
+export type Lenient<Value> = Value extends string
+  ? Value extends keyof R4Resources
+    ? string
+    : Value
+  : Value extends readonly (infer Item)[]
+    ? Lenient<Item>[]
+    : Value extends object
+      ? { [Key in keyof Value]?: Lenient<Value[Key]> }
+      : Value
+
+/** The input a resource-rooted literal expression accepts: the root's resource, lenient and pinned to its name. */
+export type LenientResource<Root extends keyof R4Resources> = { readonly resourceType: Root } & Lenient<
+  R4Resources[Root]
+>
+
+/** The input a value of FHIR type `Type` enters as: a resource pinned to its name, anything else lenient. */
+export type InputOf<Type extends FhirTypeName> = Type extends keyof R4Resources
+  ? LenientResource<Type>
+  : Lenient<R4TypeOf[Type]>
+
 /** The expected input resource for a resource-rooted literal expression. */
 export type FhirpathInput<Expression extends string> = string extends Expression
   ? unknown
   : Expression extends `${infer Root}.${string}`
     ? Root extends keyof R4Resources
-      ? R4Resources[Root]
+      ? InputOf<Root>
       : unknown
     : Expression extends keyof R4Resources
-      ? R4Resources[Expression]
+      ? InputOf<Expression>
       : unknown
