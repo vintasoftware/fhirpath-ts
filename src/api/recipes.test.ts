@@ -7,6 +7,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { analyzeExpression } from '../analyzer/analyze.ts'
 import { type DtoInput, type DtoOptions, FhirPathEngine, type FhirTypeName, type ViewBaseClass } from '../index.ts'
 import type {
+  Appointment,
   Bundle,
   Condition,
   DiagnosticReport,
@@ -585,6 +586,45 @@ describe('API reference DTO input examples', () => {
     const start: string = row.start
     expect(start).toBe('2026-03-01T09:00:00Z')
     expect(row).toEqual(expect.objectContaining({ id: 'a1', lastUpdated: '2026-02-01T00:00:00Z', end: undefined }))
+
+    // A class with a required column takes no Bundle; the entries are read and
+    // narrowed with a named guard, as a mapper module writes it.
+    function isScheduled(appointment: Appointment): appointment is Appointment & ScheduledAppointment {
+      return (
+        appointment.id !== undefined && appointment.start !== undefined && appointment.meta?.lastUpdated !== undefined
+      )
+    }
+    const booked: Appointment = {
+      resourceType: 'Appointment',
+      id: 'a1',
+      status: 'booked',
+      start: '2026-03-01T09:00:00Z',
+      meta: { lastUpdated: '2026-02-01T00:00:00Z' },
+      participant: [],
+    }
+    const proposed: Appointment = { resourceType: 'Appointment', id: 'a2', status: 'proposed', participant: [] }
+    const bundle: Bundle = {
+      resourceType: 'Bundle',
+      type: 'collection',
+      entry: [{ resource: booked }, { resource: proposed }],
+    }
+    // @ts-expect-error -- a Bundle entry cannot prove `start`
+    expect(ScheduledAppointmentRow.from(bundle)).toHaveLength(2)
+    const appointments = r4.evaluate('Bundle.entry.resource.ofType(Appointment)', bundle)
+    expect(ScheduledAppointmentRow.from(appointments.filter(isScheduled)).map(item => item.id)).toEqual(['a1'])
+    // For one resource, a spread carries the narrowed properties into a new object.
+    const { id: bookedId, start: bookedStart } = booked
+    const lastUpdated = booked.meta?.lastUpdated
+    if (bookedId !== undefined && bookedStart !== undefined && lastUpdated !== undefined) {
+      const one = ScheduledAppointmentRow.from({
+        ...booked,
+        id: bookedId,
+        start: bookedStart,
+        meta: { ...booked.meta, lastUpdated },
+      })
+      expectTypeOf(one).toEqualTypeOf<ScheduledAppointmentRow>()
+      expect(one.start).toBe('2026-03-01T09:00:00Z')
+    }
   })
 })
 

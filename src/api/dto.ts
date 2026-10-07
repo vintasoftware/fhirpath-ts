@@ -457,6 +457,39 @@ type RequiredInput<Root extends string, Paths extends string> = UnionToIntersect
 >
 
 /**
+ * A Bundle input for a class, or a refusal. A Bundle is accepted as a whole,
+ * so its entries are typed only at runtime, and the runtime never checks a
+ * required path; a class with a required column therefore takes no Bundle,
+ * and the caller reads the entries with `ofType()` and narrows them instead.
+ */
+export type BundleInput<C extends DtoClass> = [RequiredPaths<InstanceType<C>>] extends [never]
+  ? BundleLike
+  : {
+      // The pin makes TypeScript elaborate a refused Bundle against this member, so the error names the recipe.
+      readonly resourceType: 'Bundle'
+      readonly bundleNotAccepted: 'this DTO has required columns, which a Bundle entry cannot prove; read the entries with Bundle.entry.resource.ofType(...) and narrow them'
+    }
+
+/**
+ * One subject is never a Bundle: the runtime unwraps a Bundle into its entries
+ * and returns one row per entry, so a Bundle enters only through `BundleInput`.
+ * A `Resource` root would otherwise admit one through `SubtypesOf`, and a
+ * datatype root through `object`.
+ */
+type NotBundle = { readonly resourceType?: Exclude<keyof R4Resources, 'Bundle'> }
+
+/**
+ * What a DTO or view projects: one subject, an array of them, or a Bundle. A
+ * Bundle and an array give one row per entry; one subject gives one row.
+ */
+export type DtoProjectionInput<C extends DtoClass> = readonly DtoInput<C>[] | BundleInput<C> | (DtoInput<C> & NotBundle)
+
+/** The rows a projection returns for its input, by the same rule the runtime applies. */
+export type DtoProjection<C extends DtoClass, Input> = Input extends readonly unknown[] | BundleLike
+  ? InstanceType<C>[]
+  : InstanceType<C>
+
+/**
  * The input a DTO or view projects: its root's `resourceType` (any object for
  * a datatype root), plus every path its required columns read. Base classes
  * contribute their required columns through the instance type.
@@ -484,20 +517,17 @@ export type DtoBaseClass<
    */
   readonly [dtoTypes]: { readonly context: Own; readonly kind: Kind }
   /**
-   * Projects on the defining engine: one row per input resource, typed like the
-   * engine's `project()`. The input must carry the root's `resourceType` and
-   * every required column's path.
+   * Projects on the defining engine, typed like the engine's `project()`: an
+   * array or a Bundle gives one row per resource, one subject gives one row.
+   * The input must carry the root's `resourceType` and every required column's
+   * path; a class with a required column refuses a Bundle, whose entries cannot
+   * prove the path, so read them with `ofType()` and narrow them.
    */
-  from<This extends DtoClass, const Input extends readonly DtoInput<This>[] | BundleLike>(
+  from<This extends DtoClass, const Input extends DtoProjectionInput<This>>(
     this: This,
     input: Input,
     options?: EvaluateOptions
-  ): InstanceType<This>[]
-  from<This extends DtoClass, const Input extends DtoInput<This>>(
-    this: This,
-    input: Input,
-    options?: EvaluateOptions
-  ): InstanceType<This>
+  ): DtoProjection<This, Input>
 }
 
 /** The class a registered DTO is: every non-method instance field is a column. */

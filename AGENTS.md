@@ -232,12 +232,22 @@ rules together; each protects the types:
   `resourceType` plus the paths of the class's required columns, never the
   generated resource interface (see `docs/adr/0001`). `required` is type-only:
   the input type proves presence, the `column()` return type drops `undefined`,
-  the recorded column spec never carries the option, and the
+  the recorded column spec never carries the option, `BundleInput` refuses a
+  Bundle for a class with a required column (the one input whose entries the
+  types cannot see), and the
   runtime reads the column as any other, so projection and function-call parity
   is untouched. The field type carries the path through the optional-symbol
   `RequiredColumn` marker; that is the only channel from a field to the class's
   input type, so keep the marker optional (a plain value must still assign to
   the field) and read it only through `DtoInput`.
+- `from()` and the DTO form of `project()` are one signature over
+  `DtoProjectionInput`, whose return type `DtoProjection` follows the runtime
+  rule (a Bundle or an array gives rows, one subject gives a row), so the two
+  cannot disagree. The single-subject member excludes a Bundle (`NotBundle`):
+  a `Resource` root names Bundle among its subtypes and a datatype root accepts
+  any object, while the runtime unwraps a Bundle wherever it appears. Keep the
+  DTO overload count low: TypeScript details every overload's error only up to
+  three, which is what lets the `BundleInput` refusal text reach the caller.
 - `assertInputMatchesDto` rejects a non-object or a missing `resourceType` only
   when the engine's model says the root is a resource. Without a model it
   compares a present `resourceType` and nothing else. A `resourceType` that

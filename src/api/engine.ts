@@ -37,8 +37,9 @@ import {
   type DtoContext,
   dtoDefinition,
   type DtoDefinitionOptions,
-  type DtoInput,
   type DtoOptions,
+  type DtoProjection,
+  type DtoProjectionInput,
   isDtoClass,
   type RegisteredDtoClass,
   type RegisteredOptions,
@@ -383,19 +384,16 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    * unless `collection: true` is set. `%rowIndex` and `%rowTotal` are available
    * in every column. All columns compile before any row is read. A DTO accepts
    * its `DtoInput`: a value carrying the root's `resourceType` and the paths of
-   * its required columns. A Bundle is accepted as a whole, and only its entry
-   * resources are checked, at runtime.
+   * its required columns. A Bundle is accepted as a whole only by a DTO without
+   * required columns, since its entries are checked at runtime and a required
+   * path never is; a DTO with one refuses it, and the caller reads the entries
+   * with `ofType()` and narrows them.
    */
-  project<C extends DtoClass, const Input extends readonly DtoInput<C>[] | BundleLike>(
+  project<C extends DtoClass, const Input extends DtoProjectionInput<C>>(
     input: Input,
     dto: C,
     options?: EvaluateOptions
-  ): InstanceType<C>[]
-  project<C extends DtoClass, const Input extends DtoInput<C>>(
-    input: Input,
-    dto: C,
-    options?: EvaluateOptions
-  ): InstanceType<C>
+  ): DtoProjection<C, Input>
   project<
     const Input extends readonly unknown[] | BundleLike,
     const Columns extends ProjectionColumns,

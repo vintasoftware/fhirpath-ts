@@ -13,6 +13,7 @@ export type {
 export { compile, CompiledExpression, DEFAULT_PARSE_CACHE_SIZE } from './api/compile.ts'
 export type { ConstraintCheckResult, ConstraintIssue, FhirConstraint, OperationOutcome } from './api/constraints.ts'
 export type {
+  BundleInput,
   DtoBase,
   DtoBaseClass,
   DtoBaseOptions,
@@ -23,6 +24,8 @@ export type {
   DtoInput,
   DtoKind,
   DtoOptions,
+  DtoProjection,
+  DtoProjectionInput,
   DtoRow,
   RegisteredDtoClass,
   RegisteredOptions,

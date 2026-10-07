@@ -44,7 +44,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   type, at compile time and at runtime.
 - `required: true` column option for DTO and view columns on a path of singular
   element names. The input type gains the path as a required property and the
-  field type drops `undefined`. There is no runtime check.
+  field type drops `undefined`. There is no runtime check, and a class with a
+  required column refuses a Bundle input, since an entry cannot prove the path;
+  read the entries with `ofType()` and narrow them.
 - `narrativeSanitizer` option and `domPurifySanitizer()` adapter. With a
   sanitizer set, `htmlChecks()` also returns `false` for a narrative the
   sanitizer would change. DOMPurify is not a dependency; pass your own instance.
