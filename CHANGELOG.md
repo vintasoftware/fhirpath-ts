@@ -8,21 +8,21 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+## 0.4.0 - 2026-10-07
+
+This release types what a DTO projects. `engine.project(input, Dto)` and the
+new `Dto.from(input)` accept only the DTO's input, so the wrong resource type
+is a compile error again
+([#88](https://github.com/vintasoftware/fhirpath-ts/issues/88)); `required`
+columns, `base` DTOs, code and string-literal unions in inference, and
+generated interfaces that keep FHIR's required elements come with it. Three
+changes are breaking: the DTO input type, the runtime rejection of a
+non-resource for a resource root, and the required elements in the generated
+interfaces. See [Inputs](docs/api.md#inputs) and
+[Medplum types](docs/api.md#medplum-types).
+
 ### Added
 
-- **Breaking:** the generated R4 interfaces require the elements FHIR marks as
-  required (minimum cardinality 1) and enumerate every required or extensible
-  code binding the bundled definitions can, a superset of what
-  `@medplum/fhirtypes` enumerates, so a datatype result such as an `Extension`,
-  `Address`, or `Quantity` is assignable to the Medplum type without a cast. A
-  value constructed by hand as a generated type now needs its required
-  elements. Inputs stay lenient: `FhirpathInput`, the declared-root forms of
-  `compile()` and `fhirpath()`, and declared host values are the
-  `resourceType` pin plus the resource with every element optional, so
-  `r4.evaluate('Observation.status', { resourceType: 'Observation' })` keeps
-  compiling. A misspelled property or code is still rejected; a code set that
-  names resources, such as `Reference.type`, accepts any string, so a Medplum
-  resource is still accepted.
 - Inference returns the code union of a required binding: `Observation.status`
   infers `('registered' | 'preliminary' | ...)[]` instead of `string[]`, in
   engine calls, DTO columns, and declared environment values. An extensible
@@ -63,6 +63,19 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
+- **Breaking:** the generated R4 interfaces require the elements FHIR marks as
+  required (minimum cardinality 1) and enumerate every required or extensible
+  code binding the bundled definitions can, a superset of what
+  `@medplum/fhirtypes` enumerates, so a datatype result such as an `Extension`,
+  `Address`, or `Quantity` is assignable to the Medplum type without a cast. A
+  value constructed by hand as a generated type now needs its required
+  elements. Inputs stay lenient: `FhirpathInput`, the declared-root forms of
+  `compile()` and `fhirpath()`, and declared host values are the
+  `resourceType` pin plus the resource with every element optional, so
+  `r4.evaluate('Observation.status', { resourceType: 'Observation' })` keeps
+  compiling. A misspelled property or code is still rejected; a code set that
+  names resources, such as `Reference.type`, accepts any string, so a Medplum
+  resource is still accepted.
 - **Breaking:** `engine.project(input, Dto)` types its input. A DTO or view on a
   resource type accepts `{ resourceType: '<root>' }`, an array of such values,
   or a Bundle; a datatype root accepts any object. An `unknown` input or a
