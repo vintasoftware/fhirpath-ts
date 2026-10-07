@@ -4,7 +4,8 @@ import { bareEnvironmentName, mergeEnvKeys, normalizeEnvKeys } from '../engine/c
 import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import type { R4Bases, R4Elements, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type { BareContextName } from '../typed/context-maps.ts'
 import type {
   EmptyFhirpathTypeContext,
   FhirpathTypeContextOf,
@@ -111,6 +112,104 @@ export interface DtoOptions {
 }
 
 /**
+ * `DtoOptions` plus a base: a DTO whose columns, `env`, `vars`, and `callerEnv`
+ * this class inherits. Its root is this root or one of its model base types
+ * (`Resource`, `DomainResource`, or the same type), and it was defined on this
+ * engine or one this engine derives from. A DTO takes a DTO as base; a view
+ * takes a DTO or a view. The class's own options win on a name clash, and a
+ * redeclared column overrides. `base` lives outside `DtoOptions` so a function
+ * forwarding `DtoOptions` to `defineView()` keeps a statically known base class.
+ */
+export interface DtoBaseOptions extends DtoOptions {
+  readonly base: DtoClass
+}
+
+/** What `createDtoBase` receives: either option set. */
+export type DtoDefinitionOptions = DtoOptions & { readonly base?: DtoClass }
+
+/** Keys the type-only facts of a DTO class: nothing is defined under it at runtime, and no name reaches autocomplete. */
+declare const dtoTypes: unique symbol
+
+/**
+ * The base class's own context (its env, vars, caller environment, and row
+ * variables), read from the type-only static the engine's base carries. The
+ * engine context is not part of it: the subclass merges its own engine's once,
+ * and that engine is the base's or derives from it.
+ */
+type BaseContext<Options> = Options extends {
+  readonly base: { readonly [dtoTypes]: { readonly context: infer Context extends object } }
+}
+  ? Context
+  : EmptyFhirpathTypeContext
+
+/** The kind of a base class, or `never` without one. */
+type BaseKind<Options> = Options extends {
+  readonly base: { readonly [dtoTypes]: { readonly kind: infer Kind extends DtoKind } }
+}
+  ? Kind
+  : never
+
+/** The bare names a class's own options bind: env, vars, and the caller environment. */
+type OwnBoundNames<Options> = BareContextName<
+  keyof OptionField<Options, 'env'> | keyof OptionField<Options, 'vars'> | CallerEnvNamesOf<Options>
+>
+
+type CallerEnvNamesOf<Options> =
+  OptionField<Options, 'callerEnv'> extends infer Declared
+    ? Declared extends readonly (infer Name extends string)[]
+      ? Name
+      : keyof Declared
+    : never
+
+/** The names a base's context binds: its env with the caller declarations, and its vars; the row variables are everyone's. */
+type BaseBoundNames<Options> =
+  BaseContext<Options> extends { env: infer Env; vars: infer Vars }
+    ? Exclude<keyof Env, 'rowIndex' | 'rowTotal'> | keyof Vars
+    : never
+
+/**
+ * A subclass cannot rebind a name its base binds: the inherited columns were
+ * typed against the base's binding, and the runtime would read the subclass's.
+ */
+type RebindConstraint<Options> = [OwnBoundNames<Options> & BaseBoundNames<Options>] extends [never]
+  ? unknown
+  : { readonly rebinds: `the base already binds ${Extract<OwnBoundNames<Options> & BaseBoundNames<Options>, string>}` }
+
+/** The columns, methods, and getters a base class adds to the class extending it. */
+export type BaseFields<Base extends DtoClass> = Omit<InstanceType<Base>, 'fhirType'>
+
+/** Whether `Type` is `Base` or derives from it in the model. */
+type DerivesFrom<Type extends string, Base extends string> = Type extends Base
+  ? true
+  : Type extends keyof R4Bases
+    ? R4Bases[Type] extends infer Parent extends string
+      ? DerivesFrom<Parent, Base>
+      : false
+    : false
+
+/**
+ * The `base` option as the kind and the root allow. A DTO takes a DTO as base,
+ * a view a DTO or a view; the base root is the root or one of its model base
+ * types. Applied as a validation intersection on the options parameter.
+ */
+export type BaseConstraint<Kind extends DtoKind, Root extends string, Options> = Options extends {
+  readonly base: infer Base
+}
+  ? Base extends DtoClass<infer BaseRoot>
+    ? Kind extends 'dto'
+      ? BaseKind<Options> extends 'dto'
+        ? BaseRootConstraint<Root, BaseRoot> & RebindConstraint<Options>
+        : { base: 'a DTO takes a DTO as base; a view takes a DTO or a view' }
+      : BaseRootConstraint<Root, BaseRoot> & RebindConstraint<Options>
+    : { base: 'a base is a class from defineDto() or defineView()' }
+  : unknown
+
+type BaseRootConstraint<Root extends string, BaseRoot extends string> =
+  DerivesFrom<Root, BaseRoot> extends true
+    ? unknown
+    : { base: 'the base root must be this root or one of its model base types, such as Resource' }
+
+/**
  * One option as the columns see it. A record without literal keys, such as the
  * `DtoOptions` shape itself, declares nothing: its names are unknown either way.
  */
@@ -132,14 +231,22 @@ type CallerEnvTypes<Options> =
  * environment, and the row variables `project()` binds. Runtime precedence is
  * the same: DTO values win over caller values, and row variables win over both.
  */
-export type DtoContext<Options> = MergeFhirpathTypeContexts<
-  FhirpathTypeContextOf<{
-    env: OptionField<Options, 'env'>
-    envTypes: CallerEnvTypes<Options>
-    vars: OptionField<Options, 'vars'>
-  }>,
+export type DtoContext<Options> = Options extends { readonly base: unknown }
+  ? MergeFhirpathTypeContexts<BaseContext<Options>, OwnDtoContext<Options>>
+  : OwnDtoContext<Options>
+
+/** A class's own context with the row variables, which a base's `dtoContext` static already carries. */
+type OwnDtoContext<Options> = MergeFhirpathTypeContexts<
+  OwnContext<Options>,
   { env: { rowIndex: { type: 'System.Integer' }; rowTotal: { type: 'System.Integer' } } }
 >
+
+/** The context a class's own options declare; merged under a base's when there is one. */
+type OwnContext<Options> = FhirpathTypeContextOf<{
+  env: OptionField<Options, 'env'>
+  envTypes: CallerEnvTypes<Options>
+  vars: OptionField<Options, 'vars'>
+}>
 
 /**
  * The markers made so far for each class being collected. Keyed by class, so a
@@ -316,23 +423,23 @@ export type DtoClass<Root extends string = string> = (new () => { readonly fhirT
 /** The DTO instance type returned by projection, including getters and methods. */
 export type DtoRow<C extends DtoClass> = InstanceType<C>
 
-/** Whether `Type` is `Base` or derives from it in the model. */
-type DerivesFrom<Type extends string, Base extends string> = Type extends Base
-  ? true
-  : Type extends keyof R4Bases
-    ? R4Bases[Type] extends infer Parent extends string
-      ? DerivesFrom<Parent, Base>
-      : false
-    : false
+/** The resource names that are `Root` or derive from it: every resource for `Resource`. */
+export type SubtypesOf<Root extends string> = {
+  [Name in keyof R4Resources]: DerivesFrom<Name, Root> extends true ? Name : never
+}[keyof R4Resources]
 
 /**
- * What a resource root accepts: a value carrying its `resourceType`. The rule
- * is the runtime's, a root that derives from `Resource` in the model, so an
- * abstract root such as `DomainResource` demands its own name too. A datatype
- * root accepts any object.
+ * What a resource root accepts: a value carrying its `resourceType`, or one of
+ * the resource names deriving from an abstract root such as `Resource`. The
+ * rule is the runtime's, a root that derives from `Resource` in the model. A
+ * datatype root accepts any object.
  */
 type RootInput<Root extends string> =
-  DerivesFrom<Root, 'Resource'> extends true ? { readonly resourceType: Root } : object
+  DerivesFrom<Root, 'Resource'> extends true
+    ? Root extends keyof R4Resources
+      ? { readonly resourceType: Root }
+      : { readonly resourceType: SubtypesOf<Root> }
+    : object
 
 type IsAny<Type> = 0 extends 1 & Type ? true : false
 
@@ -367,8 +474,15 @@ export type DtoBaseClass<
   Context extends object,
   Fields extends object = object,
   Kind extends DtoKind = DtoKind,
+  Own extends object = EmptyFhirpathTypeContext,
 > = (new () => DtoBase<Root, Context, Kind> & Fields) & {
   readonly fhirType: Root
+  /**
+   * Type-only, nothing at runtime: the class's own context (`DtoContext`), which
+   * a class using this one as `base` inherits, and its kind, which decides
+   * what may use it as `base`.
+   */
+  readonly [dtoTypes]: { readonly context: Own; readonly kind: Kind }
   /**
    * Projects on the defining engine: one row per input resource, typed like the
    * engine's `project()`. The input must carry the root's `resourceType` and
@@ -542,6 +656,14 @@ export interface DtoDefinition {
   readonly resource: boolean
   /** A column always records an object form, so a consumer never has to handle the plain-string column. */
   readonly columns: Readonly<Record<string, ColumnSpec>>
+  /**
+   * The root each column is checked against: the base's root for a column
+   * inherited unchanged, since it was written for that root and a subtype
+   * carries every element of its base; this root for the rest.
+   */
+  readonly columnRoots: Readonly<Record<string, string>>
+  /** How many columns were declared while the class was collected, redeclarations included. */
+  readonly collected: number
   /** The DTO's own environment values, with bare names. */
   readonly env: Record<string, unknown> | undefined
   /**
@@ -557,7 +679,10 @@ export interface DtoDefinition {
   readonly callerEnvTypes: FhirpathTypeDeclarations | undefined
 }
 
-type DtoBaseDefinition = Omit<DtoDefinition, 'columns'>
+type DtoBaseDefinition = Omit<DtoDefinition, 'columns' | 'columnRoots' | 'collected'> & {
+  /** The `base` option, whose definition supplies the inherited columns' roots. */
+  readonly base: DtoClass | undefined
+}
 
 /** The normalized options a `defineDto()` base was created with. */
 const bases = new WeakMap<object, DtoBaseDefinition>()
@@ -575,9 +700,14 @@ export function createDtoBase(
   engine: FhirPathEngine,
   kind: DtoKind,
   fhirType: string,
-  options: DtoOptions = {}
+  options: DtoDefinitionOptions = {}
 ): DtoBaseClass<string, object> {
-  const base = class extends DtoBase {
+  const inherited = options.base === undefined ? undefined : inheritedDefinition(kind, fhirType, options.base, engine)
+  // Extending the base class itself is what inherits its columns, methods, and
+  // getters: the base's field initializers run when this class is constructed,
+  // so its columns are collected with the subclass's own.
+  const parent = (options.base ?? DtoBase) as typeof DtoBase
+  const base = class extends parent {
     static from(this: DtoClass, input: unknown, options?: EvaluateOptions): unknown {
       return engine.project(input as never, this, options)
     }
@@ -585,25 +715,84 @@ export function createDtoBase(
   // A readable name for project()/registration errors; a subclass replaces it.
   Object.defineProperty(base, 'name', { value: `${fhirType}${kind === 'dto' ? 'Dto' : 'View'}` })
   Object.defineProperty(base, 'fhirType', { value: fhirType, enumerable: true })
-  bases.set(base, baseDefinition(engine, kind, fhirType, options))
+  bases.set(base, baseDefinition(engine, kind, fhirType, options, inherited))
   return base as unknown as DtoBaseClass<string, object>
 }
 
-/** Checks and normalizes the options once, when the base is created. */
+/**
+ * Checks a `base` option: a DTO or view class whose kind the subclass's kind
+ * accepts and whose root is this root or one of its model base types. The
+ * engine lineage is checked by `defineDto()`/`defineView()`, which know their
+ * engine's parents.
+ */
+function inheritedDefinition(
+  kind: DtoKind,
+  fhirType: string,
+  base: DtoClass,
+  engine: FhirPathEngine
+): DtoBaseDefinition {
+  const call = `${kind === 'dto' ? 'defineDto' : 'defineView'}('${fhirType}')`
+  const definition = baseOf(base)
+  if (definition === undefined) {
+    throw new FhirPathTypeError(`${call}: base ${describeClass(base)} is not a class from defineDto() or defineView()`)
+  }
+  if (kind === 'dto' && definition.kind === 'view') {
+    throw new FhirPathTypeError(
+      `${call}: base ${base.name} is a view; a DTO takes a DTO as base, a view takes a DTO or a view`
+    )
+  }
+  const { model } = engine.defaults
+  if (!derivesFrom(model, fhirType, definition.fhirType)) {
+    throw new FhirPathTypeError(
+      model === undefined
+        ? `${call}: base ${base.name} is written for ${definition.fhirType}; without a model only a base of the same type is allowed`
+        : `${call}: base ${base.name} is written for ${definition.fhirType}, which is not a base type of ${fhirType}`
+    )
+  }
+  return definition
+}
+
+function describeClass(value: unknown): string {
+  return typeof value === 'function' && value.name !== '' ? value.name : String(value)
+}
+
+/**
+ * Checks and normalizes the options once, when the base is created. With a
+ * `base`, its env, vars, and caller environment sit under this class's own, so
+ * the subclass wins on a name clash, as its columns do.
+ */
 function baseDefinition(
   engine: FhirPathEngine,
   kind: DtoKind,
   fhirType: string,
-  options: DtoOptions
+  options: DtoDefinitionOptions,
+  inherited: DtoBaseDefinition | undefined
 ): DtoBaseDefinition {
   const call = `${kind === 'dto' ? 'defineDto' : 'defineView'}('${fhirType}')`
   const { env, vars, callerEnv } = options
   if (env !== undefined && (typeof env !== 'object' || env === null || Array.isArray(env))) {
     throw new FhirPathTypeError(`${call}: 'env' must be a record of variables, the same shape as EvaluateOptions.env`)
   }
-  const normalizedEnv = env === undefined ? undefined : normalizeEnvKeys(env)
+  const ownEnv = env === undefined ? undefined : normalizeEnvKeys(env)
   const callerEnvIsNames = isCallerEnvNames(callerEnv)
-  const callerEnvNames = (callerEnvIsNames ? callerEnv : Object.keys(callerEnv ?? {})).map(bareEnvironmentName)
+  const ownCallerEnvNames = (callerEnvIsNames ? callerEnv : Object.keys(callerEnv ?? {})).map(bareEnvironmentName)
+  if (inherited !== undefined) {
+    // The inherited columns were typed against the base's bindings, and the
+    // runtime would read this class's, so a name the base binds stays its own.
+    const own = new Set([...Object.keys(ownEnv ?? {}), ...Object.keys(normalizeEnvKeys(vars)), ...ownCallerEnvNames])
+    const rebound = [
+      ...Object.keys(inherited.env ?? {}),
+      ...Object.keys(normalizeEnvKeys(inherited.vars)),
+      ...inherited.callerEnvNames,
+    ].find(name => own.has(name))
+    if (rebound !== undefined) {
+      throw new FhirPathTypeError(
+        `${call}: '${rebound}' is bound by the base's env, vars, or callerEnv; the inherited columns were typed against it, so a subclass cannot rebind it`
+      )
+    }
+  }
+  const normalizedEnv = compact({ ...inherited?.env, ...ownEnv })
+  const callerEnvNames = [...(inherited?.callerEnvNames ?? []), ...ownCallerEnvNames]
   // The DTO's own value always wins, so a caller value under the same name would never be read.
   const shadowed = callerEnvNames.find(name => normalizedEnv !== undefined && Object.hasOwn(normalizedEnv, name))
   if (shadowed !== undefined) {
@@ -616,31 +805,43 @@ function baseDefinition(
       `${call}: callerEnv names '${engineOwned}', which the engine's env binds; a column always reads the engine's value`
     )
   }
-  const columnEnv = { ...engineEnv, ...normalizedEnv }
+  const { model } = engine.defaults
   return {
     engine,
     kind,
     fhirType,
-    resource: isResourceType(engine.defaults.model, fhirType),
-    env: normalizedEnv !== undefined && Object.keys(normalizedEnv).length > 0 ? normalizedEnv : undefined,
-    columnEnv: Object.keys(columnEnv).length > 0 ? columnEnv : undefined,
-    vars,
+    resource: model !== undefined && derivesFrom(model, fhirType, 'Resource'),
+    env: normalizedEnv,
+    columnEnv: compact({ ...engineEnv, ...normalizedEnv }),
+    vars: compact({ ...inherited?.vars, ...vars }),
     callerEnvNames,
-    callerEnvTypes: callerEnvIsNames ? undefined : callerEnv,
+    callerEnvTypes: compact({ ...inherited?.callerEnvTypes, ...(callerEnvIsNames ? undefined : callerEnv) }),
+    base: options.base,
   }
 }
 
-/** Whether the model knows `fhirType` as `Resource` or a type derived from it. */
-function isResourceType(model: ModelProvider | undefined, fhirType: string): boolean {
+/** A merged record, or `undefined` when nothing was declared, so an empty overlay costs nothing per call. */
+function compact<Value>(record: Record<string, Value>): Record<string, Value> | undefined {
+  return Object.keys(record).length > 0 ? record : undefined
+}
+
+/**
+ * Whether `type` is `base` or derives from it in the model: a Patient is a
+ * Resource and a DomainResource. Without a model only the type itself.
+ */
+function derivesFrom(model: ModelProvider | undefined, type: string, base: string): boolean {
+  if (type === base) {
+    return true
+  }
   if (model === undefined) {
     return false
   }
-  const canonical = canonicalFocusType(model, fhirType)
-  const resource = canonicalFocusType(model, 'Resource')
+  const canonical = canonicalFocusType(model, type)
+  const baseCanonical = canonicalFocusType(model, base)
   return (
     canonical !== undefined &&
-    resource !== undefined &&
-    (canonical === resource || model.isSubtypeOf(canonical, resource))
+    baseCanonical !== undefined &&
+    (canonical === baseCanonical || model.isSubtypeOf(canonical, baseCanonical))
   )
 }
 
@@ -695,10 +896,19 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
     collecting.delete(cls)
   }
   assertLastMarkerStored(instance, found)
+  // The base's initializers run first, so its markers lead `found`; a column
+  // whose marker is among them was inherited unchanged.
+  const parent = base.base === undefined ? undefined : dtoDefinition(base.base)
+  const inheritedMarkers = parent?.collected ?? 0
   const columns: Record<string, ColumnSpec> = {}
+  const columnRoots: Record<string, string> = {}
   for (const [name, value] of Object.entries(instance)) {
     if (value instanceof ColumnMarker) {
       columns[name] = value.spec
+      columnRoots[name] =
+        parent !== undefined && found.indexOf(value) < inheritedMarkers
+          ? (parent.columnRoots[name] ?? base.fhirType)
+          : base.fhirType
     }
   }
   if (Object.keys(columns).length === 0) {
@@ -717,7 +927,7 @@ export function dtoDefinition(cls: DtoClass): DtoDefinition {
       )
     }
   }
-  const definition: DtoDefinition = { ...base, columns }
+  const definition: DtoDefinition = { ...base, columns, columnRoots, collected: found.length }
   definitions.set(cls, definition)
   return definition
 }
@@ -938,12 +1148,13 @@ function columnFunction(
  * `resourceType` is compared.
  */
 export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
-  const { fhirType, resource } = dtoDefinition(dto)
+  const { fhirType, resource, engine } = dtoDefinition(dto)
+  const { model } = engine.defaults
   toSubjects(input).forEach((subject, index) => {
     const { value } = subject
     const resourceType =
       typeof value === 'object' && value !== null ? (value as { resourceType?: unknown }).resourceType : undefined
-    if (typeof resourceType === 'string' && resourceType !== fhirType) {
+    if (typeof resourceType === 'string' && !derivesFrom(model, resourceType, fhirType)) {
       throw new FhirPathTypeError(
         `project(): row ${index} is a ${resourceType}, but ${dto.name} declares fhirType '${fhirType}'`
       )

@@ -66,6 +66,12 @@ class IdentifiedObservation extends registered.defineDto('Observation') {
   status = this.column('status')
 }
 
+class KeyedObservation extends registered.defineView('Observation', { base: IdentifiedObservation }) {
+  display = this.column('(code.text | code.coding.display.first()).first()')
+}
+
+export const apiPerfBasedRows = KeyedObservation.from(identified)
+
 declare const identified: readonly (Observation & { id: string; meta: { lastUpdated: string } })[]
 
 export const apiPerfFromRows = IdentifiedObservation.from(identified)

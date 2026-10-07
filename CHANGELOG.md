@@ -36,6 +36,12 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   to 128 and 512.
 - `Dto.from(input, options?)`: a static on every DTO and view class that
   projects on the defining engine, typed like `engine.project()`.
+- `base` option for `defineDto()` and `defineView()`: a DTO on a model base type
+  such as `Resource` whose columns, `env`, `vars`, and `callerEnv` the class
+  inherits (`defineDto('Condition', { base: ResourceDto })`). A DTO takes a DTO
+  as base, a view a DTO or a view, and a subclass cannot rebind a name its base
+  binds. A DTO on `Resource` or `DomainResource` projects any resource of that
+  type, at compile time and at runtime.
 - `required: true` column option for DTO and view columns on a path of singular
   element names. The input type gains the path as a required property and the
   field type drops `undefined`. There is no runtime check.

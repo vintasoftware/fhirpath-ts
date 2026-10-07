@@ -53,6 +53,19 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
     expected: 6,
   },
   {
+    name: 'a DTO with a base, each column against its own class',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Keyed extends r4.defineDto('Resource') {",
+      "  id = this.column('x..1')",
+      '}',
+      "class Row extends r4.defineDto('Condition', { base: Keyed, env: { label: 'x' } }) {",
+      "  code = this.column('x..2')",
+      '}',
+    ].join('\n'),
+    expected: 2,
+  },
+  {
     name: 'engine helpers on a package-imported receiver',
     code: [
       "import { r4 } from 'fhirpath-ts/r4'",

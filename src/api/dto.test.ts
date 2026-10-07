@@ -9,6 +9,7 @@ import type {
   Observation,
   Organization,
   Patient,
+  R4Resources,
   ServiceRequest,
 } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
@@ -369,7 +370,9 @@ describe('DTO projection', () => {
     class DomainDto extends r4.defineDto('DomainResource') {
       narrative = this.column('text.status')
     }
-    expectTypeOf<DtoInput<typeof DomainDto>>().toEqualTypeOf<{ readonly resourceType: 'DomainResource' }>()
+    expectTypeOf<DtoInput<typeof DomainDto>>().toEqualTypeOf<{
+      readonly resourceType: Exclude<keyof R4Resources, 'Binary' | 'Bundle' | 'Parameters'>
+    }>()
     // @ts-expect-error -- not a resource
     expect(() => DomainDto.from({ hello: 1 })).toThrow(
       "project(): row 0 has no resourceType, but DomainDto declares fhirType 'DomainResource'"
@@ -685,6 +688,271 @@ describe('DTO projection', () => {
       id = this.column('id')
     }
     void Bad
+  })
+})
+
+describe('base DTOs', () => {
+  class ResourceDto extends r4.defineDto('Resource') {
+    id = this.column('id', { required: true })
+
+    lastUpdated = this.column('meta.lastUpdated')
+  }
+  const condition: Condition & { id: string } = {
+    resourceType: 'Condition',
+    id: 'c1',
+    subject: {},
+    code: { text: 'Hypertension' },
+    meta: { lastUpdated: '2026-01-01T00:00:00Z' },
+  }
+
+  it('a subclass inherits the base columns and its input demands what the base requires', () => {
+    class ConditionDto extends r4.defineDto('Condition', { base: ResourceDto }) {
+      code = this.column('code.text')
+    }
+    const row = new ConditionDto()
+    expectTypeOf(row.id).toExtend<string>()
+    expectTypeOf(row.lastUpdated).toEqualTypeOf<string | undefined>()
+    expectTypeOf(row.code).toEqualTypeOf<string | undefined>()
+    expectTypeOf<DtoInput<typeof ConditionDto>>().toEqualTypeOf<
+      { readonly resourceType: 'Condition' } & { readonly id: string }
+    >()
+    expect(Object.keys(dtoDefinition(ConditionDto).columns)).toEqual(['id', 'lastUpdated', 'code'])
+    const projected = ConditionDto.from(condition)
+    expect(projected).toEqual(
+      expect.objectContaining({ id: 'c1', lastUpdated: '2026-01-01T00:00:00Z', code: 'Hypertension' })
+    )
+    // Inheritance is real: the subclass extends the base class.
+    expect(projected).toBeInstanceOf(ResourceDto)
+    expect(projected).toBeInstanceOf(ConditionDto)
+    // @ts-expect-error -- id comes from the base and is required
+    const rejected = ConditionDto.from({ resourceType: 'Condition' })
+    expect(rejected).toEqual(expect.objectContaining({ id: undefined }))
+    expect(analyzeDto(ConditionDto)).toEqual([])
+  })
+
+  it('a base on an ancestor root projects any resource of that root', () => {
+    expectTypeOf<DtoInput<typeof ResourceDto>>().toEqualTypeOf<
+      { readonly resourceType: keyof R4Resources } & { readonly id: string }
+    >()
+    const rows = ResourceDto.from([
+      { resourceType: 'Patient', id: 'p1' },
+      { resourceType: 'Observation', id: 'o1', status: 'final', code: {} },
+    ])
+    expect(rows.map(row => row.id)).toEqual(['p1', 'o1'])
+    class DomainDto extends r4.defineDto('DomainResource') {
+      narrative = this.column('text.status')
+    }
+    expectTypeOf<DtoInput<typeof DomainDto>>().toEqualTypeOf<{
+      readonly resourceType: Exclude<keyof R4Resources, 'Binary' | 'Bundle' | 'Parameters'>
+    }>()
+    expect(DomainDto.from({ resourceType: 'Patient', text: { status: 'generated', div: '<div/>' } }).narrative).toBe(
+      'generated'
+    )
+    // @ts-expect-error -- a Bundle is not a DomainResource
+    expect(() => DomainDto.from([{ resourceType: 'Bundle', type: 'collection' }])).toThrow(
+      "project(): row 0 is a Bundle, but DomainDto declares fhirType 'DomainResource'"
+    )
+  })
+
+  it("the subclass inherits the base's env, vars, and callerEnv, and adds its own", () => {
+    class Labelled extends r4.defineView('Resource', {
+      env: { tag: 'base-tag' },
+      callerEnv: { site: { type: 'string' } },
+      vars: { key: 'id' },
+    }) {
+      tag = this.column('%tag')
+
+      site = this.column('%site')
+
+      key = this.column('%key', { type: 'string' })
+    }
+    class PatientRow extends r4.defineView('Patient', {
+      base: Labelled,
+      env: { label: 'patient' },
+      callerEnv: ['unit'],
+      vars: { suffix: "'!'" },
+    }) {
+      own = this.column('%label & %tag & %suffix')
+
+      unit = this.column('%unit', { type: 'string' })
+    }
+    expect(dtoDefinition(PatientRow).env).toEqual({ tag: 'base-tag', label: 'patient' })
+    expect(dtoDefinition(PatientRow).callerEnvNames).toEqual(['site', 'unit'])
+    expect(dtoDefinition(PatientRow).callerEnvTypes).toEqual({ site: { type: 'string' } })
+    expect(Object.keys(dtoDefinition(PatientRow).vars ?? {})).toEqual(['key', 'suffix'])
+    // The subclass's columns are inferred in the merged context; the inherited
+    // ones keep the types they were inferred with.
+    expectTypeOf(new PatientRow().own).toEqualTypeOf<string | undefined>()
+    expectTypeOf(new PatientRow().tag).toEqualTypeOf<string | undefined>()
+    expectTypeOf(new PatientRow().site).toEqualTypeOf<string | undefined>()
+    expect(PatientRow.from({ resourceType: 'Patient', id: 'p1' }, { env: { site: 'here', unit: 'kg' } })).toEqual(
+      expect.objectContaining({ tag: 'base-tag', site: 'here', key: 'p1', own: 'patientbase-tag!', unit: 'kg' })
+    )
+    expect(analyzeDto(PatientRow)).toEqual([])
+  })
+
+  it('a subclass cannot rebind a name its base binds, since inherited columns were typed against it', () => {
+    class Labelled extends r4.defineView('Resource', {
+      env: { count: 1 },
+      callerEnv: { site: { type: 'string' } },
+      vars: { key: 'id' },
+    }) {
+      count = this.column('%count')
+
+      site = this.column('%site')
+
+      key = this.column('%key', { type: 'string' })
+    }
+    expectTypeOf(new Labelled().count).toEqualTypeOf<number | undefined>()
+    // @ts-expect-error -- `count` is the base's env, typed number in its columns
+    expect(() => r4.defineView('Patient', { base: Labelled, env: { count: 'text' } })).toThrow(
+      "defineView('Patient'): 'count' is bound by the base's env, vars, or callerEnv; the inherited columns were typed against it, so a subclass cannot rebind it"
+    )
+    // @ts-expect-error -- `key` is the base's var
+    expect(() => r4.defineView('Patient', { base: Labelled, vars: { key: 'name.family.first()' } })).toThrow(
+      "defineView('Patient'): 'key' is bound by the base's env, vars, or callerEnv; the inherited columns were typed against it, so a subclass cannot rebind it"
+    )
+    // @ts-expect-error -- `site` is the base's caller environment
+    expect(() => r4.defineView('Patient', { base: Labelled, callerEnv: { site: { type: 'integer' } } })).toThrow(
+      "defineView('Patient'): 'site' is bound by the base's env, vars, or callerEnv; the inherited columns were typed against it, so a subclass cannot rebind it"
+    )
+    // A caller environment name is a binding too, whichever side declares it as one.
+    // @ts-expect-error -- `count` is the base's env
+    expect(() => r4.defineView('Patient', { base: Labelled, callerEnv: ['count'] })).toThrow(
+      "defineView('Patient'): 'count' is bound by the base's env, vars, or callerEnv; the inherited columns were typed against it, so a subclass cannot rebind it"
+    )
+    // Either spelling names the same binding.
+    // @ts-expect-error -- `%count` is `count`
+    expect(() => r4.defineView('Patient', { base: Labelled, env: { '%count': 2 } })).toThrow(/'count' is bound/)
+  })
+
+  it('an inherited column is checked on the root it was written for', () => {
+    class Dispatching extends r4.defineDto('Resource') {
+      family = this.column('ofType(Patient).name.family.first()')
+
+      id = this.column('id')
+    }
+    class ConditionDto extends r4.defineDto('Condition', { base: Dispatching }) {
+      code = this.column('code.text')
+
+      // A redeclared column is this class's own and is checked on its root.
+      override id = this.column('id.first()')
+    }
+    expect(dtoDefinition(ConditionDto).columnRoots).toEqual({ family: 'Resource', id: 'Condition', code: 'Condition' })
+    expect(analyzeDto(Dispatching)).toEqual([])
+    expect(analyzeDto(ConditionDto)).toEqual([])
+    // Written on the subclass itself, the same dispatch is always empty there.
+    class Narrowed extends r4.defineDto('Condition', { base: Dispatching }) {
+      override family = this.column('ofType(Patient).name.family.first()', { type: 'string' })
+    }
+    expect(analyzeDto(Narrowed).map(finding => [finding.member, finding.code])).toEqual([['family', 'always-empty']])
+    // Two levels keep the root of the class that wrote the column.
+    class Deeper extends r4.defineDto('Condition', { base: ConditionDto }) {
+      severity = this.column('severity.text')
+    }
+    expect(dtoDefinition(Deeper).columnRoots).toEqual({
+      family: 'Resource',
+      id: 'Condition',
+      code: 'Condition',
+      severity: 'Condition',
+    })
+  })
+
+  it('a redeclared column overrides the inherited one in place', () => {
+    class Versioned extends r4.defineDto('Patient', { base: ResourceDto }) {
+      override lastUpdated = this.column('meta.versionId')
+    }
+    const { columns } = dtoDefinition(Versioned)
+    expect(Object.keys(columns)).toEqual(['id', 'lastUpdated'])
+    expect(columns['lastUpdated']).toEqual({ path: 'meta.versionId' })
+    expect(Versioned.from({ resourceType: 'Patient', id: 'p1', meta: { versionId: '7' } }).lastUpdated).toBe('7')
+  })
+
+  it('a DTO takes a DTO as base; a view takes a DTO or a view', () => {
+    class ViewBase extends r4.defineView('Resource') {
+      id = this.column('id', { default: '' })
+    }
+    // @ts-expect-error -- a view cannot be the base of a DTO
+    expect(() => r4.defineDto('Patient', { base: ViewBase })).toThrow(
+      "defineDto('Patient'): base ViewBase is a view; a DTO takes a DTO as base, a view takes a DTO or a view"
+    )
+    class FromDto extends r4.defineView('Patient', { base: ResourceDto }) {
+      family = this.column('name.family.first()')
+    }
+    class FromView extends r4.defineView('Patient', { base: ViewBase }) {
+      family = this.column('name.family.first()')
+    }
+    expect(Object.keys(dtoDefinition(FromDto).columns)).toEqual(['id', 'lastUpdated', 'family'])
+    expect(Object.keys(dtoDefinition(FromView).columns)).toEqual(['id', 'family'])
+    expectTypeOf(new FromView().id).toEqualTypeOf<string>()
+  })
+
+  it('the base root is the root itself or one of its model base types', () => {
+    class ConditionBase extends r4.defineDto('Condition') {
+      code = this.column('code.text')
+    }
+    // @ts-expect-error -- Condition is not a base type of Observation
+    expect(() => r4.defineDto('Observation', { base: ConditionBase })).toThrow(
+      "defineDto('Observation'): base ConditionBase is written for Condition, which is not a base type of Observation"
+    )
+    // The same type is plain composition.
+    class Composed extends r4.defineDto('Condition', { base: ConditionBase }) {
+      status = this.column('clinicalStatus.coding.first().code')
+    }
+    expect(Object.keys(dtoDefinition(Composed).columns)).toEqual(['code', 'status'])
+    // Without a model nothing says what derives from what, so only the same root is allowed.
+    const modelless = new FhirPathEngine()
+    class Loose extends modelless.defineView('Resource') {
+      id = this.column('id')
+    }
+    expect(() => modelless.defineView('Patient', { base: Loose })).toThrow(
+      "defineView('Patient'): base Loose is written for Resource; without a model only a base of the same type is allowed"
+    )
+    expect(() => modelless.defineView('Resource', { base: Loose })).not.toThrow()
+    class Plain {
+      readonly fhirType = 'Patient'
+    }
+    // @ts-expect-error -- not a class from defineDto() or defineView()
+    expect(() => r4.defineDto('Patient', { base: Plain })).toThrow(
+      "defineDto('Patient'): base Plain is not a class from defineDto() or defineView()"
+    )
+  })
+
+  it('the base was defined on this engine or one it derives from', () => {
+    const other = new FhirPathEngine({ model: r4Model })
+    expect(() => other.defineDto('Patient', { base: ResourceDto })).toThrow(
+      "defineDto('Patient'): base ResourceDto was defined on another engine; define the class on that engine or one derived from it"
+    )
+    class ConceptDto extends r4.defineDto('CodeableConcept') {
+      label = this.column('(text | coding.display.first()).first()')
+    }
+    const derived = r4.register(ConceptDto)
+    class OnDerived extends derived.defineDto('Patient', { base: ResourceDto }) {
+      family = this.column('name.family.first()')
+    }
+    expect(derived.project({ resourceType: 'Patient', id: 'p1' }, OnDerived).id).toBe('p1')
+    expect(OnDerived.from({ resourceType: 'Patient', id: 'p1' }).id).toBe('p1')
+    // On an engine that registers the base, a DTO subclass's inherited column
+    // would be declared for both roots, so the base stays unregistered and the
+    // subclasses are what an engine registers.
+    const withBase = r4.register(ResourceDto)
+    class Clashing extends withBase.defineDto('Patient', { base: ResourceDto }) {
+      family = this.column('name.family.first()')
+    }
+    expect(() => Clashing.from({ resourceType: 'Patient', id: 'p1' })).toThrow(
+      "DTO Clashing redefines the function 'id': a focus can be both FHIR.Resource and FHIR.Patient"
+    )
+  })
+
+  it('an inherited column registers for the subclass root, so base and subclass cannot share an engine', () => {
+    class ConditionDto extends r4.defineDto('Condition', { base: ResourceDto }) {
+      code = this.column('code.text')
+    }
+    expect(() => r4.register(ResourceDto, ConditionDto)).toThrow(/DTO ConditionDto redefines the function 'id'/)
+    const fp = r4.register(ConditionDto)
+    expectTypeOf(fp.evaluate('Condition.id()', condition)).toEqualTypeOf<string[]>()
+    expect(fp.evaluate('id() | lastUpdated()', condition)).toEqual(['c1', '2026-01-01T00:00:00Z'])
+    expect(() => fp.evaluate('id()', { resourceType: 'Patient', id: 'p1' })).toThrow(/expects FHIR.Condition/)
   })
 })
 

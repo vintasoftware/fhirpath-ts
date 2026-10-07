@@ -679,28 +679,61 @@ class HeightRow extends ObservationRow {
 }
 ```
 
-Columns shared by views on different FHIR types come from a function that builds
-a base class. Forward the options to `defineView()` so the columns of each
-subclass are inferred against its own `env` and `vars`:
+Columns shared by DTOs and views on different FHIR types come from a base
+defined on a model base type: `Resource` for every resource, `DomainResource`
+for the resources that carry `text` and `extension`, or the same type for plain
+composition. Pass it as `base`:
 
 ```ts
-function keyedRow<const Root extends FhirTypeName, const Options extends DtoOptions = DtoOptions>(
+class ResourceDto extends fp.defineDto('Resource') {
+  id = this.column('id', { required: true })
+  lastUpdated = this.column('meta.lastUpdated')
+}
+
+class ProblemRow extends fp.defineView('Condition', { base: ResourceDto }) {
+  status = this.column('clinicalStatus.coding.first().code')
+}
+
+ProblemRow.from(condition) // ProblemRow { id, lastUpdated, status }; the input must carry `id`
+```
+
+The subclass extends the base class: it inherits the base's columns, methods,
+and getters, and a redeclared column overrides. It also inherits the base's
+`env`, `vars`, and `callerEnv`, and its own columns are inferred in the merged
+context. A name the base binds cannot be rebound, because the inherited columns
+were typed against the base's binding. A required column of the base is
+required by every subclass. `analyzeDto()` checks an inherited column against
+the root it was written for, so a column that dispatches on the resource type
+stays valid on every subclass.
+
+The rules: a DTO takes a DTO as base, a view takes a DTO or a view; the base root
+is the root itself or one of its model base types (without a model, only the
+same root); the base was defined on the same engine or one the engine derives
+from. A base on an ancestor root projects any resource of that root, so
+`ResourceDto.from(resource)` accepts every resource type. Register the
+subclasses, not the base: an inherited column registered for both roots is an
+overlap `register()` rejects.
+
+When shared columns depend on options each subclass passes, a function that
+forwards them to `defineView()` still works. Its return type is needed only when
+an exported class extends the result and the project emits declaration files;
+`ViewBaseClass` names the base class that engine's `defineView()` returns, plus
+the columns the function adds:
+
+```ts
+function badgedRow<const Root extends FhirTypeName, const Options extends DtoOptions = DtoOptions>(
   fhirType: Root,
   options?: Options
-): ViewBaseClass<typeof fp, Root, Options, { id: string }> {
-  return class KeyedRow extends fp.defineView(fhirType, options) {
-    id = this.column('(id | %rowIndex.toString()).first()', { type: 'string', default: '' })
+): ViewBaseClass<typeof fp, Root, Options, { badge: string }> {
+  return class BadgedRow extends fp.defineView(fhirType, options) {
+    badge = this.column('%badge', { type: 'string', default: '' })
   }
 }
 
-class ProblemRow extends keyedRow('Condition') {
-  status = this.column('clinicalStatus.coding.first().code')
+class LabRow extends badgedRow('DiagnosticReport', { vars: { badge: 'reportBadge()' } }) {
+  name = this.column('code.text')
 }
 ```
-
-The return type is needed only when an exported class extends the function's
-result and the project emits declaration files. `ViewBaseClass` names the base
-class that engine's `defineView()` returns, plus the columns the function adds.
 
 ### Inputs
 
@@ -712,7 +745,8 @@ including `unknown` and `{ resourceType: string }`. A datatype root such as
 input.
 
 A Bundle is accepted as a whole, so its entries are checked only at runtime: each
-entry resource must carry the DTO's `fhirType`, or `project()` throws. A value
+entry resource must carry the DTO's `fhirType` or a type deriving from it in the
+model, or `project()` throws. A value
 that is not an object, or has no `resourceType`, is rejected the same way. To
 project one resource type out of a mixed search Bundle, read the entries with
 `ofType()`, which infers the resource type:

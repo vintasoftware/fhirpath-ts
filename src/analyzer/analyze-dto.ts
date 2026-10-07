@@ -101,7 +101,6 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
   const definition = dtoDefinition(dto)
   const { engine, ...caller } = options ?? {}
   const context = contextOf(engine ?? definingContext(dto, definition), caller)
-  const inputType = context.inputType ?? definition.fhirType
   // An untyped caller env name is typed by whoever supplies it, so caller and
   // engine declarations sit above it. The DTO's own env, caller env types, vars,
   // and row variables sit above those, matching `dtoCallOptions` and projection.
@@ -117,11 +116,13 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
   const analyze = (
     member: string,
     expression: string,
-    column?: ColumnSpec
+    column?: ColumnSpec,
+    root: string = definition.fhirType
   ): { types: string[] | undefined; single: boolean | undefined; ordered: boolean | undefined } => {
+    const inputType = context.inputType ?? root
     const perExpression: AnalyzeOptions = {
       ...context,
-      ...(inputType !== undefined && { inputType }),
+      inputType,
       variables: { ...callerNames, ...context.variables, ...declared, ...PROJECT_ROW_VARIABLES },
     }
     const { diagnostics: found, result } = analyzeExpressionDetailed(expression, perExpression)
@@ -157,8 +158,10 @@ export function analyzeDto(dto: DtoClass, options?: AnalyzeDtoOptions): DtoDiagn
     }
     declared[bareEnvironmentName(name)] = {}
   }
+  // An inherited column is checked on the root it was written for; what holds
+  // there holds on the subclass, which carries every element of its base.
   for (const [name, spec] of Object.entries(definition.columns)) {
-    analyze(name, expressionOf(spec), spec)
+    analyze(name, expressionOf(spec), spec, definition.columnRoots[name])
   }
   return diagnostics
 }
