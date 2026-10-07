@@ -80,7 +80,7 @@ enumerations, for assignability), but those admit other codes, so they get no
 cardinality 1 (`docs/adr/0003`); every input site (`FhirpathInput`, the
 declared-root forms, declared host values, required-column leaves) goes through
 `InputOf`, the one lenient rule: elements optional, codes kept, a code set that
-names model types widened to `string`, the root pinned by `LenientResource`.
+names resources widened to `string`, the root pinned by `LenientResource`.
 
 Normalize host declaration names through `src/typed/context-maps.ts`. Per-call
 declarations override engine defaults, matching runtime option merging.
