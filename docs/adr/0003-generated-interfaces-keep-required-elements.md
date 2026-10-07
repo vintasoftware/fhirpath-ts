@@ -28,7 +28,7 @@ in `Reference.type`.
   fixture such as `{ resourceType: 'Observation' }` still compiles for
   `r4.evaluate('Observation.status', ...)` and a misspelled property is still
   rejected. A code keeps its union on input, so a misspelled status is rejected
-  too; only a code set that names model types (`Reference.type`,
+  too; only a code set that names resources (`Reference.type`,
   `DataRequirement.type`) widens to `string`, which is what admits a medplum
   value whose `Reference.type` names a medplum-only resource and medplum's
   `string` for the broad lists.

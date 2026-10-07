@@ -21,7 +21,7 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `resourceType` pin plus the resource with every element optional, so
   `r4.evaluate('Observation.status', { resourceType: 'Observation' })` keeps
   compiling. A misspelled property or code is still rejected; a code set that
-  names model types, such as `Reference.type`, accepts any string, so a Medplum
+  names resources, such as `Reference.type`, accepts any string, so a Medplum
   resource is still accepted.
 - Inference returns the code union of a required binding: `Observation.status`
   infers `('registered' | 'preliminary' | ...)[]` instead of `string[]`, in

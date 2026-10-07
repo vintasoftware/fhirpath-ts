@@ -877,7 +877,7 @@ Inputs stay lenient. A root-prefixed expression, a declared root, and a declared
 host value accept `{ resourceType: 'Observation' }` with every other element
 optional, because data read from a server, a fixture, or a form may be
 incomplete. A misspelled property or status is still rejected; only a code set
-that names model types, such as `Reference.type`, accepts any string, which is
+that names resources, such as `Reference.type`, accepts any string, which is
 what lets a Medplum resource in. The types are not a profile validator.
 
 Pass explicit generics to use Medplum types for both input and result:

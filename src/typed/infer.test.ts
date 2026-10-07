@@ -127,7 +127,10 @@ describe('type-level inference agrees with the runtime', () => {
     // A code keeps its union on input, so a misspelled code is rejected too.
     // @ts-expect-error -- 'finall' is not an Observation status
     compile('Observation.status').evaluate({ resourceType: 'Observation', status: 'finall' })
-    // A code set that names model types widens: another model adds names to Reference.type.
+    // A code set that names primitive types is still a code set.
+    // @ts-expect-error -- 'phon' is not a ContactPoint system
+    compile('Patient.telecom').evaluate({ resourceType: 'Patient', telecom: [{ system: 'phon' }] })
+    // A code set that names resources widens: another model adds names to Reference.type.
     compile('Patient.managingOrganization.type').evaluate({
       resourceType: 'Patient',
       managingOrganization: { type: 'Bot' },

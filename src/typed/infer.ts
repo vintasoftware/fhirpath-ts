@@ -159,14 +159,15 @@ export type FhirpathRootOf<Input> = Input extends readonly (infer Item)[]
  * elements FHIR requires, but data read from a server, a fixture, or a form
  * need not carry them to be navigated. Every element becomes optional. A code
  * keeps its union, so a misspelled status is still rejected, except a code set
- * that names model types (`Reference.type`, `DataRequirement.type`,
- * `SearchParameter.type`), which widens to string: another model adds type
- * names, and `@medplum/fhirtypes` puts its own resource names there and types
- * the broad lists as string. The check is per member, so one type name in a
- * set widens the whole set.
+ * that names resources (`Reference.type`, `DataRequirement.type`,
+ * `SearchParameter.base`), which widens to string: another model adds
+ * resources, and `@medplum/fhirtypes` puts its own there and types the broad
+ * lists as string. The check is per member, so one resource name in a set
+ * widens the whole set; a set of primitive-type names such as
+ * `SearchParameter.type` keeps its union.
  */
 export type Lenient<Value> = Value extends string
-  ? Value extends FhirTypeName
+  ? Value extends keyof R4Resources
     ? string
     : Value
   : Value extends readonly (infer Item)[]

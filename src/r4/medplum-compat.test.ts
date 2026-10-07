@@ -84,7 +84,7 @@ describe('Medplum (@medplum/fhirtypes) structural compatibility', () => {
     expectTypeOf<Patient>().not.toExtend<MedplumPatient>()
     // The other way round, a Medplum value names those resources in
     // `Reference.type`, so it enters through the lenient input type, which
-    // widens a code set that names model types to string, not through the
+    // widens a code set that names resources to string, not through the
     // generated interface. The input keeps every other code union.
     expectTypeOf<MedplumExtension>().not.toExtend<Extension>()
     expectTypeOf<MedplumPatient>().toExtend<LenientResource<'Patient'>>()
