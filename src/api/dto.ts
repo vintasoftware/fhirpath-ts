@@ -517,11 +517,11 @@ export type DtoBaseClass<
    */
   readonly [dtoTypes]: { readonly context: Own; readonly kind: Kind }
   /**
-   * Projects on the defining engine: one row per input resource, typed like the
-   * engine's `project()`. The input must carry the root's `resourceType` and
-   * every required column's path; a class with a required column refuses a
-   * Bundle, whose entries cannot prove the path, so read them with `ofType()`
-   * and narrow them.
+   * Projects on the defining engine, typed like the engine's `project()`: an
+   * array or a Bundle gives one row per resource, one subject gives one row.
+   * The input must carry the root's `resourceType` and every required column's
+   * path; a class with a required column refuses a Bundle, whose entries cannot
+   * prove the path, so read them with `ofType()` and narrow them.
    */
   from<This extends DtoClass, const Input extends DtoProjectionInput<This>>(
     this: This,
