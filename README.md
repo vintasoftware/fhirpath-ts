@@ -299,7 +299,9 @@ or deliberately opaque expressions become `unknown[]` instead of producing an
 incorrect type. Literal host values are inferred automatically. Static
 `envTypes` and `varTypes` declarations cover ambiguous or widened data; see
 [type context declarations](docs/api.md#type-context-declarations).
-The type-level scanner budget is 64 tokens and 256 visited source characters.
+String literals and the branches of `iif()` keep their text, so
+`iif(active, 'open', 'closed')` infers `('open' | 'closed')[]`. The type-level
+scanner budget is 128 tokens and 512 visited source characters.
 Type inference computes a safe TypeScript type; it does not validate the
 expression. ESLint and the CLI run the analyzer to report expression errors.
 

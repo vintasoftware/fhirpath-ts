@@ -212,7 +212,7 @@ export const INFERENCE_CAPABILITIES = {
   },
   'literal.string': {
     source: { expression: "'plain'", corpusGap: 'focused string literal without escape syntax' },
-    expectedType: 'string[]',
+    expectedType: "'plain'[]",
     compositionType: 'string[]',
     runtime: true,
     analyzer: { types: ['System.String'], single: true },
@@ -338,8 +338,8 @@ export const INFERENCE_CAPABILITIES = {
   },
   'operator.union': {
     source: { corpusId: 'fhirpathjs:simple.yaml:21:0' },
-    expectedType: 'string[]',
-    compositionType: 'string[]',
+    expectedType: "('a' | 'b')[]",
+    compositionType: "('a' | 'b')[]",
     runtime: true,
     analyzer: { types: ['System.String'], single: false },
     degradation: "'a' |",
@@ -866,6 +866,41 @@ export const INFERENCE_CAPABILITIES = {
     analyzer: { types: ['FHIR.string'], single: false },
     degradation: '%subject.resolve().nope',
     composition: '%subject.resolve().name.given.first()',
+  },
+  'literal.iif-union': {
+    source: { expression: "iif(true, 'a', 'b')", corpusGap: 'focused literal branches of iif' },
+    expectedType: "('a' | 'b')[]",
+    compositionType: 'string[]',
+    runtime: true,
+    analyzer: { types: ['System.String'], single: true },
+    degradation: "iif(true, 'a', nope)",
+    composition: "iif(true, 'a', 'b').upper()",
+  },
+  'literal.mixed-union': {
+    source: { expression: "'a' | 1", corpusGap: 'focused union of a string literal with another type' },
+    expectedType: '(string | number)[]',
+    compositionType: '(string | number)[]',
+    runtime: true,
+    analyzer: { types: ['System.String', 'System.Integer'], single: false },
+    degradation: "'a' | nope",
+    composition: "('a' | 1).first()",
+  },
+  'budget.long-chain': {
+    source: {
+      expression:
+        "address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()",
+      corpusGap:
+        'a column expression from an application DTO, with a tail that takes it past the previous sixty-four token budget; the plan named two more such expressions, which were within it',
+    },
+    input: 'Organization',
+    expectedType: 'string[]',
+    compositionType: 'boolean[]',
+    runtime: true,
+    analyzer: { types: ['FHIR.string', 'System.String'], single: true },
+    degradation:
+      "addresss.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()",
+    composition:
+      "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()).exists()",
   },
   ...BUILTIN_FUNCTION_CAPABILITIES,
 } as const satisfies Record<string, CapabilityEntry>

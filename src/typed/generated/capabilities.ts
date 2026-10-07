@@ -1253,6 +1253,40 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
       },
     },
   },
+  'literal.iif-union': {
+    expression: "iif(true, 'a', 'b')",
+    degradation: "iif(true, 'a', nope)",
+    composition: "iif(true, 'a', 'b').upper()",
+    analyzer: {
+      types: ['System.String'],
+      single: true,
+    },
+    runtime: true,
+  },
+  'literal.mixed-union': {
+    expression: "'a' | 1",
+    degradation: "'a' | nope",
+    composition: "('a' | 1).first()",
+    analyzer: {
+      types: ['System.String', 'System.Integer'],
+      single: false,
+    },
+    runtime: true,
+  },
+  'budget.long-chain': {
+    expression:
+      "address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()",
+    degradation:
+      "addresss.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()",
+    composition:
+      "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()).exists()",
+    analyzer: {
+      types: ['FHIR.string', 'System.String'],
+      single: true,
+    },
+    runtime: true,
+    input: 'Organization',
+  },
   'builtin.abs': {
     expression: 'Patient.name.first().abs()',
     degradation: 'Patient.name.unknownFn()',

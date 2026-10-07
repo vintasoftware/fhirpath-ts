@@ -57,8 +57,14 @@ signatures, and model maps as the sources of truth; do not add handwritten
 copies.
 
 Keep inference bounded by `src/typed/inference-limits.ts`. Returning `unknown[]`
-is safe; returning a type narrower than `analyzeExpressionDetailed()` is not.
-The required checks below cover generated drift, corpus soundness, and compiler
+is safe; returning a type narrower than `analyzeExpressionDetailed()` is not,
+with one exception: a string literal union where the analyzer says
+`System.String`. The literal carrier (`LiteralCarrier` in `src/typed/parser.ts`)
+may reach a result only through paths that return a subset of their input; a
+rule that computes a new value rebuilds the state without it. The precision
+ratchet accepts any literal union there, so it cannot tell wrong literal text
+from right, and `src/typed/operators.test.ts` guards the texts instead. The
+required checks below cover generated drift, corpus soundness, and compiler
 cost. A helper that means "nothing to read" returns a sentinel such as
 `undefined`, not `never`: `never` distributes through later conditionals and
 erases the whole result (`HostBodySource` did this for host functions without a

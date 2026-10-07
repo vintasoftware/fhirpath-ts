@@ -181,11 +181,18 @@ type ReadFraction<
         : EmitAndScan<Source, ['number', Acc], Tokens, Steps>
       : ScanFailure
 
+/**
+ * A quoted token's kind. A string that contains a unicode escape becomes
+ * `'string-wide'`: its text is still a string, but not one the type level can
+ * spell, so the token carries `string` and no literal payload.
+ */
+type QuotedKind = 'string' | 'string-wide' | 'name' | 'unsafe'
+
 type ReadQuoted<
   Source extends string,
   Acc extends string,
   Quote extends "'" | '`',
-  Kind extends 'string' | 'name' | 'unsafe',
+  Kind extends QuotedKind,
   Tokens extends TypeTokens,
   Steps extends unknown[],
 > = Source extends ''
@@ -196,20 +203,33 @@ type ReadQuoted<
       ? Character extends Quote
         ? EmitAndScan<
             Rest,
-            Kind extends 'string' ? ['string', Acc] : Kind extends 'name' ? ['name', Acc] : UnsafeToken,
+            Kind extends 'string'
+              ? ['string', Acc]
+              : Kind extends 'string-wide'
+                ? ['string', string]
+                : Kind extends 'name'
+                  ? ['name', Acc]
+                  : UnsafeToken,
             Tokens,
             Step<Steps>
           >
         : Character extends '\\'
           ? ReadEscape<Rest, Acc, Quote, Kind, Tokens, Step<Steps>>
-          : ReadQuoted<Rest, Kind extends 'unsafe' ? '' : `${Acc}${Character}`, Quote, Kind, Tokens, Step<Steps>>
+          : ReadQuoted<
+              Rest,
+              Kind extends 'string' | 'name' ? `${Acc}${Character}` : '',
+              Quote,
+              Kind,
+              Tokens,
+              Step<Steps>
+            >
       : ScanFailure
 
 type ReadEscape<
   Source extends string,
   Acc extends string,
   Quote extends "'" | '`',
-  Kind extends 'string' | 'name' | 'unsafe',
+  Kind extends QuotedKind,
   Tokens extends TypeTokens,
   Steps extends unknown[],
 > = Source extends ''
@@ -222,7 +242,7 @@ type ReadEscape<
         : Character extends SimpleEscape
           ? ReadQuoted<
               Rest,
-              Kind extends 'unsafe' ? '' : `${Acc}${Escaped<Character>}`,
+              Kind extends 'string' | 'name' ? `${Acc}${Escaped<Character>}` : '',
               Quote,
               Kind,
               Tokens,
@@ -235,16 +255,16 @@ type ReadUnicodeEscape<
   Source extends string,
   Acc extends string,
   Quote extends "'" | '`',
-  Kind extends 'string' | 'name' | 'unsafe',
+  Kind extends QuotedKind,
   Tokens extends TypeTokens,
   Steps extends unknown[],
   Digits extends unknown[],
 > = Digits['length'] extends 4
   ? ReadQuoted<
       Source,
-      Kind extends 'string' ? `${Acc}${string}` : '',
+      '',
       Quote,
-      Kind extends 'name' ? 'unsafe' : Kind,
+      Kind extends 'name' ? 'unsafe' : Kind extends 'string' ? 'string-wide' : Kind,
       Tokens,
       Steps
     >
@@ -625,6 +645,40 @@ type InferenceEnvironment = [
 type DefaultEnvironment = [[], 'unknown', never, EmptyContextMap, never]
 type EnvironmentCarrier<Environment extends InferenceEnvironment> = { readonly __environment: Environment }
 type HostValueCarrier<Value> = { readonly __hostValue: Value }
+/**
+ * The literal strings a state's values are known to be. String literals attach
+ * it and the union forms (`|`, `union`, `combine`, `iif`, `coalesce`) merge it.
+ * It survives only through paths that return a subset of their input: the
+ * `['input']` function rules, `select` over an argument, an index, and a
+ * group. Every result that computes a new value, arithmetic and string
+ * functions included, builds a fresh state without it, which falls back to the
+ * string type. Keep that invariant: a rule that passes a state through while
+ * changing its values must rebuild the state (see `ArithmeticInput`).
+ */
+type LiteralCarrier<Literals extends string> = { readonly __literals: Literals }
+type LiteralsOf<State> = State extends LiteralCarrier<infer Literals extends string> ? Literals : never
+/** The carrier for the union of two states' literals, or nothing when either side has none. */
+type UnionLiterals<Left, Right> =
+  Left extends LiteralCarrier<infer LeftLiterals extends string>
+    ? Right extends LiteralCarrier<infer RightLiterals extends string>
+      ? LiteralCarrier<LeftLiterals | RightLiterals>
+      : unknown
+    : unknown
+/** The carrier for the literals of every member of a state union, or nothing when one member has none. */
+type CollapsedLiterals<States extends InferenceState> =
+  NonEmptyStates<States> extends infer Members
+    ? [Members] extends [never]
+      ? unknown
+      : [Members extends LiteralCarrier<string> ? true : false] extends [true]
+        ? LiteralCarrier<LiteralsOf<Members>>
+        : unknown
+    : unknown
+/** An empty member contributes no values, so it neither adds nor removes literals, as in `UnionState`. */
+type NonEmptyStates<States extends InferenceState> = States extends States
+  ? StateKind<States> extends 'empty'
+    ? never
+    : States
+  : never
 type OpaqueState = ['opaque', never]
 type UnknownState = ['unknown', never]
 type EmptyState = [never, never]
@@ -1392,14 +1446,19 @@ type ArithmeticState<
         : ArithmeticInput<Left, Right>
   : ArithmeticInput<Left, Right>
 
+/**
+ * The operand whose type an arithmetic result takes. The result is a new
+ * value, so the state is rebuilt from its core: `'a' + 'b'` is a string, not
+ * `'a'`. `ApplyBinary` puts the environment back.
+ */
 type ArithmeticInput<Left extends InferenceState, Right extends InferenceState> =
   StateKind<Left> extends 'empty'
     ? Left
     : IsUnknownState<Left> extends true
       ? IsUnknownState<Right> extends true
         ? UnknownState
-        : Right
-      : Left
+        : CoreOf<Right>
+      : CoreOf<Left>
 
 type IsQuantityState<State extends InferenceState> =
   StateKind<State> extends 'empty' ? false : [State[0]] extends [QuantityType] ? true : false
@@ -1703,7 +1762,7 @@ type CollapseStateUnion<States extends InferenceState> = 'opaque' extends States
   ? OpaqueState
   : 'unknown' extends States[0]
     ? UnknownState
-    : CopyEnvironment<[States[0], never], States>
+    : CopyEnvironment<[States[0], never], States> & CollapsedLiterals<States>
 
 type UnionArguments<Args extends InferenceState[], Accumulator extends InferenceState = EmptyState> = Args extends [
   infer Head extends InferenceState,
@@ -1725,7 +1784,7 @@ type MergeStates<Left extends InferenceState, Right extends InferenceState> =
             ? UnknownState
             : IsUnknownState<Right> extends true
               ? UnknownState
-              : CopyEnvironment<[Left[0] | Right[0], CommonTargets<Left, Right>], Left>
+              : CopyEnvironment<[Left[0] | Right[0], CommonTargets<Left, Right>], Left> & UnionLiterals<Left, Right>
 
 type CommonTargets<Left extends InferenceState, Right extends InferenceState> = [Left[1]] extends [never]
   ? never
@@ -2150,19 +2209,23 @@ type UnionState<Left extends InferenceState, Right extends InferenceState> =
             ? UnknownState
             : StateKind<Right> extends 'unknown'
               ? UnknownState
-              : [Left[0] | Right[0], CommonTargets<Left, Right>]
+              : [Left[0] | Right[0], CommonTargets<Left, Right>] & UnionLiterals<Left, Right>
 
 type PublicResult<State extends InferenceState> =
   StateKind<State> extends 'empty'
     ? never[]
     : StateKind<State> extends 'known'
-      ? [Exclude<State[0], keyof R4TypeOf>] extends [never]
-        ? R4TypeOf[Extract<State[0], keyof R4TypeOf>][]
-        : unknown[]
+      ? State extends LiteralCarrier<infer Literals extends string>
+        ? Literals[]
+        : [Exclude<State[0], keyof R4TypeOf>] extends [never]
+          ? R4TypeOf[Extract<State[0], keyof R4TypeOf>][]
+          : unknown[]
       : unknown[]
 
 type LiteralState<Token extends LiteralToken> = Token[0] extends 'string'
-  ? ['System.String', never]
+  ? string extends Token[1]
+    ? ['System.String', never]
+    : ['System.String', never] & LiteralCarrier<Token[1]>
   : Token[0] extends 'date'
     ? ['System.Date', never]
     : Token[0] extends 'dateTime'

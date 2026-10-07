@@ -164,6 +164,10 @@ function shardSource(cases: PreparedCase[]): string {
     '',
     'type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false',
     'type Opaque<T extends unknown[]> = unknown extends T[number] ? true : false',
+    // A string literal union where the analyzer says string is the same claim,
+    // narrowed to the texts the expression can produce; it is precise. Any
+    // other narrowing, such as dropping a member the analyzer keeps, is not.
+    'type LiteralString<A extends unknown[], E extends unknown[]> = string extends A[number] ? false : A[number] extends string ? Equal<E[number], string> : false',
     '',
   ]
   for (let index = 0; index < cases.length; index++) {
@@ -175,7 +179,7 @@ function shardSource(cases: PreparedCase[]): string {
         : `R4TypeOf[Extract<${entry.expected.map(name => JSON.stringify(name)).join(' | ') || 'never'}, keyof R4TypeOf>][]`
     lines.push(
       `type Actual${index} = ${actual}`,
-      `type Status${index} = Opaque<Actual${index}> extends true ? 'opaque' : ${expected === undefined ? "'conflict'" : `Equal<Actual${index}, ${expected}> extends true ? 'precise' : 'conflict'`}`
+      `type Status${index} = Opaque<Actual${index}> extends true ? 'opaque' : ${expected === undefined ? "'conflict'" : `Equal<Actual${index}, ${expected}> extends true ? 'precise' : LiteralString<Actual${index}, ${expected}> extends true ? 'precise' : 'conflict'`}`
     )
   }
   return `${lines.join('\n')}\n`
