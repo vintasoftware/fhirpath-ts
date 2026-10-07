@@ -5,7 +5,7 @@ import ts from 'typescript'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
-import { type DtoOptions, FhirPathEngine, type FhirTypeName, type ViewBaseClass } from '../index.ts'
+import { type DtoInput, type DtoOptions, FhirPathEngine, type FhirTypeName, type ViewBaseClass } from '../index.ts'
 import type {
   Bundle,
   Condition,
@@ -524,6 +524,49 @@ describe('README usage recipes', () => {
       expect.objectContaining({ id: 'c1', status: 'active' }),
       expect.objectContaining({ id: '1', status: undefined }),
     ])
+  })
+})
+
+describe('API reference DTO input examples', () => {
+  it('runs the Inputs and Required columns examples', () => {
+    class PatientRow extends r4.defineView('Patient') {
+      id = this.column('id', { default: '' })
+    }
+    const matched: Patient = { resourceType: 'Patient', id: 'p1' }
+    const searchset: Bundle = {
+      resourceType: 'Bundle',
+      type: 'searchset',
+      entry: [
+        { resource: matched, search: { mode: 'match' } },
+        { resource: { resourceType: 'Organization' }, search: { mode: 'include' } },
+      ],
+    }
+    const patients = r4.evaluate('Bundle.entry.resource.ofType(Patient)', searchset)
+    expectTypeOf(patients).toEqualTypeOf<Patient[]>()
+    expect(PatientRow.from(patients)).toEqual([expect.objectContaining({ id: 'p1' })])
+
+    class ScheduledAppointmentRow extends r4.defineView('Appointment') {
+      id = this.column('id', { required: true })
+
+      start = this.column('start', { required: true })
+
+      lastUpdated = this.column('meta.lastUpdated', { required: true })
+
+      end = this.column('end')
+    }
+    type ScheduledAppointment = DtoInput<typeof ScheduledAppointmentRow>
+    const appointment: ScheduledAppointment = {
+      resourceType: 'Appointment',
+      id: 'a1',
+      start: '2026-03-01T09:00:00Z',
+      meta: { lastUpdated: '2026-02-01T00:00:00Z' },
+    }
+    const row = ScheduledAppointmentRow.from(appointment)
+    expectTypeOf(row.start).toExtend<string>()
+    expectTypeOf(row.end).toEqualTypeOf<string | undefined>()
+    const start: string = row.start
+    expect(start).toBe('2026-03-01T09:00:00Z')
+    expect(row).toEqual(expect.objectContaining({ id: 'a1', lastUpdated: '2026-02-01T00:00:00Z', end: undefined }))
   })
 })
 

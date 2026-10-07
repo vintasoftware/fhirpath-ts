@@ -18,11 +18,16 @@ import { assertStrictExpression } from './strict.ts'
  */
 export type ProjectionColumn = string | ({ path: string } & ColumnOptions) | { test: string }
 
-/** Options shared by plain project columns and DTO `this.column()` fields. */
+/**
+ * Options shared by plain project columns and DTO `this.column()` fields.
+ * `required` belongs to DTO columns only, where the class derives an input type
+ * from it; a plain column has no class to carry the requirement.
+ */
 export type ColumnOptions = {
   collection?: boolean
   type?: keyof R4TypeOf
   default?: unknown
+  required?: never
 } & (
   | { as?: 'Date' | ((value: unknown) => unknown); choices?: never; pick?: never; enum?: never }
   | { choices: Readonly<Record<string, unknown>>; as?: never; pick?: never; enum?: never }

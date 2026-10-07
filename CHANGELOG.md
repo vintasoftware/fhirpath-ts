@@ -10,6 +10,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Added
 
+- `Dto.from(input, options?)`: a static on every DTO and view class that
+  projects on the defining engine, typed like `engine.project()`.
+- `required: true` column option for DTO and view columns on a path of singular
+  element names. The input type gains the path as a required property and the
+  field type drops `undefined`. There is no runtime check.
 - `narrativeSanitizer` option and `domPurifySanitizer()` adapter. With a
   sanitizer set, `htmlChecks()` also returns `false` for a narrative the
   sanitizer would change. DOMPurify is not a dependency; pass your own instance.
@@ -26,6 +31,19 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
+- **Breaking:** `engine.project(input, Dto)` types its input. A DTO or view on a
+  resource type accepts `{ resourceType: '<root>' }`, an array of such values,
+  or a Bundle; a datatype root accepts any object. An `unknown` input or a
+  widened `resourceType: string` is a compile error, so the wrong resource type
+  no longer compiles ([#88](https://github.com/vintasoftware/fhirpath-ts/issues/88)).
+  `DtoInput<typeof Dto>` names the accepted input.
+- **Breaking:** projecting a DTO on a resource root throws `FhirPathTypeError`
+  for a value that is not an object or has no `resourceType`. Previously such a
+  value projected into a row of defaults.
+- The documented recipe for a mixed search Bundle is
+  `r4.evaluate('Bundle.entry.resource.ofType(Patient)', bundle)`, which infers
+  `Patient[]`; `filter()` on a Bundle returns `unknown[]`, which `project()` no
+  longer accepts.
 - The README no longer describes a `true` `htmlChecks()` result as free of
   active content. `htmlChecks()` checks the FHIR narrative rules, which are not
   an HTML sanitizer; sanitize narrative before rendering it as HTML.

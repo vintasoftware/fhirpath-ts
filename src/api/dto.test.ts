@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeDto, analyzeEngineDtos, analyzeExpression } from '../analyzer/index.ts'
 import type {
+  Appointment,
   Bundle,
   Condition,
   Observation,
@@ -11,7 +12,7 @@ import type {
 } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
-import { type DtoBase, dtoDefinition, type DtoFunctions, type DtoOptions } from './dto.ts'
+import { type DtoBase, dtoDefinition, type DtoFunctions, type DtoInput, type DtoOptions } from './dto.ts'
 import { FhirPathEngine } from './engine.ts'
 
 const weighed: Observation = {
@@ -314,10 +315,11 @@ describe('DTO projection', () => {
     expect(called.map(row => row.reportStatus)).toEqual(['final', 'waiting'])
   })
 
-  it('filters a searchset down to the DTO type, the way the README recipe does', () => {
+  it('narrows a searchset down to the DTO type, the way the documented recipe does', () => {
     // A searchset carrying _include results holds more than one resource type,
-    // so the fhirType check fires on the whole Bundle. Both filters in the
-    // README's tip are here, so the recipe cannot rot.
+    // so the fhirType check fires on the whole Bundle. Both recipes in the
+    // documentation are here, so they cannot rot: `ofType()` on the entries
+    // infers `Patient[]`, which is what `project()` accepts.
     class PatientRow extends r4.defineView('Patient') {
       id = this.column('id', { default: '' })
     }
@@ -336,16 +338,22 @@ describe('DTO projection', () => {
     expect(() => r4.project(searchset, PatientRow)).toThrow(
       "project(): row 1 is a Organization, but PatientRow declares fhirType 'Patient'"
     )
-    expect(r4.project(r4.filter(searchset, '$this is Patient'), PatientRow)).toEqual([
-      { id: 'match1' },
-      { id: 'included' },
-    ])
-    const matches = r4.evaluate("Bundle.entry.where(search.mode = 'match').resource", searchset)
+    const patients = r4.evaluate('Bundle.entry.resource.ofType(Patient)', searchset)
+    expectTypeOf(patients).toEqualTypeOf<Patient[]>()
+    expect(r4.project(patients, PatientRow)).toEqual([{ id: 'match1' }, { id: 'included' }])
+    const matches = r4.evaluate("Bundle.entry.where(search.mode = 'match').resource.ofType(Patient)", searchset)
     expect(r4.project(matches, PatientRow)).toEqual([{ id: 'match1' }])
+    // `filter()` keeps the type of an array it is given, but a Bundle's entries
+    // are untyped, so that route needs a narrowing step before projection.
+    const filtered = r4.filter(searchset, '$this is Patient')
+    expectTypeOf(filtered).toEqualTypeOf<unknown[]>()
+    // @ts-expect-error -- unknown[] is not a Patient input
+    expect(r4.project(filtered, PatientRow)).toEqual([{ id: 'match1' }, { id: 'included' }])
   })
 
   it('projecting checks each row against the fhirType, failing loudly on a mismatch', () => {
-    const patient = { resourceType: 'Patient', id: 'p1' }
+    const patient: Patient = { resourceType: 'Patient', id: 'p1' }
+    // @ts-expect-error -- a Patient is not an Observation input
     expect(() => r4.project([weighed, patient], WeightRow)).toThrow(
       "project(): row 1 is a Patient, but WeightRow declares fhirType 'Observation'"
     )
@@ -354,6 +362,208 @@ describe('DTO projection', () => {
       text = this.column('(text | coding.display.first()).first()', { default: '' })
     }
     expect(r4.project([{ text: 'Weight' }], ConceptRow)).toEqual([expect.objectContaining({ text: 'Weight' })])
+  })
+
+  it('an abstract resource root is a resource root too, at compile time as at runtime', () => {
+    class DomainDto extends r4.defineDto('DomainResource') {
+      narrative = this.column('text.status')
+    }
+    expectTypeOf<DtoInput<typeof DomainDto>>().toEqualTypeOf<{ readonly resourceType: 'DomainResource' }>()
+    // @ts-expect-error -- not a resource
+    expect(() => DomainDto.from({ hello: 1 })).toThrow(
+      "project(): row 0 has no resourceType, but DomainDto declares fhirType 'DomainResource'"
+    )
+  })
+
+  it('a resource root rejects a value that is not a resource, at compile time and at runtime', () => {
+    class ConditionDto extends r4.defineDto('Condition') {
+      code = this.column('code.text')
+    }
+    const condition: Condition = { resourceType: 'Condition', subject: {}, code: { text: 'Hypertension' } }
+    expectTypeOf(r4.project(condition, ConditionDto)).toEqualTypeOf<ConditionDto>()
+    expectTypeOf(r4.project([condition], ConditionDto)).toEqualTypeOf<ConditionDto[]>()
+    expectTypeOf(r4.project({ resourceType: 'Condition' }, ConditionDto)).toEqualTypeOf<ConditionDto>()
+    // @ts-expect-error -- a number is not a Condition
+    expect(() => r4.project(42, ConditionDto)).toThrow(
+      "project(): row 0 is a number, not a resource, but ConditionDto declares fhirType 'Condition'"
+    )
+    // @ts-expect-error -- an object without resourceType is not a Condition
+    expect(() => r4.project({ nonsense: true }, ConditionDto)).toThrow(
+      "project(): row 0 has no resourceType, but ConditionDto declares fhirType 'Condition'"
+    )
+    // @ts-expect-error -- null is not a Condition
+    expect(() => r4.project([null], ConditionDto)).toThrow(
+      "project(): row 0 is null, not a resource, but ConditionDto declares fhirType 'Condition'"
+    )
+    // @ts-expect-error -- a nested array is not a Condition
+    expect(() => r4.project([condition, [condition]], ConditionDto)).toThrow(
+      "project(): row 1 is an array, not a resource, but ConditionDto declares fhirType 'Condition'"
+    )
+    // @ts-expect-error -- a Patient is not a Condition
+    expect(() => r4.project({ resourceType: 'Patient' }, ConditionDto)).toThrow(
+      "project(): row 0 is a Patient, but ConditionDto declares fhirType 'Condition'"
+    )
+    // A widened resourceType proves nothing, so it needs a type or `as const`.
+    const widened = { resourceType: 'Condition' }
+    // @ts-expect-error -- { resourceType: string } may be any resource
+    expect(r4.project(widened, ConditionDto).code).toBeUndefined()
+    const unknownInput: unknown = condition
+    // @ts-expect-error -- unknown must be narrowed before projection
+    expect(r4.project(unknownInput, ConditionDto).code).toBe('Hypertension')
+    // A Bundle is accepted as a whole; its entries are checked at runtime only.
+    const bundle: Bundle = { resourceType: 'Bundle', type: 'collection', entry: [{ resource: condition }] }
+    expect(r4.project(bundle, ConditionDto)).toEqual([expect.objectContaining({ code: 'Hypertension' })])
+    // Without a model, nothing says whether the root is a resource, so only a
+    // present resourceType is compared, as before.
+    const modelless = new FhirPathEngine()
+    class Loose extends modelless.defineView('Condition') {
+      code = this.column('code.text')
+    }
+    expect(modelless.project({ nonsense: true } as never, Loose)).toEqual(expect.objectContaining({ code: undefined }))
+    expect(() => modelless.project({ resourceType: 'Patient' } as never, Loose)).toThrow(
+      "project(): row 0 is a Patient, but Loose declares fhirType 'Condition'"
+    )
+  })
+
+  it('a required column demands its path on the input and drops undefined from the field', () => {
+    class ScheduledAppointment extends r4.defineDto('Appointment') {
+      id = this.column('id', { required: true })
+
+      start = this.column('start', { required: true })
+
+      lastUpdated = this.column('meta.lastUpdated', { required: true })
+
+      end = this.column('end')
+
+      status = this.column('status', { required: true })
+    }
+    expectTypeOf<DtoInput<typeof ScheduledAppointment>>().toEqualTypeOf<
+      { readonly resourceType: 'Appointment' } & { readonly id: string } & { readonly start: string } & {
+        readonly meta: { readonly lastUpdated: string }
+      } & { readonly status: string }
+    >()
+    const row = new ScheduledAppointment()
+    expectTypeOf(row.id).toExtend<string>()
+    expectTypeOf(row.start).toExtend<string>()
+    expectTypeOf(row.lastUpdated).toExtend<string>()
+    expectTypeOf(row.status).toExtend<string>()
+    expectTypeOf(row.end).toEqualTypeOf<string | undefined>()
+    // The marker is invisible to assignment in both directions.
+    const plain: string = row.start
+    expect(plain).toBeUndefined()
+    // The generated interface leaves these elements optional, so the input type
+    // narrows it: the shape a scheduling screen would type its data with.
+    const appointment: Appointment & DtoInput<typeof ScheduledAppointment> = {
+      resourceType: 'Appointment',
+      id: 'a1',
+      status: 'booked',
+      start: '2026-03-01T09:00:00Z',
+      meta: { lastUpdated: '2026-02-01T00:00:00Z' },
+      participant: [{ status: 'accepted' }],
+    }
+    expect(r4.project(appointment, ScheduledAppointment)).toEqual(
+      expect.objectContaining({ id: 'a1', start: '2026-03-01T09:00:00Z', lastUpdated: '2026-02-01T00:00:00Z' })
+    )
+    // The requirement is on the input: a resource that may lack `start` does not compile.
+    const unscheduled: Appointment = { resourceType: 'Appointment', status: 'proposed', participant: [] }
+    // @ts-expect-error -- Appointment has an optional start, the DTO requires it
+    const rejected = r4.project(unscheduled, ScheduledAppointment)
+    expect(rejected).toEqual(expect.objectContaining({ start: undefined }))
+    const idless = { resourceType: 'Appointment', start: '', meta: { lastUpdated: '' }, status: '' } as const
+    // @ts-expect-error -- id is missing
+    const alsoRejected = r4.project(idless, ScheduledAppointment)
+    expect(alsoRejected).toEqual(expect.objectContaining({ id: undefined }))
+    // There is no runtime check: a Bundle entry that lacks the path reads undefined, as any column does.
+    const bundle: Bundle = { resourceType: 'Bundle', type: 'collection', entry: [{ resource: unscheduled }] }
+    expect(r4.project(bundle, ScheduledAppointment)[0]!.start).toBeUndefined()
+    // The class is registrable: a required column is an ordinary column to the engine.
+    expect(r4.register(ScheduledAppointment).evaluate('start()', appointment)).toEqual(['2026-03-01T09:00:00Z'])
+  })
+
+  it('required is refused where the input type cannot name the path', () => {
+    class Bad extends r4.defineView('Appointment') {
+      // @ts-expect-error -- an expression, not a path
+      first = this.column('participant.first().status', { required: true })
+
+      // @ts-expect-error -- a collection element
+      participants = this.column('participant', { required: true })
+
+      // @ts-expect-error -- not an element
+      typo = this.column('strat', { required: true })
+
+      // @ts-expect-error -- a root-prefixed path is not relative
+      prefixed = this.column('Appointment.start', { required: true })
+
+      // @ts-expect-error -- required takes no default
+      defaulted = this.column('start', { required: true, default: '' })
+
+      // @ts-expect-error -- required takes no collection
+      collected = this.column('start', { required: true, collection: true })
+
+      // @ts-expect-error -- required takes no conversion
+      converted = this.column('start', { required: true, as: 'Date' })
+
+      // @ts-expect-error -- the path's own type is exact, so a declared type could only contradict it
+      typed = this.column('start', { required: true, type: 'integer' })
+    }
+    class Choice extends r4.defineView('Observation') {
+      // @ts-expect-error -- a choice element has no single key
+      value = this.column('value', { required: true })
+
+      // @ts-expect-error -- nor does a choice element that is a date or a period
+      effective = this.column('effective', { required: true })
+    }
+    // The runtime never sees `required`: the recorded columns are plain ones.
+    expect(dtoDefinition(Bad).columns['defaulted']).toEqual({ path: 'start', default: '' })
+    expect(dtoDefinition(Choice).columns['value']).toEqual({ path: 'value' })
+    // Plain project() columns have no class to carry a requirement.
+    // @ts-expect-error -- required is a DTO column option
+    expect(r4.project({ resourceType: 'Appointment' }, { start: { path: 'start', required: true } })).toEqual({
+      start: undefined,
+    })
+  })
+
+  it('from() projects on the defining engine, typed like project()', () => {
+    class ConceptDto extends r4.defineDto('CodeableConcept') {
+      label = this.column('(text | coding.display.first()).first()')
+    }
+    const fp = r4.register(ConceptDto)
+    class ConditionRow extends fp.defineView('Condition') {
+      id = this.column('id', { required: true })
+
+      name = this.column('code.label()', { default: 'Condition' })
+    }
+    class ConditionDtoOnFp extends fp.defineDto('Condition') {
+      summary = this.column('code.label()')
+    }
+    const condition: Condition & { id: string } = {
+      resourceType: 'Condition',
+      id: 'c1',
+      subject: {},
+      code: { text: 'Hypertension' },
+    }
+    expectTypeOf(ConditionRow.from(condition)).toEqualTypeOf<ConditionRow>()
+    expectTypeOf(ConditionRow.from([condition])).toEqualTypeOf<ConditionRow[]>()
+    expect(ConditionRow.from(condition)).toEqual(expect.objectContaining({ id: 'c1', name: 'Hypertension' }))
+    expect(ConditionRow.from([condition, condition]).map(row => row.name)).toEqual(['Hypertension', 'Hypertension'])
+    expect(ConditionRow.from(condition)).toBeInstanceOf(ConditionRow)
+    // The subclass is what projects, not the base the engine returned.
+    expectTypeOf(ConceptDto.from({ text: 'x' })).toEqualTypeOf<ConceptDto>()
+    expect(ConceptDto.from({ text: 'x' }).label).toBe('x')
+    // @ts-expect-error -- id is required
+    expect(ConditionRow.from({ resourceType: 'Condition' }).id).toBeUndefined()
+    // @ts-expect-error -- not a Condition
+    expect(() => ConditionRow.from({ resourceType: 'Patient', id: 'p1' })).toThrow(
+      "project(): row 0 is a Patient, but ConditionRow declares fhirType 'Condition'"
+    )
+    // Per-call options reach the columns as they do through project().
+    class Labelled extends r4.defineView('Condition', { callerEnv: ['label'] }) {
+      label = this.column('%label', { type: 'string', default: '' })
+    }
+    expect(Labelled.from(condition, { env: { label: 'Problem' } }).label).toBe('Problem')
+    // It is one more route to the defining engine's projection.
+    expect(fp.project(condition, ConditionRow).name).toBe('Hypertension')
+    expect(fp.register(ConditionDtoOnFp).project(condition, ConditionRow).name).toBe('Hypertension')
   })
 
   it('DTO env applies when projecting, over a per-call name of its own', () => {
@@ -768,7 +978,7 @@ describe('DTOs registered engine-wide', () => {
     // The criteria rule travels with the function, so both readings agree on a
     // resource where the criteria finds nothing. The call also chains as a
     // boolean instead of returning empty.
-    const statusless = { resourceType: 'Observation', code: { text: 'Weight' } }
+    const statusless: Observation = { resourceType: 'Observation', code: { text: 'Weight' } } as Observation
     expect(engine.project(statusless, Flags).isFinal).toBe(false)
     expect(engine.evaluate('isFinal()', statusless)).toEqual([false])
     expect(engine.evaluate('isFinal().not()', statusless)).toEqual([true])
@@ -797,7 +1007,7 @@ describe('DTOs registered engine-wide', () => {
       hasGiven = this.criteria('name.given')
     }
     const engine = r4.register(Many)
-    const patient = { resourceType: 'Patient', name: [{ given: ['Peter', 'James'] }] }
+    const patient: Patient = { resourceType: 'Patient', name: [{ given: ['Peter', 'James'] }] }
     const message = 'Expected a collection with at most one item, but found 2'
     expect(() => engine.project(patient, Many)).toThrow(message)
     expect(() => engine.evaluate('hasGiven()', patient)).toThrow(message)

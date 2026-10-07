@@ -210,6 +210,19 @@ rules together; each protects the types:
   sound only because `assertRegistrable` rejects views, getters, and plain fields,
   and `dtoDefinition` rejects `as`/`choices` on DTO columns: a registered
   function returns the expression result, not the projected value.
+- The projection input type is structural (`DtoInput`): the root's
+  `resourceType` plus the paths of the class's required columns, never the
+  generated resource interface (see `docs/adr/0001`). `required` is type-only:
+  the input type proves presence, the `column()` return type drops `undefined`,
+  the recorded column spec never carries the option, and the
+  runtime reads the column as any other, so projection and function-call parity
+  is untouched. The field type carries the path through the optional-symbol
+  `RequiredColumn` marker; that is the only channel from a field to the class's
+  input type, so keep the marker optional (a plain value must still assign to
+  the field) and read it only through `DtoInput`.
+- `assertInputMatchesDto` rejects a non-object or a missing `resourceType` only
+  when the engine's model says the root is a resource. Without a model it
+  compares a present `resourceType` and nothing else.
 - A field's TypeScript type maps back to the union of every FHIR type with that
   TypeScript form (`TypeNamesOf`). Naming one type would let `ofType()` infer
   empty where the runtime returns a value. A member no FHIR type represents

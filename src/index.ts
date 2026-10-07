@@ -19,11 +19,15 @@ export type {
   DtoColumnOptions,
   DtoContext,
   DtoFunctions,
+  DtoInput,
   DtoKind,
   DtoOptions,
   DtoRow,
   RegisteredDtoClass,
   RegisteredOptions,
+  RequiredColumn,
+  RequiredColumnOptions,
+  ViewColumnOptions,
 } from './api/dto.ts'
 export type {
   EngineDtoContext,

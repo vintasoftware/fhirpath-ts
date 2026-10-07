@@ -33,6 +33,7 @@ import {
   type DtoClass,
   type DtoContext,
   dtoDefinition,
+  type DtoInput,
   type DtoOptions,
   type RegisteredDtoClass,
   type RegisteredOptions,
@@ -360,14 +361,21 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   /**
    * Projects each resource into a flat row. Columns return one optional value
    * unless `collection: true` is set. `%rowIndex` and `%rowTotal` are available
-   * in every column. All columns compile before any row is read.
+   * in every column. All columns compile before any row is read. A DTO accepts
+   * its `DtoInput`: a value carrying the root's `resourceType` and the paths of
+   * its required columns. A Bundle is accepted as a whole, and only its entry
+   * resources are checked, at runtime.
    */
-  project<C extends DtoClass>(
-    input: readonly unknown[] | BundleLike,
+  project<C extends DtoClass, const Input extends readonly DtoInput<C>[] | BundleLike>(
+    input: Input,
     dto: C,
     options?: EvaluateOptions
   ): InstanceType<C>[]
-  project<C extends DtoClass>(input: unknown, dto: C, options?: EvaluateOptions): InstanceType<C>
+  project<C extends DtoClass, const Input extends DtoInput<C>>(
+    input: Input,
+    dto: C,
+    options?: EvaluateOptions
+  ): InstanceType<C>
   project<
     const Input extends readonly unknown[] | BundleLike,
     const Columns extends ProjectionColumns,

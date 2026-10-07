@@ -168,6 +168,7 @@ Set `collection: true` for an array. Other options are:
 | `choices` | Code-to-value table or record |
 | `pick` | Field to return from a `choices` table row |
 | `collection` | Return all results instead of one scalar |
+| `required` | DTO columns only: the input must carry this path; see [Required columns](#required-columns) |
 
 `type` is a TypeScript declaration. The runtime does not validate it. Use the
 analyzer or a DTO check when an expression falls outside TypeScript's inference
@@ -488,8 +489,13 @@ class WeightRow extends r4.defineView('Observation') {
   }
 }
 
-const rows = r4.project(observations, WeightRow) // WeightRow[]
+const rows = WeightRow.from(observations) // WeightRow[]
 ```
+
+`Dto.from(input, options?)` projects on the engine the class was defined on;
+`engine.project(input, Dto, options?)` does the same on that engine or one
+derived from it. Both accept one resource, an array, or a Bundle, and return one
+row per resource. See [Inputs](#inputs) for what the input type demands.
 
 There are two kinds:
 
@@ -696,18 +702,64 @@ The return type is needed only when an exported class extends the function's
 result and the project emits declaration files. `ViewBaseClass` names the base
 class that engine's `defineView()` returns, plus the columns the function adds.
 
-### Input checks
+### Inputs
 
-`project()` checks each resource's `resourceType` against the DTO `fhirType`.
-Filter a mixed search Bundle before projecting it:
+A DTO or view on a resource type accepts a value whose `resourceType` is that
+type: `{ resourceType: 'Patient' }`, a generated or `@medplum/fhirtypes`
+`Patient`, an array of them, or a Bundle. Any other type is a compile error,
+including `unknown` and `{ resourceType: string }`. A datatype root such as
+`CodeableConcept` accepts any object. `DtoInput<typeof Dto>` names the accepted
+input.
+
+A Bundle is accepted as a whole, so its entries are checked only at runtime: each
+entry resource must carry the DTO's `fhirType`, or `project()` throws. A value
+that is not an object, or has no `resourceType`, is rejected the same way. To
+project one resource type out of a mixed search Bundle, read the entries with
+`ofType()`, which infers the resource type:
 
 ```ts
-const patients = r4.filter(searchset, '$this is Patient')
-const rows = r4.project(patients, PatientRow)
+const patients = r4.evaluate('Bundle.entry.resource.ofType(Patient)', searchset) // Patient[]
+const rows = PatientRow.from(patients)
 ```
 
-This prevents a well-typed row filled only with defaults when the input resource
-has the wrong type.
+To keep only search matches, add `where(search.mode = 'match')` on the entries.
+
+#### Required columns
+
+`required: true` marks a column whose path the input must carry. The requirement
+is on the input type, not a check at read time: the accepted input gains the path
+as a required property, and the field's type drops `undefined` because the input
+proves presence.
+
+```ts
+class ScheduledAppointmentRow extends r4.defineView('Appointment') {
+  id = this.column('id', { required: true }) // string
+  start = this.column('start', { required: true }) // string
+  lastUpdated = this.column('meta.lastUpdated', { required: true }) // string
+  end = this.column('end') // string | undefined
+}
+
+type ScheduledAppointment = DtoInput<typeof ScheduledAppointmentRow>
+// { resourceType: 'Appointment'; id: string; start: string; meta: { lastUpdated: string } }
+
+ScheduledAppointmentRow.from(appointment) // compiles only when `appointment` has those properties
+```
+
+`required` is allowed only on a path of singular element names from the root,
+such as `id` or `meta.lastUpdated`. An expression, a collection element, a
+choice element, or a root-prefixed path is a compile error; use `default` to
+drop `undefined` from such a column. `required` excludes `default`,
+`collection`, `as`, `choices`, and `enum`, because each of those can replace or
+drop the value, and `type`, because a singular model path already has an exact
+type. A required column of a base class is required by every subclass.
+
+The field type carries the path it requires, as `string & RequiredColumn<'id'>`.
+The marker is an optional symbol property, so the field reads and assigns as a
+plain `string`.
+
+There is no runtime check for `required`. A Bundle entry, a cast, or a registered
+function call that reaches a missing value reads `undefined` or empty, as any
+column does.
 
 ### Checking DTOs
 
@@ -746,8 +798,9 @@ r4.evaluate('Bundle.type', [searchset])
 ```
 
 A search Bundle may include resources of several types through `_include` and
-`_revinclude`. Filter before projecting a DTO. To keep only search matches, read
-entries where `search.mode = 'match'`.
+`_revinclude`. Read one type out of it with `Bundle.entry.resource.ofType(Patient)`
+before projecting a DTO; see [Inputs](#inputs). To keep only search matches,
+read entries where `search.mode = 'match'`.
 
 ## What throws errors and what doesn't?
 
