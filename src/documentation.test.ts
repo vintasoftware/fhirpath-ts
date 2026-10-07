@@ -122,6 +122,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid('id', 'start', 'meta.lastUpdated', 'end'),
       valid('Bundle.entry.resource.ofType(Appointment)'),
       valid(),
+      valid(),
       valid('Patient.name.given', 'Bundle.entry.count()'),
       valid('Bundle.type'),
       valid(),

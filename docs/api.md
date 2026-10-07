@@ -796,13 +796,33 @@ plain `string`.
 There is no runtime check for `required`: a cast or a registered function call
 that reaches a missing value reads `undefined` or empty, as any column does. The
 only input that could reach a required column unchecked is a Bundle, so a class
-with a required column refuses one; read the entries and narrow them:
+with a required column refuses one; read the entries and narrow them.
+
+Narrowing is the caller's job, and TypeScript narrows a property access, not
+the object that holds it: after `if (appointment.start !== undefined)`,
+`appointment` is still an `Appointment`. A named type guard is what a mapper
+module writes, and it narrows an array through `filter()`:
 
 ```ts
-const scheduled = r4
-  .evaluate('Bundle.entry.resource.ofType(Appointment)', bundle)
-  .filter((appointment): appointment is Appointment & { start: string } => appointment.start !== undefined)
-ScheduledAppointmentRow.from(scheduled)
+type ScheduledAppointment = DtoInput<typeof ScheduledAppointmentRow> & Appointment
+
+function isScheduled(appointment: Appointment): appointment is ScheduledAppointment {
+  return appointment.id !== undefined && appointment.start !== undefined && appointment.meta?.lastUpdated !== undefined
+}
+
+const appointments = r4.evaluate('Bundle.entry.resource.ofType(Appointment)', bundle) // Appointment[]
+ScheduledAppointmentRow.from(appointments.filter(isScheduled)) // ScheduledAppointmentRow[]
+```
+
+For one resource, either call the guard or rebuild the object from the narrowed
+properties; a spread carries the narrowed types into a new object:
+
+```ts
+const { id, start } = appointment
+const lastUpdated = appointment.meta?.lastUpdated
+if (id !== undefined && start !== undefined && lastUpdated !== undefined) {
+  ScheduledAppointmentRow.from({ ...appointment, id, start, meta: { ...appointment.meta, lastUpdated } })
+}
 ```
 
 ### Checking DTOs
