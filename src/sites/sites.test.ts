@@ -623,6 +623,42 @@ describe('module options', () => {
     ])
   }, 15_000)
 
+  it('walks a file with tuple-typed bindings without asking a tuple for base types', () => {
+    // Every binding's type is tested for the engine class. A non-empty tuple is
+    // a type reference without a symbol, and asking TypeScript for its base
+    // types throws; such a binding is never an engine, so it must be skipped.
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-tuple-'))
+    const packageDirectory = join(directory, 'node_modules', '@acme', 'fhirpath')
+    mkdirSync(packageDirectory, { recursive: true })
+    writeFileSync(
+      join(packageDirectory, 'package.json'),
+      JSON.stringify({ name: '@acme/fhirpath', type: 'module', types: 'index.d.ts' })
+    )
+    writeFileSync(
+      join(packageDirectory, 'index.d.ts'),
+      'export declare class FhirPathEngine { first(expression: string, input: unknown): unknown }'
+    )
+    const file = join(directory, 'source.ts')
+    const source = [
+      "import { FhirPathEngine } from '@acme/fhirpath'",
+      'export const fp = new FhirPathEngine()',
+      "export const STATUSES = ['active', 'draft'] as const",
+      'export const RANGE = [1, 2] as const satisfies readonly number[]',
+      "export const pair: readonly [string, string] = ['a', 'b']",
+      'export const empty = [] as const',
+      "fp.first('Patient.name', patient)",
+    ].join('\n')
+    writeFileSync(file, source)
+    const program = ts.createProgram({
+      rootNames: [file],
+      options: { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, noLib: true },
+    })
+
+    const scanned = createSiteScanner(ts, program)(source, file, { packages: ['@acme/fhirpath'] })
+    expect(scanned.sites.map(site => site.expression)).toEqual(['Patient.name'])
+    expect(scanned.skipped).toEqual([])
+  }, 15_000)
+
   it('reads the columns of a DTO whose base only the types reveal', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-dto-'))
     const packageDirectory = join(directory, 'node_modules', '@acme', 'fhirpath')

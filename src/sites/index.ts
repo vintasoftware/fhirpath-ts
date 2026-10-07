@@ -459,10 +459,14 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
         return false
       }
       const object = type as TS.ObjectType
-      if ((object.objectFlags & (ts.ObjectFlags.Class | ts.ObjectFlags.Interface | ts.ObjectFlags.Reference)) === 0) {
+      // Only a class or interface, or a reference to one, has base types. A
+      // tuple is also a reference, and asking it for base types throws.
+      const declared =
+        (object.objectFlags & ts.ObjectFlags.Reference) !== 0 ? (object as TS.TypeReference).target : object
+      if (!declared.isClassOrInterface()) {
         return false
       }
-      return checker.getBaseTypes(type as TS.InterfaceType).some(base => hasEngineSymbol(base, seen))
+      return checker.getBaseTypes(declared).some(base => hasEngineSymbol(base, seen))
     }
     return hasEngineSymbol(checker.getTypeAtLocation(node), new Set())
   }

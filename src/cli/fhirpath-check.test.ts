@@ -253,6 +253,27 @@ describe('fhirpath-check CLI', () => {
     expect(result.output).toBe('fhirpath-check: no problems found\n')
   })
 
+  it('imports DTO modules matched by an absolute --dtos pattern', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-absolute-dtos-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'problem.dto.ts'),
+      [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "export class ProblemRow extends r4.defineView('Condition') {",
+        "  status = this.column('clinicalStatus.codingg.first().code')",
+        '}',
+      ].join('\n')
+    )
+    // The pattern is absolute and the process runs elsewhere, so a match joined
+    // onto the working directory would not exist.
+    const result = run(['--dtos', join(directory, '*.dto.ts')], tmpdir())
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('analyzed 1 DTO(s) from 1 module(s)')
+    expect(result.output).toContain("Element 'codingg' is not defined on FHIR.CodeableConcept")
+  })
+
   it('uses imported engine environment for source sites', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-source-env-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })
