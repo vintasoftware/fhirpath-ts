@@ -109,7 +109,9 @@ Independent, one per layer. Each runs the AGENTS.md required checks plus
   non-objects and missing `resourceType` for resource roots; `from` static on
   `DtoBaseClass` and `createDtoBase`. `required` has no runtime behaviour.
 - `src/api/engine.ts`: `project` DTO overloads typed from `DtoInput<C>`; the
-  Bundle overload stays untyped at the entry level (a known hole, documented).
+  Bundle overload stays untyped at the entry level for a class without required
+  columns; a class with one refuses a Bundle (`BundleInput`), so every input
+  that reaches a required column is typed (closed in a follow-up PR).
 - Tests: `src/api/dto.test.ts` (fixtures listed in the typing-surface audit
   need `resourceType`; add `@ts-expect-error` cases for 42, `{nonsense}`, wrong
   resource, a `required` column missing from the input, `required` on an

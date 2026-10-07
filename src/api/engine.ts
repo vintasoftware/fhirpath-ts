@@ -29,6 +29,7 @@ import {
   assertRegistrable,
   type BaseConstraint,
   type BaseFields,
+  type BundleInput,
   createDtoBase,
   type DtoBaseClass,
   type DtoBaseOptions,
@@ -386,7 +387,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    * its required columns. A Bundle is accepted as a whole, and only its entry
    * resources are checked, at runtime.
    */
-  project<C extends DtoClass, const Input extends readonly DtoInput<C>[] | BundleLike>(
+  project<C extends DtoClass, const Input extends readonly DtoInput<C>[] | BundleInput<C>>(
     input: Input,
     dto: C,
     options?: EvaluateOptions

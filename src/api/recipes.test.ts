@@ -7,6 +7,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { analyzeExpression } from '../analyzer/analyze.ts'
 import { type DtoInput, type DtoOptions, FhirPathEngine, type FhirTypeName, type ViewBaseClass } from '../index.ts'
 import type {
+  Appointment,
   Bundle,
   Condition,
   DiagnosticReport,
@@ -585,6 +586,31 @@ describe('API reference DTO input examples', () => {
     const start: string = row.start
     expect(start).toBe('2026-03-01T09:00:00Z')
     expect(row).toEqual(expect.objectContaining({ id: 'a1', lastUpdated: '2026-02-01T00:00:00Z', end: undefined }))
+
+    // A class with a required column takes no Bundle; the entries are read and narrowed.
+    const booked: Appointment = {
+      resourceType: 'Appointment',
+      id: 'a1',
+      status: 'booked',
+      start: '2026-03-01T09:00:00Z',
+      meta: { lastUpdated: '2026-02-01T00:00:00Z' },
+      participant: [],
+    }
+    const proposed: Appointment = { resourceType: 'Appointment', id: 'a2', status: 'proposed', participant: [] }
+    const bundle: Bundle = {
+      resourceType: 'Bundle',
+      type: 'collection',
+      entry: [{ resource: booked }, { resource: proposed }],
+    }
+    // @ts-expect-error -- a Bundle entry cannot prove `start`
+    expect(ScheduledAppointmentRow.from(bundle)).toHaveLength(2)
+    const scheduled = r4
+      .evaluate('Bundle.entry.resource.ofType(Appointment)', bundle)
+      .filter(
+        (entry): entry is Appointment & ScheduledAppointment =>
+          entry.id !== undefined && entry.start !== undefined && entry.meta?.lastUpdated !== undefined
+      )
+    expect(ScheduledAppointmentRow.from(scheduled).map(item => item.id)).toEqual(['a1'])
   })
 })
 

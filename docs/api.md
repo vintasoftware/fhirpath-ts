@@ -744,9 +744,11 @@ including `unknown` and `{ resourceType: string }`. A datatype root such as
 `CodeableConcept` accepts any object. `DtoInput<typeof Dto>` names the accepted
 input.
 
-A Bundle is accepted as a whole, so its entries are checked only at runtime: each
-entry resource must carry the DTO's `fhirType` or a type deriving from it in the
-model, or `project()` throws. A value
+A Bundle is accepted as a whole by a DTO without required columns, so its
+entries are checked only at runtime: each entry resource must carry the DTO's
+`fhirType` or a type deriving from it in the model, or `project()` throws. A
+DTO with a required column refuses a Bundle at compile time, because an entry
+cannot prove the path; read the entries with `ofType()` and narrow them. A value
 that is not an object, or has no `resourceType`, is rejected the same way. To
 project one resource type out of a mixed search Bundle, read the entries with
 `ofType()`, which infers the resource type:
@@ -791,9 +793,17 @@ The field type carries the path it requires, as `string & RequiredColumn<'id'>`.
 The marker is an optional symbol property, so the field reads and assigns as a
 plain `string`.
 
-There is no runtime check for `required`. A Bundle entry, a cast, or a registered
-function call that reaches a missing value reads `undefined` or empty, as any
-column does.
+There is no runtime check for `required`: a cast or a registered function call
+that reaches a missing value reads `undefined` or empty, as any column does. The
+only input that could reach a required column unchecked is a Bundle, so a class
+with a required column refuses one; read the entries and narrow them:
+
+```ts
+const scheduled = r4
+  .evaluate('Bundle.entry.resource.ofType(Appointment)', bundle)
+  .filter((appointment): appointment is Appointment & { start: string } => appointment.start !== undefined)
+ScheduledAppointmentRow.from(scheduled)
+```
 
 ### Checking DTOs
 

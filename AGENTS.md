@@ -232,7 +232,9 @@ rules together; each protects the types:
   `resourceType` plus the paths of the class's required columns, never the
   generated resource interface (see `docs/adr/0001`). `required` is type-only:
   the input type proves presence, the `column()` return type drops `undefined`,
-  the recorded column spec never carries the option, and the
+  the recorded column spec never carries the option, `BundleInput` refuses a
+  Bundle for a class with a required column (the one input whose entries the
+  types cannot see), and the
   runtime reads the column as any other, so projection and function-call parity
   is untouched. The field type carries the path through the optional-symbol
   `RequiredColumn` marker; that is the only channel from a field to the class's

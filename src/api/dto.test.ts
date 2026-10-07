@@ -13,8 +13,16 @@ import type {
   ServiceRequest,
 } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
+import type { BundleLike } from './bundle.ts'
 import { compile } from './compile.ts'
-import { type DtoBase, dtoDefinition, type DtoFunctions, type DtoInput, type DtoOptions } from './dto.ts'
+import {
+  type BundleInput,
+  type DtoBase,
+  dtoDefinition,
+  type DtoFunctions,
+  type DtoInput,
+  type DtoOptions,
+} from './dto.ts'
 import { FhirPathEngine } from './engine.ts'
 
 const weighed: Observation = {
@@ -414,9 +422,12 @@ describe('DTO projection', () => {
     const unknownInput: unknown = condition
     // @ts-expect-error -- unknown must be narrowed before projection
     expect(r4.project(unknownInput, ConditionDto).code).toBe('Hypertension')
-    // A Bundle is accepted as a whole; its entries are checked at runtime only.
+    // A Bundle is accepted as a whole for a class without required columns; its
+    // entries are checked at runtime only.
     const bundle: Bundle = { resourceType: 'Bundle', type: 'collection', entry: [{ resource: condition }] }
+    expectTypeOf<BundleInput<typeof ConditionDto>>().toEqualTypeOf<BundleLike>()
     expect(r4.project(bundle, ConditionDto)).toEqual([expect.objectContaining({ code: 'Hypertension' })])
+    expect(ConditionDto.from(bundle)).toEqual([expect.objectContaining({ code: 'Hypertension' })])
     // Without a model, nothing says whether the root is a resource, so only a
     // present resourceType is compared, as before.
     const modelless = new FhirPathEngine()
@@ -477,9 +488,22 @@ describe('DTO projection', () => {
     // @ts-expect-error -- id is missing
     const alsoRejected = r4.project(idless, ScheduledAppointment)
     expect(alsoRejected).toEqual(expect.objectContaining({ id: undefined }))
-    // There is no runtime check: a Bundle entry that lacks the path reads undefined, as any column does.
-    const bundle: Bundle = { resourceType: 'Bundle', type: 'collection', entry: [{ resource: unscheduled }] }
-    expect(r4.project(bundle, ScheduledAppointment)[0]!.start).toBeUndefined()
+    // A Bundle entry cannot prove the path and there is no runtime check, so a
+    // class with a required column takes no Bundle: read the entries and narrow.
+    const bundle: Bundle = { resourceType: 'Bundle', type: 'collection', entry: [{ resource: appointment }] }
+    // @ts-expect-error -- a Bundle is refused for a DTO with required columns
+    const fromBundle = r4.project(bundle, ScheduledAppointment)
+    expect(fromBundle).toHaveLength(1)
+    // @ts-expect-error -- the same through from()
+    const alsoFromBundle = ScheduledAppointment.from(bundle)
+    expect(alsoFromBundle).toHaveLength(1)
+    expectTypeOf<BundleInput<typeof ScheduledAppointment>>().toEqualTypeOf<{
+      readonly bundleNotAccepted: 'this DTO has required columns, which a Bundle entry cannot prove; read the entries with Bundle.entry.resource.ofType(...) and narrow them'
+    }>()
+    const scheduled = r4
+      .evaluate('Bundle.entry.resource.ofType(Appointment)', bundle)
+      .filter((entry): entry is DtoInput<typeof ScheduledAppointment> & Appointment => entry.start !== undefined)
+    expect(ScheduledAppointment.from(scheduled).map(row => row.start)).toEqual(['2026-03-01T09:00:00Z'])
     // The class is registrable: a required column is an ordinary column to the engine.
     expect(r4.register(ScheduledAppointment).evaluate('start()', appointment)).toEqual(['2026-03-01T09:00:00Z'])
   })

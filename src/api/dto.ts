@@ -457,6 +457,18 @@ type RequiredInput<Root extends string, Paths extends string> = UnionToIntersect
 >
 
 /**
+ * A Bundle input for a class, or a refusal. A Bundle is accepted as a whole,
+ * so its entries are typed only at runtime, and the runtime never checks a
+ * required path; a class with a required column therefore takes no Bundle,
+ * and the caller reads the entries with `ofType()` and narrows them instead.
+ */
+export type BundleInput<C extends DtoClass> = [RequiredPaths<InstanceType<C>>] extends [never]
+  ? BundleLike
+  : {
+      readonly bundleNotAccepted: 'this DTO has required columns, which a Bundle entry cannot prove; read the entries with Bundle.entry.resource.ofType(...) and narrow them'
+    }
+
+/**
  * The input a DTO or view projects: its root's `resourceType` (any object for
  * a datatype root), plus every path its required columns read. Base classes
  * contribute their required columns through the instance type.
@@ -488,7 +500,7 @@ export type DtoBaseClass<
    * engine's `project()`. The input must carry the root's `resourceType` and
    * every required column's path.
    */
-  from<This extends DtoClass, const Input extends readonly DtoInput<This>[] | BundleLike>(
+  from<This extends DtoClass, const Input extends readonly DtoInput<This>[] | BundleInput<This>>(
     this: This,
     input: Input,
     options?: EvaluateOptions
