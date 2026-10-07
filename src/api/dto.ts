@@ -519,7 +519,9 @@ export type DtoBaseClass<
   /**
    * Projects on the defining engine: one row per input resource, typed like the
    * engine's `project()`. The input must carry the root's `resourceType` and
-   * every required column's path.
+   * every required column's path; a class with a required column refuses a
+   * Bundle, whose entries cannot prove the path, so read them with `ofType()`
+   * and narrow them.
    */
   from<This extends DtoClass, const Input extends DtoProjectionInput<This>>(
     this: This,
