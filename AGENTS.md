@@ -104,6 +104,10 @@ After a Monaco upgrade, confirm these details:
 - Monaco still ignores messages without `vsWorker` in both directions;
 - `MonacoEnvironment.getWorker` still allows the application to create and keep
   the worker handle.
+- `tsWorkerHandle` still waits for Monaco's worker accessor before the playground
+  posts to the worker. The worker bootstrap reads Monaco's first messages by
+  position, so an earlier `fhirpathSites` message is taken for one of them and
+  the TypeScript worker starts without its compiler options and extra libs.
 
 ## `fhirpath-check`
 

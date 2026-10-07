@@ -37,21 +37,35 @@ interface MonacoEnvironmentShape {
  * Monaco may replace it after a TypeScript configuration change.
  */
 let rawTsWorker: Worker | undefined
+let announceFirstTsWorker: (worker: Worker) => void = () => {}
+const firstTsWorker = new Promise<Worker>(resolve => {
+  announceFirstTsWorker = resolve
+})
 ;(self as unknown as { MonacoEnvironment: MonacoEnvironmentShape }).MonacoEnvironment = {
   getWorker(_id, label) {
     if (label === 'typescript' || label === 'javascript') {
       rawTsWorker = new tsWorker()
+      announceFirstTsWorker(rawTsWorker)
       return rawTsWorker
     }
     return new editorWorker()
   },
 }
 
-/** The custom TypeScript worker, forcing Monaco to create it on the first call. */
+/**
+ * The custom TypeScript worker, once Monaco has finished its handshake with it.
+ * Monaco creates the worker on its first diagnostics pass over a TypeScript
+ * model, after the model is attached to an editor and the mode is set up;
+ * before that, `getTypeScriptWorker()` rejects with "TypeScript not
+ * registered!". The worker's bootstrap then reads Monaco's first messages by
+ * position, so a FHIRPath message posted before the accessor resolves would be
+ * taken for one of them. Going through the accessor on every call also recreates
+ * a worker Monaco stopped while idle.
+ */
 export async function tsWorkerHandle(): Promise<Worker> {
-  if (rawTsWorker === undefined) {
-    await monaco.languages.typescript.getTypeScriptWorker()
-  }
+  await firstTsWorker
+  const workerAccessor = await monaco.languages.typescript.getTypeScriptWorker()
+  await workerAccessor()
   if (rawTsWorker === undefined) {
     throw new Error('Monaco did not create its TypeScript worker')
   }
