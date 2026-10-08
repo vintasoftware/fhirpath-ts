@@ -28,12 +28,21 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   expression with a declared root against that root, as
   `engine.compile(expression, type)` does. This covers `compile(expression, type)`,
   `fhirpath(expression, type)`, and the `expression` of
-  `engine.compile(expression, type)`. The input must be that type or an array
-  of it, and the result is inferred against it. Before, the input was checked
-  against the expression text only, which a relative expression does not
-  root, so `r4.evaluate(compile('clinicalStatus', 'Condition'), patient)`
-  compiled. A Patient, an `unknown` input, or a Bundle passed with a
-  Condition-rooted expression is now a compile error.
+  `engine.compile(expression, type)`. The input must be that type, an array of
+  it, or a Bundle whose entries are typed as it, and the result is inferred
+  against it. Before, the input was checked against the expression text only,
+  which a relative expression does not root, so
+  `r4.evaluate(compile('clinicalStatus', 'Condition'), patient)` compiled. A
+  Patient, an `unknown` input, or a Bundle with any resource as its entries
+  passed with a Condition-rooted expression is now a compile error.
+- `engine.compile(expression, type)` also accepts a Bundle whose entries are
+  typed as the declared type, such as Medplum's `Bundle<Condition>`.
+- A compiled expression that declares its input type reads a Bundle input as
+  its entries, also when it starts at a name a Bundle has too:
+  `r4.evaluate(compile('id', 'Patient'), patients)` threw an ambiguity
+  error and now returns the entries' ids. `CompiledExpression.inputType` holds
+  the declared type, and `new CompiledExpression(expression, type)` declares
+  one, which the static checkers read as they read `compile()`'s.
 - `fhirpath-check` checks a relative expression in an engine call against the
   input argument's `resourceType`: `fp.first('clinicalStatus', condition)`
   with `condition: Condition` is checked against `Condition`. A path the CLI

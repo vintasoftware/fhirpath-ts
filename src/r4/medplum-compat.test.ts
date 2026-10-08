@@ -2,6 +2,7 @@ import type {
   Address as MedplumAddress,
   AuditEvent as MedplumAuditEvent,
   Bundle as MedplumBundle,
+  Condition as MedplumCondition,
   ExampleScenario as MedplumExampleScenario,
   Extension as MedplumExtension,
   Goal as MedplumGoal,
@@ -27,7 +28,7 @@ import type {
   QuestionnaireItem,
   SearchParameter,
 } from './generated/type-maps.ts'
-import { r4Model } from './index.ts'
+import { r4, r4Model } from './index.ts'
 
 /**
  * Both packages generate their types from the same HL7 R4 StructureDefinitions
@@ -108,6 +109,25 @@ describe('Medplum (@medplum/fhirtypes) structural compatibility', () => {
     }
     const gender = compile('Patient.gender').evaluate(medplumPatient, { model: r4Model })
     expect(gender).toEqual(['male'])
+  })
+
+  it('accepts a Medplum Bundle of the declared type for a rooted expression, and no other', () => {
+    const condition: MedplumCondition = {
+      resourceType: 'Condition',
+      subject: { reference: 'Patient/1' },
+      clinicalStatus: { coding: [{ code: 'active' }] },
+    }
+    const conditions: MedplumBundle<MedplumCondition> = {
+      resourceType: 'Bundle',
+      type: 'searchset',
+      entry: [{ resource: condition }],
+    }
+    const patients: MedplumBundle<MedplumPatient> = { resourceType: 'Bundle', type: 'searchset' }
+    const status = compile('clinicalStatus.coding.first().code', 'Condition')
+    expect(r4.evaluate(status, conditions)).toEqual(['active'])
+    expect(r4.compile('clinicalStatus.coding.first().code', 'Condition').first(conditions)).toBe('active')
+    // @ts-expect-error a Bundle of Patients is not a Bundle of Conditions
+    void (() => r4.evaluate(status, patients))
   })
 
   it('the TInput/TResult override types input and result as Medplum’s own', () => {

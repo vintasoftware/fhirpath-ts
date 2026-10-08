@@ -202,19 +202,23 @@ const visible = r4.compile("(status in ('entered-in-error' | 'draft')).not()", '
 ```
 
 The result is inferred against the declared type, even when the input's static
-type names no resource, such as parsed JSON. The input must be that type or an
-array of it. Static checkers analyze the expression against it. It is not
-checked at runtime. A Bundle cannot be declared, because the engine reads a
-Bundle input as its entries; compile without a root to evaluate a Bundle.
+type names no resource, such as parsed JSON. The input must be that type, an
+array of it, or a Bundle whose entries are typed as it, such as Medplum's
+`Bundle<MedicationRequest>`. The engine reads that Bundle as its entries, also
+when the expression starts at a name a Bundle has too, such as `id`. Static
+checkers analyze the expression against the declared type. It is not checked
+at runtime. A Bundle cannot be declared, because the engine reads a Bundle
+input as its entries; compile without a root to evaluate a Bundle.
 
 Engine methods type a compiled expression the same way. `r4.evaluate()` and
 `r4.first()` given `compile(expression, type)`, `fhirpath(expression, type)`,
-or the `expression` of an `r4.compile(expression, type)` require that type or
-an array of it, and infer the result against it:
+or the `expression` of an `r4.compile(expression, type)` accept the same
+inputs and infer the result against the declared type:
 
 ```ts
 const status = compile('clinicalStatus.coding.first().code', 'Condition')
 r4.evaluate(status, condition) // string[]
+r4.evaluate(status, conditions) // string[] for a Bundle<Condition>
 r4.evaluate(status, patient) // compile error: a Patient is not a Condition
 ```
 
@@ -868,10 +872,13 @@ r4.evaluate('Patient.name.given', searchset)
 r4.evaluate('Bundle.entry.count()', searchset)
 ```
 
-A relative expression on a bare Bundle is ambiguous and throws. Wrap the Bundle
-in an array when it should be treated as one resource:
+A relative expression that starts at a name a Bundle has too, such as `id` or
+`type`, is ambiguous on a bare Bundle and throws. Declare the type the
+expression runs against to read the entries, or wrap the Bundle in an array
+when it should be treated as one resource:
 
 ```ts
+r4.evaluate(compile('id', 'Patient'), patients)
 r4.evaluate('Bundle.type', [searchset])
 ```
 

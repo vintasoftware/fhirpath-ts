@@ -67,8 +67,14 @@ describe('FhirPathEngine.evaluate', () => {
     expect(first).toBe('active')
     const bound = r4.compile('clinicalStatus.coding.first().code', 'Condition')
     expect(r4.evaluate(bound.expression, condition, { type: 'code' })).toEqual(['active'])
+    // A Bundle whose entries are the declared type is read as those entries, by both engine forms.
+    const conditions = { resourceType: 'Bundle' as const, entry: [{ resource: condition }, {}] }
+    const fromBundle = r4.evaluate(status, conditions)
+    expectTypeOf(fromBundle).toEqualTypeOf<string[]>()
+    expect(fromBundle).toEqual(['active'])
+    expect(bound.evaluate(conditions)).toEqual(['active'])
 
-    // The input must be the declared type or an array of it, as for status.evaluate().
+    // The input must be the declared type, an array of it, or a Bundle of it, as for bound.evaluate().
     // @ts-expect-error a Patient is not the declared Condition
     void (() => r4.evaluate(status, patient))
     // @ts-expect-error a Patient is not the declared Condition, with `type` too
@@ -77,8 +83,10 @@ describe('FhirPathEngine.evaluate', () => {
     void (() => r4.evaluate(bound.expression, patient))
     // @ts-expect-error an unknown input is not a Condition
     void (() => r4.evaluate(status, parsed as unknown))
-    // @ts-expect-error a Bundle's entries could be any resource
+    // @ts-expect-error a Bundle typed with any resource as its entries
     void (() => r4.evaluate(status, searchset))
+    // @ts-expect-error a Bundle of another resource type
+    void (() => bound.evaluate({ resourceType: 'Bundle', entry: [{ resource: patient }] }))
     // @ts-expect-error a Bundle root would run on the Bundle's entries
     void (() => r4.evaluate(compile('entry', 'Bundle'), searchset))
   })
@@ -166,6 +174,20 @@ describe('Bundle and array inputs', () => {
     const empty = { resourceType: 'Bundle', type: 'searchset' } as const
     expect(r4.evaluate('Patient.id', empty)).toEqual([])
     expect(r4.checkConstraints(empty, [{ key: 'k', expression: 'name.exists()' }]).valid).toBe(true)
+  })
+
+  it('reads a Bundle as its entries for an expression that declares its input type', () => {
+    const patients = { resourceType: 'Bundle' as const, entry: [{ resource: patient }, { resource: otherPatient }] }
+    // `id` is also a Bundle element, so without a declared type the engine cannot tell which is meant.
+    expect(() => r4.evaluate('id', patients)).toThrow(FhirPathRuntimeError)
+    expect(compile('id', 'Patient').inputType).toBe('Patient')
+    expect(r4.evaluate(compile('id', 'Patient'), patients)).toEqual(['example', 'other'])
+    expect(r4.compile('id', 'Patient').evaluate(patients)).toEqual(['example', 'other'])
+    expect(r4.first(fhirpath('id', 'Patient'), patients)).toBe('example')
+    expect(r4.compile('active', 'Patient').test(patients)).toBe(true)
+    // An expression without a declared type keeps the rule above.
+    expect(compile('id').inputType).toBeUndefined()
+    expect(() => r4.evaluate(compile('id'), patients)).toThrow(FhirPathRuntimeError)
   })
 
   it('throws on expressions that start at a bare Bundle element', () => {

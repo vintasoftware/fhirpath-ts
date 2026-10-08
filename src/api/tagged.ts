@@ -22,8 +22,7 @@ export function fhirpath<
 export function fhirpath(strings: TemplateStringsArray, ...substitutions: never[]): CompiledExpression
 export function fhirpath(input: string | TemplateStringsArray, ...rest: unknown[]): CompiledExpression {
   if (typeof input === 'string') {
-    // The optional input type is used by TypeScript and source checks only.
-    return new CompiledExpression(input)
+    return new CompiledExpression(input, rest[0] as string | undefined)
   }
   if (rest.length > 0) {
     throw new FhirPathError(

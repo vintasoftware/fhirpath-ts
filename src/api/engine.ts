@@ -54,8 +54,9 @@ import { type Projection, type ProjectionColumns, projectRows } from './project.
  * Bundle — a Bundle behaves as its entry resources unless the expression
  * references `Bundle` in root position (then it addresses the bundle itself).
  * An expression that starts at a bare Bundle element (`entry.count()`, `type`)
- * is ambiguous and throws. Wrap a Bundle in an array (`[bundle]`) to force
- * treating it as one resource.
+ * is ambiguous and throws, unless its compiled form declares another type as
+ * its input. Wrap a Bundle in an array (`[bundle]`) to force treating it as one
+ * resource.
  */
 export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | readonly unknown[] | BundleLike
 
@@ -101,11 +102,10 @@ export type EngineRootResult<Expr extends string, Root extends string, Defaults,
 >
 
 /**
- * What an engine call accepts for an expression with declared root `Root`: a
- * value of that type or an array of them, as `engine.compile(expression, type)`
- * accepts. Without a declared root, the expression text decides. A declared
- * Bundle root accepts nothing, since the engine runs a relative expression on a
- * Bundle's entries.
+ * What an engine call accepts for an expression with declared root `Root`: the
+ * `RootedInput` that `engine.compile(expression, type)` accepts. Without a
+ * declared root, the expression text decides. A declared Bundle root accepts
+ * nothing, since the engine runs a relative expression on a Bundle's entries.
  */
 type EngineCallInput<Expr extends string, Root extends string, DeclaredInput> = Root extends 'opaque'
   ? EngineInput<Expr>
@@ -128,8 +128,15 @@ type EngineCallResult<Expr extends string, Root extends string, Input, Defaults,
  */
 export type EngineRoot = Exclude<FhirTypeName, 'Bundle'>
 
-/** What an expression with a declared root accepts: a value of its input type, or an array of them. */
-export type RootedInput<Input> = Input | readonly Input[]
+/**
+ * What an expression with a declared root accepts: a value of its input type,
+ * an array of them, or a Bundle whose entry resources are of that type, which
+ * the engine reads as those entries.
+ */
+export type RootedInput<Input> =
+  | Input
+  | readonly Input[]
+  | { readonly resourceType: 'Bundle'; readonly entry?: readonly { readonly resource?: Input }[] }
 
 /**
  * What `engine.compile(expression, type)` returns: the same `BoundExpression`,
@@ -403,31 +410,31 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   evaluate(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown[] {
     const compiled = this.compileCached(expression)
     const merged = this.merged(options)
-    return compiled.evaluate(normalizeInput(input, compiled.ast, merged.model), merged)
+    return compiled.evaluate(normalizeInput(input, compiled.ast, merged.model, compiled.inputType), merged)
   }
 
   /** Like `evaluate()`, keeping the internal typed representation (types, Decimal, Temporal). */
   evaluateTyped(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): TypedValue[] {
     const compiled = this.compileCached(expression)
     const merged = this.merged(options)
-    return compiled.evaluateTyped(normalizeInput(input, compiled.ast, merged.model), merged)
+    return compiled.evaluateTyped(normalizeInput(input, compiled.ast, merged.model, compiled.inputType), merged)
   }
 
   /**
    * Parse once for reuse, with this engine's defaults bound. Does not touch the
    * parse cache. A second argument declares the type the expression runs
    * against, as for the package-root `compile()`: a relative expression infers
-   * against it, the input must be that type, and the static checkers analyze
-   * the expression against it. It is not checked at runtime.
+   * against it, the input must be that type, an array of it, or a Bundle of it,
+   * and the static checkers analyze the expression against it. It is not
+   * checked at runtime, where it only makes a Bundle input read as its entries.
    */
   compile<const Expr extends string, const Root extends EngineRoot>(
     expression: Expr,
     inputType: Root
   ): RootedBoundExpression<Expr, Defaults, Root, InputOf<Root>>
   compile<const Expr extends string>(expression: Expr): BoundExpression<Expr, Defaults>
-  compile(expression: string): BoundExpression<string, Defaults> {
-    // The declared input type is a compile-time and check-time declaration.
-    return new BoundExpression(this, new CompiledExpression(expression))
+  compile(expression: string, inputType?: string): BoundExpression<string, Defaults> {
+    return new BoundExpression(this, new CompiledExpression(expression, inputType))
   }
 
   /** The first result, or undefined when the expression comes up empty. */

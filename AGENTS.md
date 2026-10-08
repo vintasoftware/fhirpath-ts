@@ -100,7 +100,11 @@ A compiled expression with a declared root types an engine call as
 Read the root from `CompiledExpression`'s `Root` argument and the input from its
 `TInput` argument, which `compile()` already computed with `InputOf`.
 Recomputing `InputOf<Root>` on the generic `Root` costs about 4% of the API
-surface budget.
+surface budget. `RootedInput` is the one input type for both forms, including
+the Bundle whose entries are the declared input. The declared root's only
+runtime effect is in `normalizeInput`: such a Bundle is read as its entries,
+without the ambiguity check, because the root says which one the expression
+means.
 
 ## Monaco worker integration
 

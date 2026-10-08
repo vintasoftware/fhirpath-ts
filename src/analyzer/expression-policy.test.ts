@@ -780,6 +780,14 @@ describe('the walkers agree on a site’s context', () => {
       expected: ["unknown-element: Element 'givenn' is not defined on FHIR.HumanName — did you mean 'given'?"],
     },
     {
+      name: "new CompiledExpression's second argument fixes the root",
+      code: [
+        "import { CompiledExpression } from 'fhirpath-ts'",
+        "new CompiledExpression('name.givenn', 'Patient')",
+      ].join('\n'),
+      expected: ["unknown-element: Element 'givenn' is not defined on FHIR.HumanName — did you mean 'given'?"],
+    },
+    {
       name: 'ordinary call vars see env and only earlier vars',
       code: [
         "import { r4 } from 'fhirpath-ts/r4'",

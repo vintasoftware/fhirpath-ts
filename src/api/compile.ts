@@ -166,10 +166,17 @@ export class CompiledExpression<
 > {
   readonly source: Expr
   readonly ast: AstNode
+  /**
+   * The type the expression declares it runs against, from
+   * `compile(expression, type)`. TypeScript and the static checkers read it;
+   * at runtime the engine reads it only to take a Bundle input as its entries.
+   */
+  readonly inputType: string | undefined
 
-  constructor(source: Expr) {
+  constructor(source: Expr, inputType?: string) {
     this.source = source
     this.ast = parse(source)
+    this.inputType = inputType
   }
 
   /** Evaluate and unwrap results to plain JS values. */
@@ -209,10 +216,8 @@ export function compile<
   TInput = FhirpathInput<Expr>,
   TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
 >(expression: Expr): CompiledExpression<Expr, TInput, TResult>
-export function compile(expression: string): CompiledExpression {
-  // A declared input type is a compile-time and check-time declaration (see
-  // `fhirpath`), with nothing for the evaluator to do.
-  return new CompiledExpression(expression)
+export function compile(expression: string, inputType?: string): CompiledExpression {
+  return new CompiledExpression(expression, inputType)
 }
 
 /** An expression as text or already compiled, with any literal, input, result, and root types. */

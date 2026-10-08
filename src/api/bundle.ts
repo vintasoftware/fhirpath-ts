@@ -111,11 +111,21 @@ function isBundleElement(name: string, model: ModelProvider | undefined): boolea
 /**
  * Bundle in, entry resources out — unless the expression addresses the Bundle
  * itself (a `Bundle` root). An expression whose root is a bare Bundle element
- * (`entry.count()`, `type`) could mean either and throws instead of guessing.
+ * (`entry.count()`, `type`) could mean either and throws instead of guessing,
+ * unless it declares another type as its input (`compile('id', 'Patient')`):
+ * that expression runs on the entries.
  */
-export function normalizeInput(input: unknown, ast: AstNode, model: ModelProvider | undefined): unknown {
+export function normalizeInput(
+  input: unknown,
+  ast: AstNode,
+  model: ModelProvider | undefined,
+  inputType: string | undefined
+): unknown {
   if (!isBundle(input)) {
     return input
+  }
+  if (inputType !== undefined && inputType !== 'Bundle') {
+    return toSubjects(input).map(subject => subject.value)
   }
   const heads = rootIdentifiers(ast)
   if (heads.has('Bundle')) {
