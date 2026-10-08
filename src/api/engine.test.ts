@@ -6,6 +6,7 @@ import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
 import { BoundExpression, FhirPathEngine, recordEngines } from './engine.ts'
 import type { Projection } from './project.ts'
+import { fhirpath } from './tagged.ts'
 
 const patient: Patient = {
   resourceType: 'Patient',
@@ -47,6 +48,39 @@ describe('FhirPathEngine.evaluate', () => {
 
   it('accepts a CompiledExpression', () => {
     expect(r4.evaluate(compile('Patient.name.family'), patient)).toEqual(['Chalmers'])
+  })
+
+  it('types a compiled expression with a declared root against that root', () => {
+    const condition: Condition = {
+      resourceType: 'Condition',
+      subject: { reference: 'Patient/example' },
+      clinicalStatus: { coding: [{ code: 'active' }] },
+    }
+    const status = compile('clinicalStatus.coding.first().code', 'Condition')
+    // The result infers on the declared root even for parsed JSON, as status.evaluate() does.
+    const parsed = JSON.parse(JSON.stringify(condition)) as ReturnType<typeof JSON.parse>
+    const fromParsed = r4.evaluate(status, parsed)
+    expectTypeOf(fromParsed).toEqualTypeOf<string[]>()
+    expect(fromParsed).toEqual(['active'])
+    const first = r4.first(fhirpath('clinicalStatus.coding.first().code', 'Condition'), [condition])
+    expectTypeOf(first).toEqualTypeOf<string | undefined>()
+    expect(first).toBe('active')
+    const bound = r4.compile('clinicalStatus.coding.first().code', 'Condition')
+    expect(r4.evaluate(bound.expression, condition, { type: 'code' })).toEqual(['active'])
+
+    // The input must be the declared type or an array of it, as for status.evaluate().
+    // @ts-expect-error a Patient is not the declared Condition
+    void (() => r4.evaluate(status, patient))
+    // @ts-expect-error a Patient is not the declared Condition, with `type` too
+    void (() => r4.first(status, [patient], { type: 'code' }))
+    // @ts-expect-error the root declared through engine.compile() holds for its expression too
+    void (() => r4.evaluate(bound.expression, patient))
+    // @ts-expect-error an unknown input is not a Condition
+    void (() => r4.evaluate(status, parsed as unknown))
+    // @ts-expect-error a Bundle's entries could be any resource
+    void (() => r4.evaluate(status, searchset))
+    // @ts-expect-error a Bundle root would run on the Bundle's entries
+    void (() => r4.evaluate(compile('entry', 'Bundle'), searchset))
   })
 
   it('binds env defaults and lets per-call options override them', () => {

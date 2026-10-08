@@ -24,6 +24,16 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   5.4 added, and TypeScript 5.0 already failed to check them with
   `skipLibCheck: false`. `pnpm check:package` now type-checks a consumer and
   runs the CLI with TypeScript 5.4 as well as the lockfile version.
+- **Breaking:** `engine.evaluate()` and `engine.first()` type a compiled
+  expression with a declared root against that root, as
+  `engine.compile(expression, type)` does. This covers `compile(expression, type)`,
+  `fhirpath(expression, type)`, and the `expression` of
+  `engine.compile(expression, type)`. The input must be that type or an array
+  of it, and the result is inferred against it. Before, the input was checked
+  against the expression text only, which a relative expression does not
+  root, so `r4.evaluate(compile('clinicalStatus', 'Condition'), patient)`
+  compiled. A Patient, an `unknown` input, or a Bundle passed with a
+  Condition-rooted expression is now a compile error.
 - `fhirpath-check` checks a relative expression in an engine call against the
   input argument's `resourceType`: `fp.first('clinicalStatus', condition)`
   with `condition: Condition` is checked against `Condition`. A path the CLI

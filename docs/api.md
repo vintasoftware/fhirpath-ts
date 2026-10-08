@@ -207,6 +207,17 @@ array of it. Static checkers analyze the expression against it. It is not
 checked at runtime. A Bundle cannot be declared, because the engine reads a
 Bundle input as its entries; compile without a root to evaluate a Bundle.
 
+Engine methods type a compiled expression the same way. `r4.evaluate()` and
+`r4.first()` given `compile(expression, type)`, `fhirpath(expression, type)`,
+or the `expression` of an `r4.compile(expression, type)` require that type or
+an array of it, and infer the result against it:
+
+```ts
+const status = compile('clinicalStatus.coding.first().code', 'Condition')
+r4.evaluate(status, condition) // string[]
+r4.evaluate(status, patient) // compile error: a Patient is not a Condition
+```
+
 ### `evaluateTyped()`
 
 Returns internal `TypedValue[]` values instead of unwrapped JavaScript values.

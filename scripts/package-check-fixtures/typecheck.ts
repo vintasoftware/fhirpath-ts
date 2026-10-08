@@ -23,3 +23,5 @@ export const codes: string[] = r4.evaluate(status, condition, { type: 'code' })
 export const code: string | undefined = r4.first(compile('clinicalStatus.coding.code'), condition, { type: 'code' })
 // @ts-expect-error a Patient expression does not accept a Condition
 r4.evaluate('Patient.name.given', condition, { type: 'string' })
+// @ts-expect-error a Condition-rooted expression does not accept a Patient
+r4.evaluate(status, { resourceType: 'Patient' as const })

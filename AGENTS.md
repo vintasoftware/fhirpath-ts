@@ -95,6 +95,13 @@ constrained by `EngineInput<Expr>`, or wrap the whole type as
 is also correct but still walks `FhirpathInput`'s branches, about 4% of the API
 surface budget. `NoInfer` is why the `typescript` peer range starts at 5.4.
 
+A compiled expression with a declared root types an engine call as
+`engine.compile(expression, type)` does (`EngineCallInput`, `EngineCallResult`).
+Read the root from `CompiledExpression`'s `Root` argument and the input from its
+`TInput` argument, which `compile()` already computed with `InputOf`.
+Recomputing `InputOf<Root>` on the generic `Root` costs about 4% of the API
+surface budget.
+
 ## Monaco worker integration
 
 `demo/src/playground/ts.custom.worker.ts` adds expression-site extraction to

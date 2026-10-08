@@ -22,6 +22,7 @@ import {
   type CustomFunction,
   type Declaring,
   type EvaluateOptions,
+  type InferredExpressionResult,
   type SingleCustomFunction,
 } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
@@ -61,9 +62,16 @@ export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | re
 /** Per-call options that declare a result type when inference returns `unknown`. Runtime code ignores `type`. */
 export type TypedEvaluateOptions<T extends keyof R4TypeOf> = EvaluateOptions & { type: T }
 
-/** Literal text or a compatible compiled expression accepted by engine evaluation methods. */
+/**
+ * Literal text or a compatible compiled expression accepted by engine
+ * evaluation methods. `Root` is the type the compiled expression declares, or
+ * `'opaque'` when it declares none, and `Input` the input it accepts.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- engine methods infer their own input and result
-export type EngineExpression<Expr extends string> = Expr | CompiledExpression<Expr, any, any, any>
+export type EngineExpression<Expr extends string, Root extends string = any, Input = any> =
+  | Expr
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result type follows from Root
+  | CompiledExpression<Expr, Input, any, Root>
 
 /**
  * evaluate() reaches this shape through normalizeInput(), while project()
@@ -93,6 +101,27 @@ export type EngineRootResult<Expr extends string, Root extends string, Defaults,
 >
 
 /**
+ * What an engine call accepts for an expression with declared root `Root`: a
+ * value of that type or an array of them, as `engine.compile(expression, type)`
+ * accepts. Without a declared root, the expression text decides. A declared
+ * Bundle root accepts nothing, since the engine runs a relative expression on a
+ * Bundle's entries.
+ */
+type EngineCallInput<Expr extends string, Root extends string, DeclaredInput> = Root extends 'opaque'
+  ? EngineInput<Expr>
+  : Root extends EngineRoot
+    ? RootedInput<DeclaredInput>
+    : never
+
+/** The result of an engine call: inferred on the expression's declared root, or else on the input's. */
+type EngineCallResult<Expr extends string, Root extends string, Input, Defaults, Options> = EngineRootResult<
+  Expr,
+  Root extends 'opaque' ? EngineInputRoot<Input> : Root,
+  Defaults,
+  Options
+>
+
+/**
  * A type an engine-compiled expression can declare as its root. A Bundle is
  * left out: the engine reads a Bundle input as its entries, so a relative
  * expression on one throws instead of running on the declared root.
@@ -107,7 +136,7 @@ export type RootedInput<Input> = Input | readonly Input[]
  * typed against its declared root instead of each call's input.
  */
 export interface RootedBoundExpression<Expr extends string, Defaults extends object, Root extends EngineRoot, Input> {
-  readonly expression: CompiledExpression<Expr>
+  readonly expression: CompiledExpression<Expr, Input, InferredExpressionResult, Root>
   readonly source: Expr
   evaluate<T extends keyof R4TypeOf>(
     input: RootedInput<Input> | undefined,
@@ -349,21 +378,28 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   }
 
   /** Compile (LRU-cached by expression text) and evaluate in one call; typed like `compile().evaluate()`. */
-  evaluate<const Expr extends string, T extends keyof R4TypeOf>(
-    expression: EngineExpression<Expr>,
+  evaluate<
+    const Expr extends string,
+    T extends keyof R4TypeOf,
+    Root extends string = 'opaque',
+    DeclaredInput = unknown,
+  >(
+    expression: EngineExpression<Expr, Root, DeclaredInput>,
     // Only the expression infers `Expr`; `FhirpathInput` would read the input's `resourceType` back into it.
-    input: NoInfer<EngineInput<Expr>> | undefined,
+    input: NoInfer<EngineCallInput<Expr, Root, DeclaredInput>> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T][]
   evaluate<
     const Expr extends string,
-    const Input extends EngineInput<Expr> | undefined = undefined,
+    Root extends string = 'opaque',
+    DeclaredInput = unknown,
+    const Input extends EngineCallInput<Expr, Root, DeclaredInput> | undefined = undefined,
     const Options extends object = EmptyFhirpathTypeContext,
   >(
-    expression: EngineExpression<Expr>,
+    expression: EngineExpression<Expr, Root, DeclaredInput>,
     input?: Input,
     options?: Declaring<Options>
-  ): EngineResult<Expr, Input, Defaults, Options>
+  ): EngineCallResult<Expr, Root, Input, Defaults, Options>
   evaluate(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown[] {
     const compiled = this.compileCached(expression)
     const merged = this.merged(options)
@@ -395,21 +431,23 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   }
 
   /** The first result, or undefined when the expression comes up empty. */
-  first<const Expr extends string, T extends keyof R4TypeOf>(
-    expression: EngineExpression<Expr>,
+  first<const Expr extends string, T extends keyof R4TypeOf, Root extends string = 'opaque', DeclaredInput = unknown>(
+    expression: EngineExpression<Expr, Root, DeclaredInput>,
     // Only the expression infers `Expr`; `FhirpathInput` would read the input's `resourceType` back into it.
-    input: NoInfer<EngineInput<Expr>> | undefined,
+    input: NoInfer<EngineCallInput<Expr, Root, DeclaredInput>> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T] | undefined
   first<
     const Expr extends string,
-    const Input extends EngineInput<Expr> | undefined = undefined,
+    Root extends string = 'opaque',
+    DeclaredInput = unknown,
+    const Input extends EngineCallInput<Expr, Root, DeclaredInput> | undefined = undefined,
     const Options extends object = EmptyFhirpathTypeContext,
   >(
-    expression: EngineExpression<Expr>,
+    expression: EngineExpression<Expr, Root, DeclaredInput>,
     input?: Input,
     options?: Declaring<Options>
-  ): EngineResult<Expr, Input, Defaults, Options>[number] | undefined
+  ): EngineCallResult<Expr, Root, Input, Defaults, Options>[number] | undefined
   first(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown {
     return this.evaluate(expression, input, options)[0]
   }
