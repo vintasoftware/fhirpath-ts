@@ -27,6 +27,7 @@ import {
   type ExpressionAst,
   type ExpressionProperty,
   type FileColumnFunction,
+  type InputTypeEvidence,
   isCheckedCall,
   isCheckedTag,
   isForeignModule,
@@ -49,8 +50,10 @@ export interface ExpressionSite {
   start: number
   line: number
   column: number
-  /** The DTO fhirType the expression is analyzed against, when the site fixes one. */
+  /** The type the expression is analyzed against, when the site fixes one. */
   inputType?: string
+  /** `inputType` is the type of the call's input argument rather than a declared root. */
+  inputFromArgument?: true
   /** A DTO member site, which `analyzeSite` checks with source-only limits. */
   dto?: true
   /** Inline per-call environment and row-variable declarations visible to this expression. */
@@ -471,6 +474,78 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     return hasEngineSymbol(checker.getTypeAtLocation(node), new Set())
   }
 
+  /**
+   * The `resourceType` every value of a call's input argument carries, read as
+   * `FhirpathRootOf` reads it: a required literal property, on the value or on
+   * the items of an array. Undefined without a program, or when the members of a
+   * union disagree.
+   */
+  function inputEvidenceOf(node: TS.Expression | undefined): InputTypeEvidence | undefined {
+    if (checker === undefined || node === undefined || node.getSourceFile().isDeclarationFile) {
+      return undefined
+    }
+    const type = checker.getNonNullableType(checker.getTypeAtLocation(node))
+    const members = type.isUnion() ? type.types : [type]
+    const items = members.map(member => {
+      const name = member.getSymbol()?.name
+      return name === 'Array' || name === 'ReadonlyArray' ? member.getNumberIndexType() : undefined
+    })
+    const array = items.some(item => item !== undefined)
+    if (array && !items.every(item => item !== undefined)) {
+      return undefined
+    }
+    const resourceType = resourceTypeOf(array ? items[0]! : type)
+    return resourceType === undefined || items.some(item => item !== undefined && resourceTypeOf(item) !== resourceType)
+      ? undefined
+      : { resourceType, array }
+  }
+
+  /** The literal of a required `resourceType` property, when the type has exactly one. */
+  function resourceTypeOf(type: TS.Type): string | undefined {
+    const apparent = checker!.getApparentType(type)
+    const property = checker!.getPropertyOfType(apparent, 'resourceType')
+    if (property === undefined || (property.flags & ts.SymbolFlags.Optional) !== 0) {
+      return undefined
+    }
+    const value = checker!.getTypeOfSymbol(property)
+    return value.isStringLiteral() ? value.value : undefined
+  }
+
+  /**
+   * Whether TypeScript resolves a called method only to declarations shipped by
+   * another package or the default library. A method declared in project
+   * source may wrap this API, so it is not foreign.
+   */
+  function isForeignMethod(callee: TS.Expression, options: LocalModuleOptions): boolean {
+    if (checker === undefined || program === undefined || !ts.isPropertyAccessExpression(callee)) {
+      return false
+    }
+    const declarations = checker.getSymbolAtLocation(callee.name)?.declarations ?? []
+    return (
+      declarations.length > 0 &&
+      declarations.every(declaration => {
+        const file = declaration.getSourceFile()
+        if (program.isSourceFileDefaultLibrary(file)) {
+          return true
+        }
+        const packageName = file.isDeclarationFile ? packageOf(file.fileName) : undefined
+        return packageName !== undefined && isForeignModule(packageName, options)
+      })
+    )
+  }
+
+  /** The package a file under `node_modules` belongs to, scoped names included. */
+  function packageOf(fileName: string): string | undefined {
+    const path = fileName.replaceAll('\\', '/')
+    const marker = '/node_modules/'
+    const index = path.lastIndexOf(marker)
+    if (index < 0) {
+      return undefined
+    }
+    const [scope, name] = path.slice(index + marker.length).split('/')
+    return scope?.startsWith('@') === true ? `${scope}/${name}` : scope
+  }
+
   /** An unresolved receiver may still be an engine; a resolved non-engine is not our call site. */
   function shouldReportUnrecognized(node: TS.Expression): boolean {
     if (checker === undefined || node.getSourceFile().isDeclarationFile) {
@@ -690,6 +765,7 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
           const checked = isCheckedCall(policy, callee, receiverRoot(node.expression), bindings, {
             ...(typedEngineReceiver && { engine: true }),
             ...(columnClass !== undefined && { dtoField: true }),
+            ...(isForeignMethod(node.expression, options) && { foreignMethod: true }),
           })
           if (policy.receiver === 'dto-field') {
             if (!checked && field !== undefined && mayBeUnprovenDto(heritage.get(enclosingClass!))) {
@@ -736,7 +812,10 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
               policy,
               index => node.arguments[index],
               columnClass?.root,
-              tsAst
+              tsAst,
+              policy.inputArg === undefined
+                ? undefined
+                : inputEvidenceOf(node.arguments[policy.inputArg] as TS.Expression | undefined)
             )) {
               if (candidate.uncheckable === 'dynamic-vars') {
                 skip(

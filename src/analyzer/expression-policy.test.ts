@@ -7,7 +7,14 @@ import eslintPlugin from '../eslint/index.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { createSiteFinder } from '../sites/index.ts'
 import { analyzeSite } from './analyze.ts'
-import { type ExpressionAst, expressionCandidates, isCheckedCall, optionScopes } from './expression-policy.ts'
+import {
+  CALL_SITES,
+  type ExpressionAst,
+  expressionCandidates,
+  inputRoot,
+  isCheckedCall,
+  optionScopes,
+} from './expression-policy.ts'
 
 const findExpressionSites = createSiteFinder(ts)
 
@@ -368,6 +375,19 @@ describe('literal call context extraction', () => {
         engine: true,
       })
     ).toBe(true)
+  })
+
+  it('lets a typed input argument fix the root only where the engine reads it as one', () => {
+    const first = CALL_SITES.get('first')!
+    const filter = CALL_SITES.get('filter')!
+    expect(inputRoot(first, { resourceType: 'Condition', array: false })).toBe('Condition')
+    expect(inputRoot(filter, { resourceType: 'Condition', array: false })).toBe('Condition')
+    // filter() runs on each item; first() runs on the whole array as one root collection.
+    expect(inputRoot(filter, { resourceType: 'Condition', array: true })).toBe('Condition')
+    expect(inputRoot(first, { resourceType: 'Condition', array: true })).toBeUndefined()
+    // A Bundle stands for its entries, whose types it does not name.
+    expect(inputRoot(filter, { resourceType: 'Bundle', array: false })).toBeUndefined()
+    expect(inputRoot(first, undefined)).toBeUndefined()
   })
 
   it('reads known names and closed type declarations from EvaluateOptions', () => {
@@ -740,6 +760,15 @@ describe('the walkers agree on a site’s context', () => {
         '})',
       ].join('\n'),
       expected: ['unknown-variable: Undefined environment variable %later'],
+    },
+    {
+      name: "analyzeExpression's inputType option fixes the root",
+      code: [
+        "import { analyzeExpression } from 'fhirpath-ts/analyzer'",
+        "analyzeExpression('name.givenn', { model: r4Model, inputType: 'Patient' })",
+        "analyzeExpression('name.givenn', { inputType: 'Patient', ...overrides })",
+      ].join('\n'),
+      expected: ["unknown-element: Element 'givenn' is not defined on FHIR.HumanName — did you mean 'given'?"],
     },
     {
       name: 'ordinary call vars see env and only earlier vars',

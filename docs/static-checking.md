@@ -124,10 +124,40 @@ module resolution, including inherited settings and path aliases. One monorepo
 command can therefore check packages with different configurations. If a file
 cannot be type-resolved, `--local-imports` trusts relative imports.
 
+A relative expression is checked against the type of the value it runs on.
+The CLI reads that type from the input argument's `resourceType`, as TypeScript
+inference does:
+
+```ts
+declare const condition: Condition
+declare const observations: Observation[]
+
+r4.first('clinicalStatus.coding.first().code', condition) // checked against Condition
+r4.filter(observations, "value.ofType(Quantity) > 140 'mm[Hg]'") // checked against Observation
+```
+
+`filter`, `project`, and `checkConstraints` run on each item of an array, so an
+array of one resource type also gives the type. A union of resource types, an
+array passed to `evaluate` or `first`, a Bundle, a value without a required
+`resourceType`, and a `resourceType` the model does not know give no type.
+Start the path with the type name (`Condition.clinicalStatus`), or compile the
+expression with `compile(expression, 'Condition')`. `analyzeExpression()` calls
+use their literal `inputType` option.
+
+As at runtime, only an identifier that starts with an uppercase letter names a
+type. `code.coding` starts at the `code` element, not at the `code` primitive
+type.
+
+The CLI leaves out a method call that TypeScript resolves only to another
+package or to the default library, such as a browser driver's `page.evaluate()`
+or the DOM's `document.evaluate()`. A method declared in project source may wrap
+this API, so it is still checked.
+
 Calls that look like supported expression sites but cannot be read are reported
 as `[warning:skipped]`. This includes dynamic strings, interpolated templates,
-and receivers whose engine type cannot be established. `--strict` promotes
-warnings to errors. A successful run with warnings says `no errors found`, not
+and receivers whose engine type cannot be established. A path that starts from
+an input of unknown type is reported as `[warning:unchecked-navigation]`.
+`--strict` promotes warnings to errors. A successful run with warnings says `no errors found`, not
 `no problems found`.
 
 Literal `vars` expressions in `EvaluateOptions` are checked in runtime order.
@@ -230,6 +260,9 @@ information to prove an error.
   receives syntax checks only, because the caller chooses its type.
 - An engine built with `engine.register(...)` in the same file is an engine, so
   its method calls are checked.
+- An input type that comes from the input argument needs TypeScript type
+  information. The CLI reads it; ESLint does not, and checks such a relative
+  path only when it starts with a type name.
 - An engine reached through an alias the file does not declare, such as
   `this.engine` or a function parameter, needs TypeScript type information to be
   recognized. The CLI builds a TypeScript program for this. Editors parse one

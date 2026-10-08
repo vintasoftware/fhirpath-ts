@@ -39,12 +39,30 @@ export interface CallSitePolicy {
    */
   rootArg?: number
   /**
+   * The root is this property of the object literal at `rootArg`:
+   * `analyzeExpression(expr, { inputType: 'Patient' })`.
+   */
+  rootProperty?: string
+  /**
    * The root comes from the enclosing DTO class: its own
    * `extends fp.defineDto('Condition')` clause, or a base class in the same file.
    * A class whose fhirType the source cannot name (a root-generic factory) is
    * analyzed without an input type.
    */
   rootFromClass?: true
+  /**
+   * The argument the expressions run against: `fp.first(expr, condition)` at
+   * index 1, `fp.test(condition, expr)` at index 0. A walker that knows that
+   * argument's type passes it as `InputTypeEvidence`, and `inputRoot` decides
+   * whether it fixes the root.
+   */
+  inputArg?: number
+  /**
+   * The call runs its expressions on each item of an array input (`filter`,
+   * `project`, `checkConstraints`). Without it, an array is the root collection
+   * itself, which no single input type describes.
+   */
+  inputEach?: true
   /** The EvaluateOptions argument whose inline env/vars declarations are visible to the expression. */
   optionsArg?: number
   /** Additional expressions held by the options argument. */
@@ -71,19 +89,44 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   // evaluated somewhere else entirely — checkable.
   ['fhirpath', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
   ['compile', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
-  ['evaluate', { argIndex: 0, shape: 'expression', receiver: 'any', optionsArg: 2, optionsExpressions: 'vars' }],
-  ['evaluateTyped', { argIndex: 0, shape: 'expression', receiver: 'any', optionsArg: 2, optionsExpressions: 'vars' }],
-  ['first', { argIndex: 0, shape: 'expression', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
-  ['analyzeExpression', { argIndex: 0, shape: 'expression', receiver: 'any' }],
+  [
+    'evaluate',
+    { argIndex: 0, shape: 'expression', receiver: 'any', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
+  ],
+  [
+    'evaluateTyped',
+    { argIndex: 0, shape: 'expression', receiver: 'any', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
+  ],
+  [
+    'first',
+    { argIndex: 0, shape: 'expression', receiver: 'engine', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
+  ],
+  ['analyzeExpression', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1, rootProperty: 'inputType' }],
   // Subject-first FhirPathEngine helpers: the expression(s) come second.
-  ['test', { argIndex: 1, shape: 'expression', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
-  ['filter', { argIndex: 1, shape: 'expression', receiver: 'engine', optionsArg: 2, optionsExpressions: 'vars' }],
+  [
+    'test',
+    { argIndex: 1, shape: 'expression', receiver: 'engine', inputArg: 0, optionsArg: 2, optionsExpressions: 'vars' },
+  ],
+  [
+    'filter',
+    {
+      argIndex: 1,
+      shape: 'expression',
+      receiver: 'engine',
+      inputArg: 0,
+      inputEach: true,
+      optionsArg: 2,
+      optionsExpressions: 'vars',
+    },
+  ],
   [
     'project',
     {
       argIndex: 1,
       shape: 'columns',
       receiver: 'engine',
+      inputArg: 0,
+      inputEach: true,
       optionsArg: 2,
       optionsExpressions: 'vars',
       rowVariables: true,
@@ -91,7 +134,15 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   ],
   [
     'checkConstraints',
-    { argIndex: 1, shape: 'constraints', receiver: 'any', optionsArg: 2, optionsExpressions: 'vars' },
+    {
+      argIndex: 1,
+      shape: 'constraints',
+      receiver: 'any',
+      inputArg: 0,
+      inputEach: true,
+      optionsArg: 2,
+      optionsExpressions: 'vars',
+    },
   ],
   // DTO declarations: the expression of a `name = this.column(...)` field, and
   // the `vars` a DTO binds per row.
@@ -168,6 +219,12 @@ export interface ReceiverEvidence {
   engine?: true
   /** The call is `this.<name>(...)`, the whole initializer of a public field of a DTO class. */
   dtoField?: true
+  /**
+   * The called method is declared only by another package (`page.evaluate`
+   * from a browser driver, `document.evaluate` from the DOM library), so the
+   * call is not this API whatever its receiver's name.
+   */
+  foreignMethod?: true
 }
 
 /**
@@ -195,6 +252,9 @@ export function isCheckedCall(
   }
   if (evidence.engine === true) {
     return true
+  }
+  if (evidence.foreignMethod === true) {
+    return false
   }
   if (policy.receiver === 'engine') {
     return receiverRoot !== undefined && bindings.trusted.has(receiverRoot) && !bindings.rebound.has(receiverRoot)
@@ -279,6 +339,12 @@ export interface ExpressionEntry<N> {
 export interface SiteContext {
   /** The type the expression is analyzed against, when the site fixes one. */
   inputType?: string
+  /**
+   * `inputType` is the type of the call's own input argument, not a declared
+   * root. The call runs the expression, so its variables are checked as at a
+   * site without a root.
+   */
+  inputFromArgument?: true
   /** A DTO member site, whose findings are weighed differently (see `CallSitePolicy.dto`). */
   dto?: true
   /** Inline per-call environment and row-variable declarations visible to this site. */
@@ -433,30 +499,58 @@ export function mayBeUnprovenDtoOf(
 }
 
 /**
+ * What a compiler proves about a call's input argument (`CallSitePolicy.inputArg`):
+ * every value it can hold carries this one `resourceType` literal, either
+ * directly or as the items of an array.
+ */
+export interface InputTypeEvidence {
+  resourceType: string
+  array: boolean
+}
+
+/**
+ * The root an input argument fixes, following the engine's input rules: one
+ * resource is the root, and an array fixes its item type only for a call that
+ * runs per item. A Bundle never fixes it, because the engine reads its entries,
+ * whose types the Bundle type does not name. This matches `EngineInputRoot`.
+ */
+export function inputRoot(policy: CallSitePolicy, evidence: InputTypeEvidence | undefined): string | undefined {
+  if (evidence === undefined || evidence.resourceType === 'Bundle') {
+    return undefined
+  }
+  return evidence.array && policy.inputEach !== true ? undefined : evidence.resourceType
+}
+
+/**
  * The context a call site's expressions carry, per its policy. The root is named
- * either by one of the call's own arguments (`fhirpath(expr, 'Patient')`,
- * `fp.defineView('Condition', …)`) or by the enclosing DTO class, which the walker
- * resolves (see `dtoClassesOf`) and passes as `classRoot`. Mapping a policy
- * to a context is a decision, so it happens here rather than once per walker —
- * the two drifted while each had its own copy.
+ * by one of the call's own arguments (`fhirpath(expr, 'Patient')`,
+ * `fp.defineView('Condition', …)`), by the enclosing DTO class, which the walker
+ * resolves (see `dtoClassesOf`) and passes as `classRoot`, or by the type of the
+ * input argument, which only a walker with a compiler can pass as
+ * `inputEvidence`. Mapping a policy to a context is a decision, so it happens
+ * here rather than once per walker — the two drifted while each had its own copy.
  */
 export function siteContext<N>(
   policy: CallSitePolicy,
   argumentAt: (index: number) => N | undefined,
   classRoot: string | undefined,
   ast: ExpressionAst<N>,
-  variables: Readonly<Record<string, SiteVariable>> | undefined
+  variables: Readonly<Record<string, SiteVariable>> | undefined,
+  inputEvidence?: InputTypeEvidence
 ): SiteContext {
   const rootArgument = policy.rootArg === undefined ? undefined : argumentAt(policy.rootArg)
-  const inputType =
-    rootArgument !== undefined
-      ? ast.string(rootArgument)?.expression
-      : policy.rootFromClass === true
-        ? classRoot
-        : undefined
+  const rootNode =
+    rootArgument === undefined || policy.rootProperty === undefined
+      ? rootArgument
+      : finalProperty(rootArgument, policy.rootProperty, ast)
+  const declared =
+    rootNode !== undefined ? ast.string(rootNode)?.expression : policy.rootFromClass === true ? classRoot : undefined
+  const fromArgument = declared === undefined ? inputRoot(policy, inputEvidence) : undefined
+  const inputType = declared ?? fromArgument
   return {
     ...(policy.dto === true && { dto: true as const }),
     ...(inputType !== undefined && { inputType }),
+    ...(fromArgument !== undefined && { inputFromArgument: true as const }),
     ...(variables !== undefined && Object.keys(variables).length > 0 && { variables }),
   }
 }
@@ -606,6 +700,18 @@ function variablesFromPair<N>(
   }
 }
 
+/** The value of an object literal's property, when no later unknown write can replace it. */
+function finalProperty<N>(node: N, name: string, ast: ExpressionAst<N>): N | undefined {
+  const properties = ast.properties(node)
+  return properties === undefined
+    ? undefined
+    : finalKnownProperty(
+        properties,
+        name,
+        properties.findLastIndex(property => property.name === undefined)
+      )
+}
+
 /** Last named property after an unknown write that could replace its value. */
 function finalKnownProperty<N>(
   properties: readonly ExpressionProperty<N>[] | undefined,
@@ -715,7 +821,8 @@ export function callExpressionCandidates<N>(
   policy: CallSitePolicy,
   argumentAt: (index: number) => N | undefined,
   classRoot: string | undefined,
-  ast: ExpressionAst<N>
+  ast: ExpressionAst<N>,
+  inputEvidence?: InputTypeEvidence
 ): ContextualExpressionCandidate<N>[] {
   const argument = argumentAt(policy.argIndex)
   if (argument === undefined) {
@@ -725,10 +832,17 @@ export function callExpressionCandidates<N>(
   const scopes = options === undefined ? undefined : optionScopes(options, ast)
   const openBeforeVars = options !== undefined && (scopes === undefined || scopes.openBeforeVars)
   const openAfterVars = options !== undefined && (scopes === undefined || scopes.openAfterVars)
-  const base = siteContext(policy, argumentAt, classRoot, ast, {
-    ...scopes?.env,
-    ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
-  })
+  const base = siteContext(
+    policy,
+    argumentAt,
+    classRoot,
+    ast,
+    {
+      ...scopes?.env,
+      ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
+    },
+    inputEvidence
+  )
   const values = scopes?.expressions.flatMap(entry => (entry.name === undefined ? [] : [entry.name])) ?? []
   const plan =
     options === undefined

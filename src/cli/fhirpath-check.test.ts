@@ -5,7 +5,9 @@ import { join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-describe('fhirpath-check CLI', () => {
+// Each test spawns the CLI, and a run whose files need types also builds a
+// TypeScript program, as the program-backed tests in sites.test.ts do.
+describe('fhirpath-check CLI', { timeout: 15_000 }, () => {
   const cli = resolve(import.meta.dirname, 'fhirpath-check.ts')
 
   function run(args: string[], cwd?: string): { status: number; output: string } {
@@ -230,6 +232,48 @@ describe('fhirpath-check CLI', () => {
     expect(result.status).toBe(1)
     expect(result.output.match(/\[unknown-element\]/g)).toHaveLength(7)
     expect(result.output).not.toContain('[warning:skipped]')
+  })
+
+  it('checks relative expressions against a typed input, and reports the ones it cannot type', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-input-type-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        "const fp = new FhirPathEngine({ model: r4Model, env: { loinc: 'http://loinc.org' } })",
+        "const condition = { resourceType: 'Condition' as const, subject: {} }",
+        "const observation = { resourceType: 'Observation' as const, status: 'final' as const, code: {} }",
+        'declare const untyped: unknown',
+        "fp.first('clinicalStatuz.coding.first().code', condition)",
+        "fp.test(condition, 'clinicalStatuz.exists()')",
+        "fp.first('code.coding.where(system = %loinc).code', observation)",
+        "fp.first('code.coding.where(system = %nope).code', observation)",
+        "fp.first('code.coding', untyped)",
+        "fp.evaluate('clinicalStatus', [condition])",
+      ].join('\n')
+    )
+
+    // The typed input gives each relative path its root, the call's own
+    // variables are still checked, a lowercase root is an element, and the
+    // two inputs that give no single type are warnings.
+    const result = run(['--no-import', 'source.ts'], directory)
+    expect(result.status).toBe(1)
+    expect(result.output.split('\n').map(line => line.split(' ').slice(0, 2).join(' '))).toEqual([
+      'source.ts:7:11 [unknown-element]',
+      'source.ts:8:21 [unknown-element]',
+      'source.ts:10:38 [unknown-variable]',
+      'source.ts:11:11 [warning:unchecked-navigation]',
+      'source.ts:12:14 [warning:unchecked-navigation]',
+      'fhirpath-check: 3',
+      '',
+    ])
+
+    const strict = run(['--strict', '--no-import', 'source.ts'], directory)
+    expect(strict.output).toContain('source.ts:12:14 [unchecked-navigation]')
+    expect(strict.output).toContain('5 problem(s) found')
   })
 
   it('does not trust an unrelated type merely named FhirPathEngine', () => {

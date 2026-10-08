@@ -659,6 +659,92 @@ describe('module options', () => {
     expect(scanned.skipped).toEqual([])
   }, 15_000)
 
+  it('reads the input type from a typed input argument', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-input-'))
+    const file = join(directory, 'source.ts')
+    const source = [
+      'declare class FhirPathEngine {',
+      '  evaluate(expression: unknown, input?: unknown): unknown[]',
+      '  first(expression: unknown, input?: unknown): unknown',
+      '  test(input: unknown, expression: unknown): boolean',
+      '  filter(input: unknown, expression: unknown): unknown[]',
+      '  project(input: unknown, columns: unknown): unknown',
+      '}',
+      "declare const condition: { resourceType: 'Condition' } | undefined",
+      "declare const conditions: readonly { resourceType: 'Condition' }[]",
+      "declare const either: { resourceType: 'Condition' } | { resourceType: 'Patient' }",
+      "declare const optional: { resourceType?: 'Condition' }",
+      "declare const bundle: { resourceType: 'Bundle' }",
+      'const fp = new FhirPathEngine()',
+      "fp.first('a', condition)",
+      "fp.test(condition, 'b')",
+      "fp.filter(conditions, 'c')",
+      "fp.project(conditions, { d: 'd' })",
+      "fp.evaluate('e', conditions)",
+      "fp.first('f', either)",
+      "fp.first('g', optional)",
+      "fp.filter(bundle, 'h')",
+    ].join('\n')
+    writeFileSync(file, source)
+    const program = ts.createProgram({ rootNames: [file], options: { strict: true } })
+
+    // The same roots EngineInputRoot infers: one resource, or the items of an
+    // array for a per-item call. A root collection, a union of resources, a
+    // value that may omit resourceType, and a Bundle stay unknown.
+    const scanned = createSiteScanner(ts, program)(source, file)
+    expect(scanned.sites.map(site => [site.expression, site.inputType])).toEqual([
+      ['a', 'Condition'],
+      ['b', 'Condition'],
+      ['c', 'Condition'],
+      ['d', 'Condition'],
+      ['e', undefined],
+      ['f', undefined],
+      ['g', undefined],
+      ['h', undefined],
+    ])
+    expect(scanned.skipped).toEqual([])
+    expect(createSiteScanner(ts)(source, file).sites.every(site => site.inputType === undefined)).toBe(true)
+  }, 15_000)
+
+  it('leaves out methods that only another package or the default library declares', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-foreign-method-'))
+    const packageDirectory = join(directory, 'node_modules', '@acme', 'browser')
+    mkdirSync(packageDirectory, { recursive: true })
+    writeFileSync(
+      join(packageDirectory, 'package.json'),
+      JSON.stringify({ name: '@acme/browser', type: 'module', types: 'index.d.ts' })
+    )
+    writeFileSync(
+      join(packageDirectory, 'index.d.ts'),
+      'export declare class Page { evaluate(script: string): Promise<unknown> }'
+    )
+    const file = join(directory, 'source.ts')
+    const source = [
+      "import { Page } from '@acme/browser'",
+      'declare const page: Page',
+      'declare const wrapper: { evaluate(expression: string, input: unknown): unknown[] }',
+      "page.evaluate('document.title')",
+      "document.evaluate('count', document)",
+      "wrapper.evaluate('Patient.name', {})",
+    ].join('\n')
+    writeFileSync(file, source)
+    const program = ts.createProgram({
+      rootNames: [file],
+      options: {
+        module: ts.ModuleKind.NodeNext,
+        moduleResolution: ts.ModuleResolutionKind.NodeNext,
+        lib: ['lib.dom.d.ts', 'lib.es2022.d.ts'],
+      },
+    })
+
+    // A method declared in project source may wrap this API, so it stays a site.
+    const scanned = createSiteScanner(ts, program)(source, file)
+    expect(scanned.sites.map(site => site.expression)).toEqual(['Patient.name'])
+    expect(scanned.skipped).toEqual([])
+    // Without the types, every `.evaluate()` call reads as this API.
+    expect(createSiteScanner(ts)(source, file).sites).toHaveLength(3)
+  }, 15_000)
+
   it('reads the columns of a DTO whose base only the types reveal', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-dto-'))
     const packageDirectory = join(directory, 'node_modules', '@acme', 'fhirpath')

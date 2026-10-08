@@ -10,6 +10,7 @@ import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
 import {
   canonicalFocusType,
   commonValueKind,
+  isTypeIdentifier,
   resolveByInput,
   resolveSystemTypeName,
   rootTypeMatches,
@@ -94,7 +95,7 @@ export interface AnalyzeOptions {
   functions?: Record<string, DeclaredFunction>
   /** Host-supplied environment variables by name (with or without the leading `%`). */
   variables?: Record<string, DeclaredVariable>
-  /** Report navigation that remains unchecked because a declared host variable has no type. */
+  /** Report navigation that remains unchecked because the input or a declared host variable has no type. */
   reportUnchecked?: boolean
 }
 
@@ -202,7 +203,10 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
 
 /**
  * Analyzes one source site with only facts visible in that file. A declared root
- * does not prove which variables the later call provides. A site whose call
+ * does not prove which variables the later call provides. An input type read
+ * from the call's own input argument (`inputFromArgument`) is the call that
+ * runs the expression, so its variables are still checked; that type is used
+ * only when the model knows it. A site whose call
  * binds variables the source cannot name (`openVariables`) may resolve any
  * `%variable` at runtime, so an unresolved one is reported as an
  * `unchecked-variable` warning under `reportUnchecked` instead of an error.
@@ -216,6 +220,8 @@ export function analyzeSite(
   site: {
     expression: string
     inputType?: string
+    /** `inputType` is the type of the call's input argument rather than a declared root. */
+    inputFromArgument?: true
     dto?: true
     /** Variables declared by the expression's call site, such as inline env/vars options. */
     variables?: Readonly<Record<string, DeclaredVariable>>
@@ -232,9 +238,16 @@ export function analyzeSite(
   const variablePlan = (site as typeof site & { variablePlan?: SourceVariablePlan }).variablePlan
   const declared = { ...site.functions, ...options?.functions }
   const variables = sourceSiteVariables(site.variables, variablePlan, options?.variables, sourceVariables)
+  // A `resourceType` literal the model does not know is not a FHIR resource.
+  const inputType =
+    site.inputType !== undefined &&
+    site.inputFromArgument === true &&
+    options?.model?.resolveType(site.inputType) === undefined
+      ? undefined
+      : site.inputType
   const merged: AnalyzeOptions = {
     ...options,
-    ...(site.inputType !== undefined && { inputType: site.inputType }),
+    ...(inputType !== undefined && { inputType }),
     ...(Object.keys(declared).length > 0 && { functions: declared }),
     ...(variables !== undefined && { variables }),
   }
@@ -258,7 +271,7 @@ export function analyzeSite(
         ]
       })
     }
-    return site.inputType === undefined || options?.variables !== undefined
+    return inputType === undefined || site.inputFromArgument === true || options?.variables !== undefined
       ? diagnostics
       : diagnostics.filter(diagnostic => diagnostic.code !== 'unknown-variable')
   }
@@ -537,7 +550,10 @@ class Analyzer {
     if (input.types === undefined) {
       // Even with an unknown input, a root identifier naming a model type anchors
       // the state — this is what checks `Patient.nope` without an inputType option.
-      const asType = this.model?.resolveType(node.name) ?? resolveSystemTypeName(node.name)
+      // As at runtime, a lowercase name is an element, never a primitive type.
+      const asType = isTypeIdentifier(node.name)
+        ? (this.model?.resolveType(node.name) ?? resolveSystemTypeName(node.name))
+        : undefined
       if (asType !== undefined) {
         return {
           ...singleState([asType]),
@@ -554,12 +570,20 @@ class Analyzer {
           'warning',
           node.name
         )
+      } else if (input.rawInput === true && this.reportUnchecked) {
+        this.report(
+          'unchecked-navigation',
+          `Element '${node.name}' was not checked: the input type is unknown; start the path with a resource type or declare the input type`,
+          node.span,
+          'warning',
+          node.name
+        )
       }
       return { ...UNKNOWN, ordered: input.ordered }
     }
+    const asType = this.model?.resolveType(node.name) ?? resolveSystemTypeName(node.name)
     // Root rule: an identifier naming the (super)type of the context is the context.
     {
-      const asType = this.model?.resolveType(node.name) ?? resolveSystemTypeName(node.name)
       let matchingTypes: string[] = []
       if (asType !== undefined) {
         matchingTypes = input.types.filter(type => rootTypeMatches(this.model, type, node.name))
@@ -621,7 +645,12 @@ class Analyzer {
           node.name
         )
       }
-      return { ...UNKNOWN, ordered: input.ordered }
+      // A resource type name that is not the input's still names the type the
+      // rest of the path reads, as type-level inference reads it. The runtime
+      // result is empty either way.
+      return asType !== undefined && isTypeIdentifier(node.name) && this.isResourceType(asType)
+        ? singleState([asType])
+        : { ...UNKNOWN, ordered: input.ordered }
     }
     const single = singleAnd(input.single, !isCollection)
     const state: StaticState = {

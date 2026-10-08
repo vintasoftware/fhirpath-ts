@@ -187,12 +187,31 @@ for (const file of args.files) {
     process.exit(2)
   }
 }
-const unresolvedFiles = args.localImports
-  ? []
-  : args.files.filter(file => scanOf(file).skipped.some(skipped => skipped.reason === 'unrecognized-receiver'))
+/**
+ * A site whose path reads an input of unknown type. A typed input argument may
+ * supply that type; a path that starts at a type name needs none.
+ */
+function readsUntypedInput(site: ExpressionSite): boolean {
+  return (
+    site.inputType === undefined &&
+    site.dto !== true &&
+    analyzeSite(site, { model: r4Model, reportUnchecked: true }).some(
+      diagnostic => diagnostic.code === 'unchecked-navigation'
+    )
+  )
+}
+
+/** What the types may settle: a receiver the syntax could not prove, or a site that reads an untyped input. */
+function needsTypes(scan: SiteScanResult): boolean {
+  return (
+    (!args.localImports && scan.skipped.some(skipped => skipped.reason === 'unrecognized-receiver')) ||
+    scan.sites.some(readsUntypedInput)
+  )
+}
+const unresolvedFiles = args.files.filter(file => needsTypes(scanOf(file)))
 if (unresolvedFiles.length > 0) {
-  // Pay the Program/TypeChecker cost only when the syntax-only pass found a
-  // receiver it could not prove. Most source files need no compiler graph.
+  // Pay the Program/TypeChecker cost only for files whose syntax-only pass
+  // left something the types can settle.
   semanticScannersByFile = sourceScanners(unresolvedFiles)
   scansByFile.clear()
   for (const file of args.files) {

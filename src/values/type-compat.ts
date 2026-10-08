@@ -21,9 +21,18 @@ export function resolveSystemTypeName(name: string): string | undefined {
   return SYSTEM_TYPE_LOCAL_NAMES.has(name) ? `System.${name}` : undefined
 }
 
+/**
+ * Runtime root rule: only an uppercase identifier can name a type. A lowercase
+ * one (`code`, `id`, `url`) is always an element, even where a primitive type
+ * has that name.
+ */
+export function isTypeIdentifier(name: string): boolean {
+  return /^[A-Z]/.test(name)
+}
+
 /** Runtime root rule: an uppercase name matches an item's own type or a model supertype. */
 export function rootTypeMatches(model: ModelProvider | undefined, itemType: string, name: string): boolean {
-  if (!/^[A-Z]/.test(name)) {
+  if (!isTypeIdentifier(name)) {
     return false
   }
   if (itemType !== OBJECT_TYPE && typeLocalName(itemType) === name) {

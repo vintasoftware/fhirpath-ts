@@ -682,6 +682,23 @@ describe('analyzeSite', () => {
     expect(analyzeExpression('%plans.activityz.detail', { model: r4Model, variables: { plans: {} } })).toEqual([])
   })
 
+  it('can report navigation from an input of unknown type', () => {
+    const warned = analyzeExpression('clinicalStatuz.coding.exists() and $this.subject.exists()', {
+      model: r4Model,
+      reportUnchecked: true,
+    })
+    expect(warned.map(diagnostic => [diagnostic.severity, diagnostic.code, diagnostic.name])).toEqual([
+      ['warning', 'unchecked-navigation', 'clinicalStatuz'],
+      ['warning', 'unchecked-navigation', 'subject'],
+    ])
+    // A type-name root or a declared input type makes the path checkable.
+    expect(analyzeExpression('Condition.clinicalStatus', { model: r4Model, reportUnchecked: true })).toEqual([])
+    expect(
+      analyzeExpression('clinicalStatus', { model: r4Model, inputType: 'Condition', reportUnchecked: true })
+    ).toEqual([])
+    expect(analyzeExpression('clinicalStatuz', { model: r4Model })).toEqual([])
+  })
+
   it('analyzes a DTO column against its fhirType', () => {
     expect(
       analyzeSite({ expression: 'clinicalStatus.coding.first().code', inputType: 'Condition', dto: true }, options)
@@ -724,14 +741,47 @@ describe('analyzeSite', () => {
   })
 
   it('reports only syntax findings for a DTO column with no known root', () => {
-    // A leading `code`/`text` segment is also a model type name, so without a
-    // root the analyzer would read it as a type-name root and report nonsense.
     expect(analyzeSite({ expression: 'code.coding.first().display', dto: true }, options)).toEqual([])
     expect(analyzeSite({ expression: 'code.text', dto: true }, options)).toEqual([])
     expect(analyzeSite({ expression: 'code.text(', dto: true }, options).map(d => d.code)).toEqual(['syntax'])
-    // Unguarded, that first expression is a false positive.
-    expect(analyzeSite({ expression: 'code.coding.first().display' }, options).map(d => d.code)).toEqual([
+  })
+
+  it('reads a lowercase root name as an element, as the runtime does', () => {
+    // `code` and `id` also name FHIR primitive types, but only an uppercase
+    // identifier names a type at runtime.
+    expect(analyzeSite({ expression: 'code.coding.first().display' }, options)).toEqual([])
+    expect(analyzeSite({ expression: 'id.length() > 0' }, options)).toEqual([])
+    expect(analyzeSite({ expression: 'Observation.code.codingg' }, options).map(d => d.code)).toEqual([
       'unknown-element',
     ])
+  })
+
+  it('reads the rest of a path from a resource root that is not the input', () => {
+    // At runtime the path is empty. The rest of it still reads the named
+    // resource, as type-level inference does, so its result and typos agree.
+    const status = analyzeExpressionDetailed('Encounter.status', { model: r4Model, inputType: 'Patient' })
+    expect(status.diagnostics.map(d => [d.code, d.name])).toEqual([['unknown-element', 'Encounter']])
+    expect(status.result.types).toEqual(['FHIR.code'])
+    expect(
+      analyzeExpression('Encounter.statuz', { model: r4Model, inputType: 'Patient' }).map(d => [d.code, d.name])
+    ).toEqual([
+      ['unknown-element', 'Encounter'],
+      ['unknown-element', 'statuz'],
+    ])
+  })
+
+  it('checks a site typed by its input argument like an unrooted call', () => {
+    const site = { expression: 'code.codingg.where(system = %nope)', inputFromArgument: true as const }
+    // The call runs the expression, so its variables are still checked.
+    expect(analyzeSite({ ...site, inputType: 'Observation' }, options).map(d => d.code)).toEqual([
+      'unknown-element',
+      'unknown-variable',
+    ])
+    // A declared root runs elsewhere, so its variables are not judged here.
+    expect(analyzeSite({ expression: site.expression, inputType: 'Observation' }, options).map(d => d.code)).toEqual([
+      'unknown-element',
+    ])
+    // A resourceType the model does not know is not a FHIR resource.
+    expect(analyzeSite({ ...site, expression: 'payload', inputType: 'MyThing' }, options)).toEqual([])
   })
 })
