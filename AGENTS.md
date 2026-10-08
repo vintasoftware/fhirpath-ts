@@ -87,6 +87,14 @@ declarations override engine defaults, matching runtime option merging.
 Infer literal `env` values before applying `envTypes`; explicit declarations
 remain the override for widened values and Reference targets.
 
+An engine method infers `Expr` from its expression argument only. A parameter
+typed from `Expr` is an inference site too: `FhirpathInput` reads a literal
+`resourceType` back into `Expr`. Type such an input as its own type parameter
+constrained by `EngineInput<Expr>`, or wrap the whole type as
+`NoInfer<EngineInput<Expr>>`, which inference skips. `EngineInput<NoInfer<Expr>>`
+is also correct but still walks `FhirpathInput`'s branches, about 4% of the API
+surface budget. `NoInfer` is why the `typescript` peer range starts at 5.4.
+
 ## Monaco worker integration
 
 `demo/src/playground/ts.custom.worker.ts` adds expression-site extraction to

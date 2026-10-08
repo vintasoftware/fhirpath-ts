@@ -19,6 +19,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
+- **Breaking:** the optional `typescript` peer range is `>=5.4.0 <7.0.0`
+  (was `>=5.0.0`). The published declarations use `NoInfer`, which TypeScript
+  5.4 added, and TypeScript 5.0 already failed to check them with
+  `skipLibCheck: false`. `pnpm check:package` now type-checks a consumer and
+  runs the CLI with TypeScript 5.4 as well as the lockfile version.
 - `fhirpath-check` checks a relative expression in an engine call against the
   input argument's `resourceType`: `fp.first('clinicalStatus', condition)`
   with `condition: Condition` is checked against `Condition`. A path the CLI

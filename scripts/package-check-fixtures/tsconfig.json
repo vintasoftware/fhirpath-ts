@@ -7,5 +7,5 @@
     "skipLibCheck": false,
     "noEmit": true
   },
-  "include": ["typecheck.ts"]
+  "include": ["typecheck.ts", "patient.dto.fixture.ts"]
 }

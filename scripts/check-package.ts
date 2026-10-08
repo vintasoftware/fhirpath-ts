@@ -16,9 +16,12 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 interface PackageManifest {
+  version?: string
   bin?: string | Record<string, string>
   exports?: Record<string, unknown>
   publishConfig?: { exports?: Record<string, unknown> }
+  peerDependencies?: Record<string, string>
+  devDependencies?: Record<string, string>
 }
 
 function assertString(value: unknown, message: string): asserts value is string {
@@ -64,7 +67,6 @@ const tools = {
   npm: packageBin('npm', 'npm'),
   publint: packageBin('publint', 'publint'),
   attw: packageBin('@arethetypeswrong/cli', 'attw'),
-  tsc: packageBin('typescript', 'tsc'),
 }
 
 type ToolName = keyof typeof tools
@@ -92,12 +94,15 @@ function packWithPnpm(args: string[]): string {
   return result.stdout
 }
 
-function linkPeer(name: string): void {
-  const source = join(root, 'node_modules', name)
-  if (!existsSync(source)) {
-    throw new Error(`Missing ${name}; run pnpm install before pnpm check:package`)
+/** Installs the repository's `source` package as the consumer's `name`, replacing an earlier link. */
+function linkPeer(name: string, source = name): void {
+  const sourceDirectory = join(root, 'node_modules', source)
+  if (!existsSync(sourceDirectory)) {
+    throw new Error(`Missing ${source}; run pnpm install before pnpm check:package`)
   }
-  symlinkSync(source, join(consumerDirectory, 'node_modules', name), process.platform === 'win32' ? 'junction' : 'dir')
+  const target = join(consumerDirectory, 'node_modules', name)
+  rmSync(target, { force: true })
+  symlinkSync(sourceDirectory, target, process.platform === 'win32' ? 'junction' : 'dir')
 }
 
 function runCli(args: string[]): ReturnType<typeof spawnSync> {
@@ -114,6 +119,35 @@ function runCli(args: string[]): ReturnType<typeof spawnSync> {
   })
 }
 
+/**
+ * Runs the consumer with `typescriptPackage` installed as its `typescript`:
+ * the runtime imports, a type check of the fixtures against the published
+ * declarations, and the CLI, which loads the consumer's `typescript`.
+ */
+function checkConsumer(typescriptPackage: string): string {
+  linkPeer('typescript', typescriptPackage)
+  const { version } = readJson<PackageManifest>(join(consumerDirectory, 'node_modules', 'typescript', 'package.json'))
+  assertString(version, `${typescriptPackage} does not declare a version`)
+  console.log(`package check: consumer with TypeScript ${version}`)
+
+  execFileSync(process.execPath, ['runtime.mjs'], { cwd: consumerDirectory, stdio: 'inherit' })
+  execFileSync(process.execPath, [packageBin(typescriptPackage, 'tsc'), '--project', 'tsconfig.json'], {
+    cwd: consumerDirectory,
+    stdio: 'inherit',
+  })
+
+  const sourceCheck = runCli(['--no-import', 'bad.ts'])
+  const sourceOutput = `${sourceCheck.stdout}${sourceCheck.stderr}`
+  assert.equal(sourceCheck.status, 1, sourceOutput)
+  assert.match(sourceOutput, /unknown-element/)
+
+  const dtoCheck = runCli(['--dtos', 'patient.dto.fixture.ts'])
+  const dtoOutput = `${dtoCheck.stdout}${dtoCheck.stderr}`
+  assert.equal(dtoCheck.status, 0, dtoOutput)
+  assert.match(dtoOutput, /analyzed 1 DTO\(s\) from 1 module\(s\)/)
+  return version
+}
+
 try {
   if (!existsSync(join(root, 'dist', 'index.js'))) {
     throw new Error('Missing dist; run pnpm build before pnpm check:package')
@@ -126,6 +160,18 @@ try {
     Object.keys(manifest.publishConfig.exports).sort(),
     Object.keys(manifest.exports).sort(),
     'source and published exports must expose the same entry points'
+  )
+  // The consumer also runs with the lowest TypeScript the peer range admits,
+  // installed from the devDependency alias named after it: `typescript-5-4`
+  // for `>=5.4.0`.
+  const typescriptFloor = /^>=(\d+)\.(\d+)\.0 /.exec(manifest.peerDependencies?.['typescript'] ?? '')
+  assert(typescriptFloor, 'the typescript peer range must start at a minor release (>=X.Y.0)')
+  const [, floorMajor, floorMinor] = typescriptFloor
+  const floorPackage = `typescript-${floorMajor}-${floorMinor}`
+  assert.match(
+    manifest.devDependencies?.[floorPackage] ?? '',
+    new RegExp(`^npm:typescript@${floorMajor}\\.${floorMinor}\\.\\d+$`),
+    `devDependencies must pin ${floorPackage} to a typescript@${floorMajor}.${floorMinor}.x release, the peer range's floor`
   )
 
   mkdirSync(packDirectory)
@@ -176,27 +222,16 @@ try {
   // Use the exact optional peers from the repository lockfile without a second
   // registry resolution in the temporary consumer.
   linkPeer('eslint')
-  linkPeer('typescript')
-
-  execFileSync(process.execPath, ['runtime.mjs'], { cwd: consumerDirectory, stdio: 'inherit' })
-  runTool('tsc', ['--project', 'tsconfig.json'], consumerDirectory)
-
-  const sourceCheck = runCli(['--no-import', 'bad.ts'])
-  const sourceOutput = `${sourceCheck.stdout}${sourceCheck.stderr}`
-  assert.equal(sourceCheck.status, 1, sourceOutput)
-  assert.match(sourceOutput, /unknown-element/)
-
-  const dtoCheck = runCli(['--dtos', 'patient.dto.fixture.ts'])
-  const dtoOutput = `${dtoCheck.stdout}${dtoCheck.stderr}`
-  assert.equal(dtoCheck.status, 0, dtoOutput)
-  assert.match(dtoOutput, /analyzed 1 DTO\(s\) from 1 module\(s\)/)
+  const typescriptVersions = [checkConsumer('typescript'), checkConsumer(floorPackage)]
 
   if (output !== undefined) {
     mkdirSync(dirname(output), { recursive: true })
     copyFileSync(tarball, output, constants.COPYFILE_EXCL)
   }
 
-  console.log(`package check: runtime, types, source CLI, and DTO CLI passed${output ? `; wrote ${output}` : ''}`)
+  console.log(
+    `package check: runtime, types, source CLI, and DTO CLI passed with TypeScript ${typescriptVersions.join(' and ')}${output ? `; wrote ${output}` : ''}`
+  )
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true })
 }
