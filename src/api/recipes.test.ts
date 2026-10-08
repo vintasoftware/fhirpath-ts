@@ -465,7 +465,7 @@ describe('README usage recipes', () => {
     const nickname: Extension = { url: 'http://example.org/nickname', valueString: 'Pete' }
     const patient: Patient = { resourceType: 'Patient', extension: [nickname] }
     expect(r4.compile('value', 'Extension').evaluate(nickname)).toEqual([])
-    expect(r4.evaluate("extension('http://example.org/nickname').value", patient)).toEqual(['Pete'])
+    expect(r4.compile("extension('http://example.org/nickname').value", 'Patient').evaluate(patient)).toEqual(['Pete'])
   })
 
   it('runs the README and API reference registration examples', () => {

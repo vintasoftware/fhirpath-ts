@@ -259,7 +259,7 @@ it from its resource instead:
 ```ts
 // nickname is { url: 'http://example.org/nickname', valueString: 'Pete' }, also in patient.extension
 r4.compile('value', 'Extension').evaluate(nickname) // []
-r4.evaluate("extension('http://example.org/nickname').value", patient) // ['Pete']
+r4.compile("extension('http://example.org/nickname').value", 'Patient').evaluate(patient) // ['Pete']
 ```
 
 ### `evaluateTyped()`
