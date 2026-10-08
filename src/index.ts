@@ -43,7 +43,6 @@ export type {
   EngineProjection,
   EngineProjectionContext,
   EngineResult,
-  EngineRoot,
   EngineRootResult,
   RootedBoundExpression,
   RootedInput,

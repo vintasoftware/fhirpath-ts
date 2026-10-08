@@ -5,7 +5,14 @@ import ts from 'typescript'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
-import { type DtoInput, type DtoOptions, FhirPathEngine, type FhirTypeName, type ViewBaseClass } from '../index.ts'
+import {
+  compile,
+  type DtoInput,
+  type DtoOptions,
+  FhirPathEngine,
+  type FhirTypeName,
+  type ViewBaseClass,
+} from '../index.ts'
 import type {
   Appointment,
   Bundle,
@@ -442,6 +449,10 @@ describe('README usage recipes', () => {
     }
     expect(r4.first('Bundle.entry.count()', bundle)).toBe(1)
     expect(r4.first('Bundle.type', bundle)).toBe('searchset')
+    // A declared type tells the engine whether the Bundle or its entries are meant.
+    expect(r4.evaluate(compile('type', 'Bundle'), bundle)).toEqual(['searchset'])
+    const patients = { resourceType: 'Bundle' as const, entry: [{ resource: patient }] }
+    expect(r4.evaluate(compile('id', 'Patient'), patients)).toEqual(r4.evaluate('Patient.id', patient))
   })
 
   it('runs the README and API reference registration examples', () => {

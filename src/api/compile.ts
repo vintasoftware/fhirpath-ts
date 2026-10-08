@@ -150,6 +150,13 @@ export type CompiledExpressionResult<
   : Extract<TResult, unknown[]>
 
 /**
+ * Keys the root a compiled expression declares, a type-only member engine
+ * methods read. Read through a member, the root compares covariantly on every
+ * supported compiler, so a union of rooted expressions passes as one argument.
+ */
+export declare const declaredRoot: unique symbol
+
+/**
  * A parsed expression, reusable across inputs. Create via `compile()` or the
  * `fhirpath` tag: literal expressions carry inferred result and input types for
  * the supported subset (see src/typed/infer.ts), everything else is unknown[].
@@ -166,10 +173,24 @@ export class CompiledExpression<
 > {
   readonly source: Expr
   readonly ast: AstNode
+  /**
+   * The type the expression declares it runs against, or `undefined`. Engine
+   * methods read it to tell how a Bundle input is meant: a declared `Bundle` is
+   * the Bundle itself, any other type its entries. It is not checked against
+   * the data.
+   */
+  readonly inputType: FhirTypeName | undefined
+  declare readonly [declaredRoot]?: Root
 
-  constructor(source: Expr) {
+  /**
+   * `inputType` declares the root for engine methods and the static checkers.
+   * Prefer `compile(expression, type)`, which also types the input of this
+   * expression's own `evaluate()`.
+   */
+  constructor(source: Expr, inputType?: Root & FhirTypeName) {
     this.source = source
     this.ast = parse(source)
+    this.inputType = inputType
   }
 
   /** Evaluate and unwrap results to plain JS values. */
@@ -209,10 +230,11 @@ export function compile<
   TInput = FhirpathInput<Expr>,
   TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
 >(expression: Expr): CompiledExpression<Expr, TInput, TResult>
-export function compile(expression: string): CompiledExpression {
-  // A declared input type is a compile-time and check-time declaration (see
-  // `fhirpath`), with nothing for the evaluator to do.
-  return new CompiledExpression(expression)
+export function compile(
+  expression: string,
+  inputType?: FhirTypeName
+): CompiledExpression<string, unknown, InferredExpressionResult, string> {
+  return new CompiledExpression<string, unknown, InferredExpressionResult, string>(expression, inputType)
 }
 
 /** An expression as text or already compiled, with any literal, input, result, and root types. */

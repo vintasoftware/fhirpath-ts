@@ -95,6 +95,24 @@ constrained by `EngineInput<Expr>`, or wrap the whole type as
 is also correct but still walks `FhirpathInput`'s branches, about 4% of the API
 surface budget. `NoInfer` is why the `typescript` peer range starts at 5.4.
 
+A compiled expression with a declared root types an engine call as
+`engine.compile(expression, type)` does: `EngineCallInput` and
+`EngineCallResult` over the one `RootedInput`. Engine methods read the root
+from the type-only `declaredRoot` member, not from `CompiledExpression`'s type
+arguments: TypeScript 5.4 compares the `Root` argument contravariantly, so a
+union of rooted expressions would be refused there. Compute the input as
+`InputOf<Root>` rather than reading `TInput`, whose inference keeps one
+candidate for a union of expressions. Keep the `Root` test inside
+`RootedInput`'s argument, as in
+`RootedInput<Root extends FhirTypeName ? InputOf<Root> : never>`; a conditional
+on `Root` around `RootedInput<InputOf<Root>>` costs about 9k API surface
+instantiations with any union. Construct a
+`CompiledExpression` from a wide `FhirTypeName` with explicit type arguments:
+inferring `Root` from the constructor's `Root & FhirTypeName` doubles check
+time without moving the instantiation count. A declared root has one runtime
+effect, in `normalizeInput`: a declared `Bundle` reads a Bundle input as
+itself, any other type as its entries, without the ambiguity check.
+
 ## Monaco worker integration
 
 `demo/src/playground/ts.custom.worker.ts` adds expression-site extraction to

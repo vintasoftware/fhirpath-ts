@@ -3,9 +3,10 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { FhirPathRuntimeError, FhirPathSyntaxError } from '../errors.ts'
 import type { Bundle, Condition, Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
-import { compile } from './compile.ts'
+import { compile, CompiledExpression } from './compile.ts'
 import { BoundExpression, FhirPathEngine, recordEngines } from './engine.ts'
 import type { Projection } from './project.ts'
+import { fhirpath } from './tagged.ts'
 
 const patient: Patient = {
   resourceType: 'Patient',
@@ -47,6 +48,58 @@ describe('FhirPathEngine.evaluate', () => {
 
   it('accepts a CompiledExpression', () => {
     expect(r4.evaluate(compile('Patient.name.family'), patient)).toEqual(['Chalmers'])
+  })
+
+  it('types a compiled expression with a declared root against that root', () => {
+    const condition: Condition = {
+      resourceType: 'Condition',
+      subject: { reference: 'Patient/example' },
+      clinicalStatus: { coding: [{ code: 'active' }] },
+    }
+    const status = compile('clinicalStatus.coding.first().code', 'Condition')
+    // The result infers on the declared root even for parsed JSON, as status.evaluate() does.
+    const parsed = JSON.parse(JSON.stringify(condition)) as ReturnType<typeof JSON.parse>
+    const fromParsed = r4.evaluate(status, parsed)
+    expectTypeOf(fromParsed).toEqualTypeOf<string[]>()
+    expect(fromParsed).toEqual(['active'])
+    const first = r4.first(fhirpath('clinicalStatus.coding.first().code', 'Condition'), [condition])
+    expectTypeOf(first).toEqualTypeOf<string | undefined>()
+    expect(first).toBe('active')
+    const bound = r4.compile('clinicalStatus.coding.first().code', 'Condition')
+    expect(r4.evaluate(bound.expression, condition, { type: 'code' })).toEqual(['active'])
+    // A Bundle whose entries are the declared type is read as those entries, by both engine forms.
+    const conditions = { resourceType: 'Bundle' as const, entry: [{ resource: condition }, {}] }
+    const fromBundle = r4.evaluate(status, conditions)
+    expectTypeOf(fromBundle).toEqualTypeOf<string[]>()
+    expect(fromBundle).toEqual(['active'])
+    expect(bound.evaluate(conditions)).toEqual(['active'])
+
+    // The input must be the declared type, an array of it, or a Bundle of it, as for bound.evaluate().
+    // @ts-expect-error a Patient is not the declared Condition
+    void (() => r4.evaluate(status, patient))
+    // @ts-expect-error a Patient is not the declared Condition, with `type` too
+    void (() => r4.first(status, [patient], { type: 'code' }))
+    // @ts-expect-error the root declared through engine.compile() holds for its expression too
+    void (() => r4.evaluate(bound.expression, patient))
+    // @ts-expect-error an unknown input is not a Condition
+    void (() => r4.evaluate(status, parsed as unknown))
+    // @ts-expect-error a Bundle typed with any resource as its entries
+    void (() => r4.evaluate(status, searchset))
+    // @ts-expect-error a Bundle of another resource type
+    void (() => bound.evaluate({ resourceType: 'Bundle', entry: [{ resource: patient }] }))
+
+    // The constructor's second argument declares the root as compile() does.
+    const constructed = new CompiledExpression('clinicalStatus.coding.first().code', 'Condition')
+    expect(r4.evaluate(constructed, condition)).toEqual(['active'])
+    // @ts-expect-error a Patient is not the constructor's declared Condition
+    void (() => r4.evaluate(constructed, patient))
+
+    // A union of rooted expressions takes an input of any of their roots, as a table keyed by resourceType needs.
+    const ids = { Patient: compile('id', 'Patient'), Condition: compile('id', 'Condition') }
+    const resources: (Patient | Condition)[] = [patient, condition]
+    expect(resources.map(resource => r4.first(ids[resource.resourceType], resource))).toEqual(['example', undefined])
+    const either = resources.length > 1 ? fhirpath('id', 'Patient') : fhirpath('id', 'Condition')
+    expectTypeOf(r4.first(either, patient)).toEqualTypeOf<string | undefined>()
   })
 
   it('binds env defaults and lets per-call options override them', () => {
@@ -134,6 +187,31 @@ describe('Bundle and array inputs', () => {
     expect(r4.checkConstraints(empty, [{ key: 'k', expression: 'name.exists()' }]).valid).toBe(true)
   })
 
+  it('reads a Bundle as its entries for an expression that declares its input type', () => {
+    const patients = { resourceType: 'Bundle' as const, entry: [{ resource: patient }, { resource: otherPatient }] }
+    // `id` is also a Bundle element, so without a declared type the engine cannot tell which is meant.
+    expect(() => r4.evaluate('id', patients)).toThrow(FhirPathRuntimeError)
+    expect(compile('id', 'Patient').inputType).toBe('Patient')
+    expect(r4.evaluate(compile('id', 'Patient'), patients)).toEqual(['example', 'other'])
+    expect(r4.compile('id', 'Patient').evaluate(patients)).toEqual(['example', 'other'])
+    expect(r4.first(fhirpath('id', 'Patient'), patients)).toBe('example')
+    expect(r4.compile('active', 'Patient').test(patients)).toBe(true)
+    // An expression without a declared type keeps the rule above.
+    expect(compile('id').inputType).toBeUndefined()
+    expect(() => r4.evaluate(compile('id'), patients)).toThrow(FhirPathRuntimeError)
+    // A Bundle is a Resource too, but a declared Resource reads the entries, as every non-Bundle root does.
+    expect(r4.compile('id', 'Resource').evaluate(patients)).toEqual(['example', 'other'])
+  })
+
+  it('reads a Bundle as itself for an expression that declares Bundle as its input type', () => {
+    const count = r4.evaluate(compile('entry.count()', 'Bundle'), searchset)
+    expectTypeOf(count).toEqualTypeOf<number[]>()
+    expect(count).toEqual([3])
+    expect(r4.compile('entry.count()', 'Bundle').evaluate(searchset)).toEqual([3])
+    expect(r4.test(searchset, compile('entry.exists()', 'Bundle'))).toBe(true)
+    expect(r4.evaluateTyped(compile('total.empty()', 'Bundle'), searchset).map(item => item.value)).toEqual([true])
+  })
+
   it('throws on expressions that start at a bare Bundle element', () => {
     expect(() => r4.evaluate('entry.resource.count()', searchset)).toThrow(/Ambiguous expression for a Bundle/)
     expect(() => r4.evaluate('id', searchset)).toThrow(FhirPathRuntimeError) // inherited Resource element
@@ -197,8 +275,6 @@ describe('FhirPathEngine.compile', () => {
     // The declared root is the input type, as for the package-root compile().
     // @ts-expect-error an Observation is not the declared Patient
     void (() => family.evaluate(observation))
-    // @ts-expect-error a Bundle root would run on its entries, not on the bundle
-    void (() => r4.compile('entry', 'Bundle'))
   })
 })
 

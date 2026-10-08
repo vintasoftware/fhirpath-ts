@@ -23,3 +23,10 @@ export const codes: string[] = r4.evaluate(status, condition, { type: 'code' })
 export const code: string | undefined = r4.first(compile('clinicalStatus.coding.code'), condition, { type: 'code' })
 // @ts-expect-error a Patient expression does not accept a Condition
 r4.evaluate('Patient.name.given', condition, { type: 'string' })
+// @ts-expect-error a Condition-rooted expression does not accept a Patient
+r4.evaluate(status, { resourceType: 'Patient' as const })
+// A union of rooted expressions compares through its declared roots on every supported compiler.
+const ids = { Patient: compile('id', 'Patient'), Condition: compile('id', 'Condition') }
+export function idOf(resource: typeof condition | { resourceType: 'Patient' }): string | undefined {
+  return r4.first(ids[resource.resourceType], resource)
+}
