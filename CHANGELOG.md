@@ -38,6 +38,13 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 - `fhirpath-check` no longer reports a compiled expression passed to an engine
   method as skipped. Its `compile()` call is the site that is checked or
   reported ([#79](https://github.com/vintasoftware/fhirpath-ts/issues/79)).
+- `engine.evaluate()` and `engine.first()` with a `{ type }` option infer the
+  expression from the expression argument only. A compiled expression passed
+  with an input that has a literal `resourceType`, such as
+  `r4.evaluate(compile('clinicalStatus.coding.first().code', 'Condition'), condition, { type: 'code' })`,
+  no longer fails to compile, and a resource-rooted expression such as
+  `'Patient.name'` rejects an input of another resource type, as it does
+  without `{ type }`.
 
 ## 0.4.0 - 2026-10-07
 
