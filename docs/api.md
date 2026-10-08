@@ -212,10 +212,12 @@ type names no resource, such as parsed JSON. The input must be that type or an
 array of it. Static checkers and strict evaluation analyze the expression
 against the declared type.
 
-`compile(expression, type)`, `fhirpath(expression, type)`, and
-`new CompiledExpression(expression, type)` declare the type the same way. Every
-engine method takes such an expression with the same input, and `filter()` also
-takes a Bundle whose entries are that type. `r4.evaluate()` and `r4.first()`
+Engine methods type any compiled expression that declares its type, whether
+it comes from `compile(expression, type)`, `fhirpath(expression, type)`,
+`new CompiledExpression(expression, type)`, or the `expression` of
+`r4.compile(expression, type)`. `evaluate()`, `first()`, `test()`, and
+`evaluateTyped()` take that type or an array of it, and `filter()` an array of
+it or a Bundle whose entries are that type. `r4.evaluate()` and `r4.first()`
 infer the result against the declared type:
 
 ```ts

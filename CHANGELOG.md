@@ -15,9 +15,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   must be that type or an array of it, the result is inferred against it, and
   the static checkers analyze the expression against it
   ([#79](https://github.com/vintasoftware/fhirpath-ts/issues/79)).
-- `new CompiledExpression(expression, type)` takes the same declaration, and
-  `CompiledExpression.inputType` holds the declared type. The static checkers
-  analyze `new CompiledExpression('...')` calls.
+- `new CompiledExpression(expression, type)` declares the type for engine
+  methods, strict evaluation, and the static checkers. Its own `evaluate()`
+  does not check the input, so prefer `compile(expression, type)`.
+  `CompiledExpression.inputType` holds the declared type, and the static
+  checkers analyze `new CompiledExpression('...')` calls.
 
 ### Changed
 
@@ -38,23 +40,23 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   and DTO `from()` still read a Bundle as its entries. The stateless
   `evaluate()` and `compile().evaluate()` already read a Bundle as one
   resource, so both forms now agree.
-- **Breaking:** every engine method types its input. Before, `evaluate()` and
-  `first()` ignored a compiled expression's declared type, and `test()`,
-  `evaluateTyped()`, and `filter()` took any input. Now `test()`,
-  `evaluateTyped()`, and `filter()` check the input as `evaluate()` does, and
-  so do `test()` and `evaluateTyped()` of `engine.compile(expression)` and
-  `evaluateTyped()` of `compile(expression)`. A compiled expression that
-  declares its type, through `compile(expression, type)`,
+- **Breaking:** `test()`, `evaluateTyped()`, and `filter()` type their input
+  as `evaluate()` does, and so do `test()` and `evaluateTyped()` of
+  `engine.compile(expression)` and `evaluateTyped()` of `compile(expression)`.
+  Before, they took any input. `filter()` checks each array item and returns
+  the item type. `r4.filter(resources, 'Patient.active')` with
+  `resources: (Patient | Condition)[]` now fails to compile.
+- **Breaking:** engine methods type a compiled expression's declared type,
+  which they ignored before. An expression from `compile(expression, type)`,
   `fhirpath(expression, type)`, `new CompiledExpression(expression, type)`, or
-  `engine.compile(expression, type)`, takes that type or an array of it in
-  every engine method, and `evaluate()` and `first()` infer the result against
-  it. `filter()` checks each array item and returns the item type; it also
-  takes a Bundle, whose entries must be the declared type when there is one.
-  Calls such as `r4.evaluate(compile('clinicalStatus', 'Condition'), patient)`,
-  `r4.test(patient, compile('clinicalStatus.exists()', 'Condition'))`, and
-  `r4.filter(resources, 'Patient.active')` with
-  `resources: (Patient | Condition)[]` now fail to compile, as does an
-  `unknown` input with a declared type. Parsed JSON typed `any` still passes.
+  the `expression` of `engine.compile(expression, type)` takes that type or an
+  array of it in `evaluate()`, `first()`, `test()`, and `evaluateTyped()`, and
+  an array of it or a Bundle whose entries are that type in `filter()`.
+  `evaluate()` and `first()` infer the result against it.
+  `r4.evaluate(compile('clinicalStatus', 'Condition'), patient)` and
+  `r4.test(patient, compile('clinicalStatus.exists()', 'Condition'))` now fail
+  to compile, as does an `unknown` input. Parsed JSON typed `any` still
+  passes.
 - **Breaking:** strict evaluation analyzes a compiled expression that declares
   its type against that type, as `fhirpath-check` and the ESLint rule do. The
   input still gives the cardinality.
