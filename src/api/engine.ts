@@ -109,7 +109,21 @@ export type EngineRootResult<Expr extends string, Root extends string, Defaults,
  */
 type EngineCallInput<Expr extends string, Root extends string> = Root extends 'opaque'
   ? EngineInput<Expr>
-  : RootedInput<Root extends FhirTypeName ? InputOf<Root> : never>
+  : RootedInput<DeclaredInput<Root>>
+
+/** The input a declared root allows. */
+type DeclaredInput<Root extends string> = Root extends FhirTypeName ? InputOf<Root> : never
+
+/**
+ * One item `filter()` tests: what the expression's declared root allows, or
+ * else what its text allows as a single input.
+ */
+type FilterItem<Expr extends string, Root extends string> = Root extends 'opaque'
+  ? FhirpathInput<Expr>
+  : DeclaredInput<Root>
+
+/** A Bundle `filter()` reads as its entries: any Bundle, or one of the declared root's type. */
+type FilterBundle<Root extends string> = Root extends 'opaque' ? BundleLike : RootedBundle<DeclaredInput<Root>>
 
 /** The result of an engine call: inferred on the expression's declared root, or else on the input's. */
 type EngineCallResult<Expr extends string, Root extends string, Input, Defaults, Options> = EngineRootResult<
@@ -124,10 +138,13 @@ type EngineCallResult<Expr extends string, Root extends string, Input, Defaults,
  * an array of them, or a Bundle whose entry resources are of that type. The
  * engine reads a Bundle as its entries, or as itself when the root is Bundle.
  */
-export type RootedInput<Input> =
-  | Input
-  | readonly Input[]
-  | { readonly resourceType: 'Bundle'; readonly entry?: readonly { readonly resource?: Input }[] }
+export type RootedInput<Input> = Input | readonly Input[] | RootedBundle<Input>
+
+/** A Bundle whose entry resources are `Input`. */
+type RootedBundle<Input> = {
+  readonly resourceType: 'Bundle'
+  readonly entry?: readonly { readonly resource?: Input }[]
+}
 
 /**
  * What `engine.compile(expression, type)` returns: the same `BoundExpression`,
@@ -399,6 +416,12 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   }
 
   /** Like `evaluate()`, keeping the internal typed representation (types, Decimal, Temporal). */
+  evaluateTyped<const Expr extends string, Root extends string = 'opaque'>(
+    expression: EngineExpression<Expr, Root>,
+    // Only the expression infers `Expr`; `FhirpathInput` would read the input's `resourceType` back into it.
+    input?: NoInfer<EngineCallInput<Expr, Root>>,
+    options?: EvaluateOptions
+  ): TypedValue[]
   evaluateTyped(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): TypedValue[] {
     const compiled = this.compileCached(expression)
     const merged = this.merged(options)
@@ -451,8 +474,15 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    * criteria, and `enableWhen` share. A single boolean returns itself, a single
    * non-boolean item returns true, and more than one item is an error, which is
    * spec §4.5 singleton evaluation. Empty returns false, which is the criteria
-   * convention layered on top of it; see `criteriaBoolean`.
+   * convention layered on top of it; see `criteriaBoolean`. The input is
+   * typed as for `evaluate()`.
    */
+  test<const Expr extends string, Root extends string = 'opaque'>(
+    // Only the expression infers `Expr`; `FhirpathInput` would read the input's `resourceType` back into it.
+    input: NoInfer<EngineCallInput<Expr, Root>> | undefined,
+    expression: EngineExpression<Expr, Root>,
+    options?: EvaluateOptions
+  ): boolean
   test(input: unknown, expression: AnyExpression, options?: EvaluateOptions): boolean {
     return criteriaBoolean(this.evaluateTyped(expression, input, options))
   }
@@ -460,11 +490,25 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   /**
    * The items (or Bundle entry resources) whose criteria hold, by `test()`
    * semantics. Criteria run against each item directly — not via `test()` — so
-   * an item that is itself a Bundle is not unwrapped again.
+   * an item that is itself a Bundle is not unwrapped again. Each item is typed
+   * as a single `evaluate()` input; a Bundle's entries are typed only against a
+   * declared root, as for `evaluate()`.
    */
-  filter<T>(input: readonly T[], expression: AnyExpression, options?: EvaluateOptions): T[]
-  filter(input: BundleLike, expression: AnyExpression, options?: EvaluateOptions): unknown[]
-  filter(input: readonly unknown[] | BundleLike, expression: AnyExpression, options?: EvaluateOptions): unknown[] {
+  filter<
+    const Expr extends string,
+    Root extends string = 'opaque',
+    // An item type parameter constrained by FilterItem costs about 9k API surface instantiations.
+    Input extends readonly FilterItem<Expr, Root>[] | FilterBundle<Root> = never,
+  >(
+    input: Input,
+    expression: EngineExpression<Expr, Root>,
+    options?: EvaluateOptions
+  ): Input extends readonly (infer Item)[] ? Item[] : unknown[]
+  filter(
+    input: readonly unknown[] | RootedBundle<unknown>,
+    expression: AnyExpression,
+    options?: EvaluateOptions
+  ): unknown[] {
     const compiled = this.compileCached(expression)
     const merged = this.merged(options)
     return toSubjects(input)
@@ -624,7 +668,7 @@ export class BoundExpression<Expr extends string = string, Defaults extends obje
     return this.engine.evaluate(this.expression, input, options)
   }
 
-  evaluateTyped(input?: unknown, options?: EvaluateOptions): TypedValue[] {
+  evaluateTyped(input?: EngineInput<Expr>, options?: EvaluateOptions): TypedValue[] {
     return this.engine.evaluateTyped(this.expression, input, options)
   }
 
@@ -640,7 +684,7 @@ export class BoundExpression<Expr extends string = string, Defaults extends obje
     return this.engine.first(this.expression, input, options)
   }
 
-  test(input: unknown, options?: EvaluateOptions): boolean {
+  test(input: EngineInput<Expr> | undefined, options?: EvaluateOptions): boolean {
     return this.engine.test(input, this.expression, options)
   }
 

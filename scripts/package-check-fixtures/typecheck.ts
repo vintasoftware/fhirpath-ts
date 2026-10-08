@@ -30,3 +30,10 @@ const ids = { Patient: compile('id', 'Patient'), Condition: compile('id', 'Condi
 export function idOf(resource: typeof condition | { resourceType: 'Patient' }): string | undefined {
   return r4.first(ids[resource.resourceType], resource)
 }
+// test() and filter() hold the input to the declared root, and filter() keeps the item type.
+export const kept: (typeof condition)[] = r4.filter(
+  [condition],
+  compile("clinicalStatus.coding.code = 'active'", 'Condition')
+)
+// @ts-expect-error a Condition-rooted expression does not accept a Patient
+r4.test({ resourceType: 'Patient' as const }, status)

@@ -94,6 +94,10 @@ constrained by `EngineInput<Expr>`, or wrap the whole type as
 `NoInfer<EngineInput<Expr>>`, which inference skips. `EngineInput<NoInfer<Expr>>`
 is also correct but still walks `FhirpathInput`'s branches, about 4% of the API
 surface budget. `NoInfer` is why the `typescript` peer range starts at 5.4.
+Every engine method types its input this way, `test()`, `evaluateTyped()`, and
+`filter()` included. `filter()` takes its whole input as one `Input` type
+parameter, as `evaluate()` does; an item type parameter constrained by
+`FilterItem` costs about 9k API surface instantiations.
 
 A compiled expression with a declared root types an engine call as
 `engine.compile(expression, type)` does: `EngineCallInput` and
@@ -109,9 +113,11 @@ on `Root` around `RootedInput<InputOf<Root>>` costs about 9k API surface
 instantiations with any union. Construct a
 `CompiledExpression` from a wide `FhirTypeName` with explicit type arguments:
 inferring `Root` from the constructor's `Root & FhirTypeName` doubles check
-time without moving the instantiation count. A declared root has one runtime
-effect, in `normalizeInput`: a declared `Bundle` reads a Bundle input as
-itself, any other type as its entries, without the ambiguity check.
+time without moving the instantiation count. A declared root has two runtime
+effects. In `normalizeInput`, a declared `Bundle` reads a Bundle input as
+itself, any other type as its entries, without the ambiguity check. In strict
+evaluation, it roots the analysis as it roots the static checkers' analysis,
+while the data still gives the cardinality.
 
 ## Monaco worker integration
 

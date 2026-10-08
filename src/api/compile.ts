@@ -176,14 +176,16 @@ export class CompiledExpression<
   /**
    * The type the expression declares it runs against, or `undefined`. Engine
    * methods read it to tell how a Bundle input is meant: a declared `Bundle` is
-   * the Bundle itself, any other type its entries. It is not checked against
-   * the data.
+   * the Bundle itself, any other type its entries. Strict evaluation analyzes
+   * the expression against it, as the static checkers do. It is not checked
+   * against the data.
    */
   readonly inputType: FhirTypeName | undefined
   declare readonly [declaredRoot]?: Root
 
   /**
-   * `inputType` declares the root for engine methods and the static checkers.
+   * `inputType` declares the root for engine methods, strict evaluation, and
+   * the static checkers.
    * Prefer `compile(expression, type)`, which also types the input of this
    * expression's own `evaluate()`.
    */
@@ -202,9 +204,9 @@ export class CompiledExpression<
   }
 
   /** Evaluate keeping the internal typed representation (types, Decimal, Temporal). */
-  evaluateTyped(input?: unknown, options?: EvaluateOptions): TypedValue[] {
+  evaluateTyped(input?: TInput, options?: EvaluateOptions): TypedValue[] {
     const root = toCollection(input)
-    assertStrictExpression(this.ast, root, options)
+    assertStrictExpression(this.ast, root, options, this.inputType)
     return evaluateNode(this.ast, contextFactory(options)(root), root)
   }
 
