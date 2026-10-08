@@ -67,14 +67,9 @@ describe('FhirPathEngine.evaluate', () => {
     expect(first).toBe('active')
     const bound = r4.compile('clinicalStatus.coding.first().code', 'Condition')
     expect(r4.evaluate(bound.expression, condition, { type: 'code' })).toEqual(['active'])
-    // A Bundle whose entries are the declared type is read as those entries, by both engine forms.
-    const conditions = { resourceType: 'Bundle' as const, entry: [{ resource: condition }, {}] }
-    const fromBundle = r4.evaluate(status, conditions)
-    expectTypeOf(fromBundle).toEqualTypeOf<string[]>()
-    expect(fromBundle).toEqual(['active'])
-    expect(bound.evaluate(conditions)).toEqual(['active'])
+    expect(bound.evaluate([condition])).toEqual(['active'])
 
-    // The input must be the declared type, an array of it, or a Bundle of it, as for bound.evaluate().
+    // The input must be the declared type or an array of it, as for bound.evaluate().
     // @ts-expect-error a Patient is not the declared Condition
     void (() => r4.evaluate(status, patient))
     // @ts-expect-error a Patient is not the declared Condition, with `type` too
@@ -83,10 +78,10 @@ describe('FhirPathEngine.evaluate', () => {
     void (() => r4.evaluate(bound.expression, patient))
     // @ts-expect-error an unknown input is not a Condition
     void (() => r4.evaluate(status, parsed as unknown))
-    // @ts-expect-error a Bundle typed with any resource as its entries
+    // @ts-expect-error a Bundle is one resource, not the declared Condition
     void (() => r4.evaluate(status, searchset))
-    // @ts-expect-error a Bundle of another resource type
-    void (() => bound.evaluate({ resourceType: 'Bundle', entry: [{ resource: patient }] }))
+    // @ts-expect-error a Bundle is one resource, whatever its entries
+    void (() => bound.evaluate({ resourceType: 'Bundle', entry: [{ resource: condition }] }))
 
     // The constructor's second argument declares the root as compile() does.
     const constructed = new CompiledExpression('clinicalStatus.coding.first().code', 'Condition')
@@ -111,7 +106,7 @@ describe('FhirPathEngine.evaluate', () => {
     const conditions = { resourceType: 'Bundle' as const, entry: [{ resource: condition }] }
     const active = compile("clinicalStatus.coding.code = 'active'", 'Condition')
     expect(r4.test(condition, active)).toBe(true)
-    expect(r4.evaluateTyped(active, conditions).map(item => item.value)).toEqual([true])
+    expect(r4.evaluateTyped(active, [condition]).map(item => item.value)).toEqual([true])
     expect(active.evaluateTyped(condition).map(item => item.value)).toEqual([true])
     const kept = r4.filter([condition], active)
     expectTypeOf(kept).toEqualTypeOf<Condition[]>()
@@ -198,77 +193,43 @@ describe('Bundle and array inputs', () => {
     expect(r4.evaluate('Patient.id', [patient, observation, otherPatient])).toEqual(['example', 'other'])
   })
 
-  it('treats a Bundle as its entry resources, skipping entries without one', () => {
-    expect(r4.evaluate('Patient.id', searchset)).toEqual(['example', 'other'])
-    expect(r4.first('Patient.name.family', searchset)).toBe('Chalmers')
+  it('treats a Bundle as one resource, as FHIRPath does', () => {
+    const count = r4.evaluate('entry.count()', searchset)
+    expectTypeOf(count).toEqualTypeOf<number[]>()
+    expect(count).toEqual([3])
+    expect(r4.test(searchset, "type = 'searchset'")).toBe(true)
+    expect(r4.first('total', searchset)).toBeUndefined()
+    expect(r4.evaluate('Bundle.entry.count()', [searchset])).toEqual([3])
+    // The stateless form reads it the same way.
+    expect(compile('entry.count()').evaluate(searchset, { model: r4Model })).toEqual([3])
+    // The entries are a path away, with their types.
+    const given = r4.evaluate('Bundle.entry.resource.ofType(Patient).name.given', searchset)
+    expectTypeOf(given).toEqualTypeOf<string[]>()
+    expect(given).toEqual(['Peter', 'James', 'Jim'])
+    // @ts-expect-error a Patient expression does not take a Bundle, and finds nothing in one
+    expect(r4.evaluate('Patient.id', searchset)).toEqual([])
   })
 
-  it('expressions rooted at Bundle see the bundle itself', () => {
-    expect(r4.evaluate('Bundle.entry.count()', searchset)).toEqual([3])
-    expect(r4.evaluate('Bundle.entry.resource.ofType(Patient).id', searchset)).toEqual(['example', 'other'])
-    expect(r4.test(searchset, "Bundle.type = 'searchset'")).toBe(true)
+  it('takes a Bundle for a declared Bundle root and the entries for any other', () => {
+    expect(r4.evaluate(compile('entry.count()', 'Bundle'), searchset)).toEqual([3])
+    expect(r4.test(searchset, compile('entry.exists()', 'Bundle'))).toBe(true)
+    const ids = r4.compile('id', 'Patient')
+    expect(ids.evaluate([patient, otherPatient])).toEqual(['example', 'other'])
+    // @ts-expect-error a Bundle is not the declared Patient
+    void (() => ids.evaluate(searchset))
   })
 
-  it('an array wraps a Bundle back into a single resource', () => {
-    expect(r4.evaluate('Bundle.type', [searchset])).toEqual(['searchset'])
-    expect(r4.test([searchset], 'entry.count() = 3')).toBe(true)
-  })
-
-  it('detects Bundle roots across expression shapes', () => {
-    expect(r4.evaluate('Bundle.entry[0].resource.count()', searchset)).toEqual([1]) // indexer
-    expect(r4.evaluate('-Bundle.entry.count()', searchset)).toEqual([-3]) // unary
-    expect(r4.evaluate('Bundle is Bundle', searchset)).toEqual([true]) // typeOp
-    expect(r4.evaluate("iif(Bundle.type = 'searchset', 1, 0)", searchset)).toEqual([1]) // call args
-    expect(r4.evaluate('today().exists()', searchset)).toEqual([true]) // call without Bundle → unwraps harmlessly
-    expect(r4.evaluate('1 + 1', searchset)).toEqual([2]) // literals never reference Bundle
-    expect(r4.evaluate('name.given[0]', searchset)).toEqual(['Peter']) // indexer over entries
+  it('reads a Bundle as its entries in the per-resource methods, skipping entries without one', () => {
+    expect(r4.filter(searchset, 'active')).toEqual([patient])
+    expect(r4.project(searchset, { id: 'id' })).toEqual([{ id: 'example' }, { id: 'other' }])
+    expect(r4.checkConstraints(searchset, [{ key: 'k', expression: 'id.exists()' }]).valid).toBe(true)
   })
 
   it('handles a Bundle without entries', () => {
     const empty = { resourceType: 'Bundle', type: 'searchset' } as const
-    expect(r4.evaluate('Patient.id', empty)).toEqual([])
+    expect(r4.evaluate('entry.resource', empty)).toEqual([])
+    expect(r4.filter(empty, 'active')).toEqual([])
     expect(r4.checkConstraints(empty, [{ key: 'k', expression: 'name.exists()' }]).valid).toBe(true)
-  })
-
-  it('reads a Bundle as its entries for an expression that declares its input type', () => {
-    const patients = { resourceType: 'Bundle' as const, entry: [{ resource: patient }, { resource: otherPatient }] }
-    // `id` is also a Bundle element, so without a declared type the engine cannot tell which is meant.
-    expect(() => r4.evaluate('id', patients)).toThrow(FhirPathRuntimeError)
-    expect(compile('id', 'Patient').inputType).toBe('Patient')
-    expect(r4.evaluate(compile('id', 'Patient'), patients)).toEqual(['example', 'other'])
-    expect(r4.compile('id', 'Patient').evaluate(patients)).toEqual(['example', 'other'])
-    expect(r4.first(fhirpath('id', 'Patient'), patients)).toBe('example')
-    expect(r4.compile('active', 'Patient').test(patients)).toBe(true)
-    // An expression without a declared type keeps the rule above.
-    expect(compile('id').inputType).toBeUndefined()
-    expect(() => r4.evaluate(compile('id'), patients)).toThrow(FhirPathRuntimeError)
-    // A Bundle is a Resource too, but a declared Resource reads the entries, as every non-Bundle root does.
-    expect(r4.compile('id', 'Resource').evaluate(patients)).toEqual(['example', 'other'])
-  })
-
-  it('reads a Bundle as itself for an expression that declares Bundle as its input type', () => {
-    const count = r4.evaluate(compile('entry.count()', 'Bundle'), searchset)
-    expectTypeOf(count).toEqualTypeOf<number[]>()
-    expect(count).toEqual([3])
-    expect(r4.compile('entry.count()', 'Bundle').evaluate(searchset)).toEqual([3])
-    expect(r4.test(searchset, compile('entry.exists()', 'Bundle'))).toBe(true)
-    expect(r4.evaluateTyped(compile('total.empty()', 'Bundle'), searchset).map(item => item.value)).toEqual([true])
-  })
-
-  it('throws on expressions that start at a bare Bundle element', () => {
-    expect(() => r4.evaluate('entry.resource.count()', searchset)).toThrow(/Ambiguous expression for a Bundle/)
-    expect(() => r4.evaluate('id', searchset)).toThrow(FhirPathRuntimeError) // inherited Resource element
-    expect(() => r4.test(searchset, "type = 'searchset'")).toThrow(/Ambiguous/)
-    expect(() => r4.first('total', searchset)).toThrow(/Ambiguous/)
-    // Both documented escape hatches resolve the ambiguity:
-    expect(r4.evaluate('Bundle.entry.resource.count()', searchset)).toEqual([2])
-    expect(r4.test([searchset], "type = 'searchset'")).toBe(true)
-  })
-
-  it('detects Bundle elements via the static list when no model is bound', () => {
-    const bare = new FhirPathEngine()
-    expect(() => bare.evaluate('entry.count()', searchset)).toThrow(/Ambiguous/)
-    expect(bare.evaluate('Bundle.entry.count()', searchset)).toEqual([3])
   })
 })
 

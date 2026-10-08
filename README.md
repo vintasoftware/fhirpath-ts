@@ -275,9 +275,10 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
 - Function names and arguments are strict: an unknown function, wrong arity or
   type, or undefined `%variable` is an error. See the
   [runtime error table](docs/api.md#what-throws-errors-and-what-doesnt).
-- A bare search Bundle is treated as its entry resources for application helpers.
-  Start an expression at `Bundle` to address the Bundle itself, or wrap it in an
-  array to force one-resource treatment.
+- A Bundle is one resource for `evaluate()`, `first()`, and `test()`, as in
+  FHIRPath: read its entries with `Bundle.entry.resource`. `filter()`,
+  `project()`, `checkConstraints()`, and DTO `from()` read a Bundle as its entry
+  resources.
 - Inside `where()`, the focus is the item being scanned. Use `%context` or a
   `%var` when a join condition needs the outer resource.
 - `env` contains plain host values. `vars` contains FHIRPath expressions evaluated

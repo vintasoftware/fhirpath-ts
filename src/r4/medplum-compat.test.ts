@@ -111,7 +111,7 @@ describe('Medplum (@medplum/fhirtypes) structural compatibility', () => {
     expect(gender).toEqual(['male'])
   })
 
-  it('accepts a Medplum Bundle of the declared type for a rooted expression, and no other', () => {
+  it('reads a Medplum Bundle as one resource, and its entries in filter() when they are the declared type', () => {
     const condition: MedplumCondition = {
       resourceType: 'Condition',
       subject: { reference: 'Patient/1' },
@@ -124,10 +124,21 @@ describe('Medplum (@medplum/fhirtypes) structural compatibility', () => {
     }
     const patients: MedplumBundle<MedplumPatient> = { resourceType: 'Bundle', type: 'searchset' }
     const status = compile('clinicalStatus.coding.first().code', 'Condition')
-    expect(r4.evaluate(status, conditions)).toEqual(['active'])
-    expect(r4.compile('clinicalStatus.coding.first().code', 'Condition').first(conditions)).toBe('active')
+    const active = compile("clinicalStatus.coding.code = 'active'", 'Condition')
+    expect(r4.evaluate('entry.resource.ofType(Condition).clinicalStatus.coding.first().code', conditions)).toEqual([
+      'active',
+    ])
+    expect(r4.filter(conditions, active)).toEqual([condition])
+    expect(
+      r4.evaluate(
+        status,
+        (conditions.entry ?? []).flatMap(entry => entry.resource ?? [])
+      )
+    ).toEqual(['active'])
+    // @ts-expect-error a Bundle is one resource, not the declared Condition
+    void (() => r4.evaluate(status, conditions))
     // @ts-expect-error a Bundle of Patients is not a Bundle of Conditions
-    void (() => r4.evaluate(status, patients))
+    void (() => r4.filter(patients, active))
   })
 
   it('the TInput/TResult override types input and result as Medplum’s own', () => {

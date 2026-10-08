@@ -113,11 +113,18 @@ on `Root` around `RootedInput<InputOf<Root>>` costs about 9k API surface
 instantiations with any union. Construct a
 `CompiledExpression` from a wide `FhirTypeName` with explicit type arguments:
 inferring `Root` from the constructor's `Root & FhirTypeName` doubles check
-time without moving the instantiation count. A declared root has two runtime
-effects. In `normalizeInput`, a declared `Bundle` reads a Bundle input as
-itself, any other type as its entries, without the ambiguity check. In strict
-evaluation, it roots the analysis as it roots the static checkers' analysis,
+time without moving the instantiation count. A declared root has one runtime
+effect: strict evaluation roots its analysis there, as the static checkers do,
 while the data still gives the cardinality.
+
+`evaluate()`, `first()`, `test()`, and `evaluateTyped()` read a Bundle as one
+resource, as FHIRPath does; `EngineInputRoot` and
+`inputRoot` give it the `Bundle` root. The per-resource methods (`filter`,
+`project`, `checkConstraints`, DTO `from()`) read it as its entries through
+`toSubjects`, so their roots (`ProjectionInputRoot`, `inputRoot` for an
+`inputEach` call) stay opaque for a Bundle. Do not bring back an
+expression-dependent reading: it needed an ambiguity error for names a Bundle
+shares with its entries, and each method drifted to its own rule.
 
 ## Monaco worker integration
 

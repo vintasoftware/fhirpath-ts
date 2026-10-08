@@ -5,14 +5,7 @@ import ts from 'typescript'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
-import {
-  compile,
-  type DtoInput,
-  type DtoOptions,
-  FhirPathEngine,
-  type FhirTypeName,
-  type ViewBaseClass,
-} from '../index.ts'
+import { type DtoInput, type DtoOptions, FhirPathEngine, type FhirTypeName, type ViewBaseClass } from '../index.ts'
 import type {
   Appointment,
   Bundle,
@@ -447,12 +440,10 @@ describe('README usage recipes', () => {
       type: 'searchset',
       entry: [{ resource: patient }],
     }
-    expect(r4.first('Bundle.entry.count()', bundle)).toBe(1)
-    expect(r4.first('Bundle.type', bundle)).toBe('searchset')
-    // A declared type tells the engine whether the Bundle or its entries are meant.
-    expect(r4.evaluate(compile('type', 'Bundle'), bundle)).toEqual(['searchset'])
-    const patients = { resourceType: 'Bundle' as const, entry: [{ resource: patient }] }
-    expect(r4.evaluate(compile('id', 'Patient'), patients)).toEqual(r4.evaluate('Patient.id', patient))
+    expect(r4.evaluate('Bundle.entry.resource.ofType(Patient).name.family', bundle)).toEqual(['Okoro'])
+    expect(r4.first('entry.count()', bundle)).toBe(1)
+    expect(r4.filter(bundle, 'birthDate < @1990-01-01')).toEqual([patient])
+    expect(r4.project(bundle, { id: 'id' })).toEqual([{ id: 'p1' }])
   })
 
   it('runs the README and API reference registration examples', () => {

@@ -141,7 +141,8 @@ r4.filter(observations, "value.ofType(Quantity) > 140 'mm[Hg]'") // checked agai
 
 `filter`, `project`, and `checkConstraints` run on each item of an array, so an
 array of one resource type also gives the type. A union of resource types, an
-array passed to `evaluate` or `first`, a Bundle, a value without a required
+array passed to `evaluate` or `first`, a Bundle passed to one of these per-item
+methods, a value without a required
 `resourceType`, and a `resourceType` the model does not know give no type.
 Start the path with the type name (`Condition.clinicalStatus`), or compile the
 expression with `compile(expression, 'Condition')`. `analyzeExpression()` calls
