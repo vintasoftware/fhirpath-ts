@@ -209,7 +209,7 @@ const visible = r4.compile("(status in ('entered-in-error' | 'draft')).not()", '
 The result is inferred against the declared type, even when the input's static
 type names no resource, such as parsed JSON. The input must be that type or an
 array of it. Static checkers and strict evaluation analyze the expression
-against the declared type. It is not checked against the data.
+against the declared type.
 
 Engine methods type a compiled expression the same way. Given
 `compile(expression, type)`, `fhirpath(expression, type)`,
@@ -222,6 +222,44 @@ Engine methods type a compiled expression the same way. Given
 const status = compile('clinicalStatus.coding.first().code', 'Condition')
 r4.evaluate(status, condition) // string[]
 r4.evaluate(status, patient) // compile error: a Patient is not a Condition
+```
+
+#### Type name or declared root
+
+A type name at the start of the path is part of the expression, and evaluation
+tests it against the data: it matches a resource of that type or a subtype, and
+any other value gives an empty result. A declared root types the input for
+TypeScript, the static checkers, and strict evaluation; evaluation doesn't test
+it. The two differ when the data is not what its static type says, such as
+parsed JSON:
+
+```ts
+const named = r4.compile('Patient.name.family')
+const declared = r4.compile('name.family', 'Patient')
+const practitioner = JSON.parse(text) // a Practitioner
+
+named.evaluate(practitioner) // []
+declared.evaluate(practitioner) // the Practitioner's family names
+named.evaluate(practitioner, { strict: true }) // throws: Element 'Patient' is not defined on FHIR.Practitioner
+```
+
+Declare the root when the path can't start with a type name: a datatype root,
+since a type name at the root matches only a resource; data without a
+`resourceType`; or an expression written relative to its resource or datatype,
+such as a FHIR constraint.
+
+```ts
+r4.compile('given', 'HumanName').evaluate(name) // ['Peter', 'James']
+```
+
+Evaluation doesn't use the declared type to read the data, so a choice element
+such as an extension's `value` is empty on an Extension passed on its own. Read
+it from its resource instead:
+
+```ts
+// nickname is { url: 'http://example.org/nickname', valueString: 'Pete' }, also in patient.extension
+r4.compile('value', 'Extension').evaluate(nickname) // []
+r4.compile("extension('http://example.org/nickname').value", 'Patient').evaluate(patient) // ['Pete']
 ```
 
 ### `evaluateTyped()`
