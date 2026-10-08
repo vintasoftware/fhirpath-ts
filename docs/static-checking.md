@@ -145,8 +145,9 @@ array passed to `evaluate` or `first`, a Bundle passed to one of these per-item
 methods, a value without a required
 `resourceType`, and a `resourceType` the model does not know give no type.
 Start the path with the type name (`Condition.clinicalStatus`), or compile the
-expression with `compile(expression, 'Condition')`. `analyzeExpression()` calls
-use their literal `inputType` option.
+expression with `compile(expression, 'Condition')`; the two differ at runtime
+(see [Type name or declared root](api.md#type-name-or-declared-root)).
+`analyzeExpression()` calls use their literal `inputType` option.
 
 As at runtime, only an identifier that starts with an uppercase letter names a
 type. `code.coding` starts at the `code` element, not at the `code` primitive

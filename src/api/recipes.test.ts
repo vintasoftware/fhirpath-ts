@@ -11,6 +11,7 @@ import type {
   Bundle,
   Condition,
   DiagnosticReport,
+  HumanName,
   MedicationRequest,
   Observation,
   Patient,
@@ -444,6 +445,21 @@ describe('README usage recipes', () => {
     expect(r4.first('entry.count()', bundle)).toBe(1)
     expect(r4.filter(bundle, 'birthDate < @1990-01-01')).toEqual([patient])
     expect(r4.project(bundle, { id: 'id' })).toEqual([{ id: 'p1' }])
+  })
+
+  it('runs the type name and declared root examples', () => {
+    const named = r4.compile('Patient.name.family')
+    const declared = r4.compile('name.family', 'Patient')
+    const practitioner = JSON.parse('{"resourceType":"Practitioner","name":[{"family":"Lee"}]}')
+    expect(named.evaluate(practitioner)).toEqual([])
+    expect(declared.evaluate(practitioner)).toEqual(['Lee'])
+    expect(() => named.evaluate(practitioner, { strict: true })).toThrow(
+      "Element 'Patient' is not defined on FHIR.Practitioner"
+    )
+
+    const name: HumanName = { given: ['Peter', 'James'] }
+    expect(r4.compile('given', 'HumanName').evaluate(name)).toEqual(['Peter', 'James'])
+    expect(r4.evaluate('HumanName.given', name)).toEqual([])
   })
 
   it('runs the README and API reference registration examples', () => {
