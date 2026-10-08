@@ -102,6 +102,8 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
     { argIndex: 0, shape: 'expression', receiver: 'engine', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
   ],
   ['analyzeExpression', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1, rootProperty: 'inputType' }],
+  // `new CompiledExpression(expr)` builds what compile() returns.
+  ['CompiledExpression', { argIndex: 0, shape: 'expression', receiver: 'import' }],
   // Subject-first FhirPathEngine helpers: the expression(s) come second.
   [
     'test',

@@ -201,8 +201,11 @@ An optional second argument declares the input type for a relative expression:
 const visible = r4.compile("(status in ('entered-in-error' | 'draft')).not()", 'MedicationRequest')
 ```
 
-The declaration improves TypeScript inference and gives source-based analyzers
-the expression context. It is not checked at runtime.
+The result is inferred against the declared type, even when the input's static
+type names no resource, such as parsed JSON. The input must be that type or an
+array of it. Static checkers analyze the expression against it. It is not
+checked at runtime. A Bundle cannot be declared, because the engine reads a
+Bundle input as its entries; compile without a root to evaluate a Bundle.
 
 ### `evaluateTyped()`
 

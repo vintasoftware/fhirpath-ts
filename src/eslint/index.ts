@@ -268,7 +268,7 @@ const noInvalidExpressions: Rule.RuleModule = {
       name: string
       receiverRoot: string | undefined
       /** The call itself, for the argument that may name the type it runs against. */
-      node: ESTree.CallExpression
+      node: ESTree.CallExpression | ESTree.NewExpression
       /** The class the call sits in, resolved to a root once the whole file is known. */
       enclosing: ClassHeritage | undefined
       /** The field a `this.<name>(...)` call initializes. */
@@ -388,7 +388,7 @@ const noInvalidExpressions: Rule.RuleModule = {
           })
         }
       },
-      CallExpression(node) {
+      'CallExpression, NewExpression'(node: ESTree.CallExpression | ESTree.NewExpression) {
         const callee = node.callee
         const name = nameOf(callee)
         const policy = name === undefined ? undefined : CALL_SITES.get(name)
@@ -405,7 +405,10 @@ const noInvalidExpressions: Rule.RuleModule = {
           receiverRoot: receiverRoot(callee),
           node,
           enclosing: policy.rootFromClass === true ? enclosingClass(ancestors) : undefined,
-          field: policy.receiver === 'dto-field' ? initializedFieldName(node, ancestors) : undefined,
+          field:
+            policy.receiver === 'dto-field' && node.type === 'CallExpression'
+              ? initializedFieldName(node, ancestors)
+              : undefined,
         })
       },
       'Program:exit'() {

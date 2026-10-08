@@ -276,6 +276,39 @@ describe('fhirpath-check CLI', { timeout: 15_000 }, () => {
     expect(strict.output).toContain('5 problem(s) found')
   })
 
+  it('checks a compiled expression where it is compiled, not where it is evaluated', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-compiled-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { compile, CompiledExpression } from 'fhirpath-ts'",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "const condition = { resourceType: 'Condition' as const, subject: {} }",
+        "const status = compile('clinicalStatuz.coding.first().code', 'Condition')",
+        "const bound = r4.compile('clinicalStatuz', 'Condition')",
+        "const built = new CompiledExpression('Condition.clinicalStatuz')",
+        'declare const text: string',
+        'const dynamic = compile(text)',
+        'r4.evaluate(status, condition)',
+        'r4.first(built, condition)',
+        'r4.evaluate(dynamic, condition)',
+        'bound.evaluate(condition)',
+      ].join('\n')
+    )
+
+    const result = run(['--no-import', 'source.ts'], directory)
+    expect(result.output.split('\n').map(line => line.split(' ').slice(0, 2).join(' '))).toEqual([
+      'source.ts:4:25 [unknown-element]',
+      'source.ts:5:27 [unknown-element]',
+      'source.ts:6:49 [unknown-element]',
+      'source.ts:8:25 [warning:skipped]',
+      'fhirpath-check: 3',
+      '',
+    ])
+  })
+
   it('does not trust an unrelated type merely named FhirPathEngine', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-foreign-engine-'))
     writeFileSync(

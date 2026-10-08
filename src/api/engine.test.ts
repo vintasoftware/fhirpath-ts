@@ -177,6 +177,29 @@ describe('FhirPathEngine.compile', () => {
     expect(given.evaluateTyped(patient)).toHaveLength(3)
     expect(r4.compile("name.family = 'Chalmers'").test(patient)).toBe(true)
   })
+
+  it('takes the type a relative expression runs against', () => {
+    const family = r4.compile('name.family', 'Patient')
+    expect(family).toBeInstanceOf(BoundExpression)
+    // The declared root types the result even for parsed JSON, whose type names no resource.
+    const parsed: unknown = JSON.parse(JSON.stringify(patient))
+    const values = family.evaluate(parsed as ReturnType<typeof JSON.parse>)
+    expectTypeOf(values).toEqualTypeOf<string[]>()
+    expectTypeOf(r4.compile('name.family').evaluate(parsed as ReturnType<typeof JSON.parse>)).not.toEqualTypeOf<
+      string[]
+    >()
+    expect(values).toEqual(['Chalmers'])
+    expectTypeOf(family.first(patient)).toEqualTypeOf<string | undefined>()
+    expect(family.first(patient)).toBe('Chalmers')
+    expect(family.evaluate([patient, otherPatient])).toEqual(['Chalmers'])
+    expect(family.evaluateTyped(patient)).toHaveLength(1)
+    expect(family.test(patient)).toBe(true)
+    // The declared root is the input type, as for the package-root compile().
+    // @ts-expect-error an Observation is not the declared Patient
+    void (() => family.evaluate(observation))
+    // @ts-expect-error a Bundle root would run on its entries, not on the bundle
+    void (() => r4.compile('entry', 'Bundle'))
+  })
 })
 
 describe('FhirPathEngine.test', () => {

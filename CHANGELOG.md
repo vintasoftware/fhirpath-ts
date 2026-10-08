@@ -8,6 +8,15 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+### Added
+
+- `engine.compile(expression, type)` declares the type a relative expression
+  runs against, as the package-root `compile()` does. The result is inferred
+  against that type, the input must be that type, and the static checkers
+  analyze the expression against it
+  ([#79](https://github.com/vintasoftware/fhirpath-ts/issues/79)).
+- The static checkers analyze `new CompiledExpression('...')`.
+
 ### Changed
 
 - `fhirpath-check` checks a relative expression in an engine call against the
@@ -26,6 +35,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 - The analyzer no longer reads a lowercase root identifier as a FHIR primitive
   type when the input type is unknown. `code.coding` reported `Element 'coding'
   is not defined on FHIR.code`; the runtime reads `code` as an element.
+- `fhirpath-check` no longer reports a compiled expression passed to an engine
+  method as skipped. Its `compile()` call is the site that is checked or
+  reported ([#79](https://github.com/vintasoftware/fhirpath-ts/issues/79)).
 
 ## 0.4.0 - 2026-10-07
 

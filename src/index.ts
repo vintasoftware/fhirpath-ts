@@ -43,6 +43,10 @@ export type {
   EngineProjection,
   EngineProjectionContext,
   EngineResult,
+  EngineRoot,
+  EngineRootResult,
+  RootedBoundExpression,
+  RootedInput,
   TypedEvaluateOptions,
   ViewBaseClass,
 } from './api/engine.ts'
