@@ -228,8 +228,8 @@ warnings. See [Static checking](docs/static-checking.md).
 
 ### Follow references in a Bundle
 
-`resolve()` follows contained references and references to another Bundle entry.
-Start at `Bundle` so the Bundle remains available as the lookup scope.
+`resolve()` follows contained references and references to another entry of the
+Bundle the expression runs on.
 
 ```ts
 r4.evaluate(
