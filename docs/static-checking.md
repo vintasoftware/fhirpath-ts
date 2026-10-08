@@ -157,10 +157,12 @@ Calls that look like supported expression sites but cannot be read are reported
 as `[warning:skipped]`. This includes dynamic strings, interpolated templates,
 and receivers whose engine type cannot be established. A compiled expression
 passed to an engine method is checked or reported where it is compiled, so the
-CLI does not report the engine call as skipped. A path that starts from an input
-of unknown type is reported as `[warning:unchecked-navigation]`. `--strict`
-promotes warnings to errors. A successful run with warnings says `no errors found`, not
-`no problems found`.
+CLI does not report the engine call as skipped. The CLI reads only the files it
+is given: an expression compiled in a file outside the run, such as another
+package, generated code, or a file your glob leaves out, is not checked by that
+run. A path that starts from an input of unknown type is reported as
+`[warning:unchecked-navigation]`. `--strict` promotes warnings to errors. A
+successful run with warnings says `no errors found`, not `no problems found`.
 
 Literal `vars` expressions in `EvaluateOptions` are checked in runtime order.
 Each expression sees the call environment and earlier vars; projection vars
@@ -174,8 +176,10 @@ options may add more names, unresolved variables are reported as
 The command exits with a non-zero status when it reports an error diagnostic.
 Warnings, such as possible regular expression backtracking, do not fail the run.
 
-For a pre-commit hook, check only staged source files with `--no-import`. Run the
-DTO import pass in CI, where module initialization is expected.
+For a pre-commit hook, check only staged source files with `--no-import`. Run
+every source file and the DTO import pass in CI, where module initialization is
+expected. A staged file may evaluate an expression compiled in a file that is not
+staged, and the CI run is where that file is checked.
 
 ```json
 {
