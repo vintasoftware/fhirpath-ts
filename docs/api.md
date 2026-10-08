@@ -104,10 +104,11 @@ r4.test(patient, 'active = true') // boolean
 
 ### `filter()`
 
-Keeps resources for which `test()` returns `true`. It accepts resource arrays and
-Bundles. Each array item is typed as one `evaluate()` input, and the result keeps
-the item type. A Bundle returns `unknown[]`, and its entries are typed only
-against a declared root.
+Keeps resources for which `test()` returns `true`, testing each item of an
+array or each entry of a Bundle on its own. Each array item is typed as one
+`evaluate()` input, and the result keeps the item type. A Bundle returns
+`unknown[]`; TypeScript checks its entries only against a compiled expression's
+declared type.
 
 ```ts
 r4.filter(patients, 'birthDate < @1990-01-01') // Patient[]
@@ -211,12 +212,13 @@ type names no resource, such as parsed JSON. The input must be that type or an
 array of it. Static checkers and strict evaluation analyze the expression
 against the declared type.
 
-Engine methods type a compiled expression the same way. Given
-`compile(expression, type)`, `fhirpath(expression, type)`,
-`new CompiledExpression(expression, type)`, or the `expression` of an
-`r4.compile(expression, type)`, every engine method accepts the same inputs
-(`filter()` an array of them, or a Bundle whose entries are typed as it), and
-`r4.evaluate()` and `r4.first()` infer the result against the declared type:
+Engine methods type any compiled expression that declares its type, whether
+it comes from `compile(expression, type)`, `fhirpath(expression, type)`,
+`new CompiledExpression(expression, type)`, or the `expression` of
+`r4.compile(expression, type)`. `evaluate()`, `first()`, `test()`, and
+`evaluateTyped()` take that type or an array of it, and `filter()` an array of
+it or a Bundle whose entries are that type. `r4.evaluate()` and `r4.first()`
+infer the result against the declared type:
 
 ```ts
 const status = compile('clinicalStatus.coding.first().code', 'Condition')
@@ -905,8 +907,8 @@ that are used only for projection.
 
 ## Bundles
 
-A Bundle is one resource, as in FHIRPath, so `evaluate()`, `first()`, and
-`test()` run on the Bundle itself. A path reads its entries and keeps their
+A Bundle is one resource, as in FHIRPath, so `evaluate()`, `first()`,
+`test()`, and `evaluateTyped()` run on the Bundle itself. A path reads its entries and keeps their
 types:
 
 ```ts

@@ -123,8 +123,8 @@ resource, as FHIRPath does; `EngineInputRoot` and
 `project`, `checkConstraints`, DTO `from()`) read it as its entries through
 `toSubjects`, so their roots (`ProjectionInputRoot`, `inputRoot` for an
 `inputEach` call) stay opaque for a Bundle. Do not bring back an
-expression-dependent reading: it needed an ambiguity error for names a Bundle
-shares with its entries, and each method drifted to its own rule.
+expression-dependent reading: it needed an ambiguity error for expressions
+that start at a Bundle element, and each method drifted to its own rule.
 
 ## Monaco worker integration
 
