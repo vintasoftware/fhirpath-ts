@@ -756,6 +756,20 @@ describe('analyzeSite', () => {
     ])
   })
 
+  it('reads the rest of a path from a resource root that is not the input', () => {
+    // At runtime the path is empty. The rest of it still reads the named
+    // resource, as type-level inference does, so its result and typos agree.
+    const status = analyzeExpressionDetailed('Encounter.status', { model: r4Model, inputType: 'Patient' })
+    expect(status.diagnostics.map(d => [d.code, d.name])).toEqual([['unknown-element', 'Encounter']])
+    expect(status.result.types).toEqual(['FHIR.code'])
+    expect(
+      analyzeExpression('Encounter.statuz', { model: r4Model, inputType: 'Patient' }).map(d => [d.code, d.name])
+    ).toEqual([
+      ['unknown-element', 'Encounter'],
+      ['unknown-element', 'statuz'],
+    ])
+  })
+
   it('checks a site typed by its input argument like an unrooted call', () => {
     const site = { expression: 'code.codingg.where(system = %nope)', inputFromArgument: true as const }
     // The call runs the expression, so its variables are still checked.

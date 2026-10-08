@@ -581,9 +581,9 @@ class Analyzer {
       }
       return { ...UNKNOWN, ordered: input.ordered }
     }
+    const asType = this.model?.resolveType(node.name) ?? resolveSystemTypeName(node.name)
     // Root rule: an identifier naming the (super)type of the context is the context.
     {
-      const asType = this.model?.resolveType(node.name) ?? resolveSystemTypeName(node.name)
       let matchingTypes: string[] = []
       if (asType !== undefined) {
         matchingTypes = input.types.filter(type => rootTypeMatches(this.model, type, node.name))
@@ -645,7 +645,12 @@ class Analyzer {
           node.name
         )
       }
-      return { ...UNKNOWN, ordered: input.ordered }
+      // A resource type name that is not the input's still names the type the
+      // rest of the path reads, as type-level inference reads it. The runtime
+      // result is empty either way.
+      return asType !== undefined && isTypeIdentifier(node.name) && this.isResourceType(asType)
+        ? singleState([asType])
+        : { ...UNKNOWN, ordered: input.ordered }
     }
     const single = singleAnd(input.single, !isCollection)
     const state: StaticState = {
