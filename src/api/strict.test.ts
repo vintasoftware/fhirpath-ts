@@ -84,11 +84,10 @@ describe('strict evaluation', () => {
     expect(strict.evaluate(compile('given', 'HumanName'), name)).toEqual(['Ada'])
     // The declaration roots the analysis as it does for the static checkers; it is not checked against the data.
     expect(strict.evaluate(compile('clinicalStatus.exists()', 'Condition'), patient as never)).toEqual([false])
-    // Cardinality still comes from the data: a Bundle read as its entries is a collection.
-    const patients = { resourceType: 'Bundle' as const, entry: [{ resource: patient }, { resource: patient }] }
+    // Cardinality still comes from the data: an array is a collection.
     const exclaimed = compile("id + '!'", 'Patient')
     expect(strict.evaluate(exclaimed, patient)).toEqual(['p1!'])
-    expect(() => strict.evaluate(exclaimed, patients)).toThrow(/\[singleton-required\]/)
+    expect(() => strict.evaluate(exclaimed, [patient, patient])).toThrow(/\[singleton-required\]/)
   })
 
   it('keeps specification runtime errors in lenient mode', () => {

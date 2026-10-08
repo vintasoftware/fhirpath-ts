@@ -207,26 +207,20 @@ const visible = r4.compile("(status in ('entered-in-error' | 'draft')).not()", '
 ```
 
 The result is inferred against the declared type, even when the input's static
-type names no resource, such as parsed JSON. The input must be that type, an
-array of it, or a Bundle whose entries are typed as it, such as Medplum's
-`Bundle<MedicationRequest>`. Static checkers analyze the expression against
-the declared type. It is not checked against the data; at runtime it tells the
-engine how a Bundle input is meant. A declared `Bundle` runs the expression on
-the Bundle itself. Any other type, `Resource` included, runs it on the
-entries, also when the expression starts at a name a Bundle has too, such as
-`id`.
+type names no resource, such as parsed JSON. The input must be that type or an
+array of it. Static checkers and strict evaluation analyze the expression
+against the declared type. It is not checked against the data.
 
 Engine methods type a compiled expression the same way. Given
 `compile(expression, type)`, `fhirpath(expression, type)`,
 `new CompiledExpression(expression, type)`, or the `expression` of an
 `r4.compile(expression, type)`, every engine method accepts the same inputs
-(`filter()` an array or Bundle of them), and `r4.evaluate()` and `r4.first()` infer the
-result against the declared type:
+(`filter()` an array of them, or a Bundle whose entries are typed as it), and
+`r4.evaluate()` and `r4.first()` infer the result against the declared type:
 
 ```ts
 const status = compile('clinicalStatus.coding.first().code', 'Condition')
 r4.evaluate(status, condition) // string[]
-r4.evaluate(status, conditions) // string[] for a Bundle<Condition>
 r4.evaluate(status, patient) // compile error: a Patient is not a Condition
 ```
 
@@ -873,23 +867,22 @@ that are used only for projection.
 
 ## Bundles
 
-Application helpers treat a search Bundle as its entry resources. An expression
-rooted at `Bundle` still receives the Bundle itself:
+A Bundle is one resource, as in FHIRPath, so `evaluate()`, `first()`, and
+`test()` run on the Bundle itself. A path reads its entries and keeps their
+types:
 
 ```ts
-r4.evaluate('Patient.name.given', searchset)
-r4.evaluate('Bundle.entry.count()', searchset)
+r4.evaluate('Bundle.entry.resource.ofType(Patient).name.family', searchset) // string[]
+r4.first('entry.count()', searchset) // number | undefined
 ```
 
-A relative expression that starts at a name a Bundle has too, such as `id` or
-`type`, is ambiguous on a bare Bundle and throws. Declare the type the
-expression runs against, the entries' type or `Bundle`, or wrap the Bundle in
-an array when it should be treated as one resource:
+The per-resource methods, `filter()`, `project()`, `checkConstraints()`, and a
+DTO's `from()`, read a Bundle as its entry resources and skip entries without
+one:
 
 ```ts
-r4.evaluate(compile('id', 'Patient'), patients)
-r4.evaluate(compile('type', 'Bundle'), searchset)
-r4.evaluate('Bundle.type', [searchset])
+r4.filter(searchset, 'birthDate < @1990-01-01')
+r4.project(searchset, { id: 'id' })
 ```
 
 A search Bundle may include resources of several types through `_include` and
@@ -926,7 +919,7 @@ Engine-generated failures use these exported `FhirPathError` subclasses:
 | `FhirPathTypeError` | `r4.evaluate('Observation.valueQuantity', observation, { strict: true })` | A choice JSON key is an unknown path in FHIRPath; strict evaluation requires the `Observation.value` stem. |
 | `FhirPathTypeError` | `r4.evaluate('Patient.children().skip(1)', patient, { strict: true })` | `children()` has undefined order, so strict analysis rejects the order-dependent `skip()`. |
 | `FhirPathRuntimeError` | `r4.evaluate('(1 \| 2).single()')` | The operation requires at most one item, but the data contains two. |
-| `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. Bare search Bundle paths can also throw when their root is ambiguous. |
+| `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. |
 
 This follows FHIRPath's
 [empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/N1/#singleton-evaluation-of-collections)

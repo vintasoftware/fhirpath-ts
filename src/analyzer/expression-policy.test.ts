@@ -394,7 +394,8 @@ describe('literal call context extraction', () => {
     // filter() runs on each item; first() runs on the whole array as one root collection.
     expect(inputRoot(filter, { resourceType: 'Condition', array: true })).toBe('Condition')
     expect(inputRoot(first, { resourceType: 'Condition', array: true })).toBeUndefined()
-    // A Bundle stands for its entries, whose types it does not name.
+    // first() reads a Bundle as one resource; filter() reads its entries, whose types it does not name.
+    expect(inputRoot(first, { resourceType: 'Bundle', array: false })).toBe('Bundle')
     expect(inputRoot(filter, { resourceType: 'Bundle', array: false })).toBeUndefined()
     expect(inputRoot(first, undefined)).toBeUndefined()
   })

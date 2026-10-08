@@ -16,6 +16,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   analyze the expression against it
   ([#79](https://github.com/vintasoftware/fhirpath-ts/issues/79)).
 - The static checkers analyze `new CompiledExpression('...')`.
+- `CompiledExpression.inputType` holds the type a compiled expression declares.
+  `new CompiledExpression(expression, type)` declares one for engine methods,
+  strict evaluation, and the static checkers; `compile(expression, type)` also
+  types the input of the expression's own `evaluate()`.
 
 ### Changed
 
@@ -24,29 +28,40 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   5.4 added, and TypeScript 5.0 already failed to check them with
   `skipLibCheck: false`. `pnpm check:package` now type-checks a consumer and
   runs the CLI with TypeScript 5.4 as well as the lockfile version.
+- **Breaking:** `evaluate()`, `first()`, `test()`, and `evaluateTyped()` read a
+  Bundle as one resource, as FHIRPath and other FHIRPath engines do. Before, a
+  Bundle input ran against its entry resources unless the expression started
+  at `Bundle`, and an expression that started at a name a Bundle shares with
+  its entries, such as `id`, `type`, or `identifier`, threw an ambiguity error.
+  Read the entries with a path, as in
+  `r4.evaluate('Bundle.entry.resource.ofType(Patient).name', searchset)` for
+  `r4.evaluate('Patient.name', searchset)`, or pass the entry resources as an
+  array. The input types follow: a Bundle passed with an expression that starts
+  at another resource type is a compile error. `filter()`, `project()`,
+  `checkConstraints()`, and DTO `from()` still read a Bundle as its entries.
+  The stateless `evaluate()` and `compile().evaluate()` already read a Bundle
+  as one resource, so both forms now agree.
 - **Breaking:** `engine.evaluate()` and `engine.first()` type a compiled
   expression with a declared root against that root, as
   `engine.compile(expression, type)` does. This covers `compile(expression, type)`,
   `fhirpath(expression, type)`, `new CompiledExpression(expression, type)`, and
   the `expression` of `engine.compile(expression, type)`. The input must be
-  that type, an array of it, or a Bundle whose entries are typed as it, and the
-  result is inferred against it. Before, the input was checked against the
-  expression text only,
-  which a relative expression does not root, so
+  that type or an array of it, and the result is inferred against it. Before,
+  the input was checked against the expression text only, which a relative
+  expression does not root, so
   `r4.evaluate(compile('clinicalStatus', 'Condition'), patient)` compiled. A
-  Patient, an `unknown` input, or a Bundle with any resource as its entries
-  passed with a Condition-rooted expression is now a compile error.
+  Patient or an `unknown` input passed with a Condition-rooted expression is
+  now a compile error.
 - **Breaking:** `engine.test()`, `engine.evaluateTyped()`, and `engine.filter()`
   type their input as `engine.evaluate()` does, and so do `test()` and
   `evaluateTyped()` of `engine.compile(expression)` and `evaluateTyped()` of
   `compile(expression)`. Before, they took any input, so
   `r4.test(patient, compile('clinicalStatus.exists()', 'Condition'))` and
   `r4.filter(conditions, 'Patient.active')` compiled. A compiled expression
-  with a declared root takes that type, an array of it, or a Bundle whose
-  entries are typed as it. An expression that starts at a resource type takes
-  that type. `filter()` checks each array item and returns the item type; a
-  Bundle passed with an expression without a declared root is accepted as
-  before. An `unknown` or union input passed with an expression that starts at
+  with a declared root takes that type or an array of it. An expression that
+  starts at a resource type takes that type. `filter()` checks each array item
+  and returns the item type. It takes a Bundle whose entries are typed as the
+  declared root, or any Bundle for an expression without one. An `unknown` or union input passed with an expression that starts at
   a resource type, such as `r4.filter(resources, 'Patient.active')` with
   `resources: (Patient | Condition)[]`, is now a compile error, as it already
   was for `evaluate()`.
@@ -57,17 +72,6 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   returned `[]` and now throws `FhirPathTypeError`. A `Condition` expression
   run on a Patient is no longer rejected for the Patient's elements; the
   declared type is not checked against the data.
-- `engine.compile(expression, type)` also accepts a Bundle whose entries are
-  typed as the declared type, such as Medplum's `Bundle<Condition>`, and
-  `Bundle` as the type.
-- A compiled expression that declares its input type tells the engine how a
-  Bundle input is meant: a declared `Bundle` runs on the Bundle, any other type
-  on its entries. `r4.evaluate(compile('id', 'Patient'), patients)` and
-  `r4.test(bundle, compile('entry.exists()', 'Bundle'))` threw an ambiguity
-  error and now run. `CompiledExpression.inputType` holds the declared type.
-  `new CompiledExpression(expression, type)` declares one for engine methods
-  and the static checkers; `compile(expression, type)` also types the input of
-  the expression's own `evaluate()`.
 - `fhirpath-check` checks a relative expression in an engine call against the
   input argument's `resourceType`: `fp.first('clinicalStatus', condition)`
   with `condition: Condition` is checked against `Condition`. A path the CLI

@@ -512,15 +512,19 @@ export interface InputTypeEvidence {
 
 /**
  * The root an input argument fixes, following the engine's input rules: one
- * resource is the root, and an array fixes its item type only for a call that
- * runs per item. A Bundle never fixes it, because the engine reads its entries,
- * whose types the Bundle type does not name. This matches `EngineInputRoot`.
+ * resource is the root, a Bundle included, and an array fixes its item type
+ * only for a call that runs per item. A per-item call reads a Bundle as its
+ * entries, whose types the Bundle type does not name, so that Bundle fixes
+ * none. This matches `EngineInputRoot` and `project()`'s root.
  */
 export function inputRoot(policy: CallSitePolicy, evidence: InputTypeEvidence | undefined): string | undefined {
-  if (evidence === undefined || evidence.resourceType === 'Bundle') {
+  if (evidence === undefined) {
     return undefined
   }
-  return evidence.array && policy.inputEach !== true ? undefined : evidence.resourceType
+  if (policy.inputEach !== true) {
+    return evidence.array ? undefined : evidence.resourceType
+  }
+  return !evidence.array && evidence.resourceType === 'Bundle' ? undefined : evidence.resourceType
 }
 
 /**

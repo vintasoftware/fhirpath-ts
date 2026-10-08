@@ -174,11 +174,9 @@ export class CompiledExpression<
   readonly source: Expr
   readonly ast: AstNode
   /**
-   * The type the expression declares it runs against, or `undefined`. Engine
-   * methods read it to tell how a Bundle input is meant: a declared `Bundle` is
-   * the Bundle itself, any other type its entries. Strict evaluation analyzes
-   * the expression against it, as the static checkers do. It is not checked
-   * against the data.
+   * The type the expression declares it runs against, or `undefined`. Strict
+   * evaluation analyzes the expression against it, as the static checkers do.
+   * It is not checked against the data.
    */
   readonly inputType: FhirTypeName | undefined
   declare readonly [declaredRoot]?: Root

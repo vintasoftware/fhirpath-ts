@@ -13,7 +13,7 @@ import type {
 } from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
 import type { TypedValue } from '../values/typed-value.ts'
-import { type BundleLike, isBundle, normalizeInput, toSubjects } from './bundle.ts'
+import { type BundleLike, isBundle, toSubjects } from './bundle.ts'
 import {
   type AnyExpression,
   CompiledExpression,
@@ -51,15 +51,13 @@ import {
 import { type Projection, type ProjectionColumns, projectRows } from './project.ts'
 
 /**
- * What engine methods accept as input: one resource, an array of resources, or a
- * Bundle — a Bundle behaves as its entry resources unless the expression
- * references `Bundle` in root position (then it addresses the bundle itself).
- * An expression that starts at a bare Bundle element (`entry.count()`, `type`)
- * is ambiguous and throws. A compiled expression that declares its input type
- * decides instead: `Bundle` is the Bundle, any other type its entries. Wrap a
- * Bundle in an array (`[bundle]`) to force treating it as one resource.
+ * What `evaluate()` and its siblings accept as input: one value, which an
+ * expression that starts at a resource type holds to that type, or an array,
+ * evaluated as one collection. A Bundle is one resource, as in FHIRPath; the
+ * per-resource methods (`filter`, `project`, `checkConstraints`) read its
+ * entries instead.
  */
-export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | readonly unknown[] | BundleLike
+export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | readonly unknown[]
 
 /** Per-call options that declare a result type when inference returns `unknown`. Runtime code ignores `type`. */
 export type TypedEvaluateOptions<T extends keyof R4TypeOf> = EvaluateOptions & { type: T }
@@ -75,17 +73,14 @@ export type EngineExpression<Expr extends string, Root extends string = any> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the input and result follow from Root
   | (CompiledExpression<Expr, any, any, any> & { readonly [declaredRoot]?: Root })
 
+/** The root an engine call infers from its input: the resource type of the value or of an array's items. */
+export type EngineInputRoot<Input> = FhirpathRootOf<Input>
+
 /**
- * evaluate() reaches this shape through normalizeInput(), while project()
- * reaches it through toSubjects(). A bare Bundle is expression-dependent or
- * expands to heterogeneous entries, so it stays opaque; an array keeps each
- * item raw, including a Bundle deliberately wrapped as `[bundle]`.
+ * The root `project()` infers for each row. It reads a Bundle as its entries,
+ * whose types the Bundle type does not name, so a Bundle stays opaque.
  */
-export type EngineInputRoot<Input> = Input extends readonly (infer Item)[]
-  ? FhirpathRootOf<Item>
-  : Input extends { readonly resourceType: 'Bundle' }
-    ? 'opaque'
-    : FhirpathRootOf<Input>
+type ProjectionInputRoot<Input> = Input extends { readonly resourceType: 'Bundle' } ? 'opaque' : FhirpathRootOf<Input>
 
 /** The inferred result returned by an engine or bound expression call. */
 export type EngineResult<Expr extends string, Input, Defaults, Options> = EngineRootResult<
@@ -123,7 +118,13 @@ type FilterItem<Expr extends string, Root extends string> = Root extends 'opaque
   : DeclaredInput<Root>
 
 /** A Bundle `filter()` reads as its entries: any Bundle, or one of the declared root's type. */
-type FilterBundle<Root extends string> = Root extends 'opaque' ? BundleLike : RootedBundle<DeclaredInput<Root>>
+type FilterBundle<Root extends string> = Root extends 'opaque' ? BundleLike : EntriesBundle<DeclaredInput<Root>>
+
+/** A Bundle whose entry resources are `Input`. */
+type EntriesBundle<Input> = {
+  readonly resourceType: 'Bundle'
+  readonly entry?: readonly { readonly resource?: Input }[]
+}
 
 /** The result of an engine call: inferred on the expression's declared root, or else on the input's. */
 type EngineCallResult<Expr extends string, Root extends string, Input, Defaults, Options> = EngineRootResult<
@@ -133,18 +134,8 @@ type EngineCallResult<Expr extends string, Root extends string, Input, Defaults,
   Options
 >
 
-/**
- * What an expression with a declared root accepts: a value of its input type,
- * an array of them, or a Bundle whose entry resources are of that type. The
- * engine reads a Bundle as its entries, or as itself when the root is Bundle.
- */
-export type RootedInput<Input> = Input | readonly Input[] | RootedBundle<Input>
-
-/** A Bundle whose entry resources are `Input`. */
-type RootedBundle<Input> = {
-  readonly resourceType: 'Bundle'
-  readonly entry?: readonly { readonly resource?: Input }[]
-}
+/** What an expression with a declared root accepts: a value of its input type, or an array of them. */
+export type RootedInput<Input> = Input | readonly Input[]
 
 /**
  * What `engine.compile(expression, type)` returns: the same `BoundExpression`,
@@ -188,7 +179,7 @@ export type EngineProjectionContext<Defaults, Options> = MergeFhirpathTypeContex
 /** The inferred row returned by project(), including its built-in row variables. */
 export type EngineProjection<Columns extends ProjectionColumns, Input, Defaults, Options> = Projection<
   Columns,
-  EngineInputRoot<Input>,
+  ProjectionInputRoot<Input>,
   EngineProjectionContext<Defaults, Options>
 >
 
@@ -410,9 +401,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
     options?: Declaring<Options>
   ): EngineCallResult<Expr, Root, Input, Defaults, Options>
   evaluate(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown[] {
-    const compiled = this.compileCached(expression)
-    const merged = this.merged(options)
-    return compiled.evaluate(normalizeInput(input, compiled.ast, merged.model, compiled.inputType), merged)
+    return this.compileCached(expression).evaluate(input, this.merged(options))
   }
 
   /** Like `evaluate()`, keeping the internal typed representation (types, Decimal, Temporal). */
@@ -423,18 +412,16 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
     options?: EvaluateOptions
   ): TypedValue[]
   evaluateTyped(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): TypedValue[] {
-    const compiled = this.compileCached(expression)
-    const merged = this.merged(options)
-    return compiled.evaluateTyped(normalizeInput(input, compiled.ast, merged.model, compiled.inputType), merged)
+    return this.compileCached(expression).evaluateTyped(input, this.merged(options))
   }
 
   /**
    * Parse once for reuse, with this engine's defaults bound. Does not touch the
    * parse cache. A second argument declares the type the expression runs
    * against, as for the package-root `compile()`: a relative expression infers
-   * against it, the input must be that type, an array of it, or a Bundle of it,
-   * and the static checkers analyze the expression against it. It is not
-   * checked against the data; it only tells how a Bundle input is meant.
+   * against it, the input must be that type or an array of it, and the static
+   * checkers and strict evaluation analyze the expression against it. It is not
+   * checked against the data.
    */
   compile<const Expr extends string, const Root extends FhirTypeName>(
     expression: Expr,
@@ -489,10 +476,9 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
 
   /**
    * The items (or Bundle entry resources) whose criteria hold, by `test()`
-   * semantics. Criteria run against each item directly — not via `test()` — so
-   * an item that is itself a Bundle is not unwrapped again. Each item is typed
-   * as a single `evaluate()` input; a Bundle's entries are typed only against a
-   * declared root, as for `evaluate()`.
+   * semantics. An item that is itself a Bundle is one resource. Each item is
+   * typed as a single `evaluate()` input; a Bundle's entries are typed only
+   * against a declared root.
    */
   filter<
     const Expr extends string,
@@ -505,7 +491,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
     options?: EvaluateOptions
   ): Input extends readonly (infer Item)[] ? Item[] : unknown[]
   filter(
-    input: readonly unknown[] | RootedBundle<unknown>,
+    input: readonly unknown[] | EntriesBundle<unknown>,
     expression: AnyExpression,
     options?: EvaluateOptions
   ): unknown[] {

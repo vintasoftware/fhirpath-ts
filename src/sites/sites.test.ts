@@ -684,13 +684,15 @@ describe('module options', () => {
       "fp.first('f', either)",
       "fp.first('g', optional)",
       "fp.filter(bundle, 'h')",
+      "fp.first('i', bundle)",
     ].join('\n')
     writeFileSync(file, source)
     const program = ts.createProgram({ rootNames: [file], options: { strict: true } })
 
-    // The same roots EngineInputRoot infers: one resource, or the items of an
-    // array for a per-item call. A root collection, a union of resources, a
-    // value that may omit resourceType, and a Bundle stay unknown.
+    // The same roots EngineInputRoot infers: one resource, a Bundle included,
+    // or the items of an array for a per-item call. A root collection, a union
+    // of resources, a value that may omit resourceType, and a Bundle read per
+    // entry stay unknown.
     const scanned = createSiteScanner(ts, program)(source, file)
     expect(scanned.sites.map(site => [site.expression, site.inputType])).toEqual([
       ['a', 'Condition'],
@@ -701,6 +703,7 @@ describe('module options', () => {
       ['f', undefined],
       ['g', undefined],
       ['h', undefined],
+      ['i', 'Bundle'],
     ])
     expect(scanned.skipped).toEqual([])
     expect(createSiteScanner(ts)(source, file).sites.every(site => site.inputType === undefined)).toBe(true)
