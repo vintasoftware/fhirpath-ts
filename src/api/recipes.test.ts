@@ -11,6 +11,7 @@ import type {
   Bundle,
   Condition,
   DiagnosticReport,
+  Extension,
   HumanName,
   MedicationRequest,
   Observation,
@@ -460,6 +461,11 @@ describe('README usage recipes', () => {
     const name: HumanName = { given: ['Peter', 'James'] }
     expect(r4.compile('given', 'HumanName').evaluate(name)).toEqual(['Peter', 'James'])
     expect(r4.evaluate('HumanName.given', name)).toEqual([])
+
+    const nickname: Extension = { url: 'http://example.org/nickname', valueString: 'Pete' }
+    const patient: Patient = { resourceType: 'Patient', extension: [nickname] }
+    expect(r4.compile('value', 'Extension').evaluate(nickname)).toEqual([])
+    expect(r4.evaluate("extension('http://example.org/nickname').value", patient)).toEqual(['Pete'])
   })
 
   it('runs the README and API reference registration examples', () => {

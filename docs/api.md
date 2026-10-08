@@ -254,7 +254,13 @@ r4.compile('given', 'HumanName').evaluate(name) // ['Peter', 'James']
 
 Evaluation doesn't use the declared type to read the data, so a choice element
 such as an extension's `value` is empty on an Extension passed on its own. Read
-it from its resource with `extension('…').value`.
+it from its resource instead:
+
+```ts
+// nickname is { url: 'http://example.org/nickname', valueString: 'Pete' }, also in patient.extension
+r4.compile('value', 'Extension').evaluate(nickname) // []
+r4.evaluate("extension('http://example.org/nickname').value", patient) // ['Pete']
+```
 
 ### `evaluateTyped()`
 

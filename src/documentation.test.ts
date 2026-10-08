@@ -96,6 +96,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid('clinicalStatus.coding.first().code'),
       valid('Patient.name.family', 'name.family'),
       valid('given'),
+      valid('value', "extension('http://example.org/nickname').value"),
       valid('Patient.name.given', 'Patient.name.given', 'Patient.name.given', 'Patient.name.given'),
       valid(),
       valid('%report.status'),
