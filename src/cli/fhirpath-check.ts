@@ -201,11 +201,17 @@ function readsUntypedInput(site: ExpressionSite): boolean {
   )
 }
 
-/** What the types may settle: a receiver the syntax could not prove, or a site that reads an untyped input. */
+/**
+ * What the types may settle: a receiver the syntax could not prove, an argument
+ * that may be a compiled expression rather than dynamic text, or a site that
+ * reads an untyped input.
+ */
 function needsTypes(scan: SiteScanResult): boolean {
   return (
-    (!args.localImports && scan.skipped.some(skipped => skipped.reason === 'unrecognized-receiver')) ||
-    scan.sites.some(readsUntypedInput)
+    scan.skipped.some(
+      skipped =>
+        skipped.reason === 'dynamic-expression' || (!args.localImports && skipped.reason === 'unrecognized-receiver')
+    ) || scan.sites.some(readsUntypedInput)
   )
 }
 const unresolvedFiles = args.files.filter(file => needsTypes(scanOf(file)))

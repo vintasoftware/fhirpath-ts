@@ -60,6 +60,15 @@ const corpus: { name: string; code: string; expected: number; typescript?: true 
     expected: 6,
   },
   {
+    name: 'a CompiledExpression constructed from the package import',
+    code: [
+      "import { CompiledExpression } from 'fhirpath-ts'",
+      "const a = new CompiledExpression('x..1')",
+      "const b = new Other.CompiledExpression('x..2')",
+    ].join('\n'),
+    expected: 1,
+  },
+  {
     name: 'a DTO with a base, each column against its own class',
     code: [
       "import { r4 } from 'fhirpath-ts/r4'",

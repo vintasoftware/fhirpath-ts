@@ -72,7 +72,7 @@ export default [
 It recognizes:
 
 - `fhirpath`, `compile`, `evaluate`, `evaluateTyped`, `first`, and
-  `analyzeExpression` calls;
+  `analyzeExpression` calls, and `new CompiledExpression()`;
 - `FhirPathEngine` and `r4` methods such as `test`, `filter`, `project`, and
   `checkConstraints`;
 - DTO and view `this.column()` and `this.criteria()` fields, and the `vars` of
@@ -155,9 +155,11 @@ this API, so it is still checked.
 
 Calls that look like supported expression sites but cannot be read are reported
 as `[warning:skipped]`. This includes dynamic strings, interpolated templates,
-and receivers whose engine type cannot be established. A path that starts from
-an input of unknown type is reported as `[warning:unchecked-navigation]`.
-`--strict` promotes warnings to errors. A successful run with warnings says `no errors found`, not
+and receivers whose engine type cannot be established. A compiled expression
+passed to an engine method is checked or reported where it is compiled, so the
+CLI does not report the engine call as skipped. A path that starts from an input
+of unknown type is reported as `[warning:unchecked-navigation]`. `--strict`
+promotes warnings to errors. A successful run with warnings says `no errors found`, not
 `no problems found`.
 
 Literal `vars` expressions in `EvaluateOptions` are checked in runtime order.

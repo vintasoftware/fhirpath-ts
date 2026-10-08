@@ -546,6 +546,20 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
     return scope?.startsWith('@') === true ? `${scope}/${name}` : scope
   }
 
+  /**
+   * Whether TypeScript proves an expression argument is never a string. The
+   * engine methods accept text or a compiled expression, so such a value was
+   * compiled elsewhere, and that `compile()`/`fhirpath()` call is the site
+   * that analyzes or reports it.
+   */
+  function isNeverString(node: TS.Node): boolean {
+    if (checker === undefined || node.getSourceFile().isDeclarationFile) {
+      return false
+    }
+    const type = checker.getNonNullableType(checker.getTypeAtLocation(node))
+    return (type.isUnion() ? type.types : [type]).every(member => (member.flags & ts.TypeFlags.Object) !== 0)
+  }
+
   /** An unresolved receiver may still be an engine; a resolved non-engine is not our call site. */
   function shouldReportUnrecognized(node: TS.Expression): boolean {
     if (checker === undefined || node.getSourceFile().isDeclarationFile) {
@@ -748,11 +762,13 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
         } else {
           skip(node.template, 'dynamic-expression', 'FHIRPath template not analyzed: substitutions make it dynamic')
         }
-      } else if (ts.isCallExpression(node)) {
+      } else if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+        const args = node.arguments ?? []
         const callee = nameOf(node.expression)
         const policy = callee === undefined ? undefined : CALL_SITES.get(callee)
-        const argument = policy && (node.arguments[policy.argIndex] as TS.Expression | undefined)
-        const field = policy?.receiver === 'dto-field' ? initializedFieldName(node) : undefined
+        const argument = policy && (args[policy.argIndex] as TS.Expression | undefined)
+        const field =
+          policy?.receiver === 'dto-field' && ts.isCallExpression(node) ? initializedFieldName(node) : undefined
         // A DTO the source cannot prove may still be one the types can.
         const columnClass =
           field === undefined
@@ -805,17 +821,17 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
               }
               functions[field] = declaredColumnOverloads(
                 functions[field],
-                columnFunctionDeclaration<TS.Node>(declares, node.arguments[1], tsAst, columnClass?.root)
+                columnFunctionDeclaration<TS.Node>(declares, args[1], tsAst, columnClass?.root)
               )
             }
             for (const candidate of callExpressionCandidates<TS.Node>(
               policy,
-              index => node.arguments[index],
+              index => args[index],
               columnClass?.root,
               tsAst,
               policy.inputArg === undefined
                 ? undefined
-                : inputEvidenceOf(node.arguments[policy.inputArg] as TS.Expression | undefined)
+                : inputEvidenceOf(args[policy.inputArg] as TS.Expression | undefined)
             )) {
               if (candidate.uncheckable === 'dynamic-vars') {
                 skip(
@@ -823,7 +839,13 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
                   'dynamic-expression',
                   `${callee}(...) var expressions not analyzed: their final names, values, or order are dynamic`
                 )
-              } else if (candidate.expression === undefined) {
+              } else if (candidate.expression !== undefined) {
+                record(candidate.expression, candidate.node, candidate.context)
+              } else if (!(
+                candidate.source === 'argument' &&
+                policy.shape === 'expression' &&
+                isNeverString(candidate.node)
+              )) {
                 skip(
                   candidate.node,
                   'dynamic-expression',
@@ -831,8 +853,6 @@ export function createSiteScanner(ts: TypeScriptApi, program?: TS.Program): Site
                     ? `${callee}(...) var expression not analyzed: it is not a string literal`
                     : `${callee}(...) expression not analyzed: it is not a string literal`
                 )
-              } else {
-                record(candidate.expression, candidate.node, candidate.context)
               }
             }
           }

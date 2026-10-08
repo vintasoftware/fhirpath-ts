@@ -745,6 +745,33 @@ describe('module options', () => {
     expect(createSiteScanner(ts)(source, file).sites).toHaveLength(3)
   }, 15_000)
 
+  it('leaves a compiled expression to the site that compiled it', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-compiled-'))
+    const file = join(directory, 'source.ts')
+    const source = [
+      'declare class FhirPathEngine { evaluate(expression: unknown, input?: unknown): unknown[] }',
+      'declare const compiled: { readonly source: string }',
+      'declare const text: string',
+      'declare const either: string | { readonly source: string }',
+      'const fp = new FhirPathEngine()',
+      'fp.evaluate(compiled, {})',
+      'fp.evaluate(text, {})',
+      'fp.evaluate(either, {})',
+    ].join('\n')
+    writeFileSync(file, source)
+    const program = ts.createProgram({ rootNames: [file], options: { strict: true } })
+
+    // Only a value that can be text is a dynamic expression at this call.
+    const reasons = (scan: ReturnType<ReturnType<typeof createSiteScanner>>) =>
+      scan.skipped.map(skipped => [skipped.line, skipped.reason])
+    expect(reasons(createSiteScanner(ts, program)(source, file))).toEqual([
+      [7, 'dynamic-expression'],
+      [8, 'dynamic-expression'],
+    ])
+    // Without the types, any non-literal may be text.
+    expect(reasons(createSiteScanner(ts)(source, file))).toHaveLength(3)
+  }, 15_000)
+
   it('reads the columns of a DTO whose base only the types reveal', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-dto-'))
     const packageDirectory = join(directory, 'node_modules', '@acme', 'fhirpath')

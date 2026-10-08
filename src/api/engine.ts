@@ -8,6 +8,7 @@ import type {
   FhirpathRootOf,
   FhirpathTypeContextOf,
   FhirTypeName,
+  InputOf,
   MergeFhirpathTypeContexts,
 } from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
@@ -77,11 +78,57 @@ export type EngineInputRoot<Input> = Input extends readonly (infer Item)[]
     : FhirpathRootOf<Input>
 
 /** The inferred result returned by an engine or bound expression call. */
-export type EngineResult<Expr extends string, Input, Defaults, Options> = FhirpathResultForContext<
+export type EngineResult<Expr extends string, Input, Defaults, Options> = EngineRootResult<
   Expr,
   EngineInputRoot<Input>,
+  Defaults,
+  Options
+>
+
+/** The inferred result of an engine call on a known root, with the engine's and the call's declarations. */
+export type EngineRootResult<Expr extends string, Root extends string, Defaults, Options> = FhirpathResultForContext<
+  Expr,
+  Root,
   MergeFhirpathTypeContexts<FhirpathTypeContextOf<Defaults>, FhirpathTypeContextOf<Options>>
 >
+
+/**
+ * A type an engine-compiled expression can declare as its root. A Bundle is
+ * left out: the engine reads a Bundle input as its entries, so a relative
+ * expression on one throws instead of running on the declared root.
+ */
+export type EngineRoot = Exclude<FhirTypeName, 'Bundle'>
+
+/** What an expression with a declared root accepts: a value of its input type, or an array of them. */
+export type RootedInput<Input> = Input | readonly Input[]
+
+/**
+ * What `engine.compile(expression, type)` returns: the same `BoundExpression`,
+ * typed against its declared root instead of each call's input.
+ */
+export interface RootedBoundExpression<Expr extends string, Defaults extends object, Root extends EngineRoot, Input> {
+  readonly expression: CompiledExpression<Expr>
+  readonly source: Expr
+  evaluate<T extends keyof R4TypeOf>(
+    input: RootedInput<Input> | undefined,
+    options: TypedEvaluateOptions<T>
+  ): R4TypeOf[T][]
+  evaluate<const Options extends object = EmptyFhirpathTypeContext>(
+    input?: RootedInput<Input>,
+    options?: Declaring<Options>
+  ): EngineRootResult<Expr, Root, Defaults, Options>
+  evaluateTyped(input?: RootedInput<Input>, options?: EvaluateOptions): TypedValue[]
+  first<T extends keyof R4TypeOf>(
+    input: RootedInput<Input> | undefined,
+    options: TypedEvaluateOptions<T>
+  ): R4TypeOf[T] | undefined
+  first<const Options extends object = EmptyFhirpathTypeContext>(
+    input?: RootedInput<Input>,
+    options?: Declaring<Options>
+  ): EngineRootResult<Expr, Root, Defaults, Options>[number] | undefined
+  test(input: RootedInput<Input>, options?: EvaluateOptions): boolean
+  toString(): string
+}
 
 /** The merged static declarations visible while project() evaluates a row. */
 export type EngineProjectionContext<Defaults, Options> = MergeFhirpathTypeContexts<
@@ -329,8 +376,20 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
     return compiled.evaluateTyped(normalizeInput(input, compiled.ast, merged.model), merged)
   }
 
-  /** Parse once for reuse, with this engine's defaults bound. Does not touch the parse cache. */
-  compile<const Expr extends string>(expression: Expr): BoundExpression<Expr, Defaults> {
+  /**
+   * Parse once for reuse, with this engine's defaults bound. Does not touch the
+   * parse cache. A second argument declares the type the expression runs
+   * against, as for the package-root `compile()`: a relative expression infers
+   * against it, the input must be that type, and the static checkers analyze
+   * the expression against it. It is not checked at runtime.
+   */
+  compile<const Expr extends string, const Root extends EngineRoot>(
+    expression: Expr,
+    inputType: Root
+  ): RootedBoundExpression<Expr, Defaults, Root, InputOf<Root>>
+  compile<const Expr extends string>(expression: Expr): BoundExpression<Expr, Defaults>
+  compile(expression: string): BoundExpression<string, Defaults> {
+    // The declared input type is a compile-time and check-time declaration.
     return new BoundExpression(this, new CompiledExpression(expression))
   }
 
