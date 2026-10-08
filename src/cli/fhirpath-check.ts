@@ -188,13 +188,24 @@ for (const file of args.files) {
   }
 }
 /**
- * What the types may settle: a receiver the syntax could not prove, or a site
- * whose input type a typed input argument may supply.
+ * A site whose path reads an input of unknown type. A typed input argument may
+ * supply that type; a path that starts at a type name needs none.
  */
+function readsUntypedInput(site: ExpressionSite): boolean {
+  return (
+    site.inputType === undefined &&
+    site.dto !== true &&
+    analyzeSite(site, { model: r4Model, reportUnchecked: true }).some(
+      diagnostic => diagnostic.code === 'unchecked-navigation'
+    )
+  )
+}
+
+/** What the types may settle: a receiver the syntax could not prove, or a site that reads an untyped input. */
 function needsTypes(scan: SiteScanResult): boolean {
   return (
     (!args.localImports && scan.skipped.some(skipped => skipped.reason === 'unrecognized-receiver')) ||
-    scan.sites.some(site => site.inputType === undefined && site.dto !== true)
+    scan.sites.some(readsUntypedInput)
   )
 }
 const unresolvedFiles = args.files.filter(file => needsTypes(scanOf(file)))

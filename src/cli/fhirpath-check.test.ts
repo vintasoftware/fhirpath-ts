@@ -5,7 +5,9 @@ import { join, resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-describe('fhirpath-check CLI', () => {
+// Each test spawns the CLI, and a run whose files need types also builds a
+// TypeScript program, as the program-backed tests in sites.test.ts do.
+describe('fhirpath-check CLI', { timeout: 15_000 }, () => {
   const cli = resolve(import.meta.dirname, 'fhirpath-check.ts')
 
   function run(args: string[], cwd?: string): { status: number; output: string } {
