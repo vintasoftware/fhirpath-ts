@@ -20,6 +20,7 @@ import {
   type Compiler,
   createCachedCompiler,
   type CustomFunction,
+  type declaredRoot,
   type Declaring,
   type EvaluateOptions,
   type InferredExpressionResult,
@@ -54,9 +55,9 @@ import { type Projection, type ProjectionColumns, projectRows } from './project.
  * Bundle — a Bundle behaves as its entry resources unless the expression
  * references `Bundle` in root position (then it addresses the bundle itself).
  * An expression that starts at a bare Bundle element (`entry.count()`, `type`)
- * is ambiguous and throws, unless its compiled form declares another type as
- * its input. Wrap a Bundle in an array (`[bundle]`) to force treating it as one
- * resource.
+ * is ambiguous and throws. A compiled expression that declares its input type
+ * decides instead: `Bundle` is the Bundle, any other type its entries. Wrap a
+ * Bundle in an array (`[bundle]`) to force treating it as one resource.
  */
 export type EngineInput<Expr extends string = string> = FhirpathInput<Expr> | readonly unknown[] | BundleLike
 
@@ -66,13 +67,13 @@ export type TypedEvaluateOptions<T extends keyof R4TypeOf> = EvaluateOptions & {
 /**
  * Literal text or a compatible compiled expression accepted by engine
  * evaluation methods. `Root` is the type the compiled expression declares, or
- * `'opaque'` when it declares none, and `Input` the input it accepts.
+ * `'opaque'` when it declares none, read from its `declaredRoot` member.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- engine methods infer their own input and result
-export type EngineExpression<Expr extends string, Root extends string = any, Input = any> =
+export type EngineExpression<Expr extends string, Root extends string = any> =
   | Expr
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the result type follows from Root
-  | CompiledExpression<Expr, Input, any, Root>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the input and result follow from Root
+  | (CompiledExpression<Expr, any, any, any> & { readonly [declaredRoot]?: Root })
 
 /**
  * evaluate() reaches this shape through normalizeInput(), while project()
@@ -104,14 +105,11 @@ export type EngineRootResult<Expr extends string, Root extends string, Defaults,
 /**
  * What an engine call accepts for an expression with declared root `Root`: the
  * `RootedInput` that `engine.compile(expression, type)` accepts. Without a
- * declared root, the expression text decides. A declared Bundle root accepts
- * nothing, since the engine runs a relative expression on a Bundle's entries.
+ * declared root, the expression text decides.
  */
-type EngineCallInput<Expr extends string, Root extends string, DeclaredInput> = Root extends 'opaque'
+type EngineCallInput<Expr extends string, Root extends string> = Root extends 'opaque'
   ? EngineInput<Expr>
-  : Root extends EngineRoot
-    ? RootedInput<DeclaredInput>
-    : never
+  : RootedInput<Root extends FhirTypeName ? InputOf<Root> : never>
 
 /** The result of an engine call: inferred on the expression's declared root, or else on the input's. */
 type EngineCallResult<Expr extends string, Root extends string, Input, Defaults, Options> = EngineRootResult<
@@ -122,16 +120,9 @@ type EngineCallResult<Expr extends string, Root extends string, Input, Defaults,
 >
 
 /**
- * A type an engine-compiled expression can declare as its root. A Bundle is
- * left out: the engine reads a Bundle input as its entries, so a relative
- * expression on one throws instead of running on the declared root.
- */
-export type EngineRoot = Exclude<FhirTypeName, 'Bundle'>
-
-/**
  * What an expression with a declared root accepts: a value of its input type,
- * an array of them, or a Bundle whose entry resources are of that type, which
- * the engine reads as those entries.
+ * an array of them, or a Bundle whose entry resources are of that type. The
+ * engine reads a Bundle as its entries, or as itself when the root is Bundle.
  */
 export type RootedInput<Input> =
   | Input
@@ -142,7 +133,7 @@ export type RootedInput<Input> =
  * What `engine.compile(expression, type)` returns: the same `BoundExpression`,
  * typed against its declared root instead of each call's input.
  */
-export interface RootedBoundExpression<Expr extends string, Defaults extends object, Root extends EngineRoot, Input> {
+export interface RootedBoundExpression<Expr extends string, Defaults extends object, Root extends FhirTypeName, Input> {
   readonly expression: CompiledExpression<Expr, Input, InferredExpressionResult, Root>
   readonly source: Expr
   evaluate<T extends keyof R4TypeOf>(
@@ -385,25 +376,19 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   }
 
   /** Compile (LRU-cached by expression text) and evaluate in one call; typed like `compile().evaluate()`. */
-  evaluate<
-    const Expr extends string,
-    T extends keyof R4TypeOf,
-    Root extends string = 'opaque',
-    DeclaredInput = unknown,
-  >(
-    expression: EngineExpression<Expr, Root, DeclaredInput>,
+  evaluate<const Expr extends string, T extends keyof R4TypeOf, Root extends string = 'opaque'>(
+    expression: EngineExpression<Expr, Root>,
     // Only the expression infers `Expr`; `FhirpathInput` would read the input's `resourceType` back into it.
-    input: NoInfer<EngineCallInput<Expr, Root, DeclaredInput>> | undefined,
+    input: NoInfer<EngineCallInput<Expr, Root>> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T][]
   evaluate<
     const Expr extends string,
     Root extends string = 'opaque',
-    DeclaredInput = unknown,
-    const Input extends EngineCallInput<Expr, Root, DeclaredInput> | undefined = undefined,
+    const Input extends EngineCallInput<Expr, Root> | undefined = undefined,
     const Options extends object = EmptyFhirpathTypeContext,
   >(
-    expression: EngineExpression<Expr, Root, DeclaredInput>,
+    expression: EngineExpression<Expr, Root>,
     input?: Input,
     options?: Declaring<Options>
   ): EngineCallResult<Expr, Root, Input, Defaults, Options>
@@ -426,32 +411,34 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    * against, as for the package-root `compile()`: a relative expression infers
    * against it, the input must be that type, an array of it, or a Bundle of it,
    * and the static checkers analyze the expression against it. It is not
-   * checked at runtime, where it only makes a Bundle input read as its entries.
+   * checked against the data; it only tells how a Bundle input is meant.
    */
-  compile<const Expr extends string, const Root extends EngineRoot>(
+  compile<const Expr extends string, const Root extends FhirTypeName>(
     expression: Expr,
     inputType: Root
   ): RootedBoundExpression<Expr, Defaults, Root, InputOf<Root>>
   compile<const Expr extends string>(expression: Expr): BoundExpression<Expr, Defaults>
-  compile(expression: string, inputType?: string): BoundExpression<string, Defaults> {
-    return new BoundExpression(this, new CompiledExpression(expression, inputType))
+  compile(expression: string, inputType?: FhirTypeName): BoundExpression<string, Defaults> {
+    // One runtime BoundExpression serves both overloads. A rooted expression's
+    // types live in RootedBoundExpression, so the class holds it untyped.
+    const compiled = new CompiledExpression(expression, inputType) as unknown as CompiledExpression<string>
+    return new BoundExpression(this, compiled)
   }
 
   /** The first result, or undefined when the expression comes up empty. */
-  first<const Expr extends string, T extends keyof R4TypeOf, Root extends string = 'opaque', DeclaredInput = unknown>(
-    expression: EngineExpression<Expr, Root, DeclaredInput>,
+  first<const Expr extends string, T extends keyof R4TypeOf, Root extends string = 'opaque'>(
+    expression: EngineExpression<Expr, Root>,
     // Only the expression infers `Expr`; `FhirpathInput` would read the input's `resourceType` back into it.
-    input: NoInfer<EngineCallInput<Expr, Root, DeclaredInput>> | undefined,
+    input: NoInfer<EngineCallInput<Expr, Root>> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T] | undefined
   first<
     const Expr extends string,
     Root extends string = 'opaque',
-    DeclaredInput = unknown,
-    const Input extends EngineCallInput<Expr, Root, DeclaredInput> | undefined = undefined,
+    const Input extends EngineCallInput<Expr, Root> | undefined = undefined,
     const Options extends object = EmptyFhirpathTypeContext,
   >(
-    expression: EngineExpression<Expr, Root, DeclaredInput>,
+    expression: EngineExpression<Expr, Root>,
     input?: Input,
     options?: Declaring<Options>
   ): EngineCallResult<Expr, Root, Input, Defaults, Options>[number] | undefined

@@ -20,9 +20,12 @@ export function fhirpath<
   TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
 >(expression: Expr): CompiledExpression<Expr, TInput, TResult>
 export function fhirpath(strings: TemplateStringsArray, ...substitutions: never[]): CompiledExpression
-export function fhirpath(input: string | TemplateStringsArray, ...rest: unknown[]): CompiledExpression {
+export function fhirpath(
+  input: string | TemplateStringsArray,
+  ...rest: [inputType?: FhirTypeName] | never[]
+): CompiledExpression<string, unknown, InferredExpressionResult, string> {
   if (typeof input === 'string') {
-    return new CompiledExpression(input, rest[0] as string | undefined)
+    return new CompiledExpression(input, rest[0])
   }
   if (rest.length > 0) {
     throw new FhirPathError(

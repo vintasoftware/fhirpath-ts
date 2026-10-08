@@ -158,6 +158,13 @@ export type CompiledExpressionResult<
  * e.g. with `@medplum/fhirtypes` types, for full type-level fidelity with
  * another FHIR type package: `compile<'Patient.name', Patient, HumanName[]>(...)`.
  */
+/**
+ * Keys the root a compiled expression declares, a type-only member engine
+ * methods read. Read through a member, the root compares covariantly on every
+ * supported compiler, so a union of rooted expressions passes as one argument.
+ */
+export declare const declaredRoot: unique symbol
+
 export class CompiledExpression<
   Expr extends string = string,
   TInput = FhirpathInput<Expr>,
@@ -167,13 +174,20 @@ export class CompiledExpression<
   readonly source: Expr
   readonly ast: AstNode
   /**
-   * The type the expression declares it runs against, from
-   * `compile(expression, type)`. TypeScript and the static checkers read it;
-   * at runtime the engine reads it only to take a Bundle input as its entries.
+   * The type the expression declares it runs against, or `undefined`. Engine
+   * methods read it to tell how a Bundle input is meant: a declared `Bundle` is
+   * the Bundle itself, any other type its entries. It is not checked against
+   * the data.
    */
-  readonly inputType: string | undefined
+  readonly inputType: FhirTypeName | undefined
+  declare readonly [declaredRoot]?: Root
 
-  constructor(source: Expr, inputType?: string) {
+  /**
+   * `inputType` declares the root for engine methods and the static checkers.
+   * Prefer `compile(expression, type)`, which also types the input of this
+   * expression's own `evaluate()`.
+   */
+  constructor(source: Expr, inputType?: Root & FhirTypeName) {
     this.source = source
     this.ast = parse(source)
     this.inputType = inputType
@@ -216,7 +230,10 @@ export function compile<
   TInput = FhirpathInput<Expr>,
   TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
 >(expression: Expr): CompiledExpression<Expr, TInput, TResult>
-export function compile(expression: string, inputType?: string): CompiledExpression {
+export function compile(
+  expression: string,
+  inputType?: FhirTypeName
+): CompiledExpression<string, unknown, InferredExpressionResult, string> {
   return new CompiledExpression(expression, inputType)
 }
 

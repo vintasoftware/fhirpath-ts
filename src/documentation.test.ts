@@ -125,7 +125,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid(),
       valid(),
       valid('Patient.name.given', 'Bundle.entry.count()'),
-      valid('id', 'Bundle.type'),
+      valid('id', 'type', 'Bundle.type'),
       valid(),
       valid('Patient.name'),
     ],

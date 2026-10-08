@@ -110,10 +110,9 @@ function isBundleElement(name: string, model: ModelProvider | undefined): boolea
 
 /**
  * Bundle in, entry resources out — unless the expression addresses the Bundle
- * itself (a `Bundle` root). An expression whose root is a bare Bundle element
- * (`entry.count()`, `type`) could mean either and throws instead of guessing,
- * unless it declares another type as its input (`compile('id', 'Patient')`):
- * that expression runs on the entries.
+ * itself. A declared input type decides: `Bundle` is the Bundle, any other type
+ * its entries (`compile('id', 'Patient')`). Without one, the expression's root
+ * decides; see `rootAddressesBundle`.
  */
 export function normalizeInput(
   input: unknown,
@@ -124,12 +123,19 @@ export function normalizeInput(
   if (!isBundle(input)) {
     return input
   }
-  if (inputType !== undefined && inputType !== 'Bundle') {
-    return toSubjects(input).map(subject => subject.value)
-  }
+  const addressesBundle = inputType === undefined ? rootAddressesBundle(ast, model) : inputType === 'Bundle'
+  return addressesBundle ? input : toSubjects(input).map(subject => subject.value)
+}
+
+/**
+ * A `Bundle` root addresses the Bundle. A root that is a bare Bundle element
+ * (`entry.count()`, `type`) could mean the Bundle or its entries, so it throws
+ * instead of guessing.
+ */
+function rootAddressesBundle(ast: AstNode, model: ModelProvider | undefined): boolean {
   const heads = rootIdentifiers(ast)
   if (heads.has('Bundle')) {
-    return input
+    return true
   }
   for (const head of heads) {
     if (isBundleElement(head, model)) {
@@ -138,5 +144,5 @@ export function normalizeInput(
       )
     }
   }
-  return toSubjects(input).map(subject => subject.value)
+  return false
 }

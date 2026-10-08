@@ -96,15 +96,16 @@ is also correct but still walks `FhirpathInput`'s branches, about 4% of the API
 surface budget. `NoInfer` is why the `typescript` peer range starts at 5.4.
 
 A compiled expression with a declared root types an engine call as
-`engine.compile(expression, type)` does (`EngineCallInput`, `EngineCallResult`).
-Read the root from `CompiledExpression`'s `Root` argument and the input from its
-`TInput` argument, which `compile()` already computed with `InputOf`.
-Recomputing `InputOf<Root>` on the generic `Root` costs about 4% of the API
-surface budget. `RootedInput` is the one input type for both forms, including
-the Bundle whose entries are the declared input. The declared root's only
-runtime effect is in `normalizeInput`: such a Bundle is read as its entries,
-without the ambiguity check, because the root says which one the expression
-means.
+`engine.compile(expression, type)` does: `EngineCallInput` and
+`EngineCallResult` over the one `RootedInput`. Engine methods read the root
+from the type-only `declaredRoot` member, not from `CompiledExpression`'s type
+arguments: TypeScript 5.4 compares the `Root` argument contravariantly, so a
+union of rooted expressions would be refused there. Compute the input as
+`InputOf<Root>`. Narrowing `Root` by a large union before using it
+(`Root extends Exclude<FhirTypeName, 'Bundle'>`) cost about 4% of the API
+surface budget. A declared root has one runtime effect, in `normalizeInput`: a
+declared `Bundle` reads a Bundle input as itself, any other type as its
+entries, without the ambiguity check.
 
 ## Monaco worker integration
 
