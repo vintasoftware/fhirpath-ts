@@ -58,6 +58,32 @@ describe('choice element navigation', () => {
     expect(evaluate('Patient.name.given.ofType(string).count()', patient, options)).toEqual([2])
     expect(evaluate('Patient.name.ofType(HumanName).exists()', patient, options)).toEqual([true])
   })
+
+  // FHIR R4 FHIRPath page: `as()` converts a FHIR primitive to its System type,
+  // while `is()` and `ofType()` keep the FHIR type identity.
+  it('as() casts a FHIR primitive to its System type', () => {
+    const observationString = { resourceType: 'Observation', valueString: 'FOO' }
+    const male = { ...patient, gender: 'male' }
+    expect(evaluate('Observation.value.as(String)', observationString, options)).toEqual(['FOO'])
+    expect(evaluate('Observation.value.as(System.String)', observationString, options)).toEqual(['FOO'])
+    expect(evaluate('Observation.value as System.String', observationString, options)).toEqual(['FOO'])
+    expect(evaluate('Patient.gender as System.String', male, options)).toEqual(['male'])
+    expect(evaluate('Patient.birthDate.as(Date)', patient, options)).toEqual(['1974-12-25'])
+    expect(evaluate('Patient.birthDate.as(System.DateTime)', patient, options)).toEqual([])
+    expect(evaluate('Patient.gender.as(System.Boolean)', male, options)).toEqual([])
+    // The cast keeps the FHIR item, as the analyzer and inferred types describe it.
+    expect(evaluate('Patient.gender.as(System.String).is(code)', male, options)).toEqual([true])
+    expect(evaluate('Patient.gender.as(System.String).is(System.String)', male, options)).toEqual([false])
+    expect(evaluate('Patient.gender.ofType(System.String)', male, options)).toEqual([])
+    // A FHIR subtype still does not cast to its FHIR parent (testFHIRPathAsFunction11).
+    expect(evaluate('Patient.gender.as(string)', male, options)).toEqual([])
+  })
+
+  it('as() does not cast a primitive without a value to a System type', () => {
+    const valueless = { resourceType: 'Patient', _gender: { extension: [{ url: 'x', valueString: 'y' }] } }
+    expect(evaluate('Patient.gender.as(code).exists()', valueless, options)).toEqual([true])
+    expect(evaluate('Patient.gender.as(System.String)', valueless, options)).toEqual([])
+  })
 })
 
 describe('primitive extensions', () => {

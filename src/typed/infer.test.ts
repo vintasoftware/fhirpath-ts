@@ -113,6 +113,19 @@ describe('type-level inference agrees with the runtime', () => {
     expectTypeOf(identifiers).toEqualTypeOf<Identifier[]>()
   })
 
+  it('as() casts a FHIR primitive to its System type', () => {
+    const value = compile('Observation.value.as(System.String)').evaluate(
+      { resourceType: 'Observation', valueString: 'FOO' },
+      options
+    )
+    expectTypeOf(value).toEqualTypeOf<string[]>()
+    expect(value).toEqual(['FOO'])
+
+    const active = compile('Patient.active as Boolean').evaluate(patient, options)
+    expectTypeOf(active).toEqualTypeOf<boolean[]>()
+    expect(active).toEqual([true])
+  })
+
   it('the input type follows the root resource, with every element optional', () => {
     expectTypeOf<FhirpathInput<'Patient.name'>>().toEqualTypeOf<LenientResource<'Patient'>>()
     expectTypeOf<FhirpathInput<'name.given'>>().toEqualTypeOf<unknown>()

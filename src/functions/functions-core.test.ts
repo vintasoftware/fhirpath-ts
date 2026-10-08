@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { evaluate } from '../api/evaluate.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import type { TypedValue } from '../values/typed-value.ts'
+import { MAX_REPEAT_ITEMS } from './filtering.ts'
 
 const patient = {
   resourceType: 'Patient',
@@ -94,6 +95,21 @@ describe('filtering and projection', () => {
     }
     looped.self = looped
     expect(evaluate('repeat($this).name', looped)).toEqual(['root'])
+  })
+
+  it('repeat fails once a projection keeps producing new values', () => {
+    expect(() => evaluate('1.repeat($this + 1)')).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
+    expect(() => evaluate("'a'.repeat($this + 'a')")).toThrow(FhirPathRuntimeError)
+    expect(evaluate(`0.repeat(iif($this < ${MAX_REPEAT_ITEMS}, $this + 1, {})).count()`)).toEqual([MAX_REPEAT_ITEMS])
+  })
+
+  it('repeat keeps one of each equal value', () => {
+    expect(evaluate('1.repeat(1.0 | 1 | 2 | 2.00)')).toEqual([1, 2])
+    // A number equals a Quantity with unit '1', whichever comes first.
+    expect(evaluate("2.repeat(iif($this = 2, 1 '1', 1)).count()")).toEqual([1])
+    expect(evaluate("2.repeat(iif($this = 2, 1, 1 '1'))")).toEqual([1])
+    expect(evaluate("1 'mg'.repeat(1 'mg' | 1000 'ug' | 2 'mg').count()")).toEqual([2])
+    expect(evaluate("'a'.repeat('a' | 'b')")).toEqual(['a', 'b'])
   })
 
   it('ofType filters by type', () => {

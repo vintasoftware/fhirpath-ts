@@ -265,7 +265,7 @@ describe('date/time arithmetic', () => {
     ['@2014-01-01 - 1 day', ['2013-12-31']],
     ['@2014-01-01 + 2 weeks', ['2014-01-15']],
     ["@2014-01-01 + 2 'wk'", ['2014-01-15']],
-    ['@2014-01-01 + 36 hours', ['2014-01-02']],
+    ['@2014-01-01T + 36 hours', ['2014-01-02']],
     ['@2014-01-01T10:00 + 90 minutes', ['2014-01-01T11:30']],
     ['@2014-01-01T00:00 - 1 minute', ['2013-12-31T23:59']],
     ['@T10:00 + 3 hours', ['13:00']],
@@ -278,6 +278,32 @@ describe('date/time arithmetic', () => {
 
   it('keeps the timezone through arithmetic', () => {
     expect(evaluate('@2014-01-01T10:00+02:00 + 1 hour')).toEqual(['2014-01-01T11:00+02:00'])
+  })
+
+  // A Date has no hour, minute, second, or millisecond component to add to.
+  it.each([
+    ['@1973-12-25 + 1 hour'],
+    ["@1973-12-25 + 24 'h'"],
+    ['@1973-12-25 - 60 minutes'],
+    ["@2016-01 + 1 's'"],
+    ['@2016 + 1 millisecond'],
+  ])('rejects a time unit on a Date: %s', expression => {
+    expect(() => evaluate(expression)).toThrow('to a Date value')
+  })
+
+  // Values keep millisecond precision: durations round to whole milliseconds,
+  // half away from zero, and the result is a valid literal.
+  it.each([
+    ["@T12:00:00.000 + 0.5 'ms'", ['12:00:00.001']],
+    ["@T12:00:00.000 - 0.5 'ms'", ['11:59:59.999']],
+    ["@T12:00:00.000 + 0.4 'ms'", ['12:00:00.000']],
+    ['@T12:00:00.000 + 1.5 milliseconds', ['12:00:00.002']],
+    ["@T12:00:00 + 0.0005 's'", ['12:00:00.001']],
+    ["@2026-01-01T12:00:00.000 + 0.5 'ms'", ['2026-01-01T12:00:00.001']],
+    ["@2026-01-01T12:00:00.000 - 0.5 'ms'", ['2026-01-01T11:59:59.999']],
+    ["(@T12:00:00.000 + 0.5 'ms').toString().toTime().exists()", [true]],
+  ])('rounds fractional milliseconds: %s -> %j', (expression, expected) => {
+    expect(evaluate(expression)).toEqual(expected)
   })
 
   it('rejects UCUM year and month for calendar arithmetic', () => {

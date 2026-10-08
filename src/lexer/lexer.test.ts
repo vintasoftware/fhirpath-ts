@@ -119,6 +119,16 @@ describe('string literals', () => {
     expect(() => tokenize(source)).toThrow('Invalid escape sequence')
   })
 
+  it.each([
+    ["'\\uD83D'", 'high surrogate without a low surrogate'],
+    ["'\\uD83Dx'", 'high surrogate without a low surrogate'],
+    ["'\\uD83D\\u0041'", 'high surrogate without a low surrogate'],
+    ["'\\uDD25'", 'low surrogate without a high surrogate'],
+    ['`\\uDD25`', 'low surrogate without a high surrogate'],
+  ])('rejects the unpaired surrogate escape %s', (source, message) => {
+    expect(() => tokenize(source)).toThrow(message)
+  })
+
   it('rejects a unicode escape with fewer than 4 hex digits', () => {
     expect(() => tokenize("'\\u12'")).toThrow('4 hex digits')
     expect(() => tokenize("'\\u12zz'")).toThrow('4 hex digits')
