@@ -101,11 +101,17 @@ A compiled expression with a declared root types an engine call as
 from the type-only `declaredRoot` member, not from `CompiledExpression`'s type
 arguments: TypeScript 5.4 compares the `Root` argument contravariantly, so a
 union of rooted expressions would be refused there. Compute the input as
-`InputOf<Root>`. Narrowing `Root` by a large union before using it
-(`Root extends Exclude<FhirTypeName, 'Bundle'>`) cost about 4% of the API
-surface budget. A declared root has one runtime effect, in `normalizeInput`: a
-declared `Bundle` reads a Bundle input as itself, any other type as its
-entries, without the ambiguity check.
+`InputOf<Root>` rather than reading `TInput`, whose inference keeps one
+candidate for a union of expressions. Keep the `Root` test inside
+`RootedInput`'s argument, as in
+`RootedInput<Root extends FhirTypeName ? InputOf<Root> : never>`; a conditional
+on `Root` around `RootedInput<InputOf<Root>>` costs about 9k API surface
+instantiations with any union. Construct a
+`CompiledExpression` from a wide `FhirTypeName` with explicit type arguments:
+inferring `Root` from the constructor's `Root & FhirTypeName` doubles check
+time without moving the instantiation count. A declared root has one runtime
+effect, in `normalizeInput`: a declared `Bundle` reads a Bundle input as
+itself, any other type as its entries, without the ambiguity check.
 
 ## Monaco worker integration
 

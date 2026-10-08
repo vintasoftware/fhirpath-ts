@@ -150,6 +150,13 @@ export type CompiledExpressionResult<
   : Extract<TResult, unknown[]>
 
 /**
+ * Keys the root a compiled expression declares, a type-only member engine
+ * methods read. Read through a member, the root compares covariantly on every
+ * supported compiler, so a union of rooted expressions passes as one argument.
+ */
+export declare const declaredRoot: unique symbol
+
+/**
  * A parsed expression, reusable across inputs. Create via `compile()` or the
  * `fhirpath` tag: literal expressions carry inferred result and input types for
  * the supported subset (see src/typed/infer.ts), everything else is unknown[].
@@ -158,13 +165,6 @@ export type CompiledExpressionResult<
  * e.g. with `@medplum/fhirtypes` types, for full type-level fidelity with
  * another FHIR type package: `compile<'Patient.name', Patient, HumanName[]>(...)`.
  */
-/**
- * Keys the root a compiled expression declares, a type-only member engine
- * methods read. Read through a member, the root compares covariantly on every
- * supported compiler, so a union of rooted expressions passes as one argument.
- */
-export declare const declaredRoot: unique symbol
-
 export class CompiledExpression<
   Expr extends string = string,
   TInput = FhirpathInput<Expr>,
@@ -234,7 +234,7 @@ export function compile(
   expression: string,
   inputType?: FhirTypeName
 ): CompiledExpression<string, unknown, InferredExpressionResult, string> {
-  return new CompiledExpression(expression, inputType)
+  return new CompiledExpression<string, unknown, InferredExpressionResult, string>(expression, inputType)
 }
 
 /** An expression as text or already compiled, with any literal, input, result, and root types. */

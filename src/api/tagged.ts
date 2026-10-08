@@ -25,7 +25,7 @@ export function fhirpath(
   ...rest: [inputType?: FhirTypeName] | never[]
 ): CompiledExpression<string, unknown, InferredExpressionResult, string> {
   if (typeof input === 'string') {
-    return new CompiledExpression(input, rest[0])
+    return new CompiledExpression<string, unknown, InferredExpressionResult, string>(input, rest[0])
   }
   if (rest.length > 0) {
     throw new FhirPathError(

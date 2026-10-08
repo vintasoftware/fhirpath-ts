@@ -421,8 +421,8 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   compile(expression: string, inputType?: FhirTypeName): BoundExpression<string, Defaults> {
     // One runtime BoundExpression serves both overloads. A rooted expression's
     // types live in RootedBoundExpression, so the class holds it untyped.
-    const compiled = new CompiledExpression(expression, inputType) as unknown as CompiledExpression<string>
-    return new BoundExpression(this, compiled)
+    const compiled = new CompiledExpression<string, unknown, InferredExpressionResult, string>(expression, inputType)
+    return new BoundExpression(this, compiled as CompiledExpression<string>)
   }
 
   /** The first result, or undefined when the expression comes up empty. */
