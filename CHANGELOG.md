@@ -8,6 +8,25 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+### Changed
+
+- `fhirpath-check` checks a relative expression in an engine call against the
+  input argument's `resourceType`: `fp.first('clinicalStatus', condition)`
+  with `condition: Condition` is checked against `Condition`. A path the CLI
+  cannot type is reported as `[warning:unchecked-navigation]`, so `--strict`
+  fails on it ([#78](https://github.com/vintasoftware/fhirpath-ts/issues/78)).
+- `fhirpath-check` reads the root of `analyzeExpression(expr, { inputType })`
+  from its literal `inputType` option.
+- `fhirpath-check` leaves out a method call that TypeScript resolves only to
+  another package or to the default library, such as
+  `page.evaluate('document.title')`.
+
+### Fixed
+
+- The analyzer no longer reads a lowercase root identifier as a FHIR primitive
+  type when the input type is unknown. `code.coding` reported `Element 'coding'
+  is not defined on FHIR.code`; the runtime reads `code` as an element.
+
 ## 0.4.0 - 2026-10-07
 
 This release types what a DTO projects. `engine.project(input, Dto)` and the

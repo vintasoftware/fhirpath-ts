@@ -142,6 +142,13 @@ applies the source-only limits described in
 [Static checking](docs/static-checking.md#source-only-limits). Keep the ESLint
 rule, CLI source pass, and editor on this function so they agree.
 
+A source site's input type may come from the call's input argument
+(`CallSitePolicy.inputArg`). Only the TypeScript walker with a program can read
+it, so the parity corpus does not cover it; `src/sites/sites.test.ts` does.
+`inputRoot` in `src/analyzer/expression-policy.ts` must give the root that
+`EngineInputRoot` infers, or give none. A path from an untyped root is an
+`unchecked-navigation` warning under `reportUnchecked`, never an error.
+
 `analyzeDto` is the loaded counterpart. It has the class, model, functions, and
 environment, so it should perform the full check. Source analysis must avoid
 false positives; loaded DTO analysis must not omit checks that its context can

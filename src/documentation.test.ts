@@ -135,6 +135,7 @@ const documentation: readonly DocumentExpectation[] = [
       invalid('Patient', ['unknown-element'], 'Patient.name.givenn'),
       valid('Patient.name.given'),
       valid(),
+      valid('clinicalStatus.coding.first().code', "value.ofType(Quantity) > 140 'mm[Hg]'"),
       valid("%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()"),
       invalid('Patient', ['unknown-element'], 'name.givenn'),
       valid('%limit < value.count()'),
