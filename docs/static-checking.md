@@ -99,8 +99,8 @@ complete configuration.
 ### CLI
 
 `fhirpath-check` uses the same analyzer without requiring ESLint. Install
-TypeScript in the consuming project because the CLI uses it to read source and
-load DTO modules.
+TypeScript 5.4 or later, below 7, in the consuming project because the CLI uses
+it to read source and load DTO modules.
 
 ```sh
 pnpm exec fhirpath-check "src/**/*.ts"

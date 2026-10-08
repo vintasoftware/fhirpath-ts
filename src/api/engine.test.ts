@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { FhirPathRuntimeError, FhirPathSyntaxError } from '../errors.ts'
-import type { Bundle, Observation, Patient } from '../r4/generated/type-maps.ts'
+import type { Bundle, Condition, Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile } from './compile.ts'
 import { BoundExpression, FhirPathEngine, recordEngines } from './engine.ts'
@@ -632,6 +632,49 @@ describe('evaluate/first result type declaration', () => {
   it('cannot be bound as an engine default', () => {
     // @ts-expect-error `type` is per-call only; EngineOptions does not carry it
     void new FhirPathEngine({ model: r4Model, type: 'string' })
+  })
+
+  it('reads the expression type from the expression argument only, not from the input', () => {
+    const condition: Condition = {
+      resourceType: 'Condition',
+      subject: { reference: 'Patient/example' },
+      clinicalStatus: { coding: [{ code: 'active' }] },
+    }
+    const rooted = compile('clinicalStatus.coding.first().code', 'Condition')
+    const unrooted = compile('clinicalStatus.coding.first().code')
+
+    const rootedList = r4.evaluate(rooted, condition, { type: 'code' })
+    expectTypeOf(rootedList).toEqualTypeOf<string[]>()
+    expect(rootedList).toEqual(['active'])
+    const rootedFirst = r4.first(rooted, [condition], { type: 'code' })
+    expectTypeOf(rootedFirst).toEqualTypeOf<string | undefined>()
+    expect(rootedFirst).toBe('active')
+
+    const unrootedList = r4.evaluate(unrooted, [condition], { type: 'code' })
+    expectTypeOf(unrootedList).toEqualTypeOf<string[]>()
+    expect(unrootedList).toEqual(['active'])
+    const unrootedFirst = r4.first(unrooted, condition, { type: 'code' })
+    expectTypeOf(unrootedFirst).toEqualTypeOf<string | undefined>()
+    expect(unrootedFirst).toBe('active')
+
+    expectTypeOf(r4.evaluate('Condition.clinicalStatus.coding.code', condition, { type: 'code' })).toEqualTypeOf<
+      string[]
+    >()
+    expectTypeOf(r4.first('clinicalStatus.coding.code', [condition], { type: 'code' })).toEqualTypeOf<
+      string | undefined
+    >()
+
+    const bound = r4.compile('clinicalStatus.coding.first().code', 'Condition')
+    expectTypeOf(bound.evaluate(condition, { type: 'code' })).toEqualTypeOf<string[]>()
+    expectTypeOf(bound.first([condition], { type: 'code' })).toEqualTypeOf<string | undefined>()
+    expect(bound.first([condition], { type: 'code' })).toBe('active')
+    // @ts-expect-error the declared Condition root does not accept a Patient
+    void (() => bound.evaluate(patient, { type: 'code' }))
+
+    // @ts-expect-error a Patient expression does not accept a Condition, with or without `type`
+    expect(r4.evaluate('Patient.name.given', condition, { type: 'string' })).toEqual([])
+    // @ts-expect-error a Patient expression does not accept a Condition, with or without `type`
+    expect(r4.first('Patient.name.given', condition, { type: 'string' })).toBeUndefined()
   })
 })
 

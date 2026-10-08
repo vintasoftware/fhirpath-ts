@@ -143,9 +143,11 @@ static validators:
 The same command then installs the tarball into a temporary consumer, links the
 lockfile-installed optional peers, imports every public entry point, type-checks
 them without `skipLibCheck`, and runs the installed `fhirpath-check` binary
-through both source-only and loaded-DTO checks. This covers emitted imports,
-`bin`, `dist/cli/ts-loader.mjs`, and peer resolution rather than testing the
-source tree twice.
+through both source-only and loaded-DTO checks. It runs that consumer twice:
+once with the lockfile `typescript`, and once with the `typescript` peer range's
+floor linked in its place (see [Dependencies](#dependencies)). This covers
+emitted imports, `bin`, `dist/cli/ts-loader.mjs`, and peer resolution rather
+than testing the source tree twice.
 
 Pass `-- --output <path>` to preserve the validated tarball. The release workflow
 uses that path for both its dry run and `npm publish`, so it publishes the exact
@@ -204,8 +206,13 @@ globs, so adding a module under `src/functions/` needs no change here.
 
 The package has **no runtime dependencies**. It has two optional peers:
 
-- **`typescript`** (`>=5.0.0 <7.0.0`) — needed only by `fhirpath-ts/sites` and
-  the `fhirpath-check` CLI, which read `.ts` source. The upper bound is real: the
+- **`typescript`** (`>=5.4.0 <7.0.0`) — needed only by `fhirpath-ts/sites` and
+  the `fhirpath-check` CLI, which read `.ts` source. The lower bound is also what
+  a consumer's compiler needs to check the published declarations: they use
+  `NoInfer`, added in TypeScript 5.4. `pnpm check:package` type-checks the
+  consumer fixtures and runs the CLI with the floor version, from the
+  `typescript-5-4` devDependency alias, so moving the floor means moving the
+  alias; the check fails until they agree. The upper bound is real: the
   native port's `typescript` entry point exports `version` and little else, so
   `ts.ScriptTarget` and `ts.transpileModule` are absent and the CLI throws at
   startup. Raise the bound only with the CLI actually exercised against that

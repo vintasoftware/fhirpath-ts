@@ -351,7 +351,8 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   /** Compile (LRU-cached by expression text) and evaluate in one call; typed like `compile().evaluate()`. */
   evaluate<const Expr extends string, T extends keyof R4TypeOf>(
     expression: EngineExpression<Expr>,
-    input: EngineInput<Expr> | undefined,
+    // Only the expression infers `Expr`; `FhirpathInput` would read the input's `resourceType` back into it.
+    input: NoInfer<EngineInput<Expr>> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T][]
   evaluate<
@@ -396,7 +397,8 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   /** The first result, or undefined when the expression comes up empty. */
   first<const Expr extends string, T extends keyof R4TypeOf>(
     expression: EngineExpression<Expr>,
-    input: EngineInput<Expr> | undefined,
+    // Only the expression infers `Expr`; `FhirpathInput` would read the input's `resourceType` back into it.
+    input: NoInfer<EngineInput<Expr>> | undefined,
     options: TypedEvaluateOptions<T>
   ): R4TypeOf[T] | undefined
   first<
