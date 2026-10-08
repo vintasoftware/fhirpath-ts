@@ -664,6 +664,13 @@ describe('evaluate/first result type declaration', () => {
       string | undefined
     >()
 
+    const bound = r4.compile('clinicalStatus.coding.first().code', 'Condition')
+    expectTypeOf(bound.evaluate(condition, { type: 'code' })).toEqualTypeOf<string[]>()
+    expectTypeOf(bound.first([condition], { type: 'code' })).toEqualTypeOf<string | undefined>()
+    expect(bound.first([condition], { type: 'code' })).toBe('active')
+    // @ts-expect-error the declared Condition root does not accept a Patient
+    void (() => bound.evaluate(patient, { type: 'code' }))
+
     // @ts-expect-error a Patient expression does not accept a Condition, with or without `type`
     expect(r4.evaluate('Patient.name.given', condition, { type: 'string' })).toEqual([])
     // @ts-expect-error a Patient expression does not accept a Condition, with or without `type`
