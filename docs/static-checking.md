@@ -9,8 +9,11 @@ and opt-in strict evaluation.
 
 Set `strict: true` on `FhirPathEngine` or an individual evaluation call to run
 the analyzer with the evaluator's model, functions, environment, variables, and
-runtime input type. Every error diagnostic becomes a `FhirPathTypeError` before
-the expression runs. Analyzer warnings remain non-fatal.
+runtime input type. A compiled expression that declares its input type
+(`compile(expression, type)`) is analyzed against that type instead, as the CLI
+and ESLint analyze it; the input still supplies the cardinality. Every error
+diagnostic becomes a `FhirPathTypeError` before the expression runs. Analyzer
+warnings remain non-fatal.
 
 ```ts-invalid
 const fp = new FhirPathEngine({ model: r4Model, strict: true })

@@ -59,8 +59,10 @@ strict.evaluate('Patient.name.givenn', patient, { strict: false }) // []
 Strict evaluation rejects every error-severity analyzer diagnostic. Warnings,
 including `regex-backtracking`, do not stop evaluation. It checks `vars` and
 expression-defined custom functions with the same model, functions, and
-environment declarations as the evaluator. FHIR member checks require a model;
-values whose resource type is unknown to that model remain opaque.
+environment declarations as the evaluator. The analysis starts at the input's
+resource type, or at the type a compiled expression declares, which also types
+input without a `resourceType`. FHIR member checks require a model; values
+whose resource type is unknown to that model remain opaque.
 
 Runtime contracts still apply in lenient mode. Unknown functions and variables,
 wrong function arguments, invalid type names, and invalid cardinality are
@@ -93,7 +95,8 @@ FHIRPath expression when more than one value should be an error.
 ### `test()`
 
 Applies the boolean rules used by FHIR criteria. One boolean returns itself. An
-empty result is `false`. More than one value is an error.
+empty result is `false`. More than one value is an error. The input is typed as
+for `evaluate()`.
 
 ```ts
 r4.test(patient, 'active = true') // boolean
@@ -102,7 +105,9 @@ r4.test(patient, 'active = true') // boolean
 ### `filter()`
 
 Keeps resources for which `test()` returns `true`. It accepts resource arrays and
-Bundles.
+Bundles. Each array item is typed as one `evaluate()` input, and the result keeps
+the item type. A Bundle returns `unknown[]`, and its entries are typed only
+against a declared root.
 
 ```ts
 r4.filter(patients, 'birthDate < @1990-01-01') // Patient[]
@@ -211,11 +216,12 @@ the Bundle itself. Any other type, `Resource` included, runs it on the
 entries, also when the expression starts at a name a Bundle has too, such as
 `id`.
 
-Engine methods type a compiled expression the same way. `r4.evaluate()` and
-`r4.first()` given `compile(expression, type)`, `fhirpath(expression, type)`,
+Engine methods type a compiled expression the same way. Given
+`compile(expression, type)`, `fhirpath(expression, type)`,
 `new CompiledExpression(expression, type)`, or the `expression` of an
-`r4.compile(expression, type)` accept the same inputs and infer the result
-against the declared type:
+`r4.compile(expression, type)`, every engine method accepts the same inputs
+(`filter()` an array or Bundle of them), and `r4.evaluate()` and `r4.first()` infer the
+result against the declared type:
 
 ```ts
 const status = compile('clinicalStatus.coding.first().code', 'Condition')
@@ -228,7 +234,8 @@ r4.evaluate(status, patient) // compile error: a Patient is not a Condition
 
 Returns internal `TypedValue[]` values instead of unwrapped JavaScript values.
 Each item includes its FHIRPath type. Decimal, Quantity, date, time, and dateTime
-values keep their internal exact representations.
+values keep their internal exact representations. The input is typed as for
+`evaluate()`.
 
 ## Stateless API
 

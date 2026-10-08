@@ -102,6 +102,49 @@ describe('FhirPathEngine.evaluate', () => {
     expectTypeOf(r4.first(either, patient)).toEqualTypeOf<string | undefined>()
   })
 
+  it('types the input of test, evaluateTyped, and filter as evaluate types it', () => {
+    const condition: Condition = {
+      resourceType: 'Condition',
+      subject: { reference: 'Patient/example' },
+      clinicalStatus: { coding: [{ code: 'active' }] },
+    }
+    const conditions = { resourceType: 'Bundle' as const, entry: [{ resource: condition }] }
+    const active = compile("clinicalStatus.coding.code = 'active'", 'Condition')
+    expect(r4.test(condition, active)).toBe(true)
+    expect(r4.evaluateTyped(active, conditions).map(item => item.value)).toEqual([true])
+    expect(active.evaluateTyped(condition).map(item => item.value)).toEqual([true])
+    const kept = r4.filter([condition], active)
+    expectTypeOf(kept).toEqualTypeOf<Condition[]>()
+    expect(kept).toEqual([condition])
+    expect(r4.filter(conditions, active)).toEqual([condition])
+
+    // A declared root holds for every engine method.
+    // @ts-expect-error a Patient is not the declared Condition
+    void (() => r4.test(patient, active))
+    // @ts-expect-error a Patient is not the declared Condition
+    void (() => r4.evaluateTyped(active, patient))
+    // @ts-expect-error each item must be the declared Condition
+    void (() => r4.filter([patient], active))
+    // @ts-expect-error a Bundle's entries must be the declared Condition
+    void (() => r4.filter(searchset, active))
+    // @ts-expect-error the expression's own evaluateTyped() takes the input its evaluate() takes
+    void (() => active.evaluateTyped(patient))
+
+    // An expression that starts at a resource type takes that type, one filter() item at a time.
+    // @ts-expect-error a Patient expression does not accept a Condition
+    expect(r4.test(condition, 'Patient.active')).toBe(false)
+    // @ts-expect-error a Patient expression does not accept a Condition
+    expect(r4.evaluateTyped('Patient.active', condition)).toEqual([])
+    // @ts-expect-error a Patient expression does not accept a Condition item
+    expect(r4.filter([condition], 'Patient.active')).toEqual([])
+    // @ts-expect-error a Patient expression does not accept a Condition
+    expect(r4.compile('Patient.active').test(condition)).toBe(false)
+    // @ts-expect-error a Patient expression does not accept a Condition
+    expect(compile('Patient.active').evaluateTyped(condition)).toEqual([])
+    // Without a declared root, any Bundle passes, as for evaluate(): its entry types are unknown.
+    expect(r4.filter(searchset, 'Patient.active')).toEqual([patient])
+  })
+
   it('binds env defaults and lets per-call options override them', () => {
     const engine = new FhirPathEngine({ model: r4Model, env: { threshold: 5 } })
     expect(engine.evaluate('%threshold + 1')).toEqual([6])

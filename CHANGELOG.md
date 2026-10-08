@@ -36,6 +36,27 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `r4.evaluate(compile('clinicalStatus', 'Condition'), patient)` compiled. A
   Patient, an `unknown` input, or a Bundle with any resource as its entries
   passed with a Condition-rooted expression is now a compile error.
+- **Breaking:** `engine.test()`, `engine.evaluateTyped()`, and `engine.filter()`
+  type their input as `engine.evaluate()` does, and so do `test()` and
+  `evaluateTyped()` of `engine.compile(expression)` and `evaluateTyped()` of
+  `compile(expression)`. Before, they took any input, so
+  `r4.test(patient, compile('clinicalStatus.exists()', 'Condition'))` and
+  `r4.filter(conditions, 'Patient.active')` compiled. A compiled expression
+  with a declared root takes that type, an array of it, or a Bundle whose
+  entries are typed as it. An expression that starts at a resource type takes
+  that type. `filter()` checks each array item and returns the item type; a
+  Bundle passed with an expression without a declared root is accepted as
+  before. An `unknown` or union input passed with an expression that starts at
+  a resource type, such as `r4.filter(resources, 'Patient.active')` with
+  `resources: (Patient | Condition)[]`, is now a compile error, as it already
+  was for `evaluate()`.
+- **Breaking:** strict evaluation analyzes a compiled expression that declares
+  its input type against that type, as `fhirpath-check` and the ESLint rule do.
+  The input still supplies the cardinality.
+  `r4.evaluate(compile('givenn', 'HumanName'), name, { strict: true })`
+  returned `[]` and now throws `FhirPathTypeError`. A `Condition` expression
+  run on a Patient is no longer rejected for the Patient's elements; the
+  declared type is not checked against the data.
 - `engine.compile(expression, type)` also accepts a Bundle whose entries are
   typed as the declared type, such as Medplum's `Bundle<Condition>`, and
   `Bundle` as the type.

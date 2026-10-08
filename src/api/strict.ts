@@ -23,14 +23,22 @@ interface StrictFinding {
   subject?: string
 }
 
-/** Reject every error-severity analyzer finding before strict evaluation begins. */
-export function assertStrictExpression(ast: AstNode, root: TypedValue[], options: EvaluateOptions | undefined): void {
+/**
+ * Reject every error-severity analyzer finding before strict evaluation begins.
+ * A declared `inputType` roots the analysis, as it does for the static checkers.
+ */
+export function assertStrictExpression(
+  ast: AstNode,
+  root: TypedValue[],
+  options: EvaluateOptions | undefined,
+  inputType?: string
+): void {
   if (options?.strict !== true) {
     return
   }
 
   const model = options.model
-  const analyzerRoot = runtimeRoot(root, model)
+  const analyzerRoot = runtimeRoot(root, model, inputType)
   const variables: Record<string, AnalyzerVariableState> = runtimeAnalyzerEnvironmentVariables(
     options.env,
     options.envTypes,
@@ -90,14 +98,20 @@ function analyzerOptions(
   }
 }
 
-function runtimeRoot(root: TypedValue[], model: ModelProvider | undefined): AnalyzerRoot {
+/**
+ * The analyzer root for the data: its types, or the declared input type, which
+ * may be a supertype of the data, so it carries no exact types. Cardinality and
+ * order always come from the data.
+ */
+function runtimeRoot(
+  root: TypedValue[],
+  model: ModelProvider | undefined,
+  inputType: string | undefined
+): AnalyzerRoot {
   const variable = runtimeAnalyzerVariable(root, model)
-  return {
-    types: variable.types,
-    single: variable.single,
-    ordered: variable.ordered,
-    exactTypes: variable.exactTypes,
-  }
+  return inputType === undefined
+    ? { types: variable.types, single: variable.single, ordered: variable.ordered, exactTypes: variable.exactTypes }
+    : { types: [model?.resolveType(inputType) ?? inputType], single: variable.single, ordered: variable.ordered }
 }
 
 function isResolvedCollection(value: AnyExpression | readonly TypedValue[]): value is readonly TypedValue[] {

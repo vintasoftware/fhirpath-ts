@@ -74,6 +74,23 @@ describe('strict evaluation', () => {
     expect(strict.evaluate('anything', custom)).toEqual(['works'])
   })
 
+  it('analyzes a compiled expression against its declared input type', () => {
+    // The data carries no resourceType, so only the declaration types it.
+    const name = { given: ['Ada'] }
+    expect(() => strict.evaluate(compile('givenn', 'HumanName'), name)).toThrow(/\[unknown-element\]/)
+    expect(() => compile('givenn', 'HumanName').evaluate(name, { model: r4Model, strict: true })).toThrow(
+      /\[unknown-element\]/
+    )
+    expect(strict.evaluate(compile('given', 'HumanName'), name)).toEqual(['Ada'])
+    // The declaration roots the analysis as it does for the static checkers; it is not checked against the data.
+    expect(strict.evaluate(compile('clinicalStatus.exists()', 'Condition'), patient as never)).toEqual([false])
+    // Cardinality still comes from the data: a Bundle read as its entries is a collection.
+    const patients = { resourceType: 'Bundle' as const, entry: [{ resource: patient }, { resource: patient }] }
+    const exclaimed = compile("id + '!'", 'Patient')
+    expect(strict.evaluate(exclaimed, patient)).toEqual(['p1!'])
+    expect(() => strict.evaluate(exclaimed, patients)).toThrow(/\[singleton-required\]/)
+  })
+
   it('keeps specification runtime errors in lenient mode', () => {
     expect(() => lenient.evaluate('frobnicate()', patient)).toThrow(FhirPathTypeError)
     expect(() => lenient.evaluate('1.substring()', patient)).toThrow(FhirPathTypeError)
