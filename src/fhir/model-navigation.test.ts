@@ -141,12 +141,31 @@ describe('model navigation branches', () => {
     expect(evaluate("'Patient/p1'.resolve()")).toEqual([])
   })
 
-  it('comparable() promotes numbers to unity quantities; strings still error', () => {
+  it('comparable() promotes numbers to unity quantities; other operands are empty', () => {
     // Implicit Integer -> Quantity conversion (spec conversion table).
     expect(evaluate("1.comparable(1 'kg')")).toEqual([false])
     expect(evaluate('1.comparable(2)')).toEqual([true])
-    expect(() => evaluate("'x'.comparable(1 'kg')")).toThrow('comparable() expects Quantity operands')
+    expect(evaluate("2 '1'.comparable(3)")).toEqual([true])
+    expect(evaluate("'x'.comparable(1 'kg')")).toEqual([])
+    expect(evaluate("1 'kg'.comparable('x')")).toEqual([])
     expect(evaluate("{}.comparable(1 'kg')")).toEqual([])
+  })
+
+  // FHIRPath 3.0.0: true exactly when = and < give an answer.
+  it.each([
+    ["1 'mg'", "2 'mg'", true],
+    ["1 'm'", "20 'cm'", true],
+    ["1 '[in_i]'", "1 'cm'", true],
+    ['1 year', "1 'a'", false],
+    ['1 year', "1 's'", false],
+    ['1 year', '1 second', false],
+    ['1 year', '12 months', true],
+    ['1 week', "1 'd'", true],
+    ["1 'kg'", "1 'm'", false],
+  ])('%s.comparable(%s) agrees with = and <', (left, right, comparable) => {
+    expect(evaluate(`(${left}).comparable(${right})`)).toEqual([comparable])
+    expect(evaluate(`(${left} = ${right}).exists()`)).toEqual([comparable])
+    expect(evaluate(`(${left} < ${right}).exists()`)).toEqual([comparable])
   })
 })
 

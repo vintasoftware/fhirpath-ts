@@ -910,15 +910,17 @@ export type BuiltinCombineDegradation = Assert<Equal<FhirpathResultIn<'Patient.n
 export type BuiltinCombineComposition = Assert<
   Equal<FhirpathResultIn<'(Patient.name.combine(Patient.name)).count()', 'opaque'>, number[]>
 >
-export type BuiltinComparableFastSlowParity = Assert<FastSlowInferenceParity<"1 'mg'.comparable(1 'mg')", 'opaque'>>
+export type BuiltinComparableFastSlowParity = Assert<
+  FastSlowInferenceParity<"Patient.name.first().comparable('x')", 'opaque'>
+>
 export type BuiltinComparablePositive = Assert<
-  Equal<FhirpathResultIn<"1 'mg'.comparable(1 'mg')", 'opaque'>, boolean[]>
+  Equal<FhirpathResultIn<"Patient.name.first().comparable('x')", 'opaque'>, boolean[]>
 >
 export type BuiltinComparableDegradation = Assert<
   Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
 >
 export type BuiltinComparableComposition = Assert<
-  Equal<FhirpathResultIn<"(1 'mg'.comparable(1 'mg')).count()", 'opaque'>, number[]>
+  Equal<FhirpathResultIn<"(Patient.name.first().comparable('x')).count()", 'opaque'>, number[]>
 >
 export type BuiltinConformsToFastSlowParity = Assert<
   FastSlowInferenceParity<"Patient.name.first().conformsTo('x')", 'opaque'>

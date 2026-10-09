@@ -132,6 +132,12 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `'\u005'` is `'u005'`. These were syntax errors. A literal that ends in
   `\'` with no later quote, such as `'\'`, ends there
   ([#129](https://github.com/vintasoftware/fhirpath-ts/issues/129)).
+- `comparable()` is true exactly when `=` and `<` on the two quantities give
+  an answer, as FHIRPath 3.0.0 defines it: `1 year.comparable(1 'a')` and
+  `1 year.comparable(1 second)` are false. An operand that is not a Quantity
+  or a number gives empty instead of an error, and the analyzer accepts
+  `1.comparable(2)`
+  ([#125](https://github.com/vintasoftware/fhirpath-ts/issues/125)).
 
 ### Fixed
 

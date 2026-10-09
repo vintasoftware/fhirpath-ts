@@ -1429,9 +1429,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.comparable': {
-    expression: "1 'mg'.comparable(1 'mg')",
+    expression: "Patient.name.first().comparable('x')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "(1 'mg'.comparable(1 'mg')).count()",
+    composition: "(Patient.name.first().comparable('x')).count()",
     analyzer: {
       types: ['System.Boolean'],
       single: true,

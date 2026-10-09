@@ -224,9 +224,9 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'comparable-edge-behaviors',
     evidence:
-      'fhirpath.js errors on year operands of comparable() and returns false for empty input; comparability is dimension-based here and empty input propagates.',
+      'FHIRPath 3.0.0 comparable(): true "indicates that a result from equality or comparison functions will succeed", so it is true here exactly when = and < give an answer, and 1 year = 1 second is empty. fhirpath.js decides by dimension, errors on some year operands, and returns false for empty input; the spec says empty.',
     keys: [
-      "6.2_comparision.yaml||1 year.comparable(1 's')",
+      '6.2_comparision.yaml||1 year.comparable(1 second)',
       '6.2_comparision.yaml||Observation.value.comparable(1 year)',
       '6.2_comparision.yaml||i.comparable(2 years)',
     ],

@@ -290,7 +290,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   getValue: { input: { singleton: true }, result: UNKNOWN_ITEM },
   // A collection gives empty, not an error (FHIR R5 htmlChecks).
   htmlChecks: { result: BOOLEAN },
-  comparable: { input: { kind: 'Quantity', singleton: true }, args: ['Quantity'], result: BOOLEAN },
+  // A number counts as a unity Quantity; any other operand gives empty, not an error.
+  comparable: { input: { singleton: true }, args: ['any'], result: BOOLEAN },
   conformsTo: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
 
   length: { input: { kind: 'String', singleton: true }, result: INTEGER },

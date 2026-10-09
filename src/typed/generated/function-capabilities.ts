@@ -198,7 +198,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.comparable': {
     source: {
-      expression: "1 'mg'.comparable(1 'mg')",
+      expression: "Patient.name.first().comparable('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'boolean[]',
@@ -209,7 +209,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: "(1 'mg'.comparable(1 'mg')).count()",
+    composition: "(Patient.name.first().comparable('x')).count()",
   },
   'builtin.conformsTo': {
     source: {
