@@ -2,14 +2,14 @@
   "tolerancePct": 5,
   "compilers": {
     "typescript": {
-      "commonPath": 132213,
-      "fullLanguage": 777651,
-      "apiSurface": 260754
+      "commonPath": 132026,
+      "fullLanguage": 778024,
+      "apiSurface": 260566
     },
     "typescript-5-8": {
-      "commonPath": 137532,
-      "fullLanguage": 797951,
-      "apiSurface": 365147
+      "commonPath": 137345,
+      "fullLanguage": 798325,
+      "apiSurface": 364959
     }
   },
   "fullLanguageLimit": 5000000,
