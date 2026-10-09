@@ -37,6 +37,13 @@ export function compareTemporal(a: Temporal, b: Temporal): TemporalComparison {
   return levelA === levelB ? 0 : 'differentPrecision'
 }
 
+/** Two values have the same key exactly when `compareTemporal` returns 0. */
+export function temporalEqualityKey(value: Temporal): string {
+  const level = comparisonLevel(value)
+  const zoned = level >= 3 && value.timezoneOffsetMinutes !== undefined ? 'z' : ''
+  return `${value.kind === 'time' ? 'T' : 'D'}${level}${zoned}:${rank(value, level)}`
+}
+
 function comparisonLevel(value: Temporal): number {
   const precision = value.precision === 'millisecond' ? 'second' : value.precision
   return LEVELS.indexOf(precision as Level)

@@ -198,6 +198,39 @@ export function compareQuantities(a: QuantityValue, b: QuantityValue): -1 | 0 | 
   return compareUcum(a, b)
 }
 
+/**
+ * Two quantities have the same key exactly when `compareQuantities` returns 0.
+ * Calendar years and months compare only with each other; smaller calendar words
+ * take their UCUM twin's key, as the comparison does.
+ */
+export function quantityEqualityKey(quantity: QuantityValue): string {
+  if (quantity.calendar) {
+    const singular = normalizeCalendarUnit(quantity.unit)
+    const months = MONTH_FAMILY[singular]
+    if (months !== undefined) {
+      return `M${decimalKey(quantity.value.multiply(Decimal.fromString(months) as Decimal))}`
+    }
+    // Every calendar word below a month has an exact twin.
+    const twin = CALENDAR_TO_UCUM_EXACT[singular] as string
+    return quantityEqualityKey({ value: quantity.value, unit: twin, calendar: false })
+  }
+  const canonical = canonicalizeUnit(quantity.unit)
+  if (canonical === undefined) {
+    // An opaque unit compares only with the same spelling.
+    return `O${quantity.unit}|${decimalKey(quantity.value)}`
+  }
+  const dimensions = Object.entries(canonical.dimensions)
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([dimension, exponent]) => `${dimension}${exponent}`)
+    .join('.')
+  return `U${dimensions}|${decimalKey(quantity.value.multiply(canonical.factor))}`
+}
+
+function decimalKey(value: Decimal): string {
+  const trimmed = value.trimTrailingZeros()
+  return `${trimmed.digits}e${trimmed.scale}`
+}
+
 function compareUcum(a: QuantityValue, b: QuantityValue): -1 | 0 | 1 | undefined {
   if (a.unit === b.unit) {
     return a.value.compare(b.value)
