@@ -5,9 +5,11 @@ import { FhirPathRuntimeError, FhirPathTypeError } from './errors.ts'
 import { r4Model } from './r4/index.ts'
 
 /**
- * Additional cases from fhirpath-rs, Helios (hfs), and Medplum. The rest of the
- * Rust corpus repeats the official R5 suite or requires the deferred `%factory`
- * API. The Medplum cases here cover empty values, zero, and operator precedence.
+ * Additional cases from fhirpath-rs, Helios (hfs), fhirpath.zig, and Medplum. The
+ * rest of the Rust corpus repeats the official R5 suite or requires the deferred
+ * `%factory` API. The fhirpath.zig cases come from its hand-written tests for
+ * FHIRPath 3.0.0 functions. The Medplum cases here cover empty values, zero, and
+ * operator precedence.
  */
 
 const patient = {
@@ -86,6 +88,37 @@ describe('Helios regex flag cross-checks', () => {
     ["'HELLO'.matchesFull('hello', 'i')", [true]],
   ] as [string, unknown[]][])('%s', (expression, expected) => {
     expect(evaluate(expression)).toEqual(expected)
+  })
+})
+
+describe('fhirpath.zig 3.0.0 cross-checks', () => {
+  it.each([
+    ["@2024-01-01.duration(@2025-01-01, 'year')", [1]],
+    ["@2025-01-15.duration(@2025-02-15, 'month')", [1]],
+    ["@2025-06-01.duration(@2025-01-01, 'month')", [-5]],
+    ["@2024-12-31.difference(@2025-01-01, 'day')", [1]],
+    ["@2024-12-31.difference(@2025-01-01, 'year')", [1]],
+    ["@2025-06-01.difference(@2025-01-01, 'month')", [-5]],
+    ["{}.duration(@2025-01-01, 'day')", []],
+    ["@2025-01.duration(@2025-02, 'day')", []],
+    ["@2025-01-01.difference({}, 'day')", []],
+    ["@2025-01-01T10:00:00.duration(@2025-01-01T15:30:00, 'hour')", [5]],
+    ["@2025-01-01T10:30:00.difference(@2025-01-01T12:15:00, 'hour')", [2]],
+    ["@T10:00:00.duration(@T10:45:30, 'minute')", [45]],
+    ["@T10:00:00.difference(@T10:00:05, 'second')", [5]],
+    ["'Hello HELLO hello'.replaceMatches('hello', 'hi', 'i')", ['hi hi hi']],
+    ["'line1\\nline2'.matches('^line2', 'm')", [true]],
+    ["'line1\\nline2'.matches('line1$', 'm')", [true]],
+    ['{}.repeatAll(child).empty()', [true]],
+  ] as [string, unknown[]][])('%s', (expression, expected) => {
+    expect(evaluate(expression)).toEqual(expected)
+  })
+
+  it('repeatAll() follows each chain and keeps duplicate values', () => {
+    const chain = { root: { id: 'root', child: { id: 'a', child: { id: 'b' } } } }
+    expect(evaluate('root.repeatAll(child).count()', chain)).toEqual([2])
+    const siblings = { root: { child: [{ id: 1 }, { id: 1 }, { id: 2 }] } }
+    expect(evaluate('root.repeatAll(child.id).count()', siblings)).toEqual([3])
   })
 })
 

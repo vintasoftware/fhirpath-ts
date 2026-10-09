@@ -69,9 +69,10 @@ one starts passing, so the manifest lists only differences that still exist.
 The fhirpath-rs corpus was also reviewed. Its official R5 cases are already
 covered by the official suite. Its additional cases are included in
 `src/reference-crosschecks.test.ts`, together with selected Helios (hfs) and
-Medplum comparisons. Three fhirpath-rs `repeatAll()` cases expect the input
-items in the output, or a constant projection to end; that file tests the
-specification's behavior instead.
+Medplum comparisons and the FHIRPath 3.0.0 cases from Josh Mandel's
+hand-written fhirpath.zig tests. Three fhirpath-rs `repeatAll()` cases expect
+the input items in the output, or a constant projection to end; that file tests
+the specification's behavior instead.
 
 ## Deviations from the specification
 
