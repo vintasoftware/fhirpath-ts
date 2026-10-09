@@ -1939,11 +1939,11 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.max': {
-    expression: 'Patient.name.max()',
+    expression: 'Patient.name.given.max()',
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.max()).count()',
+    composition: '(Patient.name.given.max()).count()',
     analyzer: {
-      types: ['FHIR.HumanName'],
+      types: ['FHIR.string'],
       single: true,
     },
     runtime: false,
@@ -1959,11 +1959,11 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.min': {
-    expression: 'Patient.name.min()',
+    expression: 'Patient.name.given.min()',
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.min()).count()',
+    composition: '(Patient.name.given.min()).count()',
     analyzer: {
-      types: ['FHIR.HumanName'],
+      types: ['FHIR.string'],
       single: true,
     },
     runtime: false,
