@@ -4,7 +4,7 @@ import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { isTerminologyService, type TerminologyProvider } from '../terminology/provider.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
-import { SYSTEM_STRING, systemTypeOf, toCollection, type TypedValue } from '../values/typed-value.ts'
+import { OBJECT_TYPE, SYSTEM_STRING, systemTypeOf, toCollection, type TypedValue } from '../values/typed-value.ts'
 import { argAt, describeArity, registerFunction } from './registry.ts'
 
 type EvaluateNode = (node: AstNode, context: EvaluationContext, input: TypedValue[]) => TypedValue[]
@@ -46,7 +46,7 @@ registerFunction('subsumes', {
   maxArity: 4,
   evaluate: (context, input, args, evaluateNode) => {
     if (isTerminologyService(input)) {
-      return serviceSubsumes(context, input, args, evaluateNode)
+      return evaluateService('subsumes', context, input, args, evaluateNode)
     }
     requireArity('subsumes', args, 1, 1)
     return codingSubsumes(
@@ -78,11 +78,12 @@ registerFunction('subsumedBy', {
  * The Boolean Coding|CodeableConcept form: true when any same-system coding pair
  * satisfies `accepts` on the provider's CodeSystem/$subsumes outcome. Codings in
  * different systems, or with an unknown service outcome, remain indeterminate.
- * A matching pair establishes true; otherwise an indeterminate pair yields empty.
+ * A matching pair establishes true. Otherwise subsumedBy rejects unrelated
+ * systems, while subsumes and unknown service outcomes yield empty.
  */
 function codingSubsumes(
   context: EvaluationContext,
-  name: string,
+  name: 'subsumes' | 'subsumedBy',
   input: TypedValue[],
   args: AstNode[],
   evaluateNode: EvaluateNode,
@@ -100,8 +101,12 @@ function codingSubsumes(
     return []
   }
   let unknown = false
+  let differentSystems = false
   for (const a of inputCodings) {
     for (const b of argCodings) {
+      if (typeof a.system === 'string' && typeof b.system === 'string' && a.system !== b.system) {
+        differentSystems = true
+      }
       if (
         typeof a.system !== 'string' ||
         a.system !== b.system ||
@@ -119,71 +124,65 @@ function codingSubsumes(
         unknown = true
     }
   }
+  if (differentSystems && name === 'subsumedBy') {
+    throw new FhirPathRuntimeError('subsumedBy() cannot determine the relationship between different code systems')
+  }
   return unknown ? [] : wrapBoolean(false)
 }
 
-/** The `%terminologies.subsumes(system, coded1, coded2 [, params])` form: returns the outcome code. */
-function serviceSubsumes(
+// The last argument is optional in this API; an explicitly empty argument is
+// still invalid, as are all other empty, plural, or wrongly typed arguments.
+type ServiceArgument = 'string' | 'code' | 'coded' | 'ValueSet' | 'CodeSystem' | 'ConceptMap'
+const SERVICE_ARGUMENTS = {
+  expand: ['ValueSet', 'string'],
+  lookup: ['coded', 'string'],
+  validateVS: ['ValueSet', 'coded', 'string'],
+  validateCS: ['CodeSystem', 'coded', 'string'],
+  subsumes: ['string', 'code', 'code', 'string'],
+  translate: ['ConceptMap', 'code', 'string'],
+} as const satisfies Record<keyof TerminologyProvider, readonly ServiceArgument[]>
+
+function evaluateService(
+  name: keyof TerminologyProvider,
   context: EvaluationContext,
   input: TypedValue[],
   args: AstNode[],
   evaluateNode: EvaluateNode
 ): TypedValue[] {
-  requireArity('subsumes', args, 3, 4)
-  const system = stringArgument('subsumes', 'a String system', evaluateNode(argAt(args, 0), context, input))
-  const coded1 = codedValueOf(singleton(evaluateNode(argAt(args, 1), context, input)))
-  const coded2 = codedValueOf(singleton(evaluateNode(argAt(args, 2), context, input)))
-  const params = optionalParams('subsumes', context, input, args, 3, evaluateNode)
-  if (system === undefined || coded1 === undefined || coded2 === undefined) {
-    return []
+  if (!isTerminologyService(input)) {
+    throw new FhirPathTypeError(`${name}() is only available on %terminologies`)
   }
-  const outcome = callProvider(
-    context,
-    'subsumes()',
-    'subsumes',
-    params === undefined ? [system, coded1, coded2] : [system, coded1, coded2, params]
-  )
-  return typeof outcome === 'string' ? [{ type: SYSTEM_STRING, value: outcome }] : []
+  const kinds = SERVICE_ARGUMENTS[name]
+  requireArity(name, args, kinds.length - 1, kinds.length)
+  const values: unknown[] = []
+  for (let index = 0; index < args.length; index++) {
+    const items = evaluateNode(argAt(args, index), context, input)
+    const item = items.length === 1 ? items[0] : undefined
+    if (item === undefined) return []
+    const kind = kinds[index] as ServiceArgument
+    const value = serviceArgument(item, kind)
+    if (value === undefined) return []
+    values.push(value)
+  }
+  // The argument schema above builds the provider tuple positionally.
+  return toCollection(callProvider(context, `${name}()`, name, values as ProviderArgs<typeof name>))
 }
 
-/**
- * The rest of the %terminologies API. Each maps one-to-one onto a provider
- * method; a missing required argument yields empty (the service cannot answer),
- * and an undefined response yields empty.
- */
-function registerServiceFunction(name: keyof TerminologyProvider, requiredArgs: number): void {
+function serviceArgument(item: TypedValue, kind: ServiceArgument): unknown {
+  if (kind === 'code' || kind === 'coded') return codedValueOf(item, kind === 'coded')
+  if (systemTypeOf(item) === SYSTEM_STRING) return item.value
+  if (kind !== 'string' && item.type === `FHIR.${kind}`) return item.value
+  return undefined
+}
+
+for (const name of ['expand', 'lookup', 'validateVS', 'validateCS', 'translate'] as const) {
+  const arity = SERVICE_ARGUMENTS[name].length
   registerFunction(name, {
-    minArity: requiredArgs,
-    maxArity: requiredArgs + 1,
-    evaluate: (context, input, args, evaluateNode) => {
-      if (!isTerminologyService(input)) {
-        throw new FhirPathTypeError(`${name}() is only available on %terminologies`)
-      }
-      const values: unknown[] = []
-      for (let index = 0; index < requiredArgs; index++) {
-        const value = singleton(evaluateNode(argAt(args, index), context, input))?.value
-        if (value === undefined) {
-          return []
-        }
-        values.push(value)
-      }
-      const params = optionalParams(name, context, input, args, requiredArgs, evaluateNode)
-      if (params !== undefined) {
-        values.push(params)
-      }
-      // The one dynamic caller: the loop builds the tuple positionally, so the
-      // per-method arg typing callProvider gives static callers is asserted here.
-      const response = callProvider(context, `${name}()`, name, values as ProviderArgs<typeof name>)
-      return toCollection(response)
-    },
+    minArity: arity - 1,
+    maxArity: arity,
+    evaluate: (context, input, args, evaluateNode) => evaluateService(name, context, input, args, evaluateNode),
   })
 }
-
-registerServiceFunction('expand', 1)
-registerServiceFunction('lookup', 1)
-registerServiceFunction('validateVS', 2)
-registerServiceFunction('validateCS', 2)
-registerServiceFunction('translate', 2)
 
 // ---- shared helpers ----
 
@@ -219,14 +218,14 @@ export function callProvider<K extends keyof TerminologyProvider>(
  * A coded value as the provider receives it: a code string, or a Coding /
  * CodeableConcept object passed through as plain JSON.
  */
-function codedValueOf(item: TypedValue | undefined): unknown {
-  if (item === undefined) {
-    return undefined
-  }
-  if (typeof item.value === 'string' || isObject(item.value)) {
-    return item.value
-  }
-  return undefined
+function codedValueOf(item: TypedValue | undefined, allowConcept = true): unknown {
+  if (item === undefined) return undefined
+  if (systemTypeOf(item) === SYSTEM_STRING || item.type === 'FHIR.Coding') return item.value
+  if (allowConcept && item.type === 'FHIR.CodeableConcept') return item.value
+  if (item.type !== OBJECT_TYPE || !isObject(item.value)) return undefined
+  const value = item.value as CodedElement
+  if (typeof value.code === 'string' || typeof value.system === 'string') return value
+  return allowConcept && Array.isArray(value.coding) ? value : undefined
 }
 
 /** The shape shared by Codings, CodeableConcepts, and their extension carriers. */
@@ -313,22 +312,7 @@ function stringArgument(name: string, expected: string, values: TypedValue[]): s
   return value.value as string
 }
 
-/** The trailing URL-encoded `params` string argument the tx API functions accept. */
-function optionalParams(
-  name: string,
-  context: EvaluationContext,
-  input: TypedValue[],
-  args: AstNode[],
-  index: number,
-  evaluateNode: EvaluateNode
-): string | undefined {
-  if (args.length <= index) {
-    return undefined
-  }
-  return stringArgument(name, 'a String params', evaluateNode(argAt(args, index), context, input))
-}
-
-/** Both subsumes forms live under one registry entry, so each form re-checks its own arity. */
+/** Both subsumes forms share a registry entry, so the selected form checks its arity. */
 function requireArity(name: string, args: AstNode[], min: number, max: number): void {
   if (args.length < min || args.length > max) {
     throw new FhirPathTypeError(`Function '${name}' expects ${describeArity(min, max)}, got ${args.length} arguments`)
