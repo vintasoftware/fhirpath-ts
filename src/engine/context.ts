@@ -89,7 +89,7 @@ export type HostFunction = HostSingleFunction | HostOverloadedFunction
  */
 export interface RegexEngine {
   /**
-   * Compile `pattern` with `flags` (a subset of 's' and 'g'; matchesFull
+   * Compile `pattern` with `flags` (a subset of 's', 'g', 'i', and 'm'; matchesFull
    * wraps the pattern in `^(?:...)$` before compiling). Throw on invalid
    * patterns — the engine converts that to the spec's type error.
    */

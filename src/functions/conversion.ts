@@ -1,5 +1,7 @@
+import type { EvaluationContext } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import { CALENDAR_DURATION_UNITS } from '../lexer/tokens.ts'
+import type { AstNode } from '../parser/ast.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
@@ -19,34 +21,70 @@ import {
   systemTypeOf,
   type TypedValue,
 } from '../values/typed-value.ts'
+import { compileDateFormat } from './date-format.ts'
+import type { NodeEvaluator } from './iteration.ts'
 import type { FhirPathFunction } from './registry.ts'
-import { registerFunction } from './registry.ts'
+import { argAt, registerFunction } from './registry.ts'
 
 type Converter = (item: TypedValue) => TypedValue | undefined
 
-/** Registers `to<Type>()` plus its `convertsTo<Type>()` twin (spec §5.5). */
-function conversionPair(typeName: string, convert: Converter): void {
+/**
+ * Registers `to<Type>()` plus its `convertsTo<Type>()` twin (spec §5.5). With
+ * `formatted`, both take an optional format argument (FHIRPath 3.0.0) that
+ * replaces the default format for a String input; other inputs ignore it.
+ */
+function conversionPair(
+  typeName: string,
+  convert: Converter,
+  formatted?: { kind: 'date' | 'dateTime'; type: string }
+): void {
+  const converter = (
+    name: string,
+    context: EvaluationContext,
+    input: TypedValue[],
+    args: AstNode[],
+    evaluateNode: NodeEvaluator
+  ): Converter => {
+    if (formatted === undefined || args.length === 0) {
+      return convert
+    }
+    const format = singleton(evaluateNode(argAt(args, 0), context, input))
+    if (format === undefined) {
+      return convert
+    }
+    if (systemTypeOf(format) !== SYSTEM_STRING) {
+      throw new FhirPathTypeError(`${name}() expects a String format, found ${format.type}`)
+    }
+    return item => {
+      if (systemTypeOf(item) !== SYSTEM_STRING) {
+        return convert(item)
+      }
+      const value = compileDateFormat(name, format.value as string, formatted.kind).read(item.value as string)
+      return value === undefined ? undefined : { type: formatted.type, value }
+    }
+  }
+  const maxArity = formatted === undefined ? 0 : 1
   registerFunction(`to${typeName}`, {
     minArity: 0,
-    maxArity: 0,
-    evaluate: (_context, input) => {
+    maxArity,
+    evaluate: (context, input, args, evaluateNode) => {
       const item = singleton(input)
       if (item === undefined) {
         return []
       }
-      const converted = convert(item)
+      const converted = converter(`to${typeName}`, context, input, args, evaluateNode)(item)
       return converted === undefined ? [] : [converted]
     },
   })
   registerFunction(`convertsTo${typeName}`, {
     minArity: 0,
-    maxArity: 0,
-    evaluate: (_context, input) => {
+    maxArity,
+    evaluate: (context, input, args, evaluateNode) => {
       const item = singleton(input)
       if (item === undefined) {
         return []
       }
-      return wrapBoolean(convert(item) !== undefined)
+      return wrapBoolean(converter(`convertsTo${typeName}`, context, input, args, evaluateNode)(item) !== undefined)
     },
   })
 }
@@ -191,41 +229,49 @@ conversionPair('String', item => {
   return value === undefined ? undefined : { type: SYSTEM_STRING, value }
 })
 
-conversionPair('Date', item => {
-  switch (systemTypeOf(item)) {
-    case SYSTEM_DATE:
-      return item
-    case SYSTEM_DATETIME: {
-      const value = item.value as Temporal
-      const truncated = Temporal.fromFields('date', { year: value.year, month: value.month, day: value.day })
-      return truncated === undefined ? undefined : { type: SYSTEM_DATE, value: truncated }
+conversionPair(
+  'Date',
+  item => {
+    switch (systemTypeOf(item)) {
+      case SYSTEM_DATE:
+        return item
+      case SYSTEM_DATETIME: {
+        const value = item.value as Temporal
+        const truncated = Temporal.fromFields('date', { year: value.year, month: value.month, day: value.day })
+        return truncated === undefined ? undefined : { type: SYSTEM_DATE, value: truncated }
+      }
+      case SYSTEM_STRING: {
+        const parsed = Temporal.parseDate(item.value as string)
+        return parsed === undefined ? undefined : { type: SYSTEM_DATE, value: parsed }
+      }
+      default:
+        return undefined
     }
-    case SYSTEM_STRING: {
-      const parsed = Temporal.parseDate(item.value as string)
-      return parsed === undefined ? undefined : { type: SYSTEM_DATE, value: parsed }
-    }
-    default:
-      return undefined
-  }
-})
+  },
+  { kind: 'date', type: SYSTEM_DATE }
+)
 
-conversionPair('DateTime', item => {
-  switch (systemTypeOf(item)) {
-    case SYSTEM_DATETIME:
-      return item
-    case SYSTEM_DATE: {
-      const value = item.value as Temporal
-      const widened = Temporal.fromFields('dateTime', { year: value.year, month: value.month, day: value.day })
-      return widened === undefined ? undefined : { type: SYSTEM_DATETIME, value: widened }
+conversionPair(
+  'DateTime',
+  item => {
+    switch (systemTypeOf(item)) {
+      case SYSTEM_DATETIME:
+        return item
+      case SYSTEM_DATE: {
+        const value = item.value as Temporal
+        const widened = Temporal.fromFields('dateTime', { year: value.year, month: value.month, day: value.day })
+        return widened === undefined ? undefined : { type: SYSTEM_DATETIME, value: widened }
+      }
+      case SYSTEM_STRING: {
+        const parsed = Temporal.parseDateTime(item.value as string)
+        return parsed === undefined ? undefined : { type: SYSTEM_DATETIME, value: parsed }
+      }
+      default:
+        return undefined
     }
-    case SYSTEM_STRING: {
-      const parsed = Temporal.parseDateTime(item.value as string)
-      return parsed === undefined ? undefined : { type: SYSTEM_DATETIME, value: parsed }
-    }
-    default:
-      return undefined
-  }
-})
+  },
+  { kind: 'dateTime', type: SYSTEM_DATETIME }
+)
 
 conversionPair('Time', item => {
   switch (systemTypeOf(item)) {

@@ -148,23 +148,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     ],
   },
   {
-    name: 'matches-flags-argument',
-    evidence:
-      'The flags argument of matches()/matchesFull() is a fhirpath.js extension; the spec signature is matches(regex : String) : Boolean (N1 \u00a75.6.9, 2025Jan ballot).',
-    keys: [
-      "5.6_string_manipulation.yaml||'Hello World'.matches('hello', '')",
-      "5.6_string_manipulation.yaml||'Hello World'.matches('hello', 'i')",
-      "5.6_string_manipulation.yaml||'Test String'.matchesFull('test string', '')",
-      "5.6_string_manipulation.yaml||'Test String'.matchesFull('test string', 'i')",
-      "5.6_string_manipulation.yaml||'abc\ndef'.matchesFull('abc', 'm')",
-      "5.6_string_manipulation.yaml||'first line\nsecond line'.matches('^SECOND', 'im')",
-      "5.6_string_manipulation.yaml||'first line\nsecond line'.matches('^second', '')",
-      "5.6_string_manipulation.yaml||'first line\nsecond line'.matches('^second', 'm')",
-      "5.6_string_manipulation.yaml||'first line\nsecond line'.matches('line.second', '')",
-      "5.6_string_manipulation.yaml||'first line\nsecond line'.matchesFull('first line.second line', '')",
-    ],
-  },
-  {
     name: 'full-ucum-table',
     evidence:
       'Offset and logarithmic units (Cel, [degF], K, B) need a complete UCUM implementation \u2014 a deferred feature (README register).',

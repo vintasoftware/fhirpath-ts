@@ -10,6 +10,32 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Added
 
+- FHIRPath 3.0.0 functions and arguments:
+  - `matches()`, `matchesFull()`, and `replaceMatches()` take an optional
+    `flags` argument: `i` ignores case and `m` makes `^` and `$` match at line
+    breaks. Any other flag is an error, which the analyzer reports for a
+    literal ([#111](https://github.com/vintasoftware/fhirpath-ts/issues/111)).
+    A custom `EvaluateOptions.regex` engine now also receives the `i` and `m`
+    flags.
+  - `repeatAll(projection)` is `repeat()` without the duplicate check. It
+    fails after 10,000 items, as `repeat()` does, so a projection that keeps
+    returning a value, such as `'abc'.repeatAll(replace('a', 'A'))`, stops
+    with an error ([#112](https://github.com/vintasoftware/fhirpath-ts/issues/112)).
+  - `duration(value, precision)` counts whole calendar periods and
+    `difference(value, precision)` counts period boundaries (weeks start on
+    Sunday) between two Dates, DateTimes, or Times. A precision the operand
+    types do not allow, such as `'hour'` between two Dates, is an error, which
+    the analyzer reports for a literal
+    ([#113](https://github.com/vintasoftware/fhirpath-ts/issues/113)).
+  - `toDate()`, `toDateTime()`, `convertsToDate()`, and `convertsToDateTime()`
+    take an optional `format` for a String input, such as
+    `'01/15/2025'.toDate('MM/dd/yyyy')`. Every code the spec requires is
+    supported, plus `yy`, `M`, `d`, `h`, `H`, `m`, `s`, and English month
+    names (`MMM`, `MMMM`); the time zone name code `z` is not. A format the
+    conversion cannot use is an error
+    ([#114](https://github.com/vintasoftware/fhirpath-ts/issues/114)).
+  - `combine(other, preserveOrder)` and `encode('ascii')`
+    ([#117](https://github.com/vintasoftware/fhirpath-ts/issues/117)).
 - `engine.compile(expression, type)` declares the type a relative expression
   runs against, as the package-root `compile(expression, type)` does. The input
   must be that type or an array of it, the result is inferred against it, and
@@ -23,6 +49,12 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
+- **Breaking:** the analyzer treats a `combine()` result as unordered unless
+  `preserveOrder` is `true`, because FHIRPath 3.0.0 gives it no order
+  otherwise. `Patient.name.combine(Patient.contact.name).first()` is now an
+  `order-dependent` error, so strict evaluation throws; write
+  `combine(..., true)` when the order matters. The runtime keeps appending in
+  order either way.
 - **Breaking:** the optional `typescript` peer range is `>=5.4.0 <7.0.0`
   (was `>=5.0.0`). The published declarations use `NoInfer`, which TypeScript
   5.4 added, and TypeScript 5.0 already failed to check them with

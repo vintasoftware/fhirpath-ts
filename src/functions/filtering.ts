@@ -36,9 +36,11 @@ registerFunction('select', {
 })
 
 /**
- * The most items repeat() collects before it fails. Cycles in data stop by
- * deduplication, but a projection can keep producing new values
- * (`1.repeat($this + 1)`), and only this limit ends that loop.
+ * The most items repeat() and repeatAll() collect before they fail. Cycles in
+ * data stop repeat() by deduplication, but a projection can keep producing new
+ * values (`1.repeat($this + 1)`), and only this limit ends that loop. repeatAll()
+ * keeps duplicates, so for it the limit also ends a projection that returns the
+ * same value forever (`'abc'.repeatAll(replace('a', 'A'))`).
  */
 export const MAX_REPEAT_ITEMS = 10_000
 
@@ -70,6 +72,38 @@ registerFunction('repeat', {
       current = fresh
     }
     return collected.items
+  },
+})
+
+/**
+ * repeatAll() (FHIRPath 3.0.0, trial use): repeat() without the equality check.
+ * Every projected item goes to the output and to the next round's queue.
+ */
+registerFunction('repeatAll', {
+  minArity: 1,
+  maxArity: 1,
+  evaluate: (context, input, args, evaluateNode) => {
+    const expression = argAt(args, 0)
+    const collected: TypedValue[] = []
+    let current = input
+    while (current.length > 0) {
+      const produced: TypedValue[] = []
+      perItem(context, current, expression, evaluateNode, (_item, projected) => {
+        if (collected.length + produced.length + projected.length > MAX_REPEAT_ITEMS) {
+          throw new FhirPathRuntimeError(
+            `repeatAll() collected more than ${MAX_REPEAT_ITEMS} items; the projection may never stop producing values`
+          )
+        }
+        for (const item of projected) {
+          produced.push(item)
+        }
+      })
+      for (const item of produced) {
+        collected.push(item)
+      }
+      current = produced
+    }
+    return collected
   },
 })
 

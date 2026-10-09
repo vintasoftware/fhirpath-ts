@@ -2,11 +2,15 @@ import '../functions/install.ts'
 
 import { bareEnvironmentName, BUILTIN_ENV_VARIABLE_NAMES, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
+import { compileDateFormat } from '../functions/date-format.ts'
+import { intervalPrecisionMessage, intervalPrecisions } from '../functions/date-intervals.ts'
 import { describeArity, functions } from '../functions/registry.ts'
+import { invalidRegexFlagMessage } from '../functions/string.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
+import type { TemporalKind } from '../values/datetime.ts'
 import {
   canonicalFocusType,
   commonValueKind,
@@ -38,6 +42,7 @@ import {
   singleState,
   singletonOrder,
   unionStates,
+  withOrder,
   withSingle,
 } from './signatures.ts'
 import { SOURCE_VARIABLE_DEFAULTS, type SourceVariableDefaults, type SourceVariablePlan } from './source-options.ts'
@@ -765,6 +770,8 @@ class Analyzer {
       this.registerVariable(node, input, argStates, scope)
     }
     this.checkRegexPattern(node)
+    this.checkIntervalPrecision(node, input, argStates)
+    this.checkDateFormat(node, input)
     // ofType(X) filters and as(X) casts: both narrow to the named type,
     // intersected with the known candidates.
     if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
@@ -778,7 +785,8 @@ class Analyzer {
     if (expressionResult !== undefined) {
       return callResult(expressionResult, this.runtime)
     }
-    return callResult(applyResultRule(signature.result, input, argStates), this.runtime)
+    const result = applyResultRule(signature.result, input, argStates)
+    return callResult(node.name === 'combine' ? withOrder(result, combineOrder(node, result)) : result, this.runtime)
   }
 
   /** Apply the expression-body and criteria rules in one place for signed and unsigned declarations. */
@@ -1049,10 +1057,12 @@ class Analyzer {
 
   /**
    * The matches() family compiles its pattern with the backtracking JS RegExp,
-   * which cannot be timed out — flag exponential-shaped literal patterns.
+   * which cannot be timed out — flag exponential-shaped literal patterns. A
+   * literal flags argument must use only the flags the runtime accepts.
    */
   private checkRegexPattern(node: AstNode & { kind: 'call' }): void {
-    if (!REGEX_PATTERN_FUNCTIONS.has(node.name)) {
+    const flagsIndex = REGEX_FLAGS_ARGUMENT.get(node.name)
+    if (flagsIndex === undefined) {
       return
     }
     const pattern = node.args[0]
@@ -1063,6 +1073,55 @@ class Analyzer {
         pattern.span,
         'warning'
       )
+    }
+    const flags = node.args[flagsIndex]
+    const message = flags?.kind === 'string' ? invalidRegexFlagMessage(node.name, flags.value) : undefined
+    if (flags !== undefined && message !== undefined) {
+      this.report('invalid-argument', message, flags.span)
+    }
+  }
+
+  /**
+   * A literal duration()/difference() precision must be one the operand kinds
+   * allow. With an operand of unknown kind, only the precision word is checked.
+   */
+  private checkIntervalPrecision(
+    node: AstNode & { kind: 'call' },
+    input: StaticState,
+    argStates: (StaticState | undefined)[]
+  ): void {
+    const precision = node.args[1]
+    if ((node.name !== 'duration' && node.name !== 'difference') || precision?.kind !== 'string') {
+      return
+    }
+    const startKind = temporalKindOf(input.types)
+    const endKind = temporalKindOf(argStates[0]?.types)
+    const allowed =
+      startKind !== undefined && endKind !== undefined
+        ? intervalPrecisions(startKind, endKind)
+        : intervalPrecisions('dateTime', 'dateTime')
+    if (allowed !== undefined && !allowed.precisions.includes(precision.value)) {
+      this.report('invalid-argument', intervalPrecisionMessage(node.name, precision.value, allowed), precision.span)
+    }
+  }
+
+  /**
+   * A literal toDate()/toDateTime() format must compile. Only a String input
+   * reads the format, so other inputs are not checked.
+   */
+  private checkDateFormat(node: AstNode & { kind: 'call' }, input: StaticState): void {
+    const kind = DATE_FORMAT_FUNCTIONS.get(node.name)
+    const format = node.args[0]
+    if (kind === undefined || format?.kind !== 'string') {
+      return
+    }
+    if (input.types !== undefined && !input.types.some(type => systemTypeName(type) === 'System.String')) {
+      return
+    }
+    try {
+      compileDateFormat(node.name, format.value, kind)
+    } catch (error) {
+      this.report('invalid-argument', (error as Error).message, format.span)
     }
   }
 
@@ -1349,8 +1408,54 @@ class Analyzer {
   }
 }
 
-/** Functions whose first argument is a regular expression pattern. */
-const REGEX_PATTERN_FUNCTIONS = new Set(['matches', 'matchesFull', 'replaceMatches'])
+/** The conversions that take a format argument, with the kind they produce. */
+const DATE_FORMAT_FUNCTIONS: ReadonlyMap<string, 'date' | 'dateTime'> = new Map([
+  ['toDate', 'date'],
+  ['convertsToDate', 'date'],
+  ['toDateTime', 'dateTime'],
+  ['convertsToDateTime', 'dateTime'],
+])
+
+/** The System type a model or System type name behaves as (`FHIR.code` → `System.String`). */
+function systemTypeName(type: string): string | undefined {
+  return type.startsWith('System.') ? type : FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(type)]
+}
+
+const TEMPORAL_KINDS: Readonly<Record<string, TemporalKind>> = {
+  'System.Date': 'date',
+  'System.DateTime': 'dateTime',
+  'System.Time': 'time',
+}
+
+/** The one temporal kind every candidate type has, if any. */
+function temporalKindOf(types: readonly string[] | undefined): TemporalKind | undefined {
+  const kinds = new Set((types ?? []).map(type => TEMPORAL_KINDS[systemTypeName(type) ?? '']))
+  const [kind] = kinds
+  return kinds.size === 1 ? kind : undefined
+}
+
+/**
+ * combine() keeps the order of its sources only when `preserveOrder` is true
+ * (FHIRPath 3.0.0); without it the result has no defined order. A computed
+ * argument leaves the order unknown.
+ */
+function combineOrder(node: AstNode & { kind: 'call' }, sequential: StaticState): boolean | undefined {
+  const preserveOrder = node.args[1]
+  if (preserveOrder === undefined) {
+    return false
+  }
+  if (preserveOrder.kind !== 'boolean') {
+    return undefined
+  }
+  return preserveOrder.value ? sequential.ordered : false
+}
+
+/** Functions whose first argument is a regular expression pattern, with the position of their flags argument. */
+const REGEX_FLAGS_ARGUMENT: ReadonlyMap<string, number> = new Map([
+  ['matches', 1],
+  ['matchesFull', 1],
+  ['replaceMatches', 2],
+])
 
 /** Appended to singleton-misuse messages so the fix is spelled out, not just the rule. */
 const NARROW_HINT = ' — narrow it to one item with first(), last(), or single()'

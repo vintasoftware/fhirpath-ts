@@ -248,6 +248,7 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
     result: { kind: 'argument', index: 0 },
   },
   repeat: { args: ['expression'], result: UNORDERED },
+  repeatAll: { args: ['expression'], result: UNORDERED },
   // ofType/as results narrow to the named type; the analyzer computes that with
   // the model (walkCall), so their table results are never consulted.
   ofType: { args: ['type-name'], result: UNKNOWN },
@@ -262,7 +263,11 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   intersect: { args: ['any'], result: SAME },
   exclude: { args: ['any'], result: SAME },
   union: { args: ['any'], result: { kind: 'union', sources: ['input', 0], single: false, sequential: true } },
-  combine: { args: ['any'], result: { kind: 'union', sources: ['input', 0], single: false, sequential: true } },
+  // The analyzer keeps this order only when `preserveOrder` is true (walkCall).
+  combine: {
+    args: ['any', 'Boolean'],
+    result: { kind: 'union', sources: ['input', 0], single: false, sequential: true },
+  },
   iif: {
     args: ['condition', 'expression', 'expression'],
     // The union of the branch states; a missing else-branch contributes empty.
@@ -294,9 +299,10 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   upper: { input: { kind: 'String', singleton: true }, result: STRING },
   lower: { input: { kind: 'String', singleton: true }, result: STRING },
   replace: { input: { kind: 'String', singleton: true }, args: ['String', 'String'], result: STRING },
-  matches: { ...STRING_FN, result: BOOLEAN },
-  matchesFull: { ...STRING_FN, result: BOOLEAN },
-  replaceMatches: { input: { kind: 'String', singleton: true }, args: ['String', 'String'], result: STRING },
+  // The optional last argument holds the regex flags.
+  matches: { ...STRING_FN, args: ['String', 'String'], result: BOOLEAN },
+  matchesFull: { ...STRING_FN, args: ['String', 'String'], result: BOOLEAN },
+  replaceMatches: { input: { kind: 'String', singleton: true }, args: ['String', 'String', 'String'], result: STRING },
   toChars: {
     input: { kind: 'String', singleton: true },
     result: { kind: 'fixed', types: ['System.String'], single: false, ordered: true },
@@ -337,8 +343,9 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   toLong: { input: { singleton: true }, result: LONG },
   toDecimal: { input: { singleton: true }, result: DECIMAL },
   toString: { input: { singleton: true }, result: STRING },
-  toDate: { input: { singleton: true }, result: DATE },
-  toDateTime: { input: { singleton: true }, result: DATETIME },
+  // The optional argument is a format for a String input (FHIRPath 3.0.0).
+  toDate: { input: { singleton: true }, args: ['String'], result: DATE },
+  toDateTime: { input: { singleton: true }, args: ['String'], result: DATETIME },
   toTime: { input: { singleton: true }, result: TIME },
   toQuantity: {
     input: { singleton: true },
@@ -350,8 +357,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   convertsToLong: { input: { singleton: true }, result: BOOLEAN },
   convertsToDecimal: { input: { singleton: true }, result: BOOLEAN },
   convertsToString: { input: { singleton: true }, result: BOOLEAN },
-  convertsToDate: { input: { singleton: true }, result: BOOLEAN },
-  convertsToDateTime: { input: { singleton: true }, result: BOOLEAN },
+  convertsToDate: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
+  convertsToDateTime: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
   convertsToTime: { input: { singleton: true }, result: BOOLEAN },
   convertsToQuantity: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
 
@@ -368,6 +375,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   timezoneOffsetOf: { input: { kind: 'Temporal', singleton: true }, result: DECIMAL },
   dateOf: { input: { kind: 'Temporal', singleton: true }, result: DATE },
   timeOf: { input: { kind: 'Temporal', singleton: true }, result: TIME },
+  duration: { input: { kind: 'Temporal', singleton: true }, args: ['Temporal', 'String'], result: INTEGER },
+  difference: { input: { kind: 'Temporal', singleton: true }, args: ['Temporal', 'String'], result: INTEGER },
   lowBoundary: { input: { singleton: true }, args: ['Numeric'], result: UNKNOWN_ITEM },
   highBoundary: { input: { singleton: true }, args: ['Numeric'], result: UNKNOWN_ITEM },
   precision: { input: { singleton: true }, result: INTEGER },

@@ -160,6 +160,40 @@ describe('spec §11 rules', () => {
   })
 })
 
+describe('FHIRPath 3.0.0 literal arguments', () => {
+  it('checks regex flags', () => {
+    expect(codes("Patient.name.first().family.matches('a', 'im')")).toEqual([])
+    expect(codes("Patient.name.first().family.replaceMatches('a', 'b', 'g')")).toEqual(['invalid-argument'])
+    expect(messages("'a'.matchesFull('a', 'x')", {})).toEqual([
+      "matchesFull() received an invalid regex flag 'x'; the flags are 'i' and 'm'",
+    ])
+    // The backtracking check still reads the pattern next to a flags argument.
+    expect(codes("'a'.matches('(a+)+', 'i')", {})).toEqual(['regex-backtracking'])
+  })
+
+  it('checks duration() and difference() precisions against the operand types', () => {
+    expect(codes("Patient.birthDate.duration(today(), 'year')")).toEqual([])
+    expect(codes("Patient.birthDate.duration(today(), 'hour')")).toEqual(['invalid-argument'])
+    expect(codes("Patient.birthDate.duration(now(), 'hour')")).toEqual([])
+    expect(codes("@T10:00.difference(@T11:00, 'day')", {})).toEqual(['invalid-argument'])
+    expect(codes("Patient.birthDate.duration(today(), 'years')")).toEqual(['invalid-argument'])
+    // An operand of unknown type checks only the precision word.
+    expect(codes("Patient.children().duration(today(), 'hour')")).toEqual([])
+    expect(codes("Patient.children().duration(today(), 'fortnight')")).toEqual(['invalid-argument'])
+    expect(codes("Patient.birthDate.duration(Patient.active, 'year')")).toEqual(['operand-type'])
+  })
+
+  it('checks literal date formats when the input can be a String', () => {
+    expect(codes("'150124'.toDate('ddMMyy')", {})).toEqual([])
+    expect(codes("'x'.toDateTime('yyyy-MM-dd h')", {})).toEqual(['invalid-argument'])
+    expect(messages("'x'.convertsToDate('MM-dd')", {})).toEqual([
+      "convertsToDate() received an invalid format 'MM-dd': it has no year",
+    ])
+    // A Date input ignores the format.
+    expect(codes("Patient.birthDate.toDate('MM-dd')")).toEqual([])
+  })
+})
+
 describe('collection ordering', () => {
   it.each(['first()', 'last()', 'tail()', 'skip(1)', 'take(1)'])(
     'rejects %s on the unordered children() result',
@@ -192,6 +226,16 @@ describe('collection ordering', () => {
     expect(codes('Patient.children().single().first()')).toEqual([])
     // Aggregates yield at most one item, so their results need no input order.
     expect(codes('Patient.children().min().first()')).toEqual([])
+  })
+
+  it('orders a combine() result only when preserveOrder is true', () => {
+    expect(codes('Patient.name.combine(Patient.telecom).first()')).toEqual(['order-dependent'])
+    expect(codes('Patient.name.combine(Patient.telecom, false).first()')).toEqual(['order-dependent'])
+    expect(codes('Patient.name.combine(Patient.telecom, true).first()')).toEqual([])
+    expect(codes('Patient.children().combine(Patient.name, true).first()')).toEqual(['order-dependent'])
+    // A computed flag leaves the order unknown, which the check accepts.
+    expect(codes('Patient.name.combine(Patient.telecom, Patient.active).first()')).toEqual([])
+    expect(codes("Patient.name.combine(Patient.telecom, 'yes')")).toEqual(['operand-type'])
   })
 
   it('unions alternative branches: unordered only when every branch is', () => {

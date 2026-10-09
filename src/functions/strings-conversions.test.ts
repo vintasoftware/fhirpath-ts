@@ -32,6 +32,20 @@ describe('string functions', () => {
     ["'http://fhir'.matches('^hir$')", [false]],
     ["'hi'.matchesFull('hi')", [true]],
     ["'hihi'.matchesFull('hi')", [false]],
+    // FHIRPath 3.0.0 regex flags: 'i' ignores case, 'm' anchors at line breaks.
+    ["'first line\\nsecond line'.matches('^second', 'm')", [true]],
+    ["'first line\\nsecond line'.matches('^second', '')", [false]],
+    ["'first line\\nsecond line'.matches('^SECOND', 'im')", [true]],
+    ["'first line\\nsecond line'.matches('line.second', '')", [true]],
+    ["'Hello'.matches('hello', {})", [false]],
+    ["'Hello'.matches('hello', 'i')", [true]],
+    ["'Hello'.matches('hello', 'ii')", [true]],
+    ["'Test String'.matchesFull('test string', 'i')", [true]],
+    ["'Test String'.matchesFull('test string', '')", [false]],
+    ["'abc\\ndef'.matchesFull('abc', 'm')", [true]],
+    ["'ABC'.replaceMatches('[a-z]+', 'x', 'i')", ['x']],
+    ["'ABC'.replaceMatches('[a-z]+', 'x')", ['ABC']],
+    ["'a\\nb'.replaceMatches('^', '> ', 'm')", ['> a\n> b']],
     ["'abc123def'.replaceMatches('\\\\d+', '|')", ['abc|def']],
     // Spec §5.6.10 example: PCRE-style named group references.
     [
@@ -57,6 +71,9 @@ describe('string functions', () => {
     ["'YWI_'.decode('urlbase64')", ['ab?']],
     ["'abc'.encode('hex')", ['616263']],
     ["'616263'.decode('hex')", ['abc']],
+    ["'abc'.encode('ascii')", ['abc']],
+    ["'café 🔥!'.encode('ascii')", ['caf? ?!']],
+    ["'\\u007f\\u0080'.encode('ascii')", ['\u007f?']],
     ["'1<2 & \\'quote\\''.escape('html')", ['1&lt;2 &amp; &#39;quote&#39;']],
     ["'1&lt;2'.unescape('html')", ['1<2']],
     ["'a\"b\\\\c'.escape('json')", ['a\\"b\\\\c']],
@@ -129,12 +146,22 @@ describe('string functions', () => {
   it('rejects unknown encode/decode/escape targets and bad payloads', () => {
     expect(() => evaluate("'a'.encode('rot13')")).toThrow("encode() does not support the format 'rot13'")
     expect(() => evaluate("'a'.decode('rot13')")).toThrow("decode() does not support the format 'rot13'")
+    // ascii is lossy, so it has no decode counterpart.
+    expect(() => evaluate("'a'.decode('ascii')")).toThrow("decode() does not support the format 'ascii'")
     expect(() => evaluate("'!!'.decode('base64')")).toThrow(FhirPathTypeError)
     expect(() => evaluate("'xyz'.decode('hex')")).toThrow(FhirPathTypeError)
     expect(() => evaluate("'a'.escape('xml')")).toThrow(FhirPathTypeError)
     expect(() => evaluate("'a'.unescape('xml')")).toThrow(FhirPathTypeError)
     expect(() => evaluate("'\\\\q'.unescape('json')")).toThrow(FhirPathTypeError)
     expect(() => evaluate("'a'.matches('[')")).toThrow('invalid regular expression')
+  })
+
+  it('rejects regex flags other than i and m', () => {
+    expect(() => evaluate("'a'.matches('a', 'g')")).toThrow("matches() received an invalid regex flag 'g'")
+    expect(() => evaluate("'a'.matchesFull('a', 'is')")).toThrow("matchesFull() received an invalid regex flag 's'")
+    expect(() => evaluate("'a'.replaceMatches('a', 'b', 'x')")).toThrow(FhirPathTypeError)
+    // The flags are checked even when the pattern is empty.
+    expect(() => evaluate("'a'.replaceMatches('', 'b', 'x')")).toThrow(FhirPathTypeError)
   })
 })
 
@@ -266,6 +293,63 @@ describe('conversions', () => {
   })
 })
 
+describe('date conversion formats', () => {
+  it.each([
+    // Spec examples.
+    ["'150124'.toDate('ddMMyy')", '2024-01-15'],
+    ["'15-01-2024'.toDate('dd-MM-yyyy')", '2024-01-15'],
+    ["'12-27'.toDate('MM-yy')", '2027-12'],
+    // hfs case.
+    ["'01/15/2025'.toDate('MM/dd/yyyy')", '2025-01-15'],
+    ["'99'.toDate('yy')", '1999'],
+    ["'1/5/2025'.toDate('M/d/yyyy')", '2025-01-05'],
+    ["'15 Jan 2024'.toDate('dd MMM yyyy')", '2024-01-15'],
+    ["'15 JANUARY 2024'.toDate('dd MMMM yyyy')", '2024-01-15'],
+    // Time components a Date cannot hold are read and dropped.
+    ["'2024-01-15 10:30'.toDate('yyyy-MM-dd HH:mm')", '2024-01-15'],
+    ["'2024-01-15 10:30'.toDateTime('yyyy-MM-dd HH:mm')", '2024-01-15T10:30'],
+    ["'01/15/2025 3:04:05.123 PM -0500'.toDateTime('MM/dd/yyyy h:mm:ss.SSS a Z')", '2025-01-15T15:04:05.123-05:00'],
+    ["'2025-01-15T12:00Z'.toDateTime('yyyy-MM-ddTHH:mmZ')", '2025-01-15T12:00Z'],
+    ["'2025-01-15 12:00 +05:30'.toDateTime('yyyy-MM-dd HH:mm Z')", '2025-01-15T12:00+05:30'],
+    ["'2025-01-01 12 AM'.toDateTime('yyyy-MM-dd h a')", '2025-01-01T00'],
+    ["'2025-01-01 12 p'.toDateTime('yyyy-MM-dd h a')", '2025-01-01T12'],
+    ["'2025-01-01 10:00:00.5'.toDateTime('yyyy-MM-dd HH:mm:ss.S')", '2025-01-01T10:00:00.5'],
+  ])('%s -> %s', (expression, expected) => {
+    expect(evaluate(expression).map(String)).toEqual([expected])
+  })
+
+  it('gives empty for text that does not match the format', () => {
+    expect(evaluate("'2024-13'.toDate('yyyy-MM')")).toEqual([])
+    expect(evaluate("'2024-02-30'.toDate('yyyy-MM-dd')")).toEqual([])
+    expect(evaluate("'2024/01/15'.toDate('yyyy-MM-dd')")).toEqual([])
+    // Literal characters match exactly, case included.
+    expect(evaluate("'2025-01-15t12:00'.toDateTime('yyyy-MM-ddTHH:mm')")).toEqual([])
+    expect(evaluate("'2025-01-01 13 PM'.toDateTime('yyyy-MM-dd h a')")).toEqual([])
+    expect(evaluate("'150124'.convertsToDate('ddMMyy')")).toEqual([true])
+    expect(evaluate("'150124'.convertsToDate()")).toEqual([false])
+    expect(evaluate("'2024-01-15'.convertsToDateTime('dd-MM-yyyy')")).toEqual([false])
+  })
+
+  it('ignores the format for other inputs and for an empty format', () => {
+    expect(evaluate("@2024-01-15T23:30:00-05:00.toDate('yyyy')").map(String)).toEqual(['2024-01-15'])
+    expect(evaluate("@2024-01-15.toDateTime('MM-yy')").map(String)).toEqual(['2024-01-15'])
+    expect(evaluate("1.toDate('nonsense')")).toEqual([])
+    expect(evaluate("'2024'.toDate({})").map(String)).toEqual(['2024'])
+  })
+
+  it('rejects formats a conversion cannot use', () => {
+    expect(() => evaluate("'x'.toDate('MM-dd')")).toThrow("toDate() received an invalid format 'MM-dd': it has no year")
+    expect(() => evaluate("'x'.toDate('dd-yyyy')")).toThrow('it gives the day but no month')
+    expect(() => evaluate("'x'.toDate('yyy')")).toThrow("'yyy' is not a format code")
+    expect(() => evaluate("'x'.toDate('yyyy-MM-ddyyyy')")).toThrow('it gives the year more than once')
+    expect(() => evaluate("'x'.toDateTime('yyyy z')")).toThrow("the time zone name code 'z' is not supported")
+    expect(() => evaluate("'x'.toDateTime('yyyy-MM-dd h')")).toThrow("need the AM/PM code 'a'")
+    expect(() => evaluate("'x'.toDateTime('yyyy-MM-dd HH a')")).toThrow("the AM/PM code 'a' needs 'h' or 'hh'")
+    expect(() => evaluate("'x'.toDateTime('yyyy Z')")).toThrow("the time zone code 'Z' needs an hour")
+    expect(() => evaluate("'2024'.toDate(1)")).toThrow(FhirPathTypeError)
+  })
+})
+
 describe('json escape variants', () => {
   it.each([
     // Doubled backslashes: the FHIRPath lexer resolves one level first.
@@ -339,6 +423,8 @@ describe('pluggable regex engine (EvaluateOptions.regex)', () => {
     expect(evaluate("'^(?:abc)$:s'.matchesFull('abc')", undefined, { regex: stub })).toEqual([true])
     expect(evaluate("'x'.replaceMatches('abc', 'y')", undefined, { regex: stub })).toEqual(['x|y|gs'])
     expect(evaluate("'x'.replaceMatches('abc', '${n}${1}')", undefined, { regex: stub })).toEqual(['x|$<n>$01|gs'])
+    expect(evaluate("'abc:smi'.matches('abc', 'mi')", undefined, { regex: stub })).toEqual([true])
+    expect(evaluate("'x'.replaceMatches('abc', 'y', 'i')", undefined, { regex: stub })).toEqual(['x|y|gsi'])
   })
 
   it('compile failures surface as the spec invalid-regex type error', () => {

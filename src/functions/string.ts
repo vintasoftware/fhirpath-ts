@@ -180,24 +180,53 @@ function compilePattern(
   }
 }
 
-stringFunction('matches', { min: 1, max: 1 }, (value, [pattern], context) =>
-  // Single-line mode: `.` matches line terminators (spec §5.6.9).
-  pattern === undefined ? [] : wrapBoolean(compilePattern('matches', context, pattern, 's').test(value))
+/**
+ * The regex flags argument (FHIRPath 3.0.0): `i` ignores case and `m` makes
+ * `^` and `$` match at line breaks. The analyzer reports a literal with the same
+ * message the runtime throws.
+ */
+export function invalidRegexFlagMessage(name: string, flags: string): string | undefined {
+  const invalid = [...flags].find(flag => flag !== 'i' && flag !== 'm')
+  return invalid === undefined
+    ? undefined
+    : `${name}() received an invalid regex flag '${invalid}'; the flags are 'i' and 'm'`
+}
+
+/** `base` plus the flags argument. Single-line mode (`s`, so `.` matches line terminators) is always on. */
+function regexFlags(name: string, flags: string | undefined, base: string): string {
+  const message = flags === undefined ? undefined : invalidRegexFlagMessage(name, flags)
+  if (message !== undefined) {
+    throw new FhirPathTypeError(message)
+  }
+  return base + [...new Set(flags)].join('')
+}
+
+stringFunction('matches', { min: 1, max: 2 }, (value, [pattern, flags], context) =>
+  pattern === undefined
+    ? []
+    : wrapBoolean(compilePattern('matches', context, pattern, regexFlags('matches', flags, 's')).test(value))
 )
 
-stringFunction('matchesFull', { min: 1, max: 1 }, (value, [pattern], context) =>
-  pattern === undefined ? [] : wrapBoolean(compilePattern('matchesFull', context, `^(?:${pattern})$`, 's').test(value))
+stringFunction('matchesFull', { min: 1, max: 2 }, (value, [pattern, flags], context) =>
+  pattern === undefined
+    ? []
+    : wrapBoolean(
+        compilePattern('matchesFull', context, `^(?:${pattern})$`, regexFlags('matchesFull', flags, 's')).test(value)
+      )
 )
 
-stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitution], context) => {
+stringFunction('replaceMatches', { min: 2, max: 3 }, (value, [pattern, substitution, flags], context) => {
   if (pattern === undefined || substitution === undefined) {
     return []
   }
+  const compiledFlags = regexFlags('replaceMatches', flags, 'gs')
   // An empty regex matches nothing meaningful; the input passes through unchanged.
   if (pattern === '') {
     return str(value)
   }
-  return str(compilePattern('replaceMatches', context, pattern, 'gs').replace(value, jsSubstitution(substitution)))
+  return str(
+    compilePattern('replaceMatches', context, pattern, compiledFlags).replace(value, jsSubstitution(substitution))
+  )
 })
 
 /**
@@ -320,6 +349,13 @@ stringFunction('encode', { min: 1, max: 1 }, (value, [format]) => {
       return str(encodeBase64(value).replace(/\+/g, '-').replace(/\//g, '_'))
     case 'hex':
       return str(encodeHex(value))
+    case 'ascii':
+      // Lossy: each character (Unicode scalar value) above code 127 becomes one '?'.
+      return str(
+        characters(value)
+          .map(ch => ((ch.codePointAt(0) as number) > 127 ? '?' : ch))
+          .join('')
+      )
     default:
       throw new FhirPathTypeError(`encode() does not support the format '${format}'`)
   }

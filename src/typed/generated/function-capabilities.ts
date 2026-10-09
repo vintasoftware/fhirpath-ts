@@ -258,7 +258,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.convertsToDate': {
     source: {
-      expression: 'Patient.name.first().convertsToDate()',
+      expression: "Patient.name.first().convertsToDate('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'boolean[]',
@@ -269,11 +269,11 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().convertsToDate()).count()',
+    composition: "(Patient.name.first().convertsToDate('x')).count()",
   },
   'builtin.convertsToDateTime': {
     source: {
-      expression: 'Patient.name.first().convertsToDateTime()',
+      expression: "Patient.name.first().convertsToDateTime('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'boolean[]',
@@ -284,7 +284,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().convertsToDateTime()).count()',
+    composition: "(Patient.name.first().convertsToDateTime('x')).count()",
   },
   'builtin.convertsToDecimal': {
     source: {
@@ -466,6 +466,21 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     degradation: 'Patient.name.unknownFn()',
     composition: '(Patient.name.descendants()).count()',
   },
+  'builtin.difference': {
+    source: {
+      expression: "@2020-01-01.difference(@2020-02-01, 'day')",
+      corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
+    },
+    expectedType: 'number[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: {
+      types: ['System.Integer'],
+      single: true,
+    },
+    degradation: 'Patient.name.unknownFn()',
+    composition: "(@2020-01-01.difference(@2020-02-01, 'day')).count()",
+  },
   'builtin.distinct': {
     source: {
       expression: 'Patient.name.distinct()',
@@ -480,6 +495,21 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     },
     degradation: 'Patient.name.unknownFn()',
     composition: '(Patient.name.distinct()).count()',
+  },
+  'builtin.duration': {
+    source: {
+      expression: "@2020-01-01.duration(@2020-02-01, 'day')",
+      corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
+    },
+    expectedType: 'number[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: {
+      types: ['System.Integer'],
+      single: true,
+    },
+    degradation: 'Patient.name.unknownFn()',
+    composition: "(@2020-01-01.duration(@2020-02-01, 'day')).count()",
   },
   'builtin.empty': {
     source: {
@@ -903,7 +933,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.matches': {
     source: {
-      expression: "'abc'.matches('x')",
+      expression: "'abc'.matches('x', 'i')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'boolean[]',
@@ -914,11 +944,11 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.matches('x')).count()",
+    composition: "('abc'.matches('x', 'i')).count()",
   },
   'builtin.matchesFull': {
     source: {
-      expression: "'abc'.matchesFull('x')",
+      expression: "'abc'.matchesFull('x', 'i')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'boolean[]',
@@ -929,7 +959,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.matchesFull('x')).count()",
+    composition: "('abc'.matchesFull('x', 'i')).count()",
   },
   'builtin.max': {
     source: {
@@ -1096,6 +1126,21 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     degradation: 'Patient.name.unknownFn()',
     composition: '(Patient.name.repeat($this)).count()',
   },
+  'builtin.repeatAll': {
+    source: {
+      expression: 'Patient.name.repeatAll($this)',
+      corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
+    },
+    expectedType: 'unknown[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: {
+      types: undefined,
+      single: undefined,
+    },
+    degradation: 'Patient.name.unknownFn()',
+    composition: '(Patient.name.repeatAll($this)).count()',
+  },
   'builtin.replace': {
     source: {
       expression: "'abc'.replace('x', 'x')",
@@ -1113,7 +1158,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.replaceMatches': {
     source: {
-      expression: "'abc'.replaceMatches('x', 'x')",
+      expression: "'abc'.replaceMatches('x', 'y', 'i')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'string[]',
@@ -1124,7 +1169,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.replaceMatches('x', 'x')).count()",
+    composition: "('abc'.replaceMatches('x', 'y', 'i')).count()",
   },
   'builtin.resolve': {
     source: {
@@ -1443,7 +1488,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.toDate': {
     source: {
-      expression: 'Patient.name.first().toDate()',
+      expression: "Patient.name.first().toDate('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'string[]',
@@ -1454,11 +1499,11 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().toDate()).count()',
+    composition: "(Patient.name.first().toDate('x')).count()",
   },
   'builtin.toDateTime': {
     source: {
-      expression: 'Patient.name.first().toDateTime()',
+      expression: "Patient.name.first().toDateTime('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'string[]',
@@ -1469,7 +1514,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().toDateTime()).count()',
+    composition: "(Patient.name.first().toDateTime('x')).count()",
   },
   'builtin.today': {
     source: {

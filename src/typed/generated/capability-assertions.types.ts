@@ -920,28 +920,28 @@ export type BuiltinConvertsToBooleanComposition = Assert<
   Equal<FhirpathResultIn<'(Patient.name.first().convertsToBoolean()).count()', 'opaque'>, number[]>
 >
 export type BuiltinConvertsToDateFastSlowParity = Assert<
-  FastSlowInferenceParity<'Patient.name.first().convertsToDate()', 'opaque'>
+  FastSlowInferenceParity<"Patient.name.first().convertsToDate('x')", 'opaque'>
 >
 export type BuiltinConvertsToDatePositive = Assert<
-  Equal<FhirpathResultIn<'Patient.name.first().convertsToDate()', 'opaque'>, boolean[]>
+  Equal<FhirpathResultIn<"Patient.name.first().convertsToDate('x')", 'opaque'>, boolean[]>
 >
 export type BuiltinConvertsToDateDegradation = Assert<
   Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
 >
 export type BuiltinConvertsToDateComposition = Assert<
-  Equal<FhirpathResultIn<'(Patient.name.first().convertsToDate()).count()', 'opaque'>, number[]>
+  Equal<FhirpathResultIn<"(Patient.name.first().convertsToDate('x')).count()", 'opaque'>, number[]>
 >
 export type BuiltinConvertsToDateTimeFastSlowParity = Assert<
-  FastSlowInferenceParity<'Patient.name.first().convertsToDateTime()', 'opaque'>
+  FastSlowInferenceParity<"Patient.name.first().convertsToDateTime('x')", 'opaque'>
 >
 export type BuiltinConvertsToDateTimePositive = Assert<
-  Equal<FhirpathResultIn<'Patient.name.first().convertsToDateTime()', 'opaque'>, boolean[]>
+  Equal<FhirpathResultIn<"Patient.name.first().convertsToDateTime('x')", 'opaque'>, boolean[]>
 >
 export type BuiltinConvertsToDateTimeDegradation = Assert<
   Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
 >
 export type BuiltinConvertsToDateTimeComposition = Assert<
-  Equal<FhirpathResultIn<'(Patient.name.first().convertsToDateTime()).count()', 'opaque'>, number[]>
+  Equal<FhirpathResultIn<"(Patient.name.first().convertsToDateTime('x')).count()", 'opaque'>, number[]>
 >
 export type BuiltinConvertsToDecimalFastSlowParity = Assert<
   FastSlowInferenceParity<'Patient.name.first().convertsToDecimal()', 'opaque'>
@@ -1061,6 +1061,18 @@ export type BuiltinDescendantsDegradation = Assert<
 export type BuiltinDescendantsComposition = Assert<
   Equal<FhirpathResultIn<'(Patient.name.descendants()).count()', 'opaque'>, number[]>
 >
+export type BuiltinDifferenceFastSlowParity = Assert<
+  FastSlowInferenceParity<"@2020-01-01.difference(@2020-02-01, 'day')", 'opaque'>
+>
+export type BuiltinDifferencePositive = Assert<
+  Equal<FhirpathResultIn<"@2020-01-01.difference(@2020-02-01, 'day')", 'opaque'>, number[]>
+>
+export type BuiltinDifferenceDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinDifferenceComposition = Assert<
+  Equal<FhirpathResultIn<"(@2020-01-01.difference(@2020-02-01, 'day')).count()", 'opaque'>, number[]>
+>
 export type BuiltinDistinctFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.distinct()', 'opaque'>>
 export type BuiltinDistinctPositive = Assert<
   Equal<FhirpathResultIn<'Patient.name.distinct()', 'opaque'>, R4TypeOf['HumanName'][]>
@@ -1070,6 +1082,18 @@ export type BuiltinDistinctDegradation = Assert<
 >
 export type BuiltinDistinctComposition = Assert<
   Equal<FhirpathResultIn<'(Patient.name.distinct()).count()', 'opaque'>, number[]>
+>
+export type BuiltinDurationFastSlowParity = Assert<
+  FastSlowInferenceParity<"@2020-01-01.duration(@2020-02-01, 'day')", 'opaque'>
+>
+export type BuiltinDurationPositive = Assert<
+  Equal<FhirpathResultIn<"@2020-01-01.duration(@2020-02-01, 'day')", 'opaque'>, number[]>
+>
+export type BuiltinDurationDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinDurationComposition = Assert<
+  Equal<FhirpathResultIn<"(@2020-01-01.duration(@2020-02-01, 'day')).count()", 'opaque'>, number[]>
 >
 export type BuiltinEmptyFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.empty()', 'opaque'>>
 export type BuiltinEmptyPositive = Assert<Equal<FhirpathResultIn<'Patient.name.empty()', 'opaque'>, boolean[]>>
@@ -1277,19 +1301,21 @@ export type BuiltinLowerFastSlowParity = Assert<FastSlowInferenceParity<"'abc'.l
 export type BuiltinLowerPositive = Assert<Equal<FhirpathResultIn<"'abc'.lower()", 'opaque'>, string[]>>
 export type BuiltinLowerDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
 export type BuiltinLowerComposition = Assert<Equal<FhirpathResultIn<"('abc'.lower()).count()", 'opaque'>, number[]>>
-export type BuiltinMatchesFastSlowParity = Assert<FastSlowInferenceParity<"'abc'.matches('x')", 'opaque'>>
-export type BuiltinMatchesPositive = Assert<Equal<FhirpathResultIn<"'abc'.matches('x')", 'opaque'>, boolean[]>>
+export type BuiltinMatchesFastSlowParity = Assert<FastSlowInferenceParity<"'abc'.matches('x', 'i')", 'opaque'>>
+export type BuiltinMatchesPositive = Assert<Equal<FhirpathResultIn<"'abc'.matches('x', 'i')", 'opaque'>, boolean[]>>
 export type BuiltinMatchesDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
 export type BuiltinMatchesComposition = Assert<
-  Equal<FhirpathResultIn<"('abc'.matches('x')).count()", 'opaque'>, number[]>
+  Equal<FhirpathResultIn<"('abc'.matches('x', 'i')).count()", 'opaque'>, number[]>
 >
-export type BuiltinMatchesFullFastSlowParity = Assert<FastSlowInferenceParity<"'abc'.matchesFull('x')", 'opaque'>>
-export type BuiltinMatchesFullPositive = Assert<Equal<FhirpathResultIn<"'abc'.matchesFull('x')", 'opaque'>, boolean[]>>
+export type BuiltinMatchesFullFastSlowParity = Assert<FastSlowInferenceParity<"'abc'.matchesFull('x', 'i')", 'opaque'>>
+export type BuiltinMatchesFullPositive = Assert<
+  Equal<FhirpathResultIn<"'abc'.matchesFull('x', 'i')", 'opaque'>, boolean[]>
+>
 export type BuiltinMatchesFullDegradation = Assert<
   Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
 >
 export type BuiltinMatchesFullComposition = Assert<
-  Equal<FhirpathResultIn<"('abc'.matchesFull('x')).count()", 'opaque'>, number[]>
+  Equal<FhirpathResultIn<"('abc'.matchesFull('x', 'i')).count()", 'opaque'>, number[]>
 >
 export type BuiltinMaxFastSlowParity = Assert<FastSlowInferenceParity<'2.max()', 'opaque'>>
 export type BuiltinMaxPositive = Assert<Equal<FhirpathResultIn<'2.max()', 'opaque'>, unknown[]>>
@@ -1365,6 +1391,16 @@ export type BuiltinRepeatDegradation = Assert<Equal<FhirpathResultIn<'Patient.na
 export type BuiltinRepeatComposition = Assert<
   Equal<FhirpathResultIn<'(Patient.name.repeat($this)).count()', 'opaque'>, number[]>
 >
+export type BuiltinRepeatAllFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.repeatAll($this)', 'opaque'>>
+export type BuiltinRepeatAllPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.repeatAll($this)', 'opaque'>, unknown[]>
+>
+export type BuiltinRepeatAllDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinRepeatAllComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.repeatAll($this)).count()', 'opaque'>, number[]>
+>
 export type BuiltinReplaceFastSlowParity = Assert<FastSlowInferenceParity<"'abc'.replace('x', 'x')", 'opaque'>>
 export type BuiltinReplacePositive = Assert<Equal<FhirpathResultIn<"'abc'.replace('x', 'x')", 'opaque'>, string[]>>
 export type BuiltinReplaceDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
@@ -1372,16 +1408,16 @@ export type BuiltinReplaceComposition = Assert<
   Equal<FhirpathResultIn<"('abc'.replace('x', 'x')).count()", 'opaque'>, number[]>
 >
 export type BuiltinReplaceMatchesFastSlowParity = Assert<
-  FastSlowInferenceParity<"'abc'.replaceMatches('x', 'x')", 'opaque'>
+  FastSlowInferenceParity<"'abc'.replaceMatches('x', 'y', 'i')", 'opaque'>
 >
 export type BuiltinReplaceMatchesPositive = Assert<
-  Equal<FhirpathResultIn<"'abc'.replaceMatches('x', 'x')", 'opaque'>, string[]>
+  Equal<FhirpathResultIn<"'abc'.replaceMatches('x', 'y', 'i')", 'opaque'>, string[]>
 >
 export type BuiltinReplaceMatchesDegradation = Assert<
   Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
 >
 export type BuiltinReplaceMatchesComposition = Assert<
-  Equal<FhirpathResultIn<"('abc'.replaceMatches('x', 'x')).count()", 'opaque'>, number[]>
+  Equal<FhirpathResultIn<"('abc'.replaceMatches('x', 'y', 'i')).count()", 'opaque'>, number[]>
 >
 export type BuiltinResolveFastSlowParity = Assert<
   FastSlowInferenceParity<'Patient.generalPractitioner.resolve()', 'opaque'>
@@ -1542,23 +1578,25 @@ export type BuiltinToCharsFastSlowParity = Assert<FastSlowInferenceParity<"'abc'
 export type BuiltinToCharsPositive = Assert<Equal<FhirpathResultIn<"'abc'.toChars()", 'opaque'>, string[]>>
 export type BuiltinToCharsDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
 export type BuiltinToCharsComposition = Assert<Equal<FhirpathResultIn<"('abc'.toChars()).count()", 'opaque'>, number[]>>
-export type BuiltinToDateFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.first().toDate()', 'opaque'>>
-export type BuiltinToDatePositive = Assert<Equal<FhirpathResultIn<'Patient.name.first().toDate()', 'opaque'>, string[]>>
+export type BuiltinToDateFastSlowParity = Assert<FastSlowInferenceParity<"Patient.name.first().toDate('x')", 'opaque'>>
+export type BuiltinToDatePositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.first().toDate('x')", 'opaque'>, string[]>
+>
 export type BuiltinToDateDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
 export type BuiltinToDateComposition = Assert<
-  Equal<FhirpathResultIn<'(Patient.name.first().toDate()).count()', 'opaque'>, number[]>
+  Equal<FhirpathResultIn<"(Patient.name.first().toDate('x')).count()", 'opaque'>, number[]>
 >
 export type BuiltinToDateTimeFastSlowParity = Assert<
-  FastSlowInferenceParity<'Patient.name.first().toDateTime()', 'opaque'>
+  FastSlowInferenceParity<"Patient.name.first().toDateTime('x')", 'opaque'>
 >
 export type BuiltinToDateTimePositive = Assert<
-  Equal<FhirpathResultIn<'Patient.name.first().toDateTime()', 'opaque'>, string[]>
+  Equal<FhirpathResultIn<"Patient.name.first().toDateTime('x')", 'opaque'>, string[]>
 >
 export type BuiltinToDateTimeDegradation = Assert<
   Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
 >
 export type BuiltinToDateTimeComposition = Assert<
-  Equal<FhirpathResultIn<'(Patient.name.first().toDateTime()).count()', 'opaque'>, number[]>
+  Equal<FhirpathResultIn<"(Patient.name.first().toDateTime('x')).count()", 'opaque'>, number[]>
 >
 export type BuiltinTodayFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.today()', 'opaque'>>
 export type BuiltinTodayPositive = Assert<Equal<FhirpathResultIn<'Patient.name.today()', 'opaque'>, string[]>>
