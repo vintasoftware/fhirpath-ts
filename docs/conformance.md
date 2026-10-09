@@ -74,6 +74,13 @@ hand-written fhirpath.zig tests. Three fhirpath-rs `repeatAll()` cases expect
 the input items in the output, or a constant projection to end; that file tests
 the specification's behavior instead.
 
+`src/crosschecks-3.0.0.test.ts` runs 176 FHIRPath 3.0.0 cases from
+[gofhir/fhirpath](https://github.com/gofhir/fhirpath),
+[Pathling](https://github.com/aehrc/pathling),
+[Ignixa](https://github.com/brendankowitz/ignixa-fhir), and the fhirpath.js
+`pathname()` and instance selector tests. `test-data/crosschecks/README.md`
+lists their sources and commits.
+
 ## Deviations from the specification
 
 `union()`, `|`, and `combine()` keep the order of their sources: the input's
