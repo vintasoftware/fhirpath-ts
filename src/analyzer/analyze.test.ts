@@ -256,6 +256,14 @@ describe('math and aggregate result types', () => {
     expect(codes("('b' | 'a').min()")).toEqual([])
   })
 
+  it('rejects min() and max() on items the comparison operators cannot order', () => {
+    expect(codes('true.min()')).toEqual(['operand-type'])
+    expect(codes('Patient.active.max()')).toEqual(['operand-type'])
+    expect(codes('Patient.name.max()')).toEqual(['operand-type'])
+    expect(codes('Patient.birthDate.min()')).toEqual([])
+    expect(codes("(1 'mg' | 2 'mg').max()")).toEqual([])
+  })
+
   it('reads names on Object.prototype as unknown elements', () => {
     expect(codes('Patient.constructor')).toEqual(['unknown-element'])
     expect(codes("Coding { toString: 'a' }")).toEqual(['unknown-element'])

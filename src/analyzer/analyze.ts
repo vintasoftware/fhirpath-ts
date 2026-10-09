@@ -796,6 +796,7 @@ class Analyzer {
     this.checkRegexPattern(node)
     this.checkIntervalPrecision(node, input, argStates)
     this.checkDateFormat(node, input)
+    this.checkOrderableInput(node, input)
     this.checkStringConversion(node)
     // ofType(X) filters and as(X) casts: both narrow to the named type,
     // intersected with the known candidates.
@@ -1168,6 +1169,24 @@ class Analyzer {
     const precision = node.args[1]
     if (precision?.kind === 'string' && !allowed.precisions.includes(precision.value)) {
       this.report('invalid-argument', intervalPrecisionMessage(node.name, precision.value, allowed), precision.span)
+    }
+  }
+
+  /**
+   * min() and max() order their items as the comparison operators do, so a
+   * Boolean or complex input is an error, as it is at runtime.
+   */
+  private checkOrderableInput(node: AstNode & { kind: 'call' }, input: StaticState): void {
+    if (node.name !== 'min' && node.name !== 'max') {
+      return
+    }
+    const kind = commonValueKind(input.types)
+    if (kind === 'Boolean' || kind === 'Complex') {
+      this.report(
+        'operand-type',
+        `${node.name}() expects Integer, Long, Decimal, Quantity, Date, DateTime, Time, or String items, found ${input.types?.join(' | ')}`,
+        node.span
+      )
     }
   }
 

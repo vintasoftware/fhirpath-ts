@@ -153,13 +153,13 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `'\u005'` is `'u005'`. These were syntax errors. A literal that ends in
   `\'` with no later quote, such as `'\'`, ends there
   ([#129](https://github.com/vintasoftware/fhirpath-ts/issues/129)).
-- `comparable()` is true exactly when `=` and `<` on the two quantities give
+- **Breaking:** `comparable()` is true exactly when `=` and `<` on the two quantities give
   an answer, as FHIRPath 3.0.0 defines it: `1 year.comparable(1 'a')` and
   `1 year.comparable(1 second)` are false. An operand that is not a Quantity
   or a number gives empty instead of an error, and the analyzer accepts
   `1.comparable(2)`
   ([#125](https://github.com/vintasoftware/fhirpath-ts/issues/125)).
-- `=` on complex values compares element `id`s, since equality compares every
+- **Breaking:** `=` on complex values compares element `id`s, since equality compares every
   child element. `~` still ignores them. Two Codings that differ only in their
   `id` are no longer `=`, so `distinct()`, `|`, `union()`, `intersect()`,
   `exclude()`, and `repeat()` keep both
@@ -199,7 +199,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 - `min()` and `max()` accept Date, DateTime, Time, and String items, compared
   as the comparison operators compare
   ([#128](https://github.com/vintasoftware/fhirpath-ts/issues/128)). The
-  analyzer and type-level inference type the result as the input item.
+  analyzer and type-level inference type the result as the input item, and
+  the analyzer reports a Boolean or complex input, which the runtime
+  rejects.
 
 - The analyzer no longer reads a lowercase root identifier as a FHIR primitive
   type when the input type is unknown. `code.coding` reported `Element 'coding'
