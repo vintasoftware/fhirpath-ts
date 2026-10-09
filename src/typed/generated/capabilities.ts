@@ -145,7 +145,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
   },
   'syntax.escaped-string': {
     expression: "'a\\\\b\\'\\\"\\`\\r\\n\\t\\u0065'",
-    degradation: "'\\q'",
+    degradation: "'\\u12'",
     composition: "'\\u00E9'.upper()",
     analyzer: {
       types: ['System.String'],

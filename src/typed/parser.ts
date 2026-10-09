@@ -309,7 +309,8 @@ type ReadEscape<
               Tokens,
               Step<Steps>
             >
-          : ScanFailure
+          : // A backslash that starts no escape is dropped.
+            ReadQuoted<Source, Acc, Quote, Kind, Tokens, Step<Steps>>
       : ScanFailure
 
 type ReadUnicodeEscape<

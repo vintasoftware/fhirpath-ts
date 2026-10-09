@@ -100,7 +100,7 @@ export type SyntaxEscapedStringFastSlowParity = Assert<
 export type SyntaxEscapedStringPositive = Assert<
   Equal<FhirpathResultIn<"'a\\\\b\\'\\\"\\`\\r\\n\\t\\u0065'", 'opaque'>, string[]>
 >
-export type SyntaxEscapedStringDegradation = Assert<Equal<FhirpathResultIn<"'\\q'", 'opaque'>, unknown[]>>
+export type SyntaxEscapedStringDegradation = Assert<Equal<FhirpathResultIn<"'\\u12'", 'opaque'>, unknown[]>>
 export type SyntaxEscapedStringComposition = Assert<Equal<FhirpathResultIn<"'\\u00E9'.upper()", 'opaque'>, string[]>>
 export type SyntaxDelimitedIdentifierFastSlowParity = Assert<FastSlowInferenceParity<'Patient.`name`', 'opaque'>>
 export type SyntaxDelimitedIdentifierPositive = Assert<Equal<FhirpathResultIn<'Patient.`name`', 'opaque'>, HumanName[]>>

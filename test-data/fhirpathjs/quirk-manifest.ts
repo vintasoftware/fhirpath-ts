@@ -170,21 +170,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     ],
   },
   {
-    name: 'lenient-unicode-escapes',
-    evidence:
-      "fhirpath.js turns the malformed escape \\u12 into the text u12. The grammar's UNICODE lexer rule requires exactly four hex digits, so it is a syntax error here.",
-    keys: [
-      "4.1_literals.yaml||'\\u12'",
-      "4.1_literals.yaml||'\\u123'",
-      "4.1_literals.yaml||'\\u12G4'",
-      "4.1_literals.yaml||'\\uZZZZ'",
-      '4.1_literals.yaml||`bad\\u123`',
-      '4.1_literals.yaml||`bad\\u12G4`',
-      '4.1_literals.yaml||`bad\\u12`',
-      '4.1_literals.yaml||`bad\\uZZZZ`',
-    ],
-  },
-  {
     name: 'equivalence-rounding',
     evidence:
       'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec "~ (Equivalent)" says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding.',

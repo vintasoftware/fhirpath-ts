@@ -36,6 +36,12 @@ describe('type-level literals', () => {
     expectTypeOf<FhirpathResult<"'caf\\u00e9'">>().toEqualTypeOf<string[]>()
     expectTypeOf<FhirpathResult<"'caf\\u00e9' | 'tea'">>().toEqualTypeOf<string[]>()
     expectTypeOf<FhirpathResult<'Patient.`name`'>>().toEqualTypeOf<HumanName[]>()
+    // A backslash that starts no escape is dropped, as the lexer drops it.
+    expectTypeOf<FhirpathResult<"'\\p\\3'">>().toEqualTypeOf<'p3'[]>()
+    expectTypeOf<FhirpathResult<"'\\\\p'">>().toEqualTypeOf<'\\p'[]>()
+    // A short unicode escape and a closing escaped quote stay unknown.
+    expectTypeOf<FhirpathResult<"'\\u005'">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"'\\'">>().toEqualTypeOf<unknown[]>()
   })
 
   it('degrades invalid or incomplete literal syntax', () => {
