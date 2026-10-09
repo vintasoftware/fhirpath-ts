@@ -1,4 +1,11 @@
-import type { R4Bases, R4Elements, R4ReferenceTargets, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type {
+  R4Bases,
+  R4Elements,
+  R4OptionalTypes,
+  R4ReferenceTargets,
+  R4Resources,
+  R4TypeOf,
+} from '../r4/generated/type-maps.ts'
 import type {
   EmptyContextMap,
   InferredHostValueDeclarations,
@@ -106,10 +113,12 @@ type Tokenize<Source extends string> = Source extends `${string}{${string}:${str
 /**
  * Replace each instance selector, `Type { name: value, ... }` or `Type {:}`,
  * with one selector token, as the runtime parser reads a type name before
- * `{`. The token is typed `unknown[]`: the generated interfaces promise the
- * code sets of required bindings, which the runtime does not check in a built
- * value. The element values are not inferred, and each runs in its own
- * variable scope, so none of its bindings leave the selector.
+ * `{`. The token names the type when the selector and every selector nested
+ * in it build an `R4OptionalTypes` type, and is empty otherwise: the runtime
+ * checks required-binding codes but builds a value without its required
+ * elements, which the interface of such a type would claim. The element
+ * values are not inferred, and each runs in its own variable scope, so none
+ * of its bindings leave the selector.
  */
 type CollapseInstanceSelectors<Tokens extends TypeTokens, Out extends TypeTokens = []> = Tokens extends [
   infer Token extends TypeToken,
@@ -136,27 +145,38 @@ type CollapseSelectorBody<Type extends string, Body extends TypeTokens, Out exte
   ['symbol', '}'],
   ...infer Rest extends TypeTokens,
 ]
-  ? CollapseInstanceSelectors<Rest, [...Out, ['selector', Type]]>
+  ? CollapseInstanceSelectors<Rest, [...Out, ['selector', OptionalType<Type>]]>
   : Body extends [['name' | 'keyword', string], ['symbol', ':'], ...infer Values extends TypeTokens]
-    ? AfterInstanceElements<Values, []> extends infer Rest
-      ? Rest extends TypeTokens
-        ? CollapseInstanceSelectors<Rest, [...Out, ['selector', Type]]>
-        : ScanFailure
+    ? AfterInstanceElements<Values, [], OptionalType<Type>> extends [
+        infer Rest extends TypeTokens,
+        infer Built extends string,
+      ]
+      ? CollapseInstanceSelectors<Rest, [...Out, ['selector', Built]]>
       : ScanFailure
     : ScanFailure
 
-/** The tokens after the `}` that closes an instance selector; ScanFailure when it never closes. */
-type AfterInstanceElements<Tokens extends TypeTokens, Depth extends unknown[]> = Tokens extends [
+type OptionalType<Type extends string> = Type extends R4OptionalTypes ? Type : ''
+
+/**
+ * The tokens after the `}` that closes an instance selector, and the type it
+ * builds: `Built` until a nested selector names a type outside
+ * `R4OptionalTypes`, then empty. ScanFailure when it never closes.
+ */
+type AfterInstanceElements<Tokens extends TypeTokens, Depth extends unknown[], Built extends string> = Tokens extends [
   infer Token extends TypeToken,
   ...infer Rest extends TypeTokens,
 ]
   ? Token extends ['symbol', '{']
-    ? AfterInstanceElements<Rest, [...Depth, 0]>
+    ? AfterInstanceElements<Rest, [...Depth, 0], Built>
     : Token extends ['symbol', '}']
       ? Depth extends [unknown, ...infer Outer extends unknown[]]
-        ? AfterInstanceElements<Rest, Outer>
-        : Rest
-      : AfterInstanceElements<Rest, Depth>
+        ? AfterInstanceElements<Rest, Outer, Built>
+        : [Rest, Built]
+      : Token extends ['name', infer Nested extends string]
+        ? Rest extends [['symbol', '{'], ...TypeTokens]
+          ? AfterInstanceElements<Rest, Depth, OptionalType<Nested> extends '' ? '' : Built>
+          : AfterInstanceElements<Rest, Depth, Built>
+        : AfterInstanceElements<Rest, Depth, Built>
   : ScanFailure
 
 type Scan<Source extends string, Tokens extends TypeTokens, Steps extends unknown[]> = Source extends ''
@@ -2303,7 +2323,9 @@ type LiteralState<Token extends LiteralToken> = Token[0] extends 'string'
       ? ['System.DateTime', never]
       : Token[0] extends 'time'
         ? ['System.Time', never]
-        : UnknownState
+        : Token[1] extends R4OptionalTypes
+          ? [Token[1], never]
+          : UnknownState
 
 type IndexResult<Stack extends Values, Index extends InferenceState> = Stack extends [
   ...infer Before extends Values,
