@@ -238,6 +238,9 @@ describe('subsumes / subsumedBy', () => {
     await expect(
       evaluateAsync('%panel.subsumes(%other)', observation, { model: r4Model, terminology: provider, env })
     ).resolves.toEqual([])
+    await expect(
+      evaluateAsync('%panel.subsumedBy(%other)', observation, { model: r4Model, terminology: provider, env })
+    ).rejects.toThrow('relationship between different code systems')
     expect(provider.calls).toEqual([])
   })
 
@@ -276,6 +279,59 @@ describe('subsumes / subsumedBy', () => {
 describe('%terminologies API', () => {
   const coding = { system: 'http://loinc.org', code: '29463-7' }
   const env = { coding, vs: VS_VITALS }
+
+  it.each([
+    ['expand', ['%vs']],
+    ['lookup', ['%coding']],
+    ['validateVS', ['%vs', '%coding']],
+    ['validateCS', ["'http://loinc.org'", '%coding']],
+    ['subsumes', ["'http://loinc.org'", '%coding', '%coding']],
+    ['translate', ["'urn:map'", '%coding']],
+  ])('%s returns empty for invalid arguments without calling the provider', async (name, required) => {
+    const provider = stubProvider()
+    const options = { model: r4Model, terminology: provider, env }
+    const args = [...required, "''"]
+    for (let index = 0; index < args.length; index++) {
+      for (const invalid of ['{}', "('a' | 'b')", 'true', '%resource']) {
+        const changed = args.with(index, invalid)
+        await expect(
+          evaluateAsync(`%terminologies.${name}(${changed.join(', ')})`, observation, options)
+        ).resolves.toEqual([])
+      }
+    }
+    expect(provider.calls).toEqual([])
+  })
+
+  it('passes resource arguments through and accepts an explicit empty string for params', async () => {
+    const expand = vi.fn(async (valueSet: unknown) => valueSet)
+    const valueSet = { resourceType: 'ValueSet', url: VS_VITALS }
+    await expect(
+      evaluateAsync(
+        "%terminologies.expand(%vs, '').url",
+        {},
+        {
+          model: r4Model,
+          terminology: { expand },
+          env: { vs: valueSet },
+        }
+      )
+    ).resolves.toEqual([VS_VITALS])
+    expect(expand).toHaveBeenCalledWith(valueSet, '')
+  })
+
+  it('rejects a typed Quantity and CodeableConcept where a Coding is required', async () => {
+    const provider = stubProvider()
+    const input = { ...observation, valueQuantity: { value: 1, system: 'urn:units', code: 'u' } }
+    const options = { model: r4Model, terminology: provider }
+    await expect(evaluateAsync('%terminologies.lookup(%resource.value)', input, options)).resolves.toEqual([])
+    await expect(evaluateAsync("%terminologies.translate('urn:map', %resource.code)", input, options)).resolves.toEqual(
+      []
+    )
+    await expect(
+      evaluateAsync("%terminologies.subsumes('urn:codes', %resource.code, 'a')", input, options)
+    ).resolves.toEqual([])
+    expect(provider.calls).toEqual([])
+  })
 
   it('validateVS returns the Parameters resource', async () => {
     const provider = stubProvider()
@@ -370,6 +426,41 @@ describe('%terminologies API', () => {
 })
 
 describe('weight', () => {
+  it('preserves Coding versions in lookup requests and their cache keys', async () => {
+    const codes = ['1', '2', '1'].map(version => ({ system: 'urn:score', code: 'a', version }))
+    const lookup = vi.fn(async (coded: unknown) => ({
+      resourceType: 'Parameters',
+      parameter: [
+        {
+          name: 'property',
+          part: [
+            { name: 'code', valueCode: 'itemWeight' },
+            { name: 'value', valueDecimal: Number((coded as { version: string }).version) },
+          ],
+        },
+      ],
+    }))
+    await expect(
+      evaluateAsync(
+        'code.coding.weight()',
+        { ...observation, code: { coding: codes } },
+        {
+          model: r4Model,
+          terminology: { lookup },
+        }
+      )
+    ).resolves.toEqual([1, 2, 1])
+    expect(lookup.mock.calls.map(([coded]) => coded)).toEqual(codes.slice(0, 2))
+  })
+
+  it('does not request terminology weights for a typed Quantity', async () => {
+    const provider = stubProvider()
+    const input = { ...observation, valueQuantity: { value: 1, system: 'urn:units', code: 'u' } }
+    await expect(evaluateAsync('value.weight()', input, { model: r4Model, terminology: provider })).resolves.toEqual([])
+    expect(evaluate('value.weight()', input, { model: r4Model })).toEqual([])
+    expect(provider.calls).toEqual([])
+  })
+
   it('falls back to a CodeSystem $lookup through the provider', async () => {
     const provider = stubProvider()
     const coding = { system: 'http://loinc.org', code: '29463-7' }

@@ -49,6 +49,9 @@ Its optional async methods are `expand`, `lookup`, `validateVS`, `validateCS`,
 URL-encoded parameter string. Return FHIR resources for resource operations and
 the outcome code for `subsumes`. Return `undefined` when the service cannot
 answer; `weight()` reports unavailable lookups as errors to prevent partial totals.
+A supplied empty, plural, or wrongly typed service argument returns empty
+without calling the provider. Omit the trailing parameter string or pass `''`
+when no additional parameters are needed.
 A missing method or provider raises an error. Synchronous evaluation that needs
 a provider directs the caller to `evaluateAsync()`.
 
@@ -61,8 +64,9 @@ Work before a service call can repeat, so cost grows with the number of distinct
 requests and the expression's work. Provider rejections propagate to the caller.
 
 The `memberOf()` and Boolean subsumption functions return empty for non-singleton
-inputs. Unknown subsumption relationships remain empty, including different
-systems whose relationship the provider cannot establish. A configured provider
+inputs. Unknown service outcomes remain empty. For different code systems,
+`subsumes()` returns empty and `subsumedBy()` raises an error when no matching
+Coding pair establishes the relationship. A configured provider
 reserves `%terminologies`; applications must not replace it through `env` or
 `vars`. Static analysis accepts an explicit variable declaration for this host
 service, while strict runtime evaluation supplies that declaration automatically.
