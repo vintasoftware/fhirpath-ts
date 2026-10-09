@@ -63,7 +63,7 @@ function allQuantities(input: TypedValue[]): QuantityValue[] | undefined {
   return quantities
 }
 
-// Convenience aggregates (ballot STU). All four are empty for empty input.
+// Convenience aggregates (FHIRPath 3.0.0, trial use). All four are empty for empty input.
 registerFunction('sum', {
   minArity: 0,
   maxArity: 0,

@@ -50,6 +50,13 @@ describe('resolve() element scope', () => {
     ).toEqual(['org', 'org'])
   })
 
+  it('gives a resolved contained resource its path inside the Bundle entry', () => {
+    expect(evaluate('entry.resource.subject.resolve().pathname()', bundle, options)).toEqual([
+      'Bundle.entry[0].resource[0].contained[0]',
+      'Bundle.entry[1].resource[0].contained[0]',
+    ])
+  })
+
   it('retains the Bundle and contained scope across resolution hops', () => {
     expect(
       evaluate(

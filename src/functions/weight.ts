@@ -2,14 +2,14 @@ import { type EvaluationContext, lookupEnvironmentVariable } from '../engine/con
 import { pairEquals, pairEquivalent } from '../engine/operators/equality.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import { elementOrigin } from '../fhir/element-origin.ts'
-import { extensionsOf } from '../fhir/extensions.ts'
+import { extensionArraysOf } from '../fhir/extensions.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import { Decimal } from '../values/decimal.ts'
 import { SYSTEM_DECIMAL, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
-const WEIGHT_URLS = new Set([
+const WEIGHT_URLS = new Set<unknown>([
   'http://hl7.org/fhir/StructureDefinition/itemWeight',
   'http://hl7.org/fhir/StructureDefinition/ordinalValue',
 ])
@@ -36,9 +36,9 @@ registerFunction('weight', {
 
 function embeddedWeight(item: TypedValue | undefined): Decimal | undefined {
   if (item === undefined) return undefined
-  for (const extension of extensionsOf(item)) {
-    const fields = extension as { url?: string; valueDecimal?: unknown }
-    if (!WEIGHT_URLS.has(fields.url ?? '')) continue
+  for (const extension of extensionArraysOf(item).flat()) {
+    const fields = extension as { url?: unknown; valueDecimal?: unknown } | null
+    if (fields === null || !WEIGHT_URLS.has(fields.url)) continue
     const score = typeof fields.valueDecimal === 'number' ? Decimal.fromNumber(fields.valueDecimal) : undefined
     if (score === undefined)
       throw new FhirPathRuntimeError('weight() requires a numeric valueDecimal on the weight extension')

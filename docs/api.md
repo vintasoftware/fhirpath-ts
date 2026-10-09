@@ -447,7 +447,29 @@ fp.evaluate("name.trace('names').given", patient, {
 })
 ```
 
-Traced values may contain PHI. Keep them out of production logs.
+Traced values may contain PHI. Keep them out of production logs. To log where
+values are without the values, trace their paths: `trace('missing', pathname())`.
+
+### Element paths
+
+`pathname()` returns the path of each input item inside the input resource,
+written with element names and indexers, such as
+`Observation.component[0].code[0].coding[0]`. Every element gets an indexer.
+`pathname(true)` leaves the indexer out when an element is not an array in the
+data or in the model: `Observation.component[0].code.coding[0]`.
+
+- Only items read by navigation from this evaluation's input have a path.
+  Computed values (`upper()`, `&`, arithmetic), values from `env`, and
+  `evaluateTyped()` items of another evaluation passed through `vars` are left
+  out of the result.
+- A resource reached with `resolve()` has a path when it is a contained resource
+  or a Bundle entry of the input, such as `Patient.contained[1]`,
+  `Bundle.entry[3].resource[0]`, or
+  `Bundle.entry[3].resource[0].contained[1]`.
+- When the input has no `resourceType`, paths start at its elements, such as
+  `given[0]`, and the input itself has no path.
+- With a model, a choice element uses its FHIRPath name (`value`). Without one,
+  it uses the JSON key (`valueQuantity`).
 
 ## Custom functions
 
@@ -962,9 +984,9 @@ Engine-generated failures use these exported `FhirPathError` subclasses:
 | `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. |
 
 This follows FHIRPath's
-[empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/N1/#singleton-evaluation-of-collections)
+[empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/STU3/en/index.html#singleton-evaluation-of-collections)
 and its
-[type-safety and strict evaluation model](https://hl7.org/fhirpath/N1/#type-safety-and-strict-evaluation).
+[type-safety and strict evaluation model](https://hl7.org/fhirpath/STU3/en/index.html#type-safety-and-strict-evaluation).
 Caller-supplied callbacks, including
 custom functions, conversions, regular expression engines, and trace sinks, may
 throw their own errors; the engine does not swallow them. Use

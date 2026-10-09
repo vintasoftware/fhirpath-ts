@@ -1,7 +1,7 @@
 # fhirpath-ts
 
-A TypeScript-native [FHIRPath](https://hl7.org/fhirpath/) engine for application
-development. It has zero runtime dependencies and includes:
+A TypeScript-native [FHIRPath 3.0.0](https://hl7.org/fhirpath/STU3/) engine for
+application development. It has zero runtime dependencies and includes:
 
 - typed results for literal expressions in plain TypeScript;
 - DTOs that transform FHIR resources into typed application data;
@@ -266,6 +266,30 @@ all depths, so this reads each questionnaire item's `linkId`.
 r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)
 ```
 
+### Build values
+
+An instance selector builds one FHIR value from the current item. An element
+whose value is empty is left out, and `Period {:}` builds a value with no
+elements (`{}` is the empty collection).
+
+```ts
+r4.evaluate(
+  "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
+  patient,
+)
+```
+
+The selector needs at most one item in its focus, so use `select()` to build
+one value per item. Unknown element names, values of the wrong type, and
+several items for an element that does not repeat throw, and the static checkers
+report them. Each primitive value must also match its FHIR type's pattern: a
+`code` without leading spaces, a non-empty `string`, a `positiveInt` above zero,
+a `dateTime` with seconds and a time zone when it has a time. The static
+checkers report a literal that does not. Type inference gives the result
+`unknown[]`: the runtime does not yet check the codes of required bindings that
+the generated interfaces list
+([#133](https://github.com/vintasoftware/fhirpath-ts/issues/133)).
+
 ### Deterministic tests and debugging
 
 `now` fixes the evaluation clock. `trace()` sends values to the sink you provide
@@ -279,6 +303,14 @@ r4.test(patient, 'birthDate <= today()', {
 r4.evaluate("Patient.name.trace('names').given", patient, {
   trace: (name, values) => debugSink(name, values),
 })
+```
+
+`pathname()` gives the path of each item inside the resource. Paths locate a
+problem without carrying patient data, so they suit traces and reports.
+
+```ts
+r4.evaluate('Patient.name.where(family.empty()).pathname()', patient)
+// ['Patient.name[1]']
 ```
 
 ## Important gotchas
@@ -337,8 +369,9 @@ The CLI imports exported DTOs and records engines constructed by their modules.
 This checks runtime context, registered functions, and cross-DTO calls that
 TypeScript and source-only ESLint cannot see.
 
-The analyzer is also public for editors, tests, and other tools. It follows the
-[FHIRPath §11 rules](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation)
+The analyzer is also public for editors, tests, and other tools. It follows
+FHIRPath's
+[type safety and strict evaluation rules](https://hl7.org/fhirpath/STU3/en/index.html#type-safety-and-strict-evaluation)
 and is tested against the official valid and invalid cases.
 See [Static checking](docs/static-checking.md) for configuration, supported call
 sites, DTO discovery, and cases where source-only checks stay quiet.
@@ -415,19 +448,34 @@ These features are deferred and fail with a clear error today:
 | `conformsTo()` beyond base StructureDefinitions | Profile-aware validation |
 | `slice()`, `elementDefinition()`, `checkModifiers()` | Profile definitions in the model |
 | `weight()` via ValueSets or CodeSystems | Terminology weight lookup |
-| `%factory` | Demand for the current R5 draft API |
+| `%factory` | Demand for the current R5 draft API; [instance selectors](#build-values) already build FHIR values |
 | CDA mode | A CDA `ModelProvider` |
 | Full UCUM | A full UCUM implementation behind the current interface |
 | R5 model package | Generated R5 definitions and types |
+
+Parts of FHIRPath 3.0.0 that do not work yet:
+
+| Behavior | Issue |
+| --- | --- |
+| `sort()` with `asc`/`desc` and empty keys first; `-key` sorts descending today | [#127](https://github.com/vintasoftware/fhirpath-ts/issues/127) |
+| `min()` and `max()` on Date, DateTime, Time, and String | [#128](https://github.com/vintasoftware/fhirpath-ts/issues/128) |
+| A backslash that starts no escape, as in `'\p'`, read as the next character | [#129](https://github.com/vintasoftware/fhirpath-ts/issues/129) |
+| Instance selectors for backbone elements, `BackboneElement { ... }` | [#132](https://github.com/vintasoftware/fhirpath-ts/issues/132) |
+| `power()` returning a Decimal, `ceiling()`/`floor()`/`round()`/`truncate()` on a Quantity, `log()` errors, empty on overflow, and same-type `sum()`/`min()`/`max()` | [#134](https://github.com/vintasoftware/fhirpath-ts/issues/134) |
+
+`union()`, `|`, and `combine()` keep the order of their sources, where 3.0.0
+gives them none; see
+[Conformance](docs/conformance.md#deviations-from-the-specification).
 
 ## Security guidelines
 
 ### Expression trust
 
 Parser depth, tokenization, decimal and UCUM exponents, and property navigation
-have limits suitable for untrusted input. `repeat()` fails after it collects
-10,000 items, so a projection that keeps producing new values, such as
-`1.repeat($this + 1)`, cannot loop forever. Regular expressions need one extra
+have limits suitable for untrusted input. `repeat()` and `repeatAll()` fail
+after they collect 10,000 items, so a projection that keeps producing values,
+such as `1.repeat($this + 1)` or `'abc'.repeatAll(replace('a', 'A'))`, cannot
+loop forever. Regular expressions need one extra
 step. By default, `matches()`, `matchesFull()`, and `replaceMatches()` use the
 host `RegExp`, so a pattern with catastrophic backtracking can block the event
 loop.
@@ -475,4 +523,4 @@ settings override the adapter's defaults one by one.
 
 `trace()` does nothing unless a trace sink is provided. Traced values may contain
 patient data. Never send PHI values to console output or production logs; use
-record identifiers instead.
+record identifiers or element paths from `pathname()` instead.

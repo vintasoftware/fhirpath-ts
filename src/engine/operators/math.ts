@@ -67,7 +67,7 @@ function temporalArithmetic(operator: ArithmeticOperator, a: TypedValue, b: Type
 
 function quantityArithmetic(operator: ArithmeticOperator, left: QuantityValue, right: QuantityValue): TypedValue[] {
   if (operator === '+' || operator === '-') {
-    // Convertible units align on the more granular one (spec §6.6); else empty.
+    // Convertible units align on the more granular one (spec "Math" operators); else empty.
     const aligned = alignQuantities(left, right)
     if (!aligned) {
       return []

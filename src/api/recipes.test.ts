@@ -335,6 +335,16 @@ describe('README usage recipes', () => {
     expect(r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)).toEqual(['g1', 'q1', 'g2', 'q2'])
   })
 
+  it('build values', () => {
+    const patient: Patient = { resourceType: 'Patient', gender: 'female' }
+    const codings = r4.evaluate(
+      "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
+      patient
+    )
+    expectTypeOf(codings).toEqualTypeOf<unknown[]>()
+    expect(codings).toEqual([{ system: 'http://hl7.org/fhir/administrative-gender', code: 'female' }])
+  })
+
   it('deterministic tests and debugging', () => {
     const patient: Patient = { resourceType: 'Patient', birthDate: '1984-11-02' }
     expect(r4.test(patient, 'birthDate <= today()', { now: new Date('2026-08-04T12:00:00Z') })).toBe(true)
@@ -346,6 +356,9 @@ describe('README usage recipes', () => {
       { trace: name => traced.push(name) }
     )
     expect(traced).toEqual(['names'])
+
+    const named: Patient = { resourceType: 'Patient', name: [{ family: 'Okoro' }, { given: ['Ada'] }] }
+    expect(r4.evaluate('Patient.name.where(family.empty()).pathname()', named)).toEqual(['Patient.name[1]'])
   })
 
   it('covers expressions used by the longer reference docs', () => {

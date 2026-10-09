@@ -1,7 +1,8 @@
 # Conformance
 
-The test suite checks official FHIRPath behavior, error phases, static analysis,
-and known differences from other implementations.
+The engine follows [FHIRPath 3.0.0](https://hl7.org/fhirpath/STU3/). The test
+suite checks official FHIRPath behavior, error phases, static analysis, and known
+differences from other implementations.
 
 ## Official suites
 
@@ -56,11 +57,11 @@ The package also runs tests from
 
 | Corpus | Passing | Skipped with a reason |
 | --- | ---: | ---: |
-| fhirpath.js cases plus fhirpath-py additions | 2,297 | 1,370 |
+| fhirpath.js cases plus fhirpath-py additions | 2,306 | 1,363 |
 
 Most skips require a model other than R4 or copy official-suite cases that
 upstream disabled; `official.test.ts` runs those cases directly. Other cases
-disabled upstream run here. Another 243 cases are intentional differences
+disabled upstream run here. Another 236 cases are intentional differences
 recorded in `test-data/fhirpathjs/quirk-manifest.ts`, including four disabled
 upstream whose expected result is wrong. Each group includes its specification or
 official-suite evidence. A maintenance test runs every listed case and fails when
@@ -68,7 +69,28 @@ one starts passing, so the manifest lists only differences that still exist.
 
 The fhirpath-rs corpus was also reviewed. Its official R5 cases are already
 covered by the official suite. Its additional cases are included in
-`src/reference-crosschecks.test.ts`, together with selected Medplum comparisons.
+`src/reference-crosschecks.test.ts`, together with selected Helios (hfs) and
+Medplum comparisons and the FHIRPath 3.0.0 cases from Josh Mandel's
+hand-written fhirpath.zig tests. Three fhirpath-rs `repeatAll()` cases expect
+the input items in the output, or a constant projection to end; that file tests
+the specification's behavior instead.
+
+`src/crosschecks-3.0.0.test.ts` runs 179 FHIRPath 3.0.0 cases from
+[gofhir/fhirpath](https://github.com/gofhir/fhirpath),
+[Pathling](https://github.com/aehrc/pathling),
+[Ignixa](https://github.com/brendankowitz/ignixa-fhir), and the fhirpath.js
+`pathname()` and instance selector tests. `test-data/crosschecks/README.md`
+lists their sources and commits.
+
+## Deviations from the specification
+
+`union()`, `|`, and `combine()` keep the order of their sources: the input's
+items, then the argument's. FHIRPath 3.0.0 gives `union()` no order, and
+`combine()` an order only when its `preserveOrder` argument is `true`. The
+runtime appends in order either way, and the analyzer treats these results as
+ordered, so `(a | b).first()` and `a.combine(b).first()` are not
+`order-dependent` errors. Reading them as unordered would reject many common
+expressions that rely on that order.
 
 ## Property and differential tests
 

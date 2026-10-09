@@ -1,8 +1,13 @@
 import type { TypedValue } from '../values/typed-value.ts'
 
-interface ElementOrigin {
+/** One step of an item's path inside its resource: the element it was read from and its position there. */
+export interface ElementOrigin {
+  /** The item that holds the element. */
   parent: TypedValue
+  /** The element name: the FHIRPath name for a choice element (`value`), the JSON key otherwise. */
   name: string
+  /** The position in the element's JSON array; undefined when the JSON value is not an array. */
+  index: number | undefined
 }
 
 // A base constructor that returns its argument lets a subclass add a private
@@ -30,8 +35,9 @@ class Origin extends Stamp {
   }
 }
 
-export function childValue(value: TypedValue, parent: TypedValue, name: string): TypedValue {
-  new Origin(value, { parent, name })
+/** Record that `value` was read from element `name` of `parent`, at `index` when that element is an array. */
+export function childValue(value: TypedValue, parent: TypedValue, name: string, index?: number): TypedValue {
+  new Origin(value, { parent, name, index })
   return value
 }
 

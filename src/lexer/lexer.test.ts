@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FhirPathSyntaxError } from '../errors.ts'
+import { parse } from '../parser/parser.ts'
 import { tokenize } from './lexer.ts'
 import type { Token, TokenKind } from './tokens.ts'
 
@@ -236,9 +237,10 @@ describe('date, dateTime, and time literals', () => {
     expect(texts('@2014TZ')).toEqual(['@2014T', 'Z'])
   })
 
-  it('time literals have no timezone: @T10:00-05:00 fails on the stray colon', () => {
+  it('time literals have no timezone: @T10:00-05:00 leaves a stray colon', () => {
     expect(kinds('@T10:00-05')).toEqual(['time', 'operator', 'number'])
-    expect(() => tokenize('@T10:00-05:00')).toThrow("Unexpected character ':'")
+    expect(kinds('@T10:00-05:00')).toEqual(['time', 'operator', 'number', 'punct', 'number'])
+    expect(() => parse('@T10:00-05:00')).toThrow("Unexpected ':' after expression")
   })
 
   it.each([['@'], ['@20'], ['@201'], ['@T'], ['@Tabc'], ['@abcd']])('rejects malformed literal %s', source => {
@@ -279,7 +281,7 @@ describe('operators and punctuation', () => {
     }
   )
 
-  it.each([['('], [')'], ['['], [']'], ['{'], ['}'], ['.'], [','], ['%']])('lexes punctuation %s', source => {
+  it.each([['('], [')'], ['['], [']'], ['{'], ['}'], ['.'], [','], ['%'], [':']])('lexes punctuation %s', source => {
     const token = single(source)
     expect(token.kind).toBe('punct')
     expect(token.value).toBe(source)

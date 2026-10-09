@@ -56,7 +56,7 @@ export interface HostExpressionFunction {
   functions?: ReadonlyMap<string, HostFunction>
   /**
    * Apply the criteria rule to the body's result, so the function always returns
-   * exactly one Boolean. That rule is `criteriaBoolean`: §4.5 singleton
+   * exactly one Boolean. That rule is `criteriaBoolean`: singleton
    * evaluation, with an empty result read as false. It is what makes a DTO
    * criteria column mean the same thing whether it is projected or called from
    * an expression.
@@ -89,7 +89,7 @@ export type HostFunction = HostSingleFunction | HostOverloadedFunction
  */
 export interface RegexEngine {
   /**
-   * Compile `pattern` with `flags` (a subset of 's' and 'g'; matchesFull
+   * Compile `pattern` with `flags` (a subset of 's', 'g', 'i', and 'm'; matchesFull
    * wraps the pattern in `^(?:...)$` before compiling). Throw on invalid
    * patterns — the engine converts that to the spec's type error.
    */
@@ -292,7 +292,7 @@ export function lookupEnvironmentVariable(context: EvaluationContext, name: stri
   return context.variables.get(name) ?? context.env.get(name)
 }
 
-/** Resolve `%name`; referencing an undefined environment variable is an error (spec §9). */
+/** Resolve `%name`; referencing an undefined environment variable is an error (spec "Environment variables"). */
 export function resolveEnvironmentVariable(context: EvaluationContext, name: string): TypedValue[] {
   const value = lookupEnvironmentVariable(context, name)
   if (value !== undefined) {

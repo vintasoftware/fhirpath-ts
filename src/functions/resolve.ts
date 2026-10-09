@@ -2,7 +2,11 @@ import { ancestors, childValue, elementOrigin } from '../fhir/element-origin.ts'
 import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
-/** Resolve within the originating resource and its enclosing Bundle. */
+/**
+ * Resolve within the originating resource and its enclosing Bundle. A resolved
+ * resource records where it sits (`contained[i]` or `entry[i].resource`), so
+ * `pathname()` and later `resolve()` calls see its place.
+ */
 registerFunction('resolve', {
   minArity: 0,
   maxArity: 0,
@@ -34,10 +38,9 @@ function resolveLocal(reference: string, item: TypedValue, root: TypedValue | un
     if (origin?.name === 'contained') scope = origin.parent
     if (reference === '#') return scope
     const contained = record(scope.value)?.['contained']
-    const resource = Array.isArray(contained)
-      ? contained.find(value => record(value)?.['id'] === reference.slice(1))
-      : undefined
-    return resource === undefined ? undefined : childValue(toTypedValue(resource), scope, 'contained')
+    if (!Array.isArray(contained)) return undefined
+    const index = contained.findIndex(value => record(value)?.['id'] === reference.slice(1))
+    return index === -1 ? undefined : childValue(toTypedValue(contained[index]), scope, 'contained', index)
   }
   for (const node of ancestors(item)) {
     if (record(node.value)?.['resourceType'] === 'Bundle') return resolveInBundle(reference, node)
@@ -49,7 +52,7 @@ function resolveInBundle(reference: string, bundle: TypedValue): TypedValue | un
   const scope = record(bundle.value)
   if (scope?.['resourceType'] !== 'Bundle' || !Array.isArray(scope['entry'])) return undefined
   const isAbsolute = reference.includes('://') || reference.startsWith('urn:')
-  for (const entry of scope['entry']) {
+  for (const [index, entry] of scope['entry'].entries()) {
     const fields = record(entry)
     const resource = record(fields?.['resource'])
     if (resource === undefined) continue
@@ -58,7 +61,7 @@ function resolveInBundle(reference: string, bundle: TypedValue): TypedValue | un
       (isAbsolute && fields?.['fullUrl'] === reference) ||
       (!isAbsolute && `${String(resource['resourceType'])}/${String(resource['id'])}` === reference)
     ) {
-      const entryNode = childValue(toTypedValue(entry), bundle, 'entry')
+      const entryNode = childValue({ type: 'FHIR.Bundle.entry', value: entry }, bundle, 'entry', index)
       return childValue(toTypedValue(resource), entryNode, 'resource')
     }
   }

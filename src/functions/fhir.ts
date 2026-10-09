@@ -1,6 +1,6 @@
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { childValue } from '../fhir/element-origin.ts'
-import { extensionsOf } from '../fhir/extensions.ts'
+import { extensionArraysOf } from '../fhir/extensions.ts'
 import { validateNarrative } from '../fhir/html-checks.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
 import { calendarToUcumLoose, compareQuantities, promoteQuantity } from '../values/quantity.ts'
@@ -22,9 +22,11 @@ registerFunction('extension', {
     const url = urlValue.value as string
     const result: TypedValue[] = []
     for (const item of input) {
-      for (const extension of extensionsOf(item)) {
-        if ((extension as { url?: unknown }).url === url) {
-          result.push(childValue({ type: 'FHIR.Extension', value: extension }, item, 'extension'))
+      for (const extensions of extensionArraysOf(item)) {
+        for (const [index, extension] of extensions.entries()) {
+          if ((extension as { url?: unknown } | null)?.url === url) {
+            result.push(childValue({ type: 'FHIR.Extension', value: extension }, item, 'extension', index))
+          }
         }
       }
     }

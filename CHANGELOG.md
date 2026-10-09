@@ -10,6 +10,57 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Added
 
+- FHIRPath 3.0.0 functions and arguments:
+  - `matches()`, `matchesFull()`, and `replaceMatches()` take an optional
+    `flags` argument: `i` ignores case and `m` makes `^` and `$` match at line
+    breaks. Any other flag is an error, which the analyzer reports for a
+    literal ([#111](https://github.com/vintasoftware/fhirpath-ts/issues/111)).
+    A custom `EvaluateOptions.regex` engine now also receives the `i` and `m`
+    flags.
+  - `repeatAll(projection)` is `repeat()` without the duplicate check. It
+    fails after 10,000 items, as `repeat()` does, so a projection that keeps
+    returning a value, such as `'abc'.repeatAll(replace('a', 'A'))`, stops
+    with an error ([#112](https://github.com/vintasoftware/fhirpath-ts/issues/112)).
+  - `duration(value, precision)` counts whole calendar periods and
+    `difference(value, precision)` counts period boundaries (weeks start on
+    Sunday) between two Dates, DateTimes, or Times. A precision the operand
+    types do not allow, such as `'hour'` between two Dates, is an error, which
+    the analyzer reports for a literal
+    ([#113](https://github.com/vintasoftware/fhirpath-ts/issues/113)).
+  - `toDate()`, `toDateTime()`, `convertsToDate()`, and `convertsToDateTime()`
+    take an optional `format` for a String input, such as
+    `'01/15/2025'.toDate('MM/dd/yyyy')`. Every code the spec requires is
+    supported, plus `yy`, `M`, `d`, `h`, `H`, `m`, `s`, English month names
+    (`MMM`, `MMMM`), and `z` for an IANA time zone id such as
+    `America/Los_Angeles`, which takes the zone's offset at that date and
+    time. A format the conversion cannot use is an error
+    ([#114](https://github.com/vintasoftware/fhirpath-ts/issues/114)).
+  - `pathname([short])` returns the path of each input item inside the input
+    resource, such as `Observation.component[0].code[0].coding[0]`. Computed
+    values have no path
+    ([#115](https://github.com/vintasoftware/fhirpath-ts/issues/115)).
+  - Instance selectors build FHIR values:
+    `Coding { system: 'http://loinc.org', code: '8480-6' }`, and `Period {:}`
+    for a value with no elements. The model checks the type, element names,
+    value types, and whether an element repeats, at runtime and in the static
+    checkers, and each primitive value against its FHIR type's pattern (a
+    literal one statically). `ModelProvider.valuePattern()` supplies the
+    patterns. A choice element takes the key of its value's type, so
+    `Observation { value: 5 'mg' }` sets `valueQuantity`. Type inference gives
+    a selector `unknown[]`, since the runtime does not check the required-binding
+    codes the generated interfaces list
+    ([#116](https://github.com/vintasoftware/fhirpath-ts/issues/116),
+    [#133](https://github.com/vintasoftware/fhirpath-ts/issues/133)).
+  - `combine(other, preserveOrder)` and `encode('ascii')`. `combine()` keeps
+    its sources' order with or without `preserveOrder`, as `union()` does
+    ([#117](https://github.com/vintasoftware/fhirpath-ts/issues/117)).
+- The SDC `weight()` scores answers locally with a model. It reads `itemWeight`
+  and R4 `ordinalValue` extensions on an answer or its value, then on the
+  matching `answerOption` of the answer's item in `%questionnaire`, so
+  `item.answer.value.weight().sum()` totals a QuestionnaireResponse. It throws
+  without a model, without `%questionnaire` for an answer, for a missing
+  questionnaire item, and when the weight needs a ValueSet or CodeSystem
+  lookup; see [Score questionnaire answers](README.md#score-questionnaire-answers).
 - `engine.compile(expression, type)` declares the type a relative expression
   runs against, as the package-root `compile(expression, type)` does. The input
   must be that type or an array of it, the result is inferred against it, and
@@ -90,6 +141,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `r4.evaluate(compile('clinicalStatus.coding.first().code', 'Condition'), condition, { type: 'code' })`
   failed to compile, and a resource-rooted expression such as `'Patient.name'`
   accepted an input of another resource type.
+- `resolve()` resolves a contained reference inside a Bundle entry against that
+  entry's resource; it returned empty. A reference from a contained resource
+  reaches its siblings and its container, and a resource that `resolve()`
+  returns resolves its own references the same way.
 
 ## 0.4.0 - 2026-10-07
 

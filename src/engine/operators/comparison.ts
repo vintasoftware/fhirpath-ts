@@ -10,7 +10,7 @@ import type { BinaryOperatorTable } from './index.ts'
 type ComparisonOperator = '<' | '>' | '<=' | '>='
 
 /**
- * Order two singleton values (spec §6.2). Undefined means empty: an empty operand,
+ * Order two singleton values (spec "Comparison"). Undefined means empty: an empty operand,
  * a valueless primitive, a date/time precision mismatch, or units that cannot be compared.
  */
 export function compareValues(a: TypedValue, b: TypedValue): number | undefined {

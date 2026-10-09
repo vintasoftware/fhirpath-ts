@@ -16,24 +16,25 @@ function isSystemAmbiguousName(name: string): boolean {
 }
 
 /**
- * Does an item satisfy a type specifier? Shared by `is`/`as`/`ofType()` and the
- * static analyzer. Resolution order per spec §10.1: the context model's types
- * first, then the System namespace. `is` always walks subtypes; `as`/`ofType`
- * do too, except when the requested name aliases a System primitive, where the
- * official inheritance tests pin an exact match instead (see isSystemAmbiguousName).
+ * Does an item satisfy a type specifier, for the `is`, `ofType`, or `as` test?
+ * Resolution order per spec "Models": the context model's types first, then the
+ * System namespace. `is` always walks subtypes; `ofType` and `as` do too, except
+ * when the requested name aliases a System primitive, where the official
+ * inheritance tests pin an exact match instead (see isSystemAmbiguousName).
  *
- * `cast` is for `as`: a FHIR primitive with a value also matches the System type
- * it converts to (FHIR R4 FHIRPath page: `Patient.name.given.as(System.string)`
- * is valid). `is` and `ofType` keep the type identity, so a FHIR string is not a
+ * `as` also casts: a FHIR primitive with a value matches the System type it
+ * converts to (FHIR R4 FHIRPath page: `Patient.name.given.as(System.string)` is
+ * valid). `is` and `ofType` keep the type identity, so a FHIR string is not a
  * System.String there (testType14).
  */
 export function itemMatchesType(
   context: EvaluationContext,
   item: TypedValue,
   parts: string[],
-  options?: { exact?: boolean; cast?: boolean }
+  mode: 'is' | 'ofType' | 'as'
 ): boolean {
-  const exact = options?.exact === true
+  const exact = mode !== 'is'
+  const cast = mode === 'as'
   if (parts.length === 2 && parts[0] === 'System') {
     // System type names are case-sensitive, so `System.STRING` is not `System.String`
     // (the lowercase fallback in matchesSystemType is only for unqualified names).
@@ -41,7 +42,7 @@ export function itemMatchesType(
     if (systemName === 'Any') {
       return item.type.startsWith('System.')
     }
-    return item.type === `System.${systemName}` || (options?.cast === true && convertsTo(item, systemName))
+    return item.type === `System.${systemName}` || (cast && convertsTo(item, systemName))
   }
   const model = context.model
   if (parts.length === 2) {
@@ -69,7 +70,7 @@ export function itemMatchesType(
     }
   }
   // A name the model does not define falls back to the System namespace.
-  if (options?.cast === true && SYSTEM_TYPE_LOCAL_NAMES.has(name) && convertsTo(item, name)) {
+  if (cast && SYSTEM_TYPE_LOCAL_NAMES.has(name) && convertsTo(item, name)) {
     return true
   }
   // Dynamic fallback: resource and complex types match on their local name. The

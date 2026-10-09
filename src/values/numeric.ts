@@ -61,3 +61,12 @@ export function wrapNumeric(value: Decimal, kind: NumericKind): TypedValue {
   }
   return { type: SYSTEM_DECIMAL, value: whole }
 }
+
+/**
+ * An integer literal's value. The grammar's NUMBER rule has no digit limit, so a
+ * literal widens as arithmetic results do: Integer within 32 bits, then Long,
+ * then Decimal. Evaluation and the analyzer both type literals here.
+ */
+export function integerLiteral(text: string): TypedValue {
+  return wrapNumeric(Decimal.fromString(text) as Decimal, 'Integer')
+}

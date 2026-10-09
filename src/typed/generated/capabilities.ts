@@ -1287,6 +1287,17 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: true,
     input: 'Organization',
   },
+  'selector.complex': {
+    expression: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
+    degradation: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).nope",
+    composition:
+      "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).exists()",
+    analyzer: {
+      types: ['FHIR.Coding'],
+      single: true,
+    },
+    runtime: true,
+  },
   'builtin.abs': {
     expression: 'Patient.name.first().abs()',
     degradation: 'Patient.name.unknownFn()',
@@ -1458,9 +1469,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.convertsToDate': {
-    expression: 'Patient.name.first().convertsToDate()',
+    expression: "Patient.name.first().convertsToDate('x')",
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().convertsToDate()).count()',
+    composition: "(Patient.name.first().convertsToDate('x')).count()",
     analyzer: {
       types: ['System.Boolean'],
       single: true,
@@ -1468,9 +1479,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.convertsToDateTime': {
-    expression: 'Patient.name.first().convertsToDateTime()',
+    expression: "Patient.name.first().convertsToDateTime('x')",
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().convertsToDateTime()).count()',
+    composition: "(Patient.name.first().convertsToDateTime('x')).count()",
     analyzer: {
       types: ['System.Boolean'],
       single: true,
@@ -1568,9 +1579,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.decode': {
-    expression: "'abc'.decode('x')",
+    expression: "'616263'.decode('hex')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.decode('x')).count()",
+    composition: "('616263'.decode('hex')).count()",
     analyzer: {
       types: ['System.String'],
       single: true,
@@ -1597,6 +1608,16 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     },
     runtime: false,
   },
+  'builtin.difference': {
+    expression: "@2020-01-01.difference(@2020-02-01, 'day')",
+    degradation: 'Patient.name.unknownFn()',
+    composition: "(@2020-01-01.difference(@2020-02-01, 'day')).count()",
+    analyzer: {
+      types: ['System.Integer'],
+      single: true,
+    },
+    runtime: false,
+  },
   'builtin.distinct': {
     expression: 'Patient.name.distinct()',
     degradation: 'Patient.name.unknownFn()',
@@ -1604,6 +1625,16 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     analyzer: {
       types: ['FHIR.HumanName'],
       single: false,
+    },
+    runtime: false,
+  },
+  'builtin.duration': {
+    expression: "@2020-01-01.duration(@2020-02-01, 'day')",
+    degradation: 'Patient.name.unknownFn()',
+    composition: "(@2020-01-01.duration(@2020-02-01, 'day')).count()",
+    analyzer: {
+      types: ['System.Integer'],
+      single: true,
     },
     runtime: false,
   },
@@ -1618,9 +1649,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.encode': {
-    expression: "'abc'.encode('x')",
+    expression: "'616263'.encode('hex')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.encode('x')).count()",
+    composition: "('616263'.encode('hex')).count()",
     analyzer: {
       types: ['System.String'],
       single: true,
@@ -1638,9 +1669,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.escape': {
-    expression: "'abc'.escape('x')",
+    expression: "'abc'.escape('html')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.escape('x')).count()",
+    composition: "('abc'.escape('html')).count()",
     analyzer: {
       types: ['System.String'],
       single: true,
@@ -1888,9 +1919,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.matches': {
-    expression: "'abc'.matches('x')",
+    expression: "'abc'.matches('x', 'i')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.matches('x')).count()",
+    composition: "('abc'.matches('x', 'i')).count()",
     analyzer: {
       types: ['System.Boolean'],
       single: true,
@@ -1898,9 +1929,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.matchesFull': {
-    expression: "'abc'.matchesFull('x')",
+    expression: "'abc'.matchesFull('x', 'i')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.matchesFull('x')).count()",
+    composition: "('abc'.matchesFull('x', 'i')).count()",
     analyzer: {
       types: ['System.Boolean'],
       single: true,
@@ -1987,6 +2018,16 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     },
     runtime: false,
   },
+  'builtin.pathname': {
+    expression: 'Patient.name.pathname(true)',
+    degradation: 'Patient.name.unknownFn()',
+    composition: '(Patient.name.pathname(true)).count()',
+    analyzer: {
+      types: ['System.String'],
+      single: undefined,
+    },
+    runtime: false,
+  },
   'builtin.power': {
     expression: '2.power(1)',
     degradation: 'Patient.name.unknownFn()',
@@ -2017,6 +2058,16 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     },
     runtime: false,
   },
+  'builtin.repeatAll': {
+    expression: 'Patient.name.repeatAll($this)',
+    degradation: 'Patient.name.unknownFn()',
+    composition: '(Patient.name.repeatAll($this)).count()',
+    analyzer: {
+      types: undefined,
+      single: undefined,
+    },
+    runtime: false,
+  },
   'builtin.replace': {
     expression: "'abc'.replace('x', 'x')",
     degradation: 'Patient.name.unknownFn()',
@@ -2028,9 +2079,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.replaceMatches': {
-    expression: "'abc'.replaceMatches('x', 'x')",
+    expression: "'abc'.replaceMatches('x', 'y', 'i')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.replaceMatches('x', 'x')).count()",
+    composition: "('abc'.replaceMatches('x', 'y', 'i')).count()",
     analyzer: {
       types: ['System.String'],
       single: true,
@@ -2248,9 +2299,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.toDate': {
-    expression: 'Patient.name.first().toDate()',
+    expression: "Patient.name.first().toDate('x')",
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().toDate()).count()',
+    composition: "(Patient.name.first().toDate('x')).count()",
     analyzer: {
       types: ['System.Date'],
       single: true,
@@ -2258,9 +2309,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.toDateTime': {
-    expression: 'Patient.name.first().toDateTime()',
+    expression: "Patient.name.first().toDateTime('x')",
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().toDateTime()).count()',
+    composition: "(Patient.name.first().toDateTime('x')).count()",
     analyzer: {
       types: ['System.DateTime'],
       single: true,
@@ -2378,9 +2429,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.unescape': {
-    expression: "'abc'.unescape('x')",
+    expression: "'abc'.unescape('html')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.unescape('x')).count()",
+    composition: "('abc'.unescape('html')).count()",
     analyzer: {
       types: ['System.String'],
       single: true,

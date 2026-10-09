@@ -3,7 +3,7 @@ import { singleton } from '../../values/collection.ts'
 import { SYSTEM_STRING, systemTypeOf, type TypedValue } from '../../values/typed-value.ts'
 import type { BinaryOperatorTable } from './index.ts'
 
-/** `&` concatenates strings and, unlike `+`, treats an empty operand as `''` (spec §6.6.2). */
+/** `&` concatenates strings and, unlike `+`, treats an empty operand as `''` (spec "& (String concatenation)"). */
 function concat(_context: unknown, left: TypedValue[], right: TypedValue[]): TypedValue[] {
   return [{ type: SYSTEM_STRING, value: stringOrEmpty(left) + stringOrEmpty(right) }]
 }
