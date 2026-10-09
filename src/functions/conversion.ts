@@ -8,6 +8,7 @@ import { Decimal } from '../values/decimal.ts'
 import { LONG_MAX, LONG_MIN } from '../values/numeric.ts'
 import { coerceQuantity, convertQuantity } from '../values/quantity.ts'
 import {
+  isInteger32,
   type QuantityValue,
   SYSTEM_BOOLEAN,
   SYSTEM_DATE,
@@ -145,7 +146,7 @@ conversionPair('Integer', item => {
         return undefined
       }
       const value = Number.parseInt(item.value as string, 10)
-      return Number.isSafeInteger(value) ? { type: SYSTEM_INTEGER, value } : undefined
+      return isInteger32(value) ? { type: SYSTEM_INTEGER, value } : undefined
     }
     default:
       return undefined

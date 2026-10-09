@@ -501,6 +501,18 @@ describe('Long arithmetic through environment values', () => {
   })
 })
 
+describe('untyped JSON numbers', () => {
+  it('read a whole number outside the Integer range as a Decimal, so arithmetic does not overflow', () => {
+    const data = { small: 2147483647, large: 3000000000 }
+    expect(evaluate('small.type().name', data)).toEqual(['Integer'])
+    expect(evaluate('small + 1', data)).toEqual([])
+    expect(evaluate('large.type().name', data)).toEqual(['Decimal'])
+    expect(evaluate('large + 1', data)).toEqual([3000000001])
+    expect(evaluate('large', data)).toEqual([3000000000])
+    expect(evaluate("'3000000000'.toInteger()")).toEqual([])
+  })
+})
+
 describe('equivalence over complex values', () => {
   const patient = {
     resourceType: 'Patient',

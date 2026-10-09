@@ -172,6 +172,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     directly before an integer literal reads as one negative literal, so
     `-2147483648` is an Integer. `ceiling()`, `floor()`, `truncate()`, and
     `abs()` results outside the Integer range are empty too.
+    Without a model, a whole JSON number outside the Integer range, such as
+    `3000000000`, reads as a Decimal, and `'3000000000'.toInteger()` is
+    empty.
   - `power()` always returns a Decimal: `2.power(3)` is `8` as a Decimal.
   - `log()` is an error for an input or a base of zero or less, which
     returned empty or `0`.
