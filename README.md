@@ -228,8 +228,8 @@ warnings. See [Static checking](docs/static-checking.md).
 
 ### Follow references in a Bundle
 
-`resolve()` follows contained references and references to another Bundle entry.
-Start at `Bundle` so the Bundle remains available as the lookup scope.
+`resolve()` follows contained references and references to another entry of the
+Bundle the expression runs on.
 
 ```ts
 r4.evaluate(
@@ -275,8 +275,9 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
 - Function names and arguments are strict: an unknown function, wrong arity or
   type, or undefined `%variable` is an error. See the
   [runtime error table](docs/api.md#what-throws-errors-and-what-doesnt).
-- A Bundle is one resource for `evaluate()`, `first()`, and `test()`, as in
-  FHIRPath: read its entries with `Bundle.entry.resource`. `filter()`,
+- A Bundle is one resource for `evaluate()`, `first()`, `test()`, and
+  `evaluateTyped()`, as in FHIRPath: read its entries with
+  `Bundle.entry.resource`. `filter()`,
   `project()`, `checkConstraints()`, and DTO `from()` read a Bundle as its entry
   resources.
 - Inside `where()`, the focus is the item being scanned. Use `%context` or a
