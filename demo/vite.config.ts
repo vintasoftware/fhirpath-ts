@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
+
 import { defineConfig } from 'vite'
 
 const src = (p: string) => fileURLToPath(new URL(`../src/${p}`, import.meta.url))
@@ -11,7 +12,8 @@ export default defineConfig({
   base: './',
   resolve: {
     alias: [
-      { find: 'fhirpath-ts/analyzer', replacement: src('analyzer/analyze.ts') },
+      { find: 'fhirpath-ts/analyzer', replacement: src('analyzer/index.ts') },
+      { find: 'fhirpath-ts/sites', replacement: src('sites/index.ts') },
       { find: 'fhirpath-ts/r4', replacement: src('r4/index.ts') },
       { find: 'fhirpath-ts', replacement: src('index.ts') },
     ],

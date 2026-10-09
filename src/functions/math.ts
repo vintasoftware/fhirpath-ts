@@ -39,8 +39,7 @@ registerFunction('abs', {
     if (!numeric) {
       throw new FhirPathTypeError(`abs() is not defined for ${item.type}`)
     }
-    const wrapped = wrapNumeric(numeric.value.abs(), numeric.kind)
-    return wrapped === undefined ? [] : [wrapped]
+    return [wrapNumeric(numeric.value.abs(), numeric.kind)]
   },
 })
 
@@ -52,8 +51,7 @@ registerFunction('ceiling', {
     if (!numeric) {
       return []
     }
-    const wrapped = wrapNumeric(numeric.value.ceiling(), 'Integer')
-    return wrapped === undefined ? [] : [wrapped]
+    return [wrapNumeric(numeric.value.ceiling(), 'Integer')]
   },
 })
 
@@ -65,8 +63,7 @@ registerFunction('floor', {
     if (!numeric) {
       return []
     }
-    const wrapped = wrapNumeric(numeric.value.floor(), 'Integer')
-    return wrapped === undefined ? [] : [wrapped]
+    return [wrapNumeric(numeric.value.floor(), 'Integer')]
   },
 })
 
@@ -78,8 +75,7 @@ registerFunction('truncate', {
     if (!numeric) {
       return []
     }
-    const wrapped = wrapNumeric(numeric.value.truncate(), 'Integer')
-    return wrapped === undefined ? [] : [wrapped]
+    return [wrapNumeric(numeric.value.truncate(), 'Integer')]
   },
 })
 
@@ -164,8 +160,7 @@ registerFunction('power', {
     }
     // Integer ^ Integer stays an Integer when the result is whole (spec §5.7.7).
     if (numeric.item.type === SYSTEM_INTEGER && exponentInput?.type === SYSTEM_INTEGER && decimal.isInteger()) {
-      const wrapped = wrapNumeric(decimal, 'Integer')
-      return wrapped === undefined ? [] : [wrapped]
+      return [wrapNumeric(decimal, 'Integer')]
     }
     return [{ type: SYSTEM_DECIMAL, value: decimal }]
   },

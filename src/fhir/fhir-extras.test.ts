@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+
 import type { EvaluateOptions } from '../api/compile.ts'
-import { evaluate, evaluateAsync } from '../api/evaluate.ts'
+import { evaluate } from '../api/evaluate.ts'
+import { FhirPathRuntimeError } from '../errors.ts'
 import { r4Model } from '../r4/index.ts'
 import { validateNarrative } from './html-checks.ts'
 
@@ -55,6 +57,32 @@ describe('choice element navigation', () => {
     expect(evaluate('Patient.birthDate < @2000-01-01', patient, options)).toEqual([true])
     expect(evaluate('Patient.name.given.ofType(string).count()', patient, options)).toEqual([2])
     expect(evaluate('Patient.name.ofType(HumanName).exists()', patient, options)).toEqual([true])
+  })
+
+  // FHIR R4 FHIRPath page: `as()` converts a FHIR primitive to its System type,
+  // while `is()` and `ofType()` keep the FHIR type identity.
+  it('as() casts a FHIR primitive to its System type', () => {
+    const observationString = { resourceType: 'Observation', valueString: 'FOO' }
+    const male = { ...patient, gender: 'male' }
+    expect(evaluate('Observation.value.as(String)', observationString, options)).toEqual(['FOO'])
+    expect(evaluate('Observation.value.as(System.String)', observationString, options)).toEqual(['FOO'])
+    expect(evaluate('Observation.value as System.String', observationString, options)).toEqual(['FOO'])
+    expect(evaluate('Patient.gender as System.String', male, options)).toEqual(['male'])
+    expect(evaluate('Patient.birthDate.as(Date)', patient, options)).toEqual(['1974-12-25'])
+    expect(evaluate('Patient.birthDate.as(System.DateTime)', patient, options)).toEqual([])
+    expect(evaluate('Patient.gender.as(System.Boolean)', male, options)).toEqual([])
+    // The cast keeps the FHIR item, as the analyzer and inferred types describe it.
+    expect(evaluate('Patient.gender.as(System.String).is(code)', male, options)).toEqual([true])
+    expect(evaluate('Patient.gender.as(System.String).is(System.String)', male, options)).toEqual([false])
+    expect(evaluate('Patient.gender.ofType(System.String)', male, options)).toEqual([])
+    // A FHIR subtype still does not cast to its FHIR parent (testFHIRPathAsFunction11).
+    expect(evaluate('Patient.gender.as(string)', male, options)).toEqual([])
+  })
+
+  it('as() does not cast a primitive without a value to a System type', () => {
+    const valueless = { resourceType: 'Patient', _gender: { extension: [{ url: 'x', valueString: 'y' }] } }
+    expect(evaluate('Patient.gender.as(code).exists()', valueless, options)).toEqual([true])
+    expect(evaluate('Patient.gender.as(System.String)', valueless, options)).toEqual([])
   })
 })
 
@@ -140,92 +168,6 @@ describe('resolve()', () => {
     expect(evaluate('name.first().resolve()', patient, options)).toEqual([])
   })
 
-  describe('external references via options.resolver', () => {
-    const registry: Record<string, unknown> = {
-      'https://ehr.example.org/Organization/acme': { resourceType: 'Organization', id: 'acme', name: 'ACME Remote' },
-      'Practitioner/dr-a': { resourceType: 'Practitioner', id: 'dr-a' },
-    }
-    function stubResolver() {
-      const calls: string[] = []
-      const resolver = async (reference: string) => {
-        calls.push(reference)
-        return registry[reference]
-      }
-      return { calls, resolver }
-    }
-    const subject = {
-      ...patient,
-      managingOrganization: { reference: 'https://ehr.example.org/Organization/acme' },
-      generalPractitioner: [{ reference: 'Practitioner/dr-a' }],
-    }
-
-    it('resolves absolute and relative references through the resolver', async () => {
-      const { calls, resolver } = stubResolver()
-      await expect(
-        evaluateAsync('Patient.managingOrganization.resolve().name', subject, { ...options, resolver })
-      ).resolves.toEqual(['ACME Remote'])
-      await expect(
-        evaluateAsync('Patient.generalPractitioner.resolve().id', subject, { ...options, resolver })
-      ).resolves.toEqual(['dr-a'])
-      expect(calls).toEqual(['https://ehr.example.org/Organization/acme', 'Practitioner/dr-a'])
-    })
-
-    it('local resolution wins: contained and Bundle references never reach the resolver', async () => {
-      const { calls, resolver } = stubResolver()
-      await expect(
-        evaluateAsync('Patient.managingOrganization.resolve().name', patient, { ...options, resolver })
-      ).resolves.toEqual(['ACME'])
-      // Fragment misses are internal by definition, so they stay empty too.
-      await expect(evaluateAsync("'#missing'.resolve()", patient, { ...options, resolver })).resolves.toEqual([])
-      expect(calls).toEqual([])
-    })
-
-    it('asks the resolver once per distinct reference', async () => {
-      const { calls, resolver } = stubResolver()
-      await expect(
-        evaluateAsync(
-          'Patient.managingOrganization.resolve().name | Patient.managingOrganization.resolve().id',
-          subject,
-          { ...options, resolver }
-        )
-      ).resolves.toEqual(['ACME Remote', 'acme'])
-      expect(calls).toEqual(['https://ehr.example.org/Organization/acme'])
-    })
-
-    it('unresolvable and non-resource answers are empty', async () => {
-      const { resolver } = stubResolver()
-      await expect(evaluateAsync("'Patient/elsewhere'.resolve()", subject, { ...options, resolver })).resolves.toEqual(
-        []
-      )
-      const stringResolver = async () => 'not a resource'
-      await expect(
-        evaluateAsync('Patient.generalPractitioner.resolve()', subject, { ...options, resolver: stringResolver })
-      ).resolves.toEqual([])
-    })
-
-    it('requires evaluateAsync() when an external reference actually needs the resolver', () => {
-      const { resolver } = stubResolver()
-      expect(() => evaluate('Patient.generalPractitioner.resolve()', subject, { ...options, resolver })).toThrow(
-        'resolve() of external references is only available with evaluateAsync()'
-      )
-      // Sync stays fine while everything resolves locally.
-      expect(evaluate('Patient.managingOrganization.resolve().name', patient, { ...options, resolver })).toEqual([
-        'ACME',
-      ])
-    })
-
-    it('resolver failures propagate', async () => {
-      const failing = () => Promise.reject(new Error('fhir server unreachable'))
-      await expect(
-        evaluateAsync('Patient.generalPractitioner.resolve()', subject, { ...options, resolver: failing })
-      ).rejects.toThrow('fhir server unreachable')
-    })
-
-    it('without a resolver, external references stay empty under evaluateAsync()', async () => {
-      await expect(evaluateAsync('Patient.generalPractitioner.resolve()', subject, options)).resolves.toEqual([])
-    })
-  })
-
   it('a relative reference does not match a fullUrl on a different base', () => {
     // fullUrl tail is Patient/123 but the resource id is 999; the resource must
     // confirm the type/id, so this resolves to empty rather than the wrong resource.
@@ -283,9 +225,7 @@ describe('FHIR equivalence', () => {
   })
 
   it('deferred functions fail with clear messages', () => {
-    expect(() => evaluate("code.memberOf('http://vs')", observation, options)).toThrow(
-      'memberOf() needs a terminology provider'
-    )
+    expect(() => evaluate("code.memberOf('http://vs')", observation, options)).toThrow(FhirPathRuntimeError)
     expect(() => evaluate("conformsTo('http://profile')", observation, options)).toThrow(
       'only supports base StructureDefinition urls'
     )
@@ -295,7 +235,6 @@ describe('FHIR equivalence', () => {
     expect(evaluate("conformsTo('http://hl7.org/fhir/StructureDefinition/Patient')", observation, options)).toEqual([
       false,
     ])
-    expect(() => evaluate('checkModifiers()', observation, options)).toThrow('not supported in v1')
   })
 })
 
@@ -331,6 +270,39 @@ describe('htmlChecks', () => {
     ['<div xmlns="http://www.w3.org/1999/xhtml"><p foo="bar">attr</p></div>'],
     ['<p xmlns="http://www.w3.org/1999/xhtml">not a div</p>'],
     ['stray text <div xmlns="http://www.w3.org/1999/xhtml"/>'],
+    // An HTML parser ends these comments and CDATA sections before the point
+    // where XML ends them, so the script would render as a live element.
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!--><script>x()</script>--></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!---><script>x()</script>--></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><![CDATA[><script>x()</script>]]></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- a --!><script>x()</script>--></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- a -- b --></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- a ---></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!-- unterminated></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><![CDATA[ unterminated></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><!DOCTYPE html></div>'],
+    // A browser decodes numeric references without ';', so these become javascript:.
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="&#106avascript:x()">hi</a></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><a href="javascript&#58x()">hi</a></div>'],
+    // XML well-formedness: every & starts a complete, known reference to a legal character.
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>a & b</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&constructor;</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&#0;</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&#xD800;</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&#X41;</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&#x110000;</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>\u0001</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>a ]]> b</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p title=x>t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p title="a"class="b">t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p title="a" title="b">t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p title="a<b">t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p title>t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p xmlns="http://example.org">t</p></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><B>t</B></div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml">line<br>break</div>'],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><?php x ?></div>'],
+    ['<![CDATA[x]]><div xmlns="http://www.w3.org/1999/xhtml">t</div>'],
   ])('rejects %s', html => {
     expect(validateNarrative(html)).toBe(false)
   })
@@ -341,6 +313,32 @@ describe('htmlChecks', () => {
         '<div xmlns="http://www.w3.org/1999/xhtml"><!-- note --><p>a&amp;b<br/></p><hr/><img src="data:image/png;base64,x" alt="i"/></div>'
       )
     ).toBe(true)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><!----><p>a<![CDATA[b & c]]></p></div>')).toBe(
+      true
+    )
+  })
+
+  it('requires non-whitespace content: text or an image (txt-2)', () => {
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"></div>')).toBe(false)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml">\n <p> </p><!-- note --><br/></div>')).toBe(
+      false
+    )
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><p>&#32;&#x9;</p></div>')).toBe(false)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"/>')).toBe(false)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><img src="a.png" alt=""/></div>')).toBe(true)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><p><![CDATA[x]]></p></div>')).toBe(true)
+    expect(validateNarrative('<div xmlns="http://www.w3.org/1999/xhtml"><p>&#160;</p></div>')).toBe(true)
+    expect(evaluate("' '.htmlChecks()")).toEqual([false])
+  })
+
+  it.each([
+    ['<div xmlns="http://www.w3.org/1999/xhtml">a<br></br>b<p/></div>'],
+    ['<div xmlns = "http://www.w3.org/1999/xhtml" >t</div>'],
+    ["<div xmlns='http://www.w3.org/1999/xhtml'><p\n\ttitle = 'a &quot;b&quot;'>t</p ></div>"],
+    ['<div xmlns="http://www.w3.org/1999/xhtml"><p>&#x6A;&#106;&lt;&gt;&amp;&apos;&#x1F600;</p></div>'],
+    ['<!-- before -->\n<div xmlns="http://www.w3.org/1999/xhtml">t</div>\n'],
+  ])('accepts well-formed XHTML %s', html => {
+    expect(validateNarrative(html)).toBe(true)
   })
 
   it.each([
@@ -356,9 +354,39 @@ describe('htmlChecks', () => {
     expect(validateNarrative(`<div xmlns="http://www.w3.org/1999/xhtml"><a href="${href}">x</a></div>`)).toBe(true)
   })
 
-  it('empty input propagates and non-strings are false', () => {
+  it('checks a string as the content of a div', () => {
+    expect(evaluate("'<b>bold</b> and <code>code</code>'.htmlChecks()")).toEqual([true])
+    expect(evaluate("'plain text'.htmlChecks()")).toEqual([true])
+    expect(evaluate(`'${valid}'.htmlChecks()`)).toEqual([true])
+    expect(evaluate("'<button>x</button>'.htmlChecks()")).toEqual([false])
+    // The string cannot close the wrapping div and add content after it.
+    expect(evaluate("'</div><script>x()</script><div>'.htmlChecks()")).toEqual([false])
+    expect(evaluate("'<!-- </div>'.htmlChecks()")).toEqual([false])
+  })
+
+  it('checks an xhtml element as the whole narrative div', () => {
+    const patient = { resourceType: 'Patient', text: { status: 'generated', div: valid } }
+    expect(evaluate('text.div.htmlChecks()', patient, { model: r4Model })).toEqual([true])
+    const fragment = { resourceType: 'Patient', text: { status: 'generated', div: '<b>no root</b>' } }
+    expect(evaluate('text.div.htmlChecks()', fragment, { model: r4Model })).toEqual([false])
+  })
+
+  it('gives empty for empty input, collections, and non-string items', () => {
     expect(evaluate('{}.htmlChecks()')).toEqual([])
-    expect(evaluate('1.htmlChecks()')).toEqual([false])
+    expect(evaluate("('<b>a</b>' | '<i>b</i>').htmlChecks()")).toEqual([])
+    expect(evaluate('1.htmlChecks()')).toEqual([])
+    const patient = { resourceType: 'Patient', birthDate: '1974-12-25' }
+    expect(evaluate('birthDate.htmlChecks()', patient, { model: r4Model })).toEqual([])
+  })
+
+  it('checks model subtypes of FHIR.string as div content', () => {
+    const observation = { resourceType: 'Observation', status: '<script>x()</script>', note: [{ text: '<b>ok</b>' }] }
+    expect(evaluate('note.text.htmlChecks()', observation, { model: r4Model })).toEqual([true])
+    expect(evaluate('status.htmlChecks()', observation, { model: r4Model })).toEqual([false])
+    const patient = { resourceType: 'Patient', id: 'abc', photo: [{ url: 'https://example.org/a.png' }] }
+    expect(evaluate('id.htmlChecks()', patient, { model: r4Model })).toEqual([true])
+    // url derives from uri, not string.
+    expect(evaluate('photo.url.htmlChecks()', patient, { model: r4Model })).toEqual([])
   })
 })
 

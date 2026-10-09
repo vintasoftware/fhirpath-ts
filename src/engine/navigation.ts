@@ -1,6 +1,7 @@
-import { FhirPathTypeError } from '../errors.ts'
+import { childValue } from '../fhir/element-origin.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
-import { OBJECT_TYPE, type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import { rootTypeMatches } from '../values/type-compat.ts'
+import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import type { EvaluationContext } from './context.ts'
 
 /**
@@ -11,21 +12,15 @@ import type { EvaluationContext } from './context.ts'
 export function navigateIdentifier(context: EvaluationContext, name: string, input: TypedValue[]): TypedValue[] {
   const results: TypedValue[] = []
   for (const item of input) {
-    if (matchesTypeName(context, item, name)) {
+    if (rootTypeMatches(context.model, item.type, name)) {
       results.push(item)
     } else if (context.model && item.type.startsWith(`${context.model.namespace}.`)) {
       const modelRead = readModelProperty(context.model, item, name)
       if (modelRead === undefined) {
-        // Choice elements go by stem name; a suffixed key like Observation.valueQuantity
-        // is the one unknown-element shape the official suites require to error at
-        // runtime. Everything else is the static analyzer's job (spec §11) — plain
-        // unknown elements navigate to empty, and types the model has never heard of
-        // (custom resourceTypes) read like raw JSON.
-        if (isChoiceKeyMisuse(context, item.type, name)) {
-          throw new FhirPathTypeError(
-            `Element '${name}' is not defined on ${item.type}; choice elements use their stem name`
-          )
-        }
+        // Unknown model elements navigate to empty. Strict evaluation runs the
+        // analyzer before reaching this point, including for choice-key misuse.
+        // Types the model has never heard of (custom resourceTypes) still read
+        // like raw JSON.
         if (
           name === 'resourceType' ||
           (context.model.listElements !== undefined && context.model.listElements(item.type) === undefined)
@@ -45,44 +40,6 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
   return results
 }
 
-/** True for `valueQuantity`-style keys whose stem is a choice element of the type. */
-function isChoiceKeyMisuse(context: EvaluationContext, type: string, name: string): boolean {
-  const model = context.model as NonNullable<EvaluationContext['model']>
-  for (let position = 1; position < name.length; position++) {
-    if (!/[A-Z]/.test(name[position] as string)) {
-      continue
-    }
-    const stem = name.slice(0, position)
-    if (model.getElement(type, stem)?.isChoice === true) {
-      return true
-    }
-  }
-  return false
-}
-
-function matchesTypeName(context: EvaluationContext, item: TypedValue, name: string): boolean {
-  // Only the namespace strips off: the backbone type FHIR.ValueSet.expansion.contains
-  // must not answer to the element name 'contains'. Lowercase primitive type names
-  // (FHIR.code) never self-match either — `children().code` means the element.
-  if (!/^[A-Z]/.test(name)) {
-    // Lowercase names are always elements: `children().code` never filters by the
-    // primitive type FHIR.code.
-    return false
-  }
-  const separator = item.type.indexOf('.')
-  const local = separator === -1 ? item.type : item.type.slice(separator + 1)
-  if (local === name && item.type !== OBJECT_TYPE) {
-    return true
-  }
-  if (context.model) {
-    const canonical = context.model.resolveType(name)
-    if (canonical !== undefined) {
-      return context.model.isSubtypeOf(item.type, canonical)
-    }
-  }
-  return false
-}
-
 /** Read one child element from a complex value, flattening arrays. Missing → empty. */
 export function getProperty(item: TypedValue, name: string): TypedValue[] {
   const value = item.value
@@ -99,7 +56,9 @@ export function getProperty(item: TypedValue, name: string): TypedValue[] {
     return []
   }
   if (Array.isArray(child)) {
-    return child.filter(element => element !== null && element !== undefined).map(element => toTypedValue(element))
+    return child
+      .filter(element => element !== null && element !== undefined)
+      .map(element => childValue(toTypedValue(element), item, name))
   }
-  return [toTypedValue(child)]
+  return [childValue(toTypedValue(child), item, name)]
 }

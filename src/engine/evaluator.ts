@@ -1,9 +1,12 @@
+import '../functions/install.ts'
+
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
-import { lookupFunction } from '../functions/registry.ts'
+import { describeArity, lookupFunction } from '../functions/registry.ts'
 import type { AstNode } from '../parser/ast.ts'
-import { singleton } from '../values/collection.ts'
+import { criteriaBoolean, singleton, wrapBoolean } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
+import { wrapNumeric } from '../values/numeric.ts'
 import {
   SYSTEM_BOOLEAN,
   SYSTEM_DATE,
@@ -14,12 +17,22 @@ import {
   SYSTEM_QUANTITY,
   SYSTEM_STRING,
   SYSTEM_TIME,
+  toCollection,
   type TypedValue,
+  unwrap,
 } from '../values/typed-value.ts'
-import { type EvaluationContext, forkVariables, resolveEnvironmentVariable } from './context.ts'
+import {
+  type EvaluationContext,
+  forkVariables,
+  type HostFunction,
+  resolveEnvironmentVariable,
+  withEnvOverlay,
+  withFrame,
+  withFunctionOverlay,
+} from './context.ts'
 import { navigateIdentifier } from './navigation.ts'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
-import '../functions/install.ts'
+import { resolveHostCall } from './type-matching.ts'
 
 function evaluateArgument(node: AstNode, context: EvaluationContext, _input: TypedValue[]): TypedValue[] {
   // Arguments evaluate against $this (the current context item), not the function's
@@ -27,6 +40,54 @@ function evaluateArgument(node: AstNode, context: EvaluationContext, _input: Typ
   // Patient. Lambda-style functions bind their own frame first, so they see each item.
   const forked = forkVariables(context)
   return evaluateNode(node, forked, forked.frame.thisValue)
+}
+
+/**
+ * Calls a host function after focus-type dispatch. Expression functions keep
+ * typed values, use the call focus as `$this`, and apply their local environment.
+ * Native functions receive eagerly evaluated plain JavaScript values.
+ */
+function evaluateHostFunction(
+  name: string,
+  entry: HostFunction,
+  args: AstNode[],
+  context: EvaluationContext,
+  input: TypedValue[]
+): TypedValue[] {
+  const host = resolveHostCall(name, entry, context, input)
+  if ('ast' in host) {
+    if (args.length > 0) {
+      throw new FhirPathTypeError(`Function '${name}' expects ${describeArity(0, 0)}, got ${args.length} arguments`)
+    }
+    if (context.activeExpressionFunctions.has(name)) {
+      throw new FhirPathRuntimeError(
+        `Expression-defined function '${name}' calls itself, directly or through another function`
+      )
+    }
+    context.activeExpressionFunctions.add(name)
+    try {
+      // Keep the function's environment local and recursion detection active.
+      const withEnv = host.env === undefined ? context : withEnvOverlay(context, host.env)
+      const scoped = host.functions === undefined ? withEnv : withFunctionOverlay(withEnv, host.functions)
+      // withFrame rebinds $this to the input and forks variables, so the
+      // body's defineVariable() bindings stay local to the body.
+      const result = withFrame(scoped, { thisValue: input }, forked => evaluateNode(host.ast, forked, input))
+      // Inside the try, so a body that returns several items still removes its
+      // name from activeExpressionFunctions on the way out.
+      return host.criteria === true ? wrapBoolean(criteriaBoolean(result)) : result
+    } finally {
+      context.activeExpressionFunctions.delete(name)
+    }
+  }
+  const minArity = host.minArity ?? 0
+  const maxArity = host.maxArity ?? Number.POSITIVE_INFINITY
+  if (args.length < minArity || args.length > maxArity) {
+    throw new FhirPathTypeError(
+      `Function '${name}' expects ${describeArity(minArity, maxArity)}, got ${args.length} arguments`
+    )
+  }
+  const argValues = args.map(node => evaluateArgument(node, context, input).map(unwrap))
+  return toCollection(host.fn(input.map(unwrap), ...argValues))
 }
 
 /** Evaluate one AST node against an input collection. */
@@ -62,9 +123,14 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
       return evaluateNode(node.right, context, evaluateNode(node.left, context, input))
     case 'indexer':
       return evaluateIndexer(node.target, node.index, context, input)
-    case 'call':
+    case 'call': {
+      const host = context.functions.get(node.name)
+      if (host !== undefined) {
+        return evaluateHostFunction(node.name, host, node.args, context, input)
+      }
       // Each function argument evaluates in its own defineVariable() scope.
       return lookupFunction(node.name, node.args.length).evaluate(context, input, node.args, evaluateArgument)
+    }
     case 'unary':
       return evaluateUnary(context, node.operator, evaluateNode(node.operand, context, input))
     case 'binary':
@@ -78,7 +144,7 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
       )
     case 'typeOp':
       return evaluateTypeOp(context, node.operator, evaluateNode(node.operand, context, input), node.type)
-    /* v8 ignore start -- exhaustiveness guard, unreachable for real ASTs */
+    /* v8 ignore start -- exhaustive fallback, unreachable for real ASTs */
     default: {
       const unreachable: never = node
       throw new FhirPathRuntimeError(`Unhandled node ${String(unreachable)}`)
@@ -91,7 +157,11 @@ function evaluateNumberLiteral(text: string, isDecimal: boolean): TypedValue {
   if (isDecimal) {
     return { type: SYSTEM_DECIMAL, value: parseDecimalLiteral(text) }
   }
-  return { type: SYSTEM_INTEGER, value: Number.parseInt(text, 10) }
+  // The grammar's NUMBER rule has no digit-count limit, so an integer literal can
+  // exceed 32 bits (or even 64). Widen through wrapNumeric the same way arithmetic
+  // results do, rather than truncating through a JS double (Number.parseInt loses
+  // precision above 2^53 and never reports the overflow).
+  return wrapNumeric(parseDecimalLiteral(text), 'Integer')
 }
 
 function parseDecimalLiteral(text: string): Decimal {

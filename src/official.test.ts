@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { SKIP_MANIFEST } from '../test-data/official/skip-manifest.ts'
+
+import { PHASE_OVERRIDES, SKIP_MANIFEST } from '../test-data/official/skip-manifest.ts'
 import {
+  casesMatching,
   findSkipReason,
   loadOfficialSuite,
   runOfficialTest,
+  runOfficialTestAsync,
   type SuiteName,
-  skipEntryMatchesSomething,
 } from './testing/official-harness.ts'
 
 const suites: Record<SuiteName, ReturnType<typeof loadOfficialSuite>> = {
@@ -25,7 +27,7 @@ for (const suite of ['r4', 'r5'] as const) {
             return
           }
           it(title, async () => {
-            const failure = await runOfficialTest(suite, test)
+            const failure = await runOfficialTestAsync(suite, test, group.name)
             expect(failure, failure).toBeUndefined()
           })
         })
@@ -37,7 +39,23 @@ for (const suite of ['r4', 'r5'] as const) {
 describe('skip manifest hygiene', () => {
   it('every skip entry matches at least one case', () => {
     for (const entry of SKIP_MANIFEST) {
-      expect(skipEntryMatchesSomething(entry, suites), entry.reason).toBe(true)
+      expect(casesMatching(entry, suites).length, entry.reason).toBeGreaterThan(0)
+    }
+  })
+
+  it('every runtime-only skip shields cases this engine still fails', () => {
+    for (const entry of SKIP_MANIFEST.filter(skip => skip.runtimeOnly === true)) {
+      for (const { group, test } of casesMatching(entry, suites)) {
+        const title = `${entry.suite}/${group.name}/${test.name ?? ''} now passes — remove its manifest entry`
+        expect(runOfficialTest(entry.suite, test, group.name), title).toBeDefined()
+      }
+    }
+  })
+
+  it('every phase override matches an invalid case', () => {
+    for (const entry of PHASE_OVERRIDES) {
+      const matches = casesMatching(entry, suites).filter(({ test }) => test.invalid !== undefined)
+      expect(matches.length, `${entry.suite}/${entry.group}/${entry.test}: ${entry.reason}`).toBeGreaterThan(0)
     }
   })
 })

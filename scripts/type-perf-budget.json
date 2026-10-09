@@ -1,0 +1,39 @@
+{
+  "tolerancePct": 5,
+  "compilers": {
+    "typescript": {
+      "commonPath": 128901,
+      "fullLanguage": 743395,
+      "apiSurface": 247589
+    },
+    "typescript-5-8": {
+      "commonPath": 134113,
+      "fullLanguage": 763132,
+      "apiSurface": 347783
+    }
+  },
+  "fullLanguageLimit": 5000000,
+  "perCaseLimit": 100000,
+  "perCaseCapabilities": [
+    {
+      "id": "scope.nested-frame-restore",
+      "member": "composition"
+    },
+    {
+      "id": "scope.nested-binding-restore",
+      "member": "composition"
+    },
+    {
+      "id": "scope.multiple-definition-fallback",
+      "member": "expression"
+    },
+    {
+      "id": "scope.operator-fork",
+      "member": "composition"
+    },
+    {
+      "id": "scope.argument-fork",
+      "member": "composition"
+    }
+  ]
+}

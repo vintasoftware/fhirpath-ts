@@ -59,22 +59,36 @@ function stringFunction(
   registerFunction(name, fn)
 }
 
+/**
+ * Characters are Unicode scalar values (spec "Unicode and String Operations"),
+ * so a surrogate pair is one character. String iteration yields code points.
+ */
+function characters(value: string): string[] {
+  return Array.from(value)
+}
+
+/** The character position of a UTF-16 offset; -1 stays -1. */
+function characterIndex(value: string, unitIndex: number): number {
+  return unitIndex < 0 ? -1 : characters(value.slice(0, unitIndex)).length
+}
+
 stringFunction('indexOf', { min: 1, max: 1 }, (value, [substring]) =>
-  substring === undefined ? [] : int(value.indexOf(substring))
+  substring === undefined ? [] : int(characterIndex(value, value.indexOf(substring)))
 )
 
 stringFunction('lastIndexOf', { min: 1, max: 1 }, (value, [substring]) =>
-  substring === undefined ? [] : int(value.lastIndexOf(substring))
+  substring === undefined ? [] : int(characterIndex(value, value.lastIndexOf(substring)))
 )
 
 registerFunction('substring', {
   minArity: 1,
   maxArity: 2,
   evaluate: (context, input, args, evaluateNode) => {
-    const value = stringInput('substring', input)
-    if (value === undefined) {
+    const text = stringInput('substring', input)
+    if (text === undefined) {
       return []
     }
+    const value = characters(text)
     const start = singleton(evaluateNode(argAt(args, 0), context, input), SYSTEM_INTEGER)
     if (start === undefined || typeof start.value !== 'number') {
       return []
@@ -83,19 +97,19 @@ registerFunction('substring', {
       return []
     }
     if (args.length === 1) {
-      return str(value.slice(start.value))
+      return str(value.slice(start.value).join(''))
     }
     const lengthCollection = evaluateNode(argAt(args, 1), context, input)
     if (lengthCollection.length === 0) {
       // An empty length means "to the end", like the one-argument form.
-      return str(value.slice(start.value))
+      return str(value.slice(start.value).join(''))
     }
     const length = singleton(lengthCollection, SYSTEM_INTEGER)
     /* v8 ignore next 3 -- singleton(SYSTEM_INTEGER) only returns integer items */
     if (length === undefined || typeof length.value !== 'number') {
       return []
     }
-    return str(value.slice(start.value, start.value + Math.max(0, length.value)))
+    return str(value.slice(start.value, start.value + Math.max(0, length.value)).join(''))
   },
 })
 
@@ -121,7 +135,7 @@ stringFunction('replace', { min: 2, max: 2 }, (value, [pattern, substitution]) =
   }
   if (pattern === '') {
     // Spec: an empty pattern surrounds every character with the substitution.
-    return str(substitution + value.split('').join(substitution) + substitution)
+    return str(substitution + characters(value).join(substitution) + substitution)
   }
   return str(value.split(pattern).join(substitution))
 })
@@ -140,16 +154,42 @@ function compileRegex(name: string, pattern: string, flags: string): RegExp {
   }
 }
 
-stringFunction('matches', { min: 1, max: 1 }, (value, [pattern]) =>
+/**
+ * Compile with the host's regex engine (EvaluateOptions.regex) when supplied —
+ * the ReDoS protection for untrusted expressions — and the built-in RegExp
+ * otherwise. A custom engine's compile errors become the same
+ * invalid-expression type error the built-in path raises.
+ */
+function compilePattern(
+  name: string,
+  context: EvaluationContext,
+  pattern: string,
+  flags: string
+): { test(subject: string): boolean; replace(subject: string, substitution: string): string } {
+  if (context.regex !== undefined) {
+    try {
+      return context.regex.compile(pattern, flags)
+    } catch {
+      throw new FhirPathTypeError(`${name}() received an invalid regular expression`)
+    }
+  }
+  const compiled = compileRegex(name, pattern, flags)
+  return {
+    test: subject => compiled.test(subject),
+    replace: (subject, substitution) => subject.replace(compiled, substitution),
+  }
+}
+
+stringFunction('matches', { min: 1, max: 1 }, (value, [pattern], context) =>
   // Single-line mode: `.` matches line terminators (spec §5.6.9).
-  pattern === undefined ? [] : wrapBoolean(compileRegex('matches', pattern, 's').test(value))
+  pattern === undefined ? [] : wrapBoolean(compilePattern('matches', context, pattern, 's').test(value))
 )
 
-stringFunction('matchesFull', { min: 1, max: 1 }, (value, [pattern]) =>
-  pattern === undefined ? [] : wrapBoolean(compileRegex('matchesFull', `^(?:${pattern})$`, 's').test(value))
+stringFunction('matchesFull', { min: 1, max: 1 }, (value, [pattern], context) =>
+  pattern === undefined ? [] : wrapBoolean(compilePattern('matchesFull', context, `^(?:${pattern})$`, 's').test(value))
 )
 
-stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitution]) => {
+stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitution], context) => {
   if (pattern === undefined || substitution === undefined) {
     return []
   }
@@ -157,12 +197,33 @@ stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitut
   if (pattern === '') {
     return str(value)
   }
-  return str(value.replace(compileRegex('replaceMatches', pattern, 'gs'), substitution))
+  return str(compilePattern('replaceMatches', context, pattern, 'gs').replace(value, jsSubstitution(substitution)))
 })
 
-stringFunction('length', { min: 0, max: 0 }, value => int(value.length))
+/**
+ * Rewrites PCRE-style group references into String.prototype.replace syntax:
+ * `${name}` becomes `$<name>`, `${0}` becomes `$&` (the whole match), and
+ * `${n}` becomes `$nn`. The spec's
+ * replaceMatches() example uses `${name}`, and the spec recommends PCRE. `$$`
+ * stays an escaped dollar sign, so `$${name}` remains literal text.
+ */
+function jsSubstitution(substitution: string): string {
+  return substitution.replace(/\$\$|\$\{(?:([A-Za-z_]\w*)|(\d{1,2}))\}/g, (token, name?: string, index?: string) => {
+    if (name !== undefined) {
+      return `$<${name}>`
+    }
+    if (index === undefined) {
+      return token
+    }
+    return Number(index) === 0 ? '$&' : `$${index.padStart(2, '0')}`
+  })
+}
 
-stringFunction('toChars', { min: 0, max: 0 }, value => value.split('').map(ch => ({ type: SYSTEM_STRING, value: ch })))
+stringFunction('length', { min: 0, max: 0 }, value => int(characters(value).length))
+
+stringFunction('toChars', { min: 0, max: 0 }, value =>
+  characters(value).map(ch => ({ type: SYSTEM_STRING, value: ch }))
+)
 
 stringFunction('trim', { min: 0, max: 0 }, value => str(value.trim()))
 
@@ -170,11 +231,15 @@ stringFunction('split', { min: 1, max: 1 }, (value, [separator]) =>
   separator === undefined ? [] : value.split(separator).map(part => ({ type: SYSTEM_STRING, value: part }))
 )
 
-// join() works on a collection of strings, not a singleton.
+// join() works on a collection of strings, not a singleton. An empty input
+// joins to empty rather than to an empty string.
 registerFunction('join', {
   minArity: 0,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
+    if (input.length === 0) {
+      return []
+    }
     const separator = args.length === 1 ? stringArgument('join', context, input, argAt(args, 0), evaluateNode) : ''
     const parts: string[] = []
     for (const item of input) {
@@ -353,6 +418,33 @@ function unescapeJson(value: string): string {
   return result
 }
 
+const HTML_NAMED_REFERENCES: Readonly<Record<string, string>> = {
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  amp: '&',
+}
+
+/**
+ * Decodes the named references escape('html') writes and decimal (`&#65;`) or
+ * hexadecimal (`&#x41;`) character references, in one pass so a decoded `&`
+ * never starts another reference. A reference to no valid scalar value, such as
+ * a surrogate, stays as written.
+ */
+function unescapeHtml(value: string): string {
+  return value.replace(
+    /&(?:([a-z]+)|#([0-9]+)|#[xX]([0-9a-fA-F]+));/g,
+    (reference, name?: string, decimal?: string, hex?: string) => {
+      if (name !== undefined) {
+        return HTML_NAMED_REFERENCES[name] ?? reference
+      }
+      const code = decimal !== undefined ? Number.parseInt(decimal, 10) : Number.parseInt(hex as string, 16)
+      const isScalarValue = code <= 0x10ffff && (code < 0xd800 || code > 0xdfff)
+      return isScalarValue ? String.fromCodePoint(code) : reference
+    }
+  )
+}
+
 stringFunction('escape', { min: 1, max: 1 }, (value, [target]) => {
   switch (target) {
     case undefined:
@@ -371,14 +463,7 @@ stringFunction('unescape', { min: 1, max: 1 }, (value, [target]) => {
     case undefined:
       return []
     case 'html':
-      return str(
-        value
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&quot;/g, '"')
-          .replace(/&#39;/g, "'")
-          .replace(/&amp;/g, '&')
-      )
+      return str(unescapeHtml(value))
     case 'json':
       return str(unescapeJson(value))
     default:

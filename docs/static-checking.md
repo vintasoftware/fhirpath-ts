@@ -1,0 +1,363 @@
+# Static checking
+
+[FHIRPath specification §11](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation)
+defines type safety and strict evaluation rules. This package applies them before expressions
+run through TypeScript inference, an ESLint rule, a CLI, a public analyzer API,
+and opt-in strict evaluation.
+
+## Strict evaluation
+
+Set `strict: true` on `FhirPathEngine` or an individual evaluation call to run
+the analyzer with the evaluator's model, functions, environment, variables, and
+runtime input type. A compiled expression that declares its input type
+(`compile(expression, type)`) is analyzed against that type instead, as the CLI
+and ESLint analyze it; the input still supplies the cardinality. Every error
+diagnostic becomes a `FhirPathTypeError` before the expression runs. Analyzer
+warnings remain non-fatal.
+
+```ts-invalid
+const fp = new FhirPathEngine({ model: r4Model, strict: true })
+fp.evaluate('Patient.name.givenn', patient) // FhirPathTypeError: unknown-element
+```
+
+This is useful when expressions arrive dynamically and cannot be checked by the
+CLI or ESLint. A model is required to validate FHIR members. The default remains
+lenient so ordinary navigation keeps FHIRPath's empty-collection behavior.
+
+## The three layers
+
+### TypeScript inference
+
+Literal expressions use a bounded type-level parser that follows the runtime
+grammar. They infer result and input types in plain `tsc`; no compiler plugin is
+required.
+
+```ts
+const names = r4.compile('Patient.name.given')
+names.evaluate(patient) // string[]; input must be a Patient
+```
+
+The parser covers literals, operators and precedence, paths, built-in functions,
+lambda scope, variables, generated Reference targets, and declared host context.
+A construct remains `unknown[]` when its result cannot be expressed safely.
+
+Malformed, dynamically widened, and deliberately opaque expressions also become
+`unknown[]`, not TypeScript errors. Use the analyzer to report expression errors.
+
+String literals keep their text through `|`, `iif()`, `combine()`, `union()`, and
+`coalesce()`, so `iif(active, 'open', 'closed')` infers `('open' | 'closed')[]`. A
+union with a non-literal side, and every string operation, widen to `string`.
+
+The type-level scanner accepts at most 128 emitted tokens and 512 visited source
+characters. Crossing either limit returns `unknown[]`; runtime evaluation and
+the analyzer still accept the full expression.
+
+Tagged templates are also `unknown[]` because TypeScript does not preserve their
+literal types. Use `fhirpath('...')` or `compile('...')` for inference.
+
+### ESLint
+
+The ESLint rule analyzes literal expressions where they are written:
+
+```js
+import fhirpathPlugin from 'fhirpath-ts/eslint'
+
+export default [
+  {
+    plugins: { fhirpath: fhirpathPlugin },
+    rules: {
+      'fhirpath/no-invalid-expressions': 'error',
+    },
+  },
+]
+```
+
+It recognizes:
+
+- `fhirpath`, `compile`, `evaluate`, `evaluateTyped`, `first`, and
+  `analyzeExpression` calls, and `new CompiledExpression()`;
+- `FhirPathEngine` and `r4` methods such as `test`, `filter`, `project`, and
+  `checkConstraints`;
+- DTO and view `this.column()` and `this.criteria()` fields, and the `vars` of
+  `engine.defineDto()` and `engine.defineView()`;
+- the `fhirpath` tagged template.
+
+Common method names are checked only on values imported from this package or
+created as a `FhirPathEngine`. This avoids reading an unrelated `.filter()` or
+`.first()` call as FHIRPath.
+
+By default, the rule trusts imports from `fhirpath-ts` and bare API names. The
+options can extend that scope:
+
+- `packages` adds other import-source prefixes that expose this API;
+- `localImports: true` includes relative imports, which is useful when a project
+  consumes the package from source;
+- `variables` declares environment names and optional types;
+- `functions` declares functions that are not visible in the current source
+  file.
+
+This repository uses the rule on its own source. See `eslint.config.ts` for a
+complete configuration.
+
+### CLI
+
+`fhirpath-check` uses the same analyzer without requiring ESLint. Install
+TypeScript 5.4 or later, below 7, in the consuming project because the CLI uses
+it to read source and load DTO modules.
+
+```sh
+pnpm exec fhirpath-check "src/**/*.ts"
+```
+
+The command checks two sources:
+
+1. expression literals found in the selected TypeScript files;
+2. exported DTO classes loaded from `*.dto.ts` files.
+
+Use `--no-import` for the source-only pass:
+
+```sh
+pnpm exec fhirpath-check --no-import "src/**/*.ts"
+```
+
+The CLI asks TypeScript for the resolved receiver type, so an engine imported,
+aliased, or re-exported through a local module is recognized as a
+`FhirPathEngine`. Each selected source file uses its nearest `tsconfig.json` for
+module resolution, including inherited settings and path aliases. One monorepo
+command can therefore check packages with different configurations. If a file
+cannot be type-resolved, `--local-imports` trusts relative imports.
+
+A relative expression is checked against the type of the value it runs on.
+The CLI reads that type from the input argument's `resourceType`, as TypeScript
+inference does:
+
+```ts
+declare const condition: Condition
+declare const observations: Observation[]
+
+r4.first('clinicalStatus.coding.first().code', condition) // checked against Condition
+r4.filter(observations, "value.ofType(Quantity) > 140 'mm[Hg]'") // checked against Observation
+```
+
+`filter`, `project`, and `checkConstraints` run on each item of an array, so an
+array of one resource type also gives the type. A union of resource types, an
+array passed to `evaluate` or `first`, a Bundle passed to one of these per-item
+methods, a value without a required
+`resourceType`, and a `resourceType` the model does not know give no type.
+Start the path with the type name (`Condition.clinicalStatus`), or compile the
+expression with `compile(expression, 'Condition')`; the two differ at runtime
+(see [Type name or declared root](api.md#type-name-or-declared-root)).
+`analyzeExpression()` calls use their literal `inputType` option.
+
+As at runtime, only an identifier that starts with an uppercase letter names a
+type. `code.coding` starts at the `code` element, not at the `code` primitive
+type.
+
+The CLI leaves out a method call that TypeScript resolves only to another
+package or to the default library, such as a browser driver's `page.evaluate()`
+or the DOM's `document.evaluate()`. A method declared in project source may wrap
+this API, so it is still checked.
+
+Calls that look like supported expression sites but cannot be read are reported
+as `[warning:skipped]`. This includes dynamic strings, interpolated templates,
+and receivers whose engine type cannot be established. A compiled expression
+passed to an engine method is checked or reported where it is compiled, so the
+CLI does not report the engine call as skipped. The CLI reads only the files it
+is given: an expression compiled in a file outside the run, such as another
+package, generated code, or a file your glob leaves out, is not checked by that
+run. A path that starts from an input of unknown type is reported as
+`[warning:unchecked-navigation]`. `--strict` promotes warnings to errors. A
+successful run with warnings says `no errors found`, not `no problems found`.
+
+Literal `vars` expressions in `EvaluateOptions` are checked in runtime order.
+Each expression sees the call environment and earlier vars; projection vars
+also see `%rowIndex` and `%rowTotal`. If a dynamic key or spread makes the order
+uncertain, the CLI reports one `[warning:skipped]` for the `vars` object.
+
+Inline `env` and `vars` names are available to expression checks. If dynamic
+options may add more names, unresolved variables are reported as
+`[warning:unchecked-variable]` instead of errors.
+
+The command exits with a non-zero status when it reports an error diagnostic.
+Warnings, such as possible regular expression backtracking, do not fail the run.
+
+For a pre-commit hook, check only staged source files with `--no-import`. Run
+every source file and the DTO import pass in CI, where module initialization is
+expected. A staged file may evaluate an expression compiled in a file that is not
+staged, and the CI run is where that file is checked.
+
+```json
+{
+  "lint-staged": {
+    "*.ts": ["fhirpath-check --no-import"]
+  }
+}
+```
+
+## DTO discovery
+
+The CLI finds DTOs by convention:
+
+- DTO modules use the `*.dto.ts` suffix by default. Repeat `--dtos "<glob>"` to
+  use another location.
+- DTO classes must be available through a module export. Direct exports,
+  aliases, and exported subclasses are supported.
+- Engines do not need to be exported. Each DTO and view carries the engine it
+  was defined on, and the checker analyzes it against that engine.
+- Views outside `*.dto.ts` modules get the source pass. Add their modules to
+  `--dtos`, or check them with `analyzeDto()` in a test, for the loaded check.
+
+Importing a DTO module executes its top-level code, class initialization, and
+imported dependencies. Keep selected DTO modules and their
+imports free of unexpected side effects, and run the import pass only on trusted
+project code. Use `--no-import` when module execution is not appropriate.
+
+The loaded DTO check has the real model, registered functions, and environment
+names of the DTO's own engine. It can resolve calls between DTO columns and
+compare declared column types with the analyzer result. A registered DTO's own
+columns are also callable from its other columns. The project does not need a
+`fhirpath.config.ts`.
+
+The checker also records the engines the imported modules construct and merges
+their declarations into the source pass, so a misspelled environment variable
+is reported when the import pass knows the complete environment. Those engines
+must use the same `ModelProvider` instance. If a project uses different models,
+check them in separate runs.
+
+Declare per-call environment names or types on the DTO itself:
+
+```ts
+export class LabRow extends fp.defineView('ServiceRequest', {
+  callerEnv: { reports: { type: 'DiagnosticReport', collection: true } },
+  vars: { report: "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()" },
+}) {
+  // columns
+}
+```
+
+Vars are checked in declaration order, and each var's inferred type carries
+into the vars and columns after it. Here `%reports` is declared as a
+`DiagnosticReport` collection, so `%report` is inferred as a single
+`DiagnosticReport` and every column path through it is checked.
+
+A name-only declaration (`callerEnv: ['reports']`) provides no type. Paths
+through such a value cannot be verified, and each one is reported as
+`[warning:unchecked-navigation]`.
+
+A DTO class that a matched module does not export is reported as
+`[warning:unloaded-dto]`. The import pass cannot load it, so its full check
+cannot run. Export the class to enable the full check.
+
+## Source-only limits
+
+Source analysis avoids a diagnostic when the source does not contain enough
+information to prove an error.
+
+- A DTO column may receive `%vars` from a base class or from `project()`, so
+  source-only checks do not report unknown variables on DTO sites.
+- A function declared by a DTO in another module is not visible. An unresolved
+  function is reported only when its name is close to a column declared in the
+  same file.
+- A class is read as a DTO when the file shows that it extends
+  `<engine>.defineDto(...)` or `<engine>.defineView(...)`: directly, through a
+  base class declared in the same file, or through a function of the same file
+  that returns such a class. The engine may be imported from the project; only
+  another package's import rules the call out. A class extending an imported
+  base class is read as a DTO only when TypeScript type information proves it;
+  otherwise the CLI reports its columns as skipped and ESLint leaves them alone.
+- A DTO needs a statically known `fhirType` for element and type checks. A
+  string literal in its `defineDto('Type')` or `defineView('Type')` call provides
+  that type, directly or through a base class. A class built by a function
+  receives syntax checks only, because the caller chooses its type.
+- An engine built with `engine.register(...)` in the same file is an engine, so
+  its method calls are checked.
+- An input type that comes from the input argument needs TypeScript type
+  information. The CLI reads it; ESLint does not, and checks such a relative
+  path only when it starts with a type name.
+- An engine reached through an alias the file does not declare, such as
+  `this.engine` or a function parameter, needs TypeScript type information to be
+  recognized. The CLI builds a TypeScript program for this. Editors parse one
+  file at a time and skip such receivers.
+
+Use `analyzeDto()` in a test or the CLI import pass when full runtime context is
+needed.
+
+## Public analyzer
+
+Use `analyzeExpression()` for editors, tests, and services that accept
+expressions:
+
+```ts-invalid
+import { analyzeExpression } from 'fhirpath-ts/analyzer'
+import { r4Model } from 'fhirpath-ts/r4'
+
+const diagnostics = analyzeExpression('name.givenn', {
+  model: r4Model,
+  inputType: 'Patient',
+})
+```
+
+The analyzer checks:
+
+- syntax;
+- unknown elements, functions, types, and environment variables;
+- function arity;
+- singleton requirements on inputs, operands, and arguments;
+- operand, argument, and function-input types;
+- comparisons that cannot match;
+- order-dependent operations on collections known to be unordered;
+- choice-key misuse such as `Observation.valueQuantity`;
+- regular expression literals that may have catastrophic backtracking.
+
+Each fact stays unknown until the analyzer can prove it. For example,
+`children()` and `descendants()` have unknown result types and cardinality but a
+known undefined order, while an undeclared `%var` also has unknown ordering. The
+rejected operations are the ones that select items by position — the indexer,
+`first()`, `last()`, `tail()`, `skip()`, and `take()` — and only on a collection
+known to be unordered. Functions whose result merely varies with iteration
+order, such as `join()` and `aggregate()`, are not rejected.
+
+Declare host variables and functions so the analyzer can check their use:
+
+```ts
+analyzeExpression('%limit < value.count()', {
+  model: r4Model,
+  inputType: 'Observation',
+  variables: {
+    limit: { types: ['System.Integer'], single: true },
+  },
+  functions,
+})
+```
+
+Set `reportUnchecked: true` to receive warning diagnostics when navigation starts
+from a declared variable with no type. The CLI enables this coverage check. It
+is opt-in for direct analyzer callers because an untyped variable may
+intentionally hold arbitrary non-FHIR objects.
+
+A variable declaration may also set `ordered: false` when the host supplies a
+collection with no defined order; the analyzer then rejects positional
+operations on it. Omitting `ordered` keeps the ordering unknown.
+
+`analyzeDto()` checks one DTO against the engine it was defined on, or against
+explicit analyzer options. `analyzeEngineDtos()` checks all DTOs registered on an
+engine.
+
+## Shared expression-site rules
+
+The ESLint rule walks ESLint's ESTree. The CLI, playground, and other tools walk
+the TypeScript AST through `fhirpath-ts/sites`. The TypeScript namespace is
+supplied by the caller, so importing the package does not add a runtime
+TypeScript dependency.
+
+Both walkers use the same expression-site policy and send sites through
+`analyzeSite()`. A shared test corpus compares their positions, context, and
+diagnostics.
+
+## Conformance of the checker
+
+The analyzer runs over the official R4 and R5 suites. Every strict-mode and
+semantic-invalid case must report an error. Every valid case must report none.
+This checks both error detection and false positives.
+
+See [Conformance](conformance.md) for suite counts and maintenance details.

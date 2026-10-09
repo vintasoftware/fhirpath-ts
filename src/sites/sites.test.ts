@@ -1,0 +1,839 @@
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import ts from 'typescript'
+import { describe, expect, it } from 'vitest'
+
+import { createSiteFinder, createSiteScanner } from './index.ts'
+
+const findExpressionSites = createSiteFinder(ts)
+
+describe('expression site extraction', () => {
+  it('finds tags and literal call arguments with positions', () => {
+    const source = [
+      "import { fhirpath, compile, evaluate } from 'fhirpath-ts'",
+      'const a = fhirpath`Patient.name.given`',
+      "const b = compile('Patient.birthDate')",
+      "const c = evaluate('Patient.active', input)",
+      "const d = api.evaluate('Patient.telecom.value', input)",
+      'const dynamic = compile(someVariable)',
+      'const template = fhirpath`Patient.$' + '{part}`',
+    ].join('\n')
+    const sites = findExpressionSites(source, 'sample.ts')
+    expect(sites.map(site => site.expression)).toEqual([
+      'Patient.name.given',
+      'Patient.birthDate',
+      'Patient.active',
+      'Patient.telecom.value',
+    ])
+    expect(sites[0]?.line).toBe(2)
+    expect(sites[1]?.line).toBe(3)
+  })
+
+  it('finds expressions in the subject-first engine helpers', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "const active = r4.test(patient, 'active')",
+      "const adults = r4.filter(patients, 'birthDate <= @2008-01-01')",
+      "const typed = r4.evaluateTyped('Patient.birthDate', patient)",
+      "const one = r4.first('Patient.name.family', patient)",
+      'const rows = r4.project(patients, {',
+      "  family: 'name.family.first()',",
+      "  given: { path: 'name.given', collection: true },",
+      "  quoted: { 'path': 'telecom.value' },",
+      '  dynamic: someVariable,',
+      '  [computed]: `name.$' + '{part}`,',
+      "  [alsoComputed]: 'name.suffix',", // a computed key names the column; the value is still checkable
+      '})',
+      'const result = r4.checkConstraints(patient, [',
+      "  { key: 'pat-1', expression: 'contact.name.exists()', human: 'contact needs a name' },",
+      "  { key: 'dyn-1', expression: dynamicExpression },",
+      '])',
+    ].join('\n')
+    const sites = findExpressionSites(source, 'sample.ts')
+    expect(sites.map(site => site.expression)).toEqual([
+      'active',
+      'birthDate <= @2008-01-01',
+      'Patient.birthDate',
+      'Patient.name.family',
+      'name.family.first()',
+      'name.given',
+      'telecom.value',
+      'name.suffix',
+      'contact.name.exists()',
+    ])
+    const projectSite = sites.find(site => site.expression === 'name.given')
+    expect(projectSite?.line).toBe(8)
+    const constraintSite = sites.find(site => site.expression === 'contact.name.exists()')
+    expect(constraintSite?.line).toBe(15)
+  })
+
+  it('finds ordered vars in every call that accepts EvaluateOptions', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "r4.evaluate('%a', patient, { vars: { a: 'Patient.name' } })",
+      "r4.evaluateTyped('%b', patient, { vars: { b: 'Patient.birthDate' } })",
+      "r4.first('%c', patient, { vars: { c: 'Patient.gender' } })",
+      "r4.test(patient, '%d.exists()', { vars: { d: 'Patient.active' } })",
+      "r4.filter(patients, '%e.exists()', { vars: { e: 'Patient.telecom' } })",
+      "r4.project(patients, { id: '%f' }, { vars: { f: 'Patient.id' } })",
+      "r4.checkConstraints(patient, [{ key: 'x', expression: '%g.exists()' }], { vars: { g: 'Patient.contact' } })",
+    ].join('\n')
+
+    expect(findExpressionSites(source, 'sample.ts').map(site => site.expression)).toEqual([
+      '%a',
+      'Patient.name',
+      '%b',
+      'Patient.birthDate',
+      '%c',
+      'Patient.gender',
+      '%d.exists()',
+      'Patient.active',
+      '%e.exists()',
+      'Patient.telecom',
+      '%f',
+      'Patient.id',
+      '%g.exists()',
+      'Patient.contact',
+    ])
+  })
+
+  it('marks sites whose call binds variable names the source cannot list', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "r4.evaluate('%a', patient, { env: { [key]: 1 } })",
+      "r4.evaluate('%b', patient, { env: { plain: 1 } })",
+      "r4.evaluate('%c', patient, someOptions)",
+    ].join('\n')
+    const sites = findExpressionSites(source, 'sample.ts')
+    expect(sites.map(site => [site.expression, site.openVariables])).toEqual([
+      ['%a', true],
+      ['%b', undefined],
+      ['%c', true],
+    ])
+  })
+
+  it('reports one coverage gap when dynamic vars make their final order unknowable', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "r4.evaluate('%value', patient, { vars: { value: '%typo', ...shared } })",
+    ].join('\n')
+    const result = createSiteScanner(ts)(source, 'sample.ts')
+    expect(result.sites.map(site => site.expression)).toEqual(['%value'])
+    expect(result.skipped.map(site => [site.reason, site.message])).toEqual([
+      [
+        'dynamic-expression',
+        'evaluate(...) var expressions not analyzed: their final names, values, or order are dynamic',
+      ],
+    ])
+  })
+
+  it('leaves non-literal helper arguments and non-object shapes alone', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'", // r4 is a known engine, so only the argument shapes decide
+      'const a = r4.test(patient)', // no expression argument at all
+      'const b = r4.filter(patients, criteriaVariable)',
+      'const c = r4.project(patients, columnsVariable)',
+      'const d = r4.checkConstraints(patient, constraintsVariable)',
+      'const e = r4.checkConstraints(patient, [constraintVariable, null, ...moreConstraints])',
+      'const h = r4.project(patients, { ...spreadColumns, shorthand })',
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts')).toEqual([])
+  })
+
+  it('checks common-name helpers only on known engine receivers', () => {
+    // test/filter/first/project exist only as engine methods and collide with
+    // everyday APIs (knex .first(), lodash .filter(), regex .test()), so they
+    // need a positive engine binding — not just "no foreign import".
+    const skipped = [
+      "import knex from 'knex'",
+      'const db = knex({})',
+      "const a = db.first('COUNT(*) as total')", // knex, receiver derived from a foreign import
+      "const b = db.filter(rows, 'created_at > ?')",
+      "const c = validator.test(input, 'some free text')", // untracked local receiver
+      'const d = r4.filter(patients, someCriteria)',
+      "const e = r4.test(patient, 'active')", // no fhirpath-ts import in this file: r4 is unknown
+      'const f = items.filter(item => item.active)',
+      "const g = this.engine.filter(patients, 'active')", // untracked alias: documented gap
+    ].join('\n')
+    expect(findExpressionSites(skipped, 'sample.ts')).toEqual([])
+
+    const checked = [
+      "import { FhirPathEngine } from 'fhirpath-ts'",
+      'const engine = new FhirPathEngine({ model })',
+      "const a = engine.filter(patients, 'birthDate <= @2008-01-01')",
+      "const b = engine.first('Patient.name.family', patient)",
+    ].join('\n')
+    expect(findExpressionSites(checked, 'sample.ts').map(site => site.expression)).toEqual([
+      'birthDate <= @2008-01-01',
+      'Patient.name.family',
+    ])
+  })
+
+  it('treats a new FhirPathEngine local as an engine even without imports, and after use', () => {
+    const source = [
+      "function isActive(patient) { return engine.test(patient, 'active') }", // use before declaration
+      'const engine = new FhirPathEngine({ model })',
+      'const other = new SomethingElse()',
+      "const skipped = other.test(x, 'free text with spaces')",
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => site.expression)).toEqual(['active'])
+  })
+
+  it('demotes a trusted name the file re-binds, file-wide', () => {
+    // Trust is name-based, not scope-based: a parameter named like a trusted
+    // binding would otherwise have its free-text arguments read as FHIRPath.
+    // Demotion prefers a missed check over a false positive on valid code.
+    const shadowedImport = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "function query(r4) { return r4.filter(rows, 'created_at > ?') }",
+      "const alsoSkipped = r4.test(patient, 'active')", // module-scope use loses trust too
+      "function g() { try {} catch (r4) { return r4.first('oops', y) } }",
+    ].join('\n')
+    expect(findExpressionSites(shadowedImport, 'sample.ts')).toEqual([])
+
+    const shadowedEngineLocal = [
+      "import { FhirPathEngine } from 'fhirpath-ts'",
+      'function a() { const engine = new FhirPathEngine({}); return engine }',
+      "function b(engine) { return engine.filter(rows, 'created_at > ?') }",
+    ].join('\n')
+    expect(findExpressionSites(shadowedEngineLocal, 'sample.ts')).toEqual([])
+  })
+
+  it('does not treat a foreign FhirPathEngine as an engine', () => {
+    const source = [
+      "import { FhirPathEngine } from 'some-other-fhirpath'",
+      'const engine = new FhirPathEngine()',
+      "const skipped = engine.test(x, 'not ours')",
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts')).toEqual([])
+  })
+
+  it('reads through side-effect imports and deep member callees', () => {
+    const source = [
+      "import './register-polyfill'", // no bindings to record
+      "const a = app.engines.r4.evaluate('Patient.active', input)",
+      "const b = getEngine().evaluate('Patient.gender', input)", // no identifier at the callee root
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => site.expression)).toEqual([
+      'Patient.active',
+      'Patient.gender',
+    ])
+  })
+
+  it('skips call names imported from other modules', () => {
+    const source = [
+      "import { compile } from 'handlebars'",
+      "import fhirpath from 'some-other-fhirpath'",
+      "import _ from 'lodash'",
+      "import { evaluate } from 'fhirpath-ts'",
+      "const template = compile('not a [fhirpath] expression')",
+      'const other = fhirpath`Patient.nope`',
+      "const picked = _.filter(users, 'not a [fhirpath] expression')",
+      "const checked = evaluate('Patient.active', input)",
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => site.expression)).toEqual(['Patient.active'])
+  })
+})
+
+describe('extraction ignores computed callees', () => {
+  it('skips calls whose callee has no name', () => {
+    const sites = findExpressionSites("const x = arr[0]('Patient.name')", 'sample.ts')
+    expect(sites).toEqual([])
+  })
+})
+
+describe('DTO declarations', () => {
+  const source = [
+    "import { r4 } from 'fhirpath-ts/r4'",
+    "class ProblemRow extends r4.defineView('Condition', { vars: { badge: 'clinicalStatus' } }) {",
+    "  name = this.column('code.text', { type: 'string', default: '' })",
+    "  recorded = this.criteria('recordedDate.exists()')",
+    '}',
+    'function badgedRow(fhirType) {',
+    '  class BadgedRow extends r4.defineView(fhirType) {}',
+    '  return BadgedRow',
+    '}',
+    "class LabRow extends badgedRow('DiagnosticReport') {",
+    "  name = this.column('code.text')",
+    '}',
+    'class Imported extends SomeBase {',
+    "  name = this.column('code.text(')",
+    '}',
+    'class Table {',
+    "  header = this.column('First name')",
+    '}',
+  ].join('\n')
+
+  it('finds column, criteria and vars expressions with the class fhirType', () => {
+    expect(findExpressionSites(source, 'sample.ts').map(site => [site.expression, site.inputType, site.dto])).toEqual([
+      ['clinicalStatus', 'Condition', true],
+      ['code.text', 'Condition', true],
+      ['recordedDate.exists()', 'Condition', true],
+      // Built by a factory of this file: a DTO, but the factory hides its fhirType.
+      ['code.text', undefined, true],
+    ])
+  })
+
+  it('reports a column of a class the source cannot prove to be a DTO, and ignores other classes', () => {
+    // An imported base may be a DTO, so its column is a coverage gap. A class
+    // extending nothing cannot be one, so its own `column` method is not ours.
+    expect(createSiteScanner(ts)(source, 'sample.ts').skipped).toEqual([
+      {
+        reason: 'unrecognized-receiver',
+        message: 'column(...) expression not analyzed: the class is not recognized as a DTO',
+        line: 14,
+        column: 10,
+      },
+    ])
+  })
+
+  it('reports a column whose same-file base chain reaches an imported class', () => {
+    const chained = [
+      "import { Imported } from './portal'",
+      'class Base extends Imported {}',
+      'class Middle extends Base {}',
+      "class Sub extends Middle { x = this.column('code.text') }",
+      // One of two same-name bases extends nothing, the other an import: either may be the base.
+      'function a() { class Twice {} return Twice }',
+      'function b() { class Twice extends Imported {} return Twice }',
+      "class Either extends Twice { y = this.column('code.text') }",
+      // A chain that ends at nothing, even through a cycle, builds no DTO.
+      'class Plain {}',
+      "class OwnColumn extends Plain { column(expression: string) { return expression } z = this.column('x') }",
+      'class Loop extends Cycle {}',
+      "class Cycle extends Loop { w = this.column('x') }",
+    ].join('\n')
+    expect(createSiteScanner(ts)(chained, 'chained.ts').skipped.map(skip => skip.line)).toEqual([4, 7])
+  })
+
+  it('declares a function per column field, and types it from the options', () => {
+    const withCalls = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class ConceptDto extends r4.defineView('CodeableConcept') {",
+      "  displayText = this.column('text', { type: 'string' })",
+      '}',
+      "class WeightRow extends r4.defineView('Observation') {",
+      "  name = this.column('code.displayText()', { type: 'string', default: '' })",
+      '}',
+    ].join('\n')
+    // Each column declares the type it was written against, so a call on the
+    // wrong focus is checkable, plus what it yields.
+    const stringOn = (host: string) => ({
+      minArity: 0,
+      maxArity: 0,
+      signature: { input: { types: [host] }, result: { types: ['string'], single: true } },
+    })
+    const sites = findExpressionSites(withCalls, 'sample.ts')
+    const vocabulary = { displayText: stringOn('CodeableConcept'), name: stringOn('Observation') }
+    // Every site of the file carries the file's whole column vocabulary.
+    expect(sites.map(site => site.functions)).toEqual([vocabulary, vocabulary])
+  })
+
+  it('reads the cardinality of a collection column, and declines to guess a dynamic one', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Row extends r4.defineView('Patient') {",
+      "  given = this.column('name.given', { type: 'string', collection: true })",
+      "  family = this.column('name.family', { type: 'string', collection: false })",
+      "  contacts = this.column('telecom.value', { type: 'string', collection: dynamic })",
+      '}',
+    ].join('\n')
+    const input = { types: ['Patient'] }
+    expect(findExpressionSites(source, 'sample.ts')[0]?.functions).toEqual({
+      given: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['string'], single: false } } },
+      family: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['string'], single: true } } },
+      // Cardinality not in the syntax, so no result at all rather than a guessed
+      // one; the input the class fixes is known either way.
+      contacts: { minArity: 0, maxArity: 0, signature: { input } },
+    })
+  })
+
+  it('reads a tag by the name it is reached through, so a foreign namespace is not ours', () => {
+    // A tag is gated on its receiver exactly as a call is: `hb.fhirpath` under a
+    // handlebars namespace import is somebody else's tag, and reporting its
+    // contents as invalid FHIRPath would be the worst kind of miss.
+    const foreign = ["import * as hb from 'handlebars'", 'const q = hb.fhirpath`Patient.name.given`'].join('\n')
+    expect(findExpressionSites(foreign, 'sample.ts')).toEqual([])
+    const ours = ["import * as api from 'fhirpath-ts'", 'const q = api.fhirpath`Patient.name.given`'].join('\n')
+    expect(findExpressionSites(ours, 'sample.ts').map(site => site.expression)).toEqual(['Patient.name.given'])
+    // No imports at all: a distinctive name stays checkable.
+    expect(findExpressionSites('const q = fhirpath`Patient.name.given`', 'sample.ts')).toHaveLength(1)
+  })
+
+  it('skips a column that is not the package export', () => {
+    const local = ['const column = (name: string) => name', "column('not.a.fhirpath.expression')"].join('\n')
+    expect(findExpressionSites(local, 'sample.ts')).toEqual([])
+  })
+
+  it('follows a DTO root through a base class the same file declares', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class ObservationRow extends r4.defineView('Observation') {",
+      "  at = this.column('issued')",
+      '}',
+      'class WeightRow extends ObservationRow {',
+      "  kg = this.column('value.ofType(Quantity).value')",
+      '}',
+      'class Deeper extends WeightRow {',
+      "  state = this.column('status')",
+      '}',
+      // A function this file does not declare proves nothing about its class.
+      "class LabRow extends badgedRow('DiagnosticReport') {",
+      "  name = this.column('code.text')",
+      '}',
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => [site.expression, site.inputType])).toEqual([
+      ['issued', 'Observation'],
+      ['value.ofType(Quantity).value', 'Observation'],
+      ['status', 'Observation'],
+    ])
+  })
+
+  it('does not guess a DTO for a class name the file declares twice', () => {
+    // Two scopes, two different classes, one name: inheriting the wrong root would
+    // report valid code, so the chain drops the name. A class's own clause is
+    // unaffected.
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "function a() { class Row extends r4.defineView('Observation') { at = this.column('issued') } return Row }",
+      "function b() { class Row extends r4.defineView('Condition') { at = this.column('recordedDate') } return Row }",
+      'class Sub extends Row {',
+      "  x = this.column('whatever')",
+      '}',
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => [site.expression, site.inputType])).toEqual([
+      ['issued', 'Observation'],
+      ['recordedDate', 'Condition'],
+    ])
+  })
+
+  it('does not loop on a cyclic extends chain', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class A extends B { at = this.column('issued') }",
+      'class B extends A {}',
+      'function make() { return C }',
+      'class C extends make() {}',
+      "class D extends C { at = this.column('issued') }",
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts')).toEqual([])
+  })
+})
+
+describe('DTO export reachability', () => {
+  const scan = createSiteScanner(ts)
+  const loadableOf = (code: string): Record<string, boolean> =>
+    Object.fromEntries(scan(code, 'sample.ts').dtoDeclarations.map(dto => [dto.name, dto.loadable]))
+  const dto = [
+    "import { r4 } from 'fhirpath-ts/r4'",
+    "class ProblemRow extends r4.defineView('Condition') {",
+    "  name = this.column('code.text')",
+    '}',
+  ]
+
+  it('reads a DTO reached through an exported const binding as loadable', () => {
+    expect(loadableOf([...dto, 'export const Row = ProblemRow'].join('\n'))).toEqual({ ProblemRow: true })
+    expect(loadableOf([...dto, 'export const Row = ProblemRow as unknown'].join('\n'))).toEqual({ ProblemRow: true })
+    expect(loadableOf([...dto, 'const Alias = ProblemRow', 'export { Alias }'].join('\n'))).toEqual({
+      ProblemRow: true,
+    })
+    expect(
+      loadableOf([...dto, 'const Alias = ProblemRow', 'const Out = Alias', 'export default Out'].join('\n'))
+    ).toEqual({ ProblemRow: true })
+    expect(loadableOf([...dto, 'const Alias = ProblemRow', 'export default (Alias as unknown)'].join('\n'))).toEqual({
+      ProblemRow: true,
+    })
+  })
+
+  it('reads a DTO reached through an exported subclass expression as loadable', () => {
+    expect(loadableOf([...dto, 'export const Row = class extends ProblemRow {}'].join('\n'))).toEqual({
+      ProblemRow: true,
+    })
+    expect(loadableOf([...dto, 'export default class extends ProblemRow {}'].join('\n'))).toEqual({
+      ProblemRow: true,
+    })
+    expect(loadableOf([...dto, 'export default (class extends ProblemRow {})'].join('\n'))).toEqual({
+      ProblemRow: true,
+    })
+  })
+
+  it('still reads a genuinely module-private DTO as unloadable', () => {
+    expect(loadableOf(dto.join('\n'))).toEqual({ ProblemRow: false })
+    // A local alias that never reaches an export does not make it loadable.
+    expect(loadableOf([...dto, 'const Private = ProblemRow'].join('\n'))).toEqual({ ProblemRow: false })
+    // A mutable binding may no longer hold its initializer when the loader
+    // enumerates the module, so it cannot prove reachability.
+    expect(
+      loadableOf(
+        [
+          ...dto,
+          "class OtherRow extends r4.defineView('Condition') {}",
+          'export let Row = ProblemRow',
+          'Row = OtherRow',
+        ].join('\n')
+      )
+    ).toEqual({ ProblemRow: false })
+  })
+
+  it('does not confuse class-expression names with top-level DTOs', () => {
+    expect(loadableOf([...dto, 'export const Row = class ProblemRow {}'].join('\n'))).toEqual({
+      ProblemRow: false,
+    })
+  })
+
+  it('does not treat re-exports or type-only exports as local runtime bindings', () => {
+    expect(loadableOf([...dto, 'const Alias = ProblemRow', "export { Alias } from './other.js'"].join('\n'))).toEqual({
+      ProblemRow: false,
+    })
+    expect(loadableOf([...dto, 'export type { ProblemRow }'].join('\n'))).toEqual({ ProblemRow: false })
+    expect(loadableOf([...dto, 'export { type ProblemRow }'].join('\n'))).toEqual({ ProblemRow: false })
+  })
+})
+
+describe('DTO context and declared roots', () => {
+  it('carries a declared root, and does not read it as a DTO site', () => {
+    const source = [
+      "import { compile, fhirpath } from 'fhirpath-ts'",
+      "const VISIBLE = fhirpath(\"(status in ('draft')).not()\", 'MedicationRequest')",
+      "const HEIGHT = compile('value.ofType(Quantity).value', 'Observation')",
+      "const BARE = fhirpath('Patient.name.given')",
+    ].join('\n')
+    expect(findExpressionSites(source, 'sample.ts').map(site => [site.expression, site.inputType, site.dto])).toEqual([
+      ["(status in ('draft')).not()", 'MedicationRequest', undefined],
+      ['value.ofType(Quantity).value', 'Observation', undefined],
+      ['Patient.name.given', undefined, undefined],
+    ])
+  })
+
+  it('declares one function per column field, typed from its options', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Row extends r4.defineView('CodeableConcept') {",
+      "  displayText = this.column('text', { type: 'string' })",
+      "  readonly codingCount = this.column('coding.count()', { type: 'integer' })",
+      "  codings = this.column('coding', { collection: true })",
+      "  decoded = this.column('text', { choices: { a: 'A' } })",
+      "  named = this.criteria('text.exists()')",
+      '}',
+    ].join('\n')
+    const [site] = findExpressionSites(source, 'sample.ts')
+    // A collection or a choices shaper leaves the result an unknown region
+    // rather than a guessed one, while the class's own type is known for every
+    // column. A criteria has no options to read: it is a single Boolean whatever
+    // its expression yields, because the coercion lives on the function.
+    const input = { types: ['CodeableConcept'] }
+    expect(site?.functions).toEqual({
+      displayText: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['string'], single: true } } },
+      codingCount: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['integer'], single: true } } },
+      codings: { minArity: 0, maxArity: 0, signature: { input } },
+      decoded: { minArity: 0, maxArity: 0, signature: { input } },
+      named: { minArity: 0, maxArity: 0, signature: { input, result: { types: ['System.Boolean'], single: true } } },
+    })
+  })
+
+  it('reads a column only as the whole initializer of a public instance field', () => {
+    const source = [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Row extends r4.defineView('CodeableConcept') {",
+      "  override readonly 'displayText' = this.column('text', { type: 'string' })",
+      "  static shared = this.column('x..1')",
+      "  #hidden = this.column('x..2')",
+      "  wrapped = [this.column('x..3')]",
+      "  later() { return this.column('x..4') }",
+      "  borrowed = other.column('x..5')",
+      '}',
+    ].join('\n')
+    const sites = findExpressionSites(source, 'sample.ts')
+    // The runtime refuses the other shapes, so none of them is a column to check.
+    expect(sites.map(site => site.expression)).toEqual(['text'])
+    expect(sites[0]?.functions).toEqual({
+      displayText: {
+        minArity: 0,
+        maxArity: 0,
+        signature: { input: { types: ['CodeableConcept'] }, result: { types: ['string'], single: true } },
+      },
+    })
+  })
+
+  it('survives a buffer that is mid-edit', () => {
+    // What an editor sees between keystrokes: the parser recovers, and the
+    // walker neither throws nor loses the columns it can still read.
+    const unclosed =
+      "import { r4 } from 'fhirpath-ts/r4'\nclass Row extends r4.defineView('Coding') { code = this.column('code')"
+    expect(findExpressionSites(unclosed, 'sample.ts').map(site => site.expression)).toEqual(['code'])
+    const noArgument =
+      "import { r4 } from 'fhirpath-ts/r4'\nclass Row extends r4.defineView('Coding') { code = this.column( }"
+    expect(() => findExpressionSites(noArgument, 'sample.ts')).not.toThrow()
+    const truncated = "import { r4 } from 'fhirpath-ts/r4'\nr4.evaluate('Patient.na"
+    expect(() => findExpressionSites(truncated, 'sample.ts')).not.toThrow()
+  })
+})
+
+describe('module options', () => {
+  it('reads relative imports as the API when localImports is on', () => {
+    const source = "import { compile } from '../api/compile.ts'\nconst q = compile('Patient.name')"
+    expect(findExpressionSites(source, 'sample.ts')).toEqual([])
+    expect(findExpressionSites(source, 'sample.ts', { localImports: true }).map(site => site.expression)).toEqual([
+      'Patient.name',
+    ])
+  })
+
+  it('reads extra package prefixes as the API', () => {
+    const source = "import { compile } from '@acme/fhirpath'\nconst q = compile('active = true')"
+    expect(findExpressionSites(source, 'sample.ts')).toEqual([])
+    expect(
+      findExpressionSites(source, 'sample.ts', { packages: ['@acme/fhirpath'] }).map(site => site.expression)
+    ).toEqual(['active = true'])
+  })
+
+  it('uses extra package prefixes for type-resolved engines from another module', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-packages-'))
+    const packageDirectory = join(directory, 'node_modules', '@acme', 'fhirpath')
+    mkdirSync(packageDirectory, { recursive: true })
+    writeFileSync(
+      join(packageDirectory, 'package.json'),
+      JSON.stringify({ name: '@acme/fhirpath', type: 'module', types: 'index.d.ts' })
+    )
+    writeFileSync(
+      join(packageDirectory, 'index.d.ts'),
+      'export declare class FhirPathEngine { first(expression: string, input: unknown): unknown }'
+    )
+    writeFileSync(
+      join(directory, 'engine.ts'),
+      "import { FhirPathEngine } from '@acme/fhirpath'\nexport const fp = new FhirPathEngine()"
+    )
+    const file = join(directory, 'source.ts')
+    const source = "import { fp } from './engine.ts'\nfp.first('Patient.name', patient)"
+    writeFileSync(file, source)
+    const program = ts.createProgram({
+      rootNames: [file],
+      options: {
+        module: ts.ModuleKind.NodeNext,
+        moduleResolution: ts.ModuleResolutionKind.NodeNext,
+        noLib: true,
+      },
+    })
+
+    const scan = createSiteScanner(ts, program)
+    expect(scan(source, file, { packages: ['@acme/fhirpath'] }).sites.map(site => site.expression)).toEqual([
+      'Patient.name',
+    ])
+  }, 15_000)
+
+  it('walks a file with tuple-typed bindings without asking a tuple for base types', () => {
+    // Every binding's type is tested for the engine class. A non-empty tuple is
+    // a type reference without a symbol, and asking TypeScript for its base
+    // types throws; such a binding is never an engine, so it must be skipped.
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-tuple-'))
+    const packageDirectory = join(directory, 'node_modules', '@acme', 'fhirpath')
+    mkdirSync(packageDirectory, { recursive: true })
+    writeFileSync(
+      join(packageDirectory, 'package.json'),
+      JSON.stringify({ name: '@acme/fhirpath', type: 'module', types: 'index.d.ts' })
+    )
+    writeFileSync(
+      join(packageDirectory, 'index.d.ts'),
+      'export declare class FhirPathEngine { first(expression: string, input: unknown): unknown }'
+    )
+    const file = join(directory, 'source.ts')
+    const source = [
+      "import { FhirPathEngine } from '@acme/fhirpath'",
+      'export const fp = new FhirPathEngine()',
+      "export const STATUSES = ['active', 'draft'] as const",
+      'export const RANGE = [1, 2] as const satisfies readonly number[]',
+      "export const pair: readonly [string, string] = ['a', 'b']",
+      'export const empty = [] as const',
+      "fp.first('Patient.name', patient)",
+    ].join('\n')
+    writeFileSync(file, source)
+    const program = ts.createProgram({
+      rootNames: [file],
+      options: { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, noLib: true },
+    })
+
+    const scanned = createSiteScanner(ts, program)(source, file, { packages: ['@acme/fhirpath'] })
+    expect(scanned.sites.map(site => site.expression)).toEqual(['Patient.name'])
+    expect(scanned.skipped).toEqual([])
+  }, 15_000)
+
+  it('reads the input type from a typed input argument', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-input-'))
+    const file = join(directory, 'source.ts')
+    const source = [
+      'declare class FhirPathEngine {',
+      '  evaluate(expression: unknown, input?: unknown): unknown[]',
+      '  first(expression: unknown, input?: unknown): unknown',
+      '  test(input: unknown, expression: unknown): boolean',
+      '  filter(input: unknown, expression: unknown): unknown[]',
+      '  project(input: unknown, columns: unknown): unknown',
+      '}',
+      "declare const condition: { resourceType: 'Condition' } | undefined",
+      "declare const conditions: readonly { resourceType: 'Condition' }[]",
+      "declare const either: { resourceType: 'Condition' } | { resourceType: 'Patient' }",
+      "declare const optional: { resourceType?: 'Condition' }",
+      "declare const bundle: { resourceType: 'Bundle' }",
+      'const fp = new FhirPathEngine()',
+      "fp.first('a', condition)",
+      "fp.test(condition, 'b')",
+      "fp.filter(conditions, 'c')",
+      "fp.project(conditions, { d: 'd' })",
+      "fp.evaluate('e', conditions)",
+      "fp.first('f', either)",
+      "fp.first('g', optional)",
+      "fp.filter(bundle, 'h')",
+      "fp.first('i', bundle)",
+    ].join('\n')
+    writeFileSync(file, source)
+    const program = ts.createProgram({ rootNames: [file], options: { strict: true } })
+
+    // The same roots EngineInputRoot infers: one resource, a Bundle included,
+    // or the items of an array for a per-item call. A root collection, a union
+    // of resources, a value that may omit resourceType, and a Bundle read per
+    // entry stay unknown.
+    const scanned = createSiteScanner(ts, program)(source, file)
+    expect(scanned.sites.map(site => [site.expression, site.inputType])).toEqual([
+      ['a', 'Condition'],
+      ['b', 'Condition'],
+      ['c', 'Condition'],
+      ['d', 'Condition'],
+      ['e', undefined],
+      ['f', undefined],
+      ['g', undefined],
+      ['h', undefined],
+      ['i', 'Bundle'],
+    ])
+    expect(scanned.skipped).toEqual([])
+    expect(createSiteScanner(ts)(source, file).sites.every(site => site.inputType === undefined)).toBe(true)
+  }, 15_000)
+
+  it('leaves out methods that only another package or the default library declares', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-foreign-method-'))
+    const packageDirectory = join(directory, 'node_modules', '@acme', 'browser')
+    mkdirSync(packageDirectory, { recursive: true })
+    writeFileSync(
+      join(packageDirectory, 'package.json'),
+      JSON.stringify({ name: '@acme/browser', type: 'module', types: 'index.d.ts' })
+    )
+    writeFileSync(
+      join(packageDirectory, 'index.d.ts'),
+      'export declare class Page { evaluate(script: string): Promise<unknown> }'
+    )
+    const file = join(directory, 'source.ts')
+    const source = [
+      "import { Page } from '@acme/browser'",
+      'declare const page: Page',
+      'declare const wrapper: { evaluate(expression: string, input: unknown): unknown[] }',
+      "page.evaluate('document.title')",
+      "document.evaluate('count', document)",
+      "wrapper.evaluate('Patient.name', {})",
+    ].join('\n')
+    writeFileSync(file, source)
+    const program = ts.createProgram({
+      rootNames: [file],
+      options: {
+        module: ts.ModuleKind.NodeNext,
+        moduleResolution: ts.ModuleResolutionKind.NodeNext,
+        lib: ['lib.dom.d.ts', 'lib.es2022.d.ts'],
+      },
+    })
+
+    // A method declared in project source may wrap this API, so it stays a site.
+    const scanned = createSiteScanner(ts, program)(source, file)
+    expect(scanned.sites.map(site => site.expression)).toEqual(['Patient.name'])
+    expect(scanned.skipped).toEqual([])
+    // Without the types, every `.evaluate()` call reads as this API.
+    expect(createSiteScanner(ts)(source, file).sites).toHaveLength(3)
+  }, 15_000)
+
+  it('leaves a compiled expression to the site that compiled it', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-compiled-'))
+    const file = join(directory, 'source.ts')
+    const source = [
+      'declare class FhirPathEngine { evaluate(expression: unknown, input?: unknown): unknown[] }',
+      'declare const compiled: { readonly source: string }',
+      'declare const text: string',
+      'declare const either: string | { readonly source: string }',
+      'const fp = new FhirPathEngine()',
+      'fp.evaluate(compiled, {})',
+      'fp.evaluate(text, {})',
+      'fp.evaluate(either, {})',
+    ].join('\n')
+    writeFileSync(file, source)
+    const program = ts.createProgram({ rootNames: [file], options: { strict: true } })
+
+    // Only a value that can be text is a dynamic expression at this call.
+    const reasons = (scan: ReturnType<ReturnType<typeof createSiteScanner>>) =>
+      scan.skipped.map(skipped => [skipped.line, skipped.reason])
+    expect(reasons(createSiteScanner(ts, program)(source, file))).toEqual([
+      [7, 'dynamic-expression'],
+      [8, 'dynamic-expression'],
+    ])
+    // Without the types, any non-literal may be text.
+    expect(reasons(createSiteScanner(ts)(source, file))).toHaveLength(3)
+  }, 15_000)
+
+  it('reads the columns of a DTO whose base only the types reveal', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-sites-dto-'))
+    const packageDirectory = join(directory, 'node_modules', '@acme', 'fhirpath')
+    mkdirSync(packageDirectory, { recursive: true })
+    writeFileSync(
+      join(packageDirectory, 'package.json'),
+      JSON.stringify({ name: '@acme/fhirpath', type: 'module', types: 'index.d.ts' })
+    )
+    writeFileSync(
+      join(packageDirectory, 'index.d.ts'),
+      [
+        'export declare class DtoBase<Root extends string = string> {',
+        '  get fhirType(): Root',
+        '  protected column(path: string): unknown',
+        '}',
+        'export declare const r4: { defineView<const Root extends string>(fhirType: Root): new () => DtoBase<Root> }',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'bases.ts'),
+      [
+        "import { r4 } from '@acme/fhirpath'",
+        "export class ObservationRow extends r4.defineView('Observation') {}",
+        'export class Table { protected column(header: string): string { return header } }',
+      ].join('\n')
+    )
+    const file = join(directory, 'rows.ts')
+    const source = [
+      "import { ObservationRow, Table } from './bases.ts'",
+      "class WeightRow extends ObservationRow { kg = this.column('value.ofType(Quantity).value') }",
+      "class Report extends Table { header = this.column('First name') }",
+    ].join('\n')
+    writeFileSync(file, source)
+    const program = ts.createProgram({
+      rootNames: [file],
+      options: { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, noLib: true },
+    })
+
+    // The source sees two imported bases. The types show which one is a DTO,
+    // and its fhirType, so that column is checked like one declared in place;
+    // the other class's own `column` method is not ours, and is not a gap.
+    const scanned = createSiteScanner(ts, program)(source, file, { packages: ['@acme/fhirpath'] })
+    expect(scanned.sites.map(site => [site.expression, site.inputType, site.dto])).toEqual([
+      ['value.ofType(Quantity).value', 'Observation', true],
+    ])
+    expect(scanned.skipped).toEqual([])
+    // Without the types, both remain possible DTOs the scan cannot read.
+    expect(createSiteScanner(ts)(source, file, { packages: ['@acme/fhirpath'] }).skipped).toHaveLength(2)
+  }, 15_000)
+})
+
+describe('real source', () => {
+  it('walks the dogfood modules without noise', () => {
+    // A smoke test over real files: the walker parses production code and finds
+    // the DTO sites the dogfood declares (patient-view.dto.ts holds 30+ columns).
+    const root = fileURLToPath(new URL('../..', import.meta.url))
+    const dto = readFileSync(join(root, 'dogfood/patient-view.dto.ts'), 'utf8')
+    const sites = findExpressionSites(dto, 'patient-view.dto.ts')
+    expect(sites.length).toBeGreaterThan(30)
+    expect(sites.every(site => site.dto === true || site.inputType === undefined)).toBe(true)
+  })
+})

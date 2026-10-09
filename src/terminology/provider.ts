@@ -10,7 +10,8 @@ import type { TypedValue } from '../values/typed-value.ts'
  * URL-encoded parameter string, as the spec defines. Return values are plain
  * JSON resources; return `undefined` when the service cannot answer (an unknown
  * value set, code system, or concept map) — the calling function then yields
- * empty, matching the spec's "the terminology service cannot determine" clause.
+ * empty for an indeterminate answer. weight() instead reports an unavailable
+ * CodeSystem lookup as an error, so it cannot silently reduce a total.
  *
  * Providers are only consulted through `evaluateAsync()`; the sync `evaluate()`
  * fails with a pointer to it. Results are cached per evaluation (keyed by

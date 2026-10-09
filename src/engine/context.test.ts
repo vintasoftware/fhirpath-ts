@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import type { ModelProvider } from '../model/provider.ts'
 import { parse } from '../parser/parser.ts'
 import { toCollection, toTypedValue } from '../values/typed-value.ts'

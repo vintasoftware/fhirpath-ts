@@ -1,44 +1,20 @@
-import { LruCache } from './cache.ts'
-import { CompiledExpression, type EvaluateOptions } from './compile.ts'
+import { type AnyExpression, createCachedCompiler, type EvaluateOptions } from './compile.ts'
 
-const PARSE_CACHE_CAPACITY = 500
-
-const parseCache = new LruCache<CompiledExpression>(PARSE_CACHE_CAPACITY)
+const compileCached = createCachedCompiler()
 
 /**
  * Evaluate a FHIRPath expression against an input and return plain JS values.
  * Parsed expressions are kept in a module-level LRU keyed by the expression text.
  */
-export function evaluate(
-  // biome-ignore lint/suspicious/noExplicitAny: accepts any literal-typed CompiledExpression; results here are untyped
-  expression: string | CompiledExpression<any>,
-  input?: unknown,
-  options?: EvaluateOptions
-): unknown[] {
-  return compiled(expression).evaluate(input, options)
+export function evaluate(expression: AnyExpression, input?: unknown, options?: EvaluateOptions): unknown[] {
+  return compileCached(expression).evaluate(input, options)
 }
 
-/**
- * Like evaluate(), with async providers (options.terminology) available. Uses
- * the same parse cache.
- */
-export async function evaluateAsync(
-  // biome-ignore lint/suspicious/noExplicitAny: accepts any literal-typed CompiledExpression; results here are untyped
-  expression: string | CompiledExpression<any>,
+/** Evaluate with host-provided asynchronous terminology and reference services. */
+export function evaluateAsync(
+  expression: AnyExpression,
   input?: unknown,
   options?: EvaluateOptions
 ): Promise<unknown[]> {
-  return compiled(expression).evaluateAsync(input, options)
-}
-
-function compiled(expression: string | CompiledExpression<string>): CompiledExpression<string> {
-  if (typeof expression !== 'string') {
-    return expression
-  }
-  let cached = parseCache.get(expression)
-  if (!cached) {
-    cached = new CompiledExpression(expression)
-    parseCache.set(expression, cached)
-  }
-  return cached
+  return compileCached(expression).evaluateAsync(input, options)
 }

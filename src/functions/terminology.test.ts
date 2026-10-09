@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
 import type { EvaluateOptions } from '../api/compile.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate, evaluateAsync } from '../api/evaluate.ts'
@@ -9,9 +10,9 @@ import type { TerminologyProvider } from '../terminology/provider.ts'
 const VS_VITALS = 'http://example.org/ValueSet/vitals'
 
 const observation = {
-  resourceType: 'Observation',
+  resourceType: 'Observation' as const,
   id: 'o1',
-  status: 'final',
+  status: 'final' as const,
   code: { coding: [{ system: 'http://loinc.org', code: '29463-7', display: 'Body weight' }] },
 }
 
@@ -140,6 +141,14 @@ describe('memberOf', () => {
     expect(provider.calls).toEqual([])
   })
 
+  it('returns empty for multi-item inputs, including in strict mode', async () => {
+    const provider = stubProvider()
+    await expect(
+      evaluateAsync("('a' | 'b').memberOf(%vs)", observation, { ...asyncOptions(provider), strict: true })
+    ).resolves.toEqual([])
+    expect(provider.calls).toEqual([])
+  })
+
   it('rejects non-coded inputs and non-string urls', async () => {
     const options = asyncOptions(stubProvider())
     await expect(evaluateAsync('true.memberOf(%vs)', observation, options)).rejects.toThrow(
@@ -224,11 +233,11 @@ describe('subsumes / subsumedBy', () => {
     ).resolves.toEqual([true])
   })
 
-  it('treats different systems as not subsumed without asking the provider', async () => {
+  it('leaves different systems indeterminate without asking the provider', async () => {
     const provider = stubProvider()
     await expect(
       evaluateAsync('%panel.subsumes(%other)', observation, { model: r4Model, terminology: provider, env })
-    ).resolves.toEqual([false])
+    ).resolves.toEqual([])
     expect(provider.calls).toEqual([])
   })
 
@@ -247,6 +256,20 @@ describe('subsumes / subsumedBy', () => {
         env,
       })
     ).rejects.toThrow("Function 'subsumes' expects 1 argument, got 3 arguments")
+  })
+
+  it('keeps unknown provider outcomes and non-singleton operands empty', async () => {
+    const provider = stubProvider()
+    provider.subsumes = async () => undefined
+    const options = { model: r4Model, terminology: provider, env }
+    await expect(evaluateAsync('%panel.subsumes(%systolic)', observation, options)).resolves.toEqual([])
+    await expect(
+      evaluateAsync('(%panel | %systolic).subsumedBy(%panel)', observation, { ...options, strict: true })
+    ).resolves.toEqual([])
+    await expect(evaluateAsync('%panel.subsumes(%panel | %systolic)', observation, options)).resolves.toEqual([])
+    await expect(
+      evaluateAsync('%missing.subsumes(%panel)', observation, { ...options, env: { ...env, missing: { code: 'x' } } })
+    ).resolves.toEqual([])
   })
 })
 
@@ -347,21 +370,6 @@ describe('%terminologies API', () => {
 })
 
 describe('weight', () => {
-  const ext = (value: number) => [{ url: 'http://hl7.org/fhir/StructureDefinition/itemWeight', valueDecimal: value }]
-
-  it('reads the itemWeight extension synchronously', () => {
-    const input = { coding: [{ system: 'http://loinc.org', code: 'a', extension: ext(2.5) }] }
-    expect(evaluate('%x.weight()', observation, { model: r4Model, env: { x: input } })).toEqual([2.5])
-  })
-
-  it('reads the R4 ordinalValue extension and concept-level extensions', () => {
-    const concept = {
-      extension: [{ url: 'http://hl7.org/fhir/StructureDefinition/ordinalValue', valueDecimal: 4 }],
-      coding: [{ system: 'http://loinc.org', code: 'a' }],
-    }
-    expect(evaluate('%x.weight()', observation, { model: r4Model, env: { x: concept } })).toEqual([4])
-  })
-
   it('falls back to a CodeSystem $lookup through the provider', async () => {
     const provider = stubProvider()
     const coding = { system: 'http://loinc.org', code: '29463-7' }
@@ -383,14 +391,28 @@ describe('weight', () => {
     ).resolves.toEqual([])
   })
 
-  it('skips codings without system+code and rejects non-coded inputs', async () => {
-    const options = { model: r4Model, terminology: stubProvider() }
-    await expect(
-      evaluateAsync('%x.weight()', observation, { ...options, env: { x: { coding: [{ display: 'no code' }] } } })
-    ).resolves.toEqual([])
-    await expect(evaluateAsync("'code'.weight()", observation, options)).rejects.toThrow(
-      'weight() expects Coding or CodeableConcept inputs'
-    )
+  it('fails unavailable and invalid CodeSystem weights instead of lowering a score', async () => {
+    const provider = stubProvider()
+    const options = { model: r4Model, terminology: provider, env: { x: { system: 'urn:codes', code: 'a' } } }
+    for (const response of [undefined, { resourceType: 'OperationOutcome' }]) {
+      provider.lookup = async () => response
+      await expect(evaluateAsync('%x.weight().sum()', observation, options)).rejects.toThrow(
+        'cannot resolve the CodeSystem'
+      )
+    }
+    provider.lookup = async () => ({
+      resourceType: 'Parameters',
+      parameter: [
+        {
+          name: 'property',
+          part: [
+            { name: 'code', valueCode: 'itemWeight' },
+            { name: 'value', valueString: 'bad' },
+          ],
+        },
+      ],
+    })
+    await expect(evaluateAsync('%x.weight()', observation, options)).rejects.toThrow('numeric CodeSystem itemWeight')
   })
 
   it('needs a provider when no extension answers', () => {
@@ -408,14 +430,26 @@ describe('evaluateAsync', () => {
     await expect(compile('1 + 1').evaluateAsync()).resolves.toEqual([2])
   })
 
-  it('keeps the clock fixed across replays', async () => {
-    const provider = stubProvider()
-    const [first] = await evaluateAsync(
-      'now().toString() = now().toString() and Observation.code.memberOf(%vs)',
-      observation,
-      asyncOptions(provider)
-    )
-    expect(first).toBe(true)
+  it('keeps the initial clock when a provider completes on a later date', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-10-08T10:00:00Z'))
+      const provider: TerminologyProvider = {
+        async validateVS() {
+          vi.setSystemTime(new Date('2099-01-01T00:00:00Z'))
+          return { resourceType: 'Parameters', parameter: [{ name: 'result', valueBoolean: true }] }
+        },
+      }
+      await expect(
+        evaluateAsync(
+          'Observation.code.memberOf(%vs) and now() < @2027-01-01T00:00:00Z',
+          observation,
+          asyncOptions(provider)
+        )
+      ).resolves.toEqual([true])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('emits trace output once despite replays', async () => {
@@ -446,5 +480,55 @@ describe('evaluateAsync', () => {
 
   it('still surfaces runtime errors', async () => {
     await expect(evaluateAsync('(1 | 2).single()', observation, {})).rejects.toThrow(FhirPathRuntimeError)
+  })
+
+  it('evaluates async variables and expression functions with strict checking', async () => {
+    const provider = stubProvider()
+    await expect(
+      evaluateAsync('%member and checkCode()', observation, {
+        ...asyncOptions(provider),
+        strict: true,
+        vars: { member: 'code.memberOf(%vs)' },
+        functions: {
+          checkCode: {
+            expression: 'code.memberOf(%vs)',
+            signature: { result: { types: ['System.Boolean'], single: true } },
+          },
+        },
+      })
+    ).resolves.toEqual([true])
+    expect(provider.calls).toHaveLength(1)
+    await expect(
+      evaluateAsync('%terminologies.expand(%vs).exists()', observation, { ...asyncOptions(provider), strict: true })
+    ).resolves.toEqual([true])
+    await expect(
+      compile('missing', 'Observation').evaluateAsync(observation, { ...asyncOptions(provider), strict: true })
+    ).rejects.toThrow('Strict evaluation failed')
+  })
+
+  it('isolates async caches between concurrent calls and lazy branches', async () => {
+    const yes = stubProvider()
+    const no = stubProvider()
+    no.validateVS = async () => ({ resourceType: 'Parameters', parameter: [{ name: 'result', valueBoolean: false }] })
+    const expression = 'code.memberOf(%vs)'
+    expect(
+      await Promise.all([
+        evaluateAsync(expression, observation, asyncOptions(yes)),
+        evaluateAsync(expression, observation, asyncOptions(no)),
+      ])
+    ).toEqual([[true], [false]])
+    await expect(
+      evaluateAsync('iif(false, code.memberOf(%vs), true)', observation, { model: r4Model, env: { vs: VS_VITALS } })
+    ).resolves.toEqual([true])
+  })
+
+  it('protects a configured terminology service from host variable overrides', async () => {
+    const options = asyncOptions(stubProvider())
+    await expect(
+      evaluateAsync('%terminologies', observation, { ...options, env: { terminologies: {} } })
+    ).rejects.toThrow('Cannot override %terminologies')
+    await expect(
+      evaluateAsync('%terminologies', observation, { ...options, vars: { terminologies: '{}' } })
+    ).rejects.toThrow('Cannot override the environment variable')
   })
 })

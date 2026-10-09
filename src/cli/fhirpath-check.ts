@@ -1,42 +1,319 @@
 #!/usr/bin/env node
 /**
- * Static FHIRPath checking for a codebase: scans the given TypeScript/JavaScript
- * files for expression literals (the fhirpath tag/call, compile(), evaluate())
- * and runs the spec §11 analyzer over each with the R4 model. Exits non-zero
- * when any diagnostic is found. This repo lints with Biome, so this CLI is how
- * CI enforces the checks; ESLint users can use the ./eslint export instead.
+ * Checks source literals with the TypeScript site finder, then imports DTO
+ * modules for checks that need their engine context. Errors produce a non-zero
+ * exit status. Use `--no-import` for source only and `--dtos` to change the DTO
+ * module glob.
  *
- * Usage: fhirpath-check <file...>
+ * Usage: fhirpath-check [--dtos <glob>]... [--no-import] [--local-imports] [--strict] <file...>
  */
 /* v8 ignore file -- covered end-to-end as a subprocess in fhirpath-check.test.ts */
-/** biome-ignore-all lint/suspicious/noConsole: a CLI reports through the console */
 import { readFileSync } from 'node:fs'
-import { analyzeExpression } from '../analyzer/analyze.ts'
-import { r4Model } from '../r4/index.ts'
-import { findExpressionSites } from './expression-sites.ts'
+import { dirname, resolve } from 'node:path'
 
-const files = process.argv.slice(2)
-if (files.length === 0) {
-  console.error('usage: fhirpath-check <file...>')
-  process.exit(2)
+import ts from 'typescript'
+
+import { analyzeSite } from '../analyzer/analyze.ts'
+import { r4Model } from '../r4/index.ts'
+import { createSiteScanner, type ExpressionSite, type SiteScanner, type SiteScanResult } from '../sites/index.ts'
+import {
+  checkDtoModules,
+  DEFAULT_DTO_GLOB,
+  type DtoCheckResult,
+  type DtoFinding,
+  EngineMergeError,
+} from './dto-check.ts'
+
+interface Args {
+  files: string[]
+  dtoGlobs: string[]
+  imports: boolean
+  localImports: boolean
+  strict: boolean
 }
 
+function parseArgs(argv: readonly string[]): Args {
+  const args: Args = { files: [], dtoGlobs: [], imports: true, localImports: false, strict: false }
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index]!
+    if (arg === '--no-import') {
+      args.imports = false
+    } else if (arg === '--local-imports') {
+      args.localImports = true
+    } else if (arg === '--strict') {
+      args.strict = true
+    } else if (arg === '--dtos') {
+      const glob = argv[++index]
+      if (glob === undefined) {
+        console.error('fhirpath-check: --dtos needs a glob')
+        process.exit(2)
+      }
+      args.dtoGlobs.push(glob)
+    } else {
+      args.files.push(arg)
+    }
+  }
+  return args
+}
+
+const args = parseArgs(process.argv.slice(2))
+if (args.files.length === 0 && !args.imports) {
+  console.error('usage: fhirpath-check [--dtos <glob>]... [--no-import] [--local-imports] [--strict] <file...>')
+  process.exit(2)
+}
+const dtoGlobs = args.dtoGlobs.length > 0 ? args.dtoGlobs : [DEFAULT_DTO_GLOB]
+
+/** A type-aware program lets the site finder follow imported and aliased engine receivers. */
+function sourceProgram(files: readonly string[], configPath: string | undefined): ts.Program {
+  const defaults: ts.CompilerOptions = {
+    allowJs: true,
+    skipLibCheck: true,
+    target: ts.ScriptTarget.Latest,
+  }
+  const nodeNext: ts.CompilerOptions = {
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+  }
+  let options: ts.CompilerOptions = { ...defaults, ...nodeNext }
+  if (configPath !== undefined) {
+    const config = ts.readConfigFile(configPath, ts.sys.readFile)
+    if (config.error === undefined) {
+      // Resolve `extends`/`paths` from the config's own directory, and layer
+      // the declared options over the defaults instead of replacing them —
+      // a `strict`-only tsconfig must not lose the module resolution the
+      // checker needs to follow package exports. The NodeNext pair applies
+      // only when the config declares neither half, so an explicit
+      // module/moduleResolution keeps TypeScript's own pairing rules.
+      const declared = ts.parseJsonConfigFileContent(
+        config.config,
+        ts.sys,
+        dirname(configPath),
+        undefined,
+        configPath
+      ).options
+      const resolution = declared.module === undefined && declared.moduleResolution === undefined ? nodeNext : {}
+      options = { ...defaults, ...resolution, ...declared }
+    }
+  }
+  return ts.createProgram({ rootNames: files.map(file => resolve(file)), options })
+}
+
+/**
+ * One semantic scanner per tsconfig project. A monorepo command may select
+ * files from packages whose aliases and module settings differ, so each file
+ * starts its config search in its own directory. Files sharing a config share
+ * one Program and TypeChecker.
+ */
+function sourceScanners(files: readonly string[]): ReadonlyMap<string, SiteScanner> {
+  const filesByConfig = new Map<string | undefined, string[]>()
+  for (const file of files) {
+    const absolute = resolve(file)
+    const configPath = ts.findConfigFile(dirname(absolute), ts.sys.fileExists)
+    const grouped = filesByConfig.get(configPath)
+    if (grouped === undefined) {
+      filesByConfig.set(configPath, [absolute])
+    } else {
+      grouped.push(absolute)
+    }
+  }
+
+  const scannersByFile = new Map<string, SiteScanner>()
+  for (const [configPath, groupedFiles] of filesByConfig) {
+    const scanner = createSiteScanner(ts, sourceProgram(groupedFiles, configPath))
+    for (const file of groupedFiles) {
+      scannersByFile.set(file, scanner)
+    }
+  }
+  return scannersByFile
+}
+
+const syntaxScanner = createSiteScanner(ts)
+let semanticScannersByFile: ReadonlyMap<string, SiteScanner> = new Map()
+
 let failures = 0
-for (const file of files) {
-  let text: string
+let warnings = 0
+
+function report(location: string, diagnostic: { severity: 'error' | 'warning'; code: string; message: string }): void {
+  const severity = args.strict && diagnostic.severity === 'warning' ? 'error' : diagnostic.severity
+  if (severity === 'error') {
+    failures += 1
+  } else {
+    warnings += 1
+  }
+  const prefix = severity === 'warning' ? 'warning:' : ''
+  console.error(`${location} [${prefix}${diagnostic.code}] ${diagnostic.message}`)
+}
+
+/**
+ * Where a diagnostic falls in the file, given the site its expression came from.
+ * A span's own line/column are relative to the expression text, so only a
+ * first-line column is an offset from the site's; a later line starts at its own
+ * column 1.
+ */
+function positionIn(site: { line: number; column: number }, span: { line: number; column: number }): string {
+  const line = site.line + (span.line - 1)
+  const column = span.line === 1 ? site.column + span.column - 1 : span.column
+  return `${line}:${column}`
+}
+
+/** Source scans cached so each file is read once. */
+const scansByFile = new Map<string, SiteScanResult>()
+
+function scanOf(file: string): SiteScanResult {
+  const cached = scansByFile.get(file)
+  if (cached !== undefined) {
+    return cached
+  }
+  const absolute = resolve(file)
+  const scanner = semanticScannersByFile.get(absolute) ?? syntaxScanner
+  const scan = scanner(readFileSync(file, 'utf8'), absolute, {
+    ...(args.localImports && { localImports: true }),
+  })
+  scansByFile.set(file, scan)
+  return scan
+}
+
+function sitesOf(file: string): ExpressionSite[] {
+  return scanOf(file).sites
+}
+
+// Extract source sites before executing project modules. Analysis waits until
+// after the import pass so those sites can use the engines' real environment.
+for (const file of args.files) {
   try {
-    text = readFileSync(file, 'utf8')
+    scanOf(file)
   } catch (error) {
     console.error(`fhirpath-check: cannot read ${file}: ${error instanceof Error ? error.message : String(error)}`)
     process.exit(2)
   }
-  for (const site of findExpressionSites(text, file)) {
-    for (const diagnostic of analyzeExpression(site.expression, { model: r4Model })) {
-      failures += 1
-      const line = site.line + (diagnostic.span.line - 1)
-      const column = diagnostic.span.line === 1 ? site.column + diagnostic.span.column - 1 : diagnostic.span.column
-      console.error(`${file}:${line}:${column} [${diagnostic.code}] ${diagnostic.message}`)
+}
+/**
+ * A site whose path reads an input of unknown type. A typed input argument may
+ * supply that type; a path that starts at a type name needs none.
+ */
+function readsUntypedInput(site: ExpressionSite): boolean {
+  return (
+    site.inputType === undefined &&
+    site.dto !== true &&
+    analyzeSite(site, { model: r4Model, reportUnchecked: true }).some(
+      diagnostic => diagnostic.code === 'unchecked-navigation'
+    )
+  )
+}
+
+/**
+ * What the types may settle: a receiver the syntax could not prove, an argument
+ * that may be a compiled expression rather than dynamic text, or a site that
+ * reads an untyped input.
+ */
+function needsTypes(scan: SiteScanResult): boolean {
+  return (
+    scan.skipped.some(
+      skipped =>
+        skipped.reason === 'dynamic-expression' || (!args.localImports && skipped.reason === 'unrecognized-receiver')
+    ) || scan.sites.some(readsUntypedInput)
+  )
+}
+const unresolvedFiles = args.files.filter(file => needsTypes(scanOf(file)))
+if (unresolvedFiles.length > 0) {
+  // Pay the Program/TypeChecker cost only for files whose syntax-only pass
+  // left something the types can settle.
+  semanticScannersByFile = sourceScanners(unresolvedFiles)
+  scansByFile.clear()
+  for (const file of args.files) {
+    scanOf(file)
+  }
+}
+
+let dtoResult: DtoCheckResult | undefined
+if (args.imports) {
+  try {
+    dtoResult = await checkDtoModules(dtoGlobs, process.cwd())
+  } catch (error) {
+    if (error instanceof EngineMergeError) {
+      console.error(`fhirpath-check: ${error.message}`)
+    } else {
+      console.error(
+        `fhirpath-check: cannot import DTO modules (${dtoGlobs.join(', ')}): ${error instanceof Error ? error.message : String(error)}`
+      )
     }
+    process.exit(2)
+  }
+}
+
+// Check source literals first.
+for (const file of args.files) {
+  const sites = sitesOf(file)
+  for (const site of sites) {
+    for (const diagnostic of analyzeSite(site, {
+      model: r4Model,
+      ...dtoResult?.sourceOptions,
+      reportUnchecked: true,
+    })) {
+      report(`${file}:${positionIn(site, diagnostic.span)}`, diagnostic)
+    }
+  }
+  for (const skipped of scanOf(file).skipped) {
+    report(`${file}:${skipped.line}:${skipped.column}`, {
+      severity: 'warning',
+      code: 'skipped',
+      message: skipped.message,
+    })
+  }
+}
+
+/**
+ * A DTO finding's position in source: `analyzeDto` knows the member and the
+ * expression, and the site finder knows where each expression literal sits, so
+ * the expression text joins the two. Identical expressions in one file share the
+ * first match — a cosmetic tie, not a wrong finding. A file that cannot be read,
+ * or an expression with no literal to point at (one built at runtime), degrades
+ * to naming the member.
+ */
+function locate(finding: DtoFinding): string {
+  const member = `${finding.dto}.${finding.member}`
+  let site: ExpressionSite | undefined
+  try {
+    site = sitesOf(finding.file).find(candidate => candidate.expression === finding.expression)
+  } catch {
+    return `${finding.file} ${member}`
+  }
+  return site === undefined
+    ? `${finding.file} ${member}`
+    : `${finding.file}:${positionIn(site, finding.span)} ${member}`
+}
+
+// --- 2. the project's DTO modules, imported ---
+if (dtoResult !== undefined) {
+  const result = dtoResult
+  for (const file of result.files) {
+    let scan: SiteScanResult
+    try {
+      scan = scanOf(file)
+    } catch {
+      continue
+    }
+    for (const dto of scan.dtoDeclarations) {
+      if (!dto.loadable) {
+        report(`${file}:${dto.line}:${dto.column}`, {
+          severity: 'warning',
+          code: 'unloaded-dto',
+          message: `DTO ${dto.name} is module-local and was not loaded for full analysis; export it or an extending class`,
+        })
+      }
+    }
+  }
+  for (const finding of result.findings) {
+    report(locate(finding), finding)
+  }
+  if (result.files.length === 0) {
+    console.error(
+      `fhirpath-check: no DTO modules matched ${dtoGlobs.join(', ')} — DTOs live in *.dto.ts, or pass --dtos <glob>`
+    )
+  } else if (result.dtos.length === 0) {
+    console.error(`fhirpath-check: ${result.files.length} DTO module(s) matched but export no DTO class`)
+  } else {
+    console.log(`fhirpath-check: analyzed ${result.dtos.length} DTO(s) from ${result.files.length} module(s)`)
   }
 }
 
@@ -44,4 +321,6 @@ if (failures > 0) {
   console.error(`fhirpath-check: ${failures} problem(s) found`)
   process.exit(1)
 }
-console.log('fhirpath-check: no problems found')
+console.log(
+  warnings > 0 ? `fhirpath-check: ${warnings} warning(s), no errors found` : 'fhirpath-check: no problems found'
+)

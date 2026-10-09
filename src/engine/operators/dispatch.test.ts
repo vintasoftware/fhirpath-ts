@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import type { BinaryOperator } from '../../parser/ast.ts'
 import { INFIX_BINDING_POWER } from '../../parser/precedence.ts'
 import { binaryOperators, unaryOperators } from './index.ts'

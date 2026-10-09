@@ -10,8 +10,66 @@ export interface SkipEntry {
   test?: string
   /** Test mode attribute, exact — skips every test carrying it. */
   mode?: string
+  /**
+   * The skip disputes the suite's expected value, not a feature. The analyzer
+   * conformance test does not read values, so it still runs the case, and the
+   * hygiene test fails when the engine starts returning the expected value.
+   */
+  runtimeOnly?: true
   reason: string
 }
+
+/** The pipeline phase an official `invalid` tag maps to (HAPI's parse/check/evaluate split). */
+export type PhaseName = 'syntax' | 'semantic' | 'execution'
+
+/**
+ * Cases where this engine fails at a different phase than the suite's `invalid`
+ * tag says, each with the reason the divergence is deliberate. The hygiene test
+ * fails if an entry stops matching an invalid case.
+ */
+export interface PhaseOverride {
+  suite: 'r4' | 'r5'
+  group: string
+  test: string
+  /** The phase whose error class this engine actually raises. */
+  throws: PhaseName
+  reason: string
+}
+
+export const PHASE_OVERRIDES: PhaseOverride[] = [
+  {
+    suite: 'r4',
+    group: 'testLiterals',
+    test: 'testLiteralTimeUTC',
+    throws: 'syntax',
+    reason:
+      'the FHIRPath grammar gives TIME literals no timezone offset, so @T14:34:28Z is rejected at parse; the suite tags it execution',
+  },
+  {
+    suite: 'r5',
+    group: 'testLiterals',
+    test: 'testLiteralTimeUTC',
+    throws: 'syntax',
+    reason:
+      'the FHIRPath grammar gives TIME literals no timezone offset, so @T14:34:28Z is rejected at parse; the suite tags it execution',
+  },
+  {
+    suite: 'r4',
+    group: 'testLiterals',
+    test: 'testLiteralTimeTimezoneOffset',
+    throws: 'syntax',
+    reason:
+      'the FHIRPath grammar gives TIME literals no timezone offset, so @T14:34:28+10:00 is rejected at parse; the suite tags it execution',
+  },
+  {
+    suite: 'r5',
+    group: 'testLiterals',
+    test: 'testLiteralTimeTimezoneOffset',
+    throws: 'syntax',
+    reason:
+      'the FHIRPath grammar gives TIME literals no timezone offset, so @T14:34:28+10:00 is rejected at parse; the suite tags it execution',
+  },
+]
 
 export const SKIP_MANIFEST: SkipEntry[] = [
   {
@@ -21,30 +79,8 @@ export const SKIP_MANIFEST: SkipEntry[] = [
   },
   {
     suite: 'r5',
-    mode: 'html',
-    reason: 'the parameters-example-html fixture is only distributed as XML; htmlChecks() is covered by unit tests',
-  },
-  {
-    suite: 'r4',
-    mode: 'strict',
-    reason: 'strict static typing errors are the job of the analyzer, not the dynamic evaluator',
-  },
-  {
-    suite: 'r5',
-    mode: 'strict',
-    reason: 'strict static typing errors are the job of the analyzer, not the dynamic evaluator',
-  },
-  {
-    suite: 'r5',
     mode: 'lenient/polymorphics',
     reason: 'lenient polymorphic access is profile-dependent behavior this engine does not offer',
-  },
-  {
-    suite: 'r4',
-    group: 'testIif',
-    test: 'testIif6',
-    reason:
-      'R4 expected a semantic error for a non-boolean iif criterion; R5 revised this to the singleton rule, which this engine follows',
   },
   {
     suite: 'r5',
@@ -56,30 +92,35 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r4',
     group: 'LowBoundary',
     test: 'LowBoundaryDecimal15',
+    runtimeOnly: true,
     reason: 'suite expects -0.0, but the mathematical lower bound floored at precision 1 is -0.1',
   },
   {
     suite: 'r5',
     group: 'LowBoundary',
     test: 'LowBoundaryDecimal15',
+    runtimeOnly: true,
     reason: 'suite expects -0.0, but the mathematical lower bound floored at precision 1 is -0.1',
   },
   {
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal15',
+    runtimeOnly: true,
     reason: 'suite expects 0.0, but the mathematical upper bound ceiled at precision 1 is 0.1',
   },
   {
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal15',
+    runtimeOnly: true,
     reason: 'suite expects 0.0, but the mathematical upper bound ceiled at precision 1 is 0.1',
   },
   {
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal16',
+    runtimeOnly: true,
     reason:
       'the expression -0.0034.highBoundary(1) negates the boundary of 0.0034 by precedence; the suite expects 0.0',
   },
@@ -87,6 +128,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal16',
+    runtimeOnly: true,
     reason:
       'the expression -0.0034.highBoundary(1) negates the boundary of 0.0034 by precedence; the suite expects 0.0',
   },
@@ -94,6 +136,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond1',
+    runtimeOnly: true,
     reason:
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
@@ -101,6 +144,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond1',
+    runtimeOnly: true,
     reason:
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
@@ -108,6 +152,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond3',
+    runtimeOnly: true,
     reason:
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
@@ -115,6 +160,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond3',
+    runtimeOnly: true,
     reason:
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
@@ -128,6 +174,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     suite: 'r4',
     group: 'testPlus',
     test: 'testPlusDate19',
+    runtimeOnly: true,
     reason:
       'R4 expected fractional seconds to truncate; R5 revised them to add as milliseconds, which this engine follows',
   },

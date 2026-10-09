@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
+
 import { FhirPathSyntaxError } from '../errors.ts'
 import { stripSpans } from '../testing/strip-spans.ts'
 import { testDataPath } from '../testing/test-data.ts'

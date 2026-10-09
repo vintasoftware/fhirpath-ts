@@ -1,35 +1,224 @@
+import { readFileSync } from 'node:fs'
+
 import type { Rule } from 'eslint'
-import { analyzeExpression } from '../analyzer/analyze.ts'
-import { CALL_NAMES, isForeignCall, isForeignModule, TAG_NAME } from '../analyzer/expression-policy.ts'
+import type * as ESTree from 'estree'
+
+import { analyzeSite, type DeclaredFunction, type DeclaredVariable } from '../analyzer/analyze.ts'
+import {
+  CALL_SITES,
+  callExpressionCandidates,
+  type CallSitePolicy,
+  type ClassFactory,
+  type ClassHeritage,
+  columnFunctionDeclaration,
+  constructsEngine,
+  declaredColumnOverloads,
+  derivesEngine,
+  DTO_BASE_NAMES,
+  dtoClassesOf,
+  type ExpressionAst,
+  type FileColumnFunction,
+  isCheckedCall,
+  isCheckedTag,
+  isForeignModule,
+  type LocalModuleOptions,
+  REGISTER_NAME,
+  type SiteContext,
+  type SourceBindings,
+  TAG_NAME,
+} from '../analyzer/expression-policy.ts'
 import { r4Model } from '../r4/index.ts'
 
-// Minimal shape of the ESTree nodes we walk; @types/estree is not a dependency.
-interface MemberLike {
-  type: string
-  object?: MemberLike
-  name?: string
-}
-
-/** Leftmost identifier of a member-expression callee (`Handlebars` in `Handlebars.compile`). */
-function receiverRoot(callee: MemberLike): string | undefined {
-  if (callee.type !== 'MemberExpression') {
-    return undefined
-  }
-  let current: MemberLike | undefined = callee.object
-  while (current?.type === 'MemberExpression') {
-    current = current.object
-  }
-  return current?.type === 'Identifier' ? current.name : undefined
+function isStringLiteral(node: ESTree.Node): node is ESTree.SimpleLiteral & { value: string } {
+  return node.type === 'Literal' && typeof node.value === 'string'
 }
 
 /**
- * ESLint flat-config plugin for consumers whose repos lint with ESLint
- * (this repo itself uses Biome plus the fhirpath-check CLI). Checks every
- * literal FHIRPath expression with the spec §11 analyzer and the R4 model.
- *
- * Usage:
- *   import fhirpathPlugin from 'fhirpath-ts/eslint'
- *   export default [{ plugins: { fhirpath: fhirpathPlugin }, rules: { 'fhirpath/no-invalid-expressions': 'error' } }]
+ * Statically-known property key: `path` in `{ path: ... }`, `{ 'path': ... }`,
+ * or `{ ['path']: ... }`; undefined for other computed keys.
+ */
+function propertyKeyName(property: ESTree.Property): string | undefined {
+  if (property.computed) {
+    return isStringLiteral(property.key) ? property.key.value : undefined
+  }
+  if (property.key.type === 'Identifier') {
+    return property.key.name
+  }
+  return isStringLiteral(property.key) ? property.key.value : undefined
+}
+
+/** How the shared shape extractor reads ESTree nodes. */
+const estreeAst: ExpressionAst<ESTree.Node> = {
+  string: node => (isStringLiteral(node) ? { node, expression: node.value } : undefined),
+  boolean: node => (node.type === 'Literal' && typeof node.value === 'boolean' ? node.value : undefined),
+  properties: node =>
+    node.type === 'ObjectExpression'
+      ? node.properties.map(property =>
+          property.type === 'Property'
+            ? { name: propertyKeyName(property), value: property.value }
+            : { name: undefined, value: property.argument, spread: true as const }
+        )
+      : undefined,
+  elements: node => (node.type === 'ArrayExpression' ? node.elements.filter(element => element !== null) : undefined),
+}
+
+/** Add every identifier a binding pattern declares (`x`, `{ r4 }`, `[a, ...rest]`, `x = 1`). */
+function addPatternNames(pattern: ESTree.Pattern, into: Set<string>): void {
+  switch (pattern.type) {
+    case 'Identifier':
+      into.add(pattern.name)
+      return
+    case 'ObjectPattern':
+      for (const property of pattern.properties) {
+        addPatternNames(property.type === 'RestElement' ? property.argument : property.value, into)
+      }
+      return
+    case 'ArrayPattern':
+      for (const element of pattern.elements) {
+        if (element) {
+          addPatternNames(element, into)
+        }
+      }
+      return
+    case 'AssignmentPattern':
+      addPatternNames(pattern.left, into)
+      return
+    case 'RestElement':
+      addPatternNames(pattern.argument, into)
+      return
+    default:
+      // A MemberExpression target does not declare a new name.
+      return
+  }
+}
+
+/** Leftmost identifier of a member-expression callee (`Handlebars` in `Handlebars.compile`). */
+function receiverRoot(callee: ESTree.Expression | ESTree.Super): string | undefined {
+  if (callee.type !== 'MemberExpression') {
+    return undefined
+  }
+  let current: ESTree.Expression | ESTree.Super = callee.object
+  while (current.type === 'MemberExpression') {
+    current = current.object
+  }
+  return current.type === 'Identifier' ? current.name : undefined
+}
+
+/** Returns an identifier name or the property name of a non-computed member access. */
+function nameOf(node: ESTree.Node): string | undefined {
+  if (node.type === 'Identifier') {
+    return node.name
+  }
+  return node.type === 'MemberExpression' && !node.computed && node.property.type === 'Identifier'
+    ? node.property.name
+    : undefined
+}
+
+/**
+ * The public instance field a `this.<name>(...)` call initializes, when the call
+ * is that field's whole initializer. Undefined for any other call shape.
+ */
+function initializedFieldName(call: ESTree.CallExpression, ancestors: readonly ESTree.Node[]): string | undefined {
+  const field = ancestors.at(-1)
+  if (
+    call.callee.type !== 'MemberExpression' ||
+    call.callee.object.type !== 'ThisExpression' ||
+    field?.type !== 'PropertyDefinition' ||
+    field.value !== call ||
+    field.static
+  ) {
+    return undefined
+  }
+  if (field.computed) {
+    return isStringLiteral(field.key) ? field.key.value : undefined
+  }
+  if (field.key.type === 'Identifier') {
+    return field.key.name
+  }
+  return isStringLiteral(field.key) ? field.key.value : undefined
+}
+
+/** A class's heritage, as `dtoClassesOf` reads it. */
+function heritageOf(node: ESTree.ClassDeclaration | ESTree.ClassExpression): ClassHeritage {
+  return heritageOfBase(node.id?.name, node.superClass)
+}
+
+/** Reads one `extends` expression, or what a factory returns, for `dtoClassesOf`. */
+function heritageOfBase(name: string | undefined, base: ESTree.Expression | null | undefined): ClassHeritage {
+  const callee = base?.type === 'CallExpression' ? base.callee : undefined
+  const extendsDtoBase = callee?.type === 'MemberExpression' && DTO_BASE_NAMES.has(nameOf(callee) ?? '')
+  const rootArgument = extendsDtoBase && base?.type === 'CallExpression' ? base.arguments[0] : undefined
+  return {
+    name,
+    extendsDtoBase,
+    dtoBaseReceiver: extendsDtoBase ? receiverRoot(callee) : undefined,
+    ownRoot: rootArgument === undefined ? undefined : estreeAst.string(rootArgument)?.expression,
+    baseName: base?.type === 'Identifier' ? base.name : undefined,
+    baseCall: callee?.type === 'Identifier' ? callee.name : undefined,
+    extendsOther:
+      base !== null &&
+      base !== undefined &&
+      !extendsDtoBase &&
+      base.type !== 'Identifier' &&
+      callee?.type !== 'Identifier',
+  }
+}
+
+/**
+ * Strips TypeScript wrappers that keep an expression's runtime identity (`as`,
+ * `satisfies`, `!`, `<T>x`), as the TypeScript walker does. The TypeScript ESLint
+ * parser adds these node kinds, which ESTree's types do not list.
+ */
+function unwrapped(node: ESTree.Node | null | undefined): ESTree.Node | undefined {
+  let current = node ?? undefined
+  while (current !== undefined && TYPESCRIPT_WRAPPERS.has((current as { type: string }).type)) {
+    current = (current as unknown as { expression: ESTree.Node }).expression
+  }
+  return current
+}
+
+const TYPESCRIPT_WRAPPERS: ReadonlySet<string> = new Set([
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSTypeAssertion',
+])
+
+/** What a function named `name` returns, when that is a class, a class name, or a class-building call. */
+function factoryOf(name: string, body: ESTree.BlockStatement | ESTree.Expression): ClassFactory | undefined {
+  const returned = unwrapped(
+    body.type === 'BlockStatement'
+      ? body.body.find((statement): statement is ESTree.ReturnStatement => statement.type === 'ReturnStatement')
+          ?.argument
+      : body
+  )
+  if (returned?.type === 'ClassExpression') {
+    return { name, builds: heritageOf(returned) }
+  }
+  return returned?.type === 'Identifier' || returned?.type === 'CallExpression'
+    ? { name, builds: heritageOfBase(undefined, returned) }
+    : undefined
+}
+
+/**
+ * The heritage of the nearest enclosing class — what a column field's
+ * expressions analyze against, once `dtoClassesOf` has resolved it against the
+ * rest of the file. Undefined when the call is not inside a class at all.
+ */
+function enclosingClass(ancestors: readonly ESTree.Node[]): ClassHeritage | undefined {
+  for (let index = ancestors.length - 1; index >= 0; index--) {
+    const node = ancestors[index]
+    if (node?.type === 'ClassDeclaration' || node?.type === 'ClassExpression') {
+      return heritageOf(node)
+    }
+  }
+  return undefined
+}
+
+/**
+ * ESLint rule for literal FHIRPath expressions. The shared source policy decides
+ * which calls and tags count. `packages` adds trusted import prefixes, and
+ * `localImports` trusts relative imports.
  */
 const noInvalidExpressions: Rule.RuleModule = {
   meta: {
@@ -37,58 +226,251 @@ const noInvalidExpressions: Rule.RuleModule = {
     docs: {
       description: 'check FHIRPath expression literals with the static analyzer',
     },
-    schema: [],
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          packages: { type: 'array', items: { type: 'string' } },
+          localImports: { type: 'boolean' },
+          // Host-supplied environment variables and functions the checked code
+          // passes at runtime — AnalyzeOptions.variables / AnalyzeOptions.functions.
+          variables: { type: 'object' },
+          functions: { type: 'object' },
+        },
+        additionalProperties: false,
+      },
+    ],
   },
   create(context) {
-    // Local names bound by imports from other modules: `compile` from handlebars
-    // is not a FHIRPath expression. Files without imports are always checked.
+    const options = (context.options[0] ?? {}) as LocalModuleOptions & {
+      variables?: Record<string, DeclaredVariable>
+      functions?: Record<string, DeclaredFunction>
+    }
+    // Decide candidate sites at Program:exit because imports and engine
+    // declarations may appear after calls that depend on them.
     const foreign = new Set<string>()
-    const check = (node: Rule.Node, expression: string): void => {
-      for (const diagnostic of analyzeExpression(expression, { model: r4Model })) {
-        context.report({ node, message: `[${diagnostic.code}] ${diagnostic.message}` })
+    const trusted = new Set<string>()
+    const rebound = new Set<string>()
+    const relative = new Set<string>()
+    /** `new X()` locals, and `receiver.register(...)` locals that derive an engine. */
+    const engineLocals: ({ localName: string; className: string } | { localName: string; derivedFrom: string })[] = []
+    const reboundFunction = (node: { id?: ESTree.Identifier | null | undefined; params: ESTree.Pattern[] }): void => {
+      if (node.id) {
+        rebound.add(node.id.name)
+      }
+      for (const param of node.params) {
+        addPatternNames(param, rebound)
+      }
+    }
+    const tags: { literal: ESTree.TemplateLiteral; expression: string; receiverRoot: string | undefined }[] = []
+    const calls: {
+      policy: CallSitePolicy
+      name: string
+      receiverRoot: string | undefined
+      /** The call itself, for the argument that may name the type it runs against. */
+      node: ESTree.CallExpression | ESTree.NewExpression
+      /** The class the call sits in, resolved to a root once the whole file is known. */
+      enclosing: ClassHeritage | undefined
+      /** The field a `this.<name>(...)` call initializes. */
+      field: string | undefined
+    }[] = []
+    /** Every class in the file, so a DTO root can be followed through a base class. */
+    const classes: ClassHeritage[] = []
+    /** Every function that returns a class by name, so a factory-built DTO can be followed. */
+    const factories: ClassFactory[] = []
+    /**
+     * The file's column vocabulary. Any expression can call a registered DTO
+     * column, so this is what lets calls between a file's own columns resolve.
+     * It is filled in `Program:exit` because a declaration carries the
+     * `fhirType` of the class it sits in, and a base class may be declared
+     * further down the file. The call sites themselves are decided there for
+     * the same reason.
+     */
+    const columnFunctions: Record<string, FileColumnFunction> = {}
+    const checkAt = (node: ESTree.Node, expression: string, site: SiteContext = {}): void => {
+      // ESLint severity comes from the rule's configuration, not per report, so
+      // only error-severity diagnostics are reported; analyzer warnings (style
+      // and possible-mistake findings) don't fail a lint run.
+      const diagnostics = analyzeSite(
+        {
+          expression,
+          ...site,
+          // The file's whole column vocabulary, shared by every site in it.
+          ...(Object.keys(columnFunctions).length > 0 && { functions: columnFunctions }),
+        },
+        {
+          model: r4Model,
+          ...(options.variables !== undefined && { variables: options.variables }),
+          ...(options.functions !== undefined && { functions: options.functions }),
+        }
+      )
+      for (const diagnostic of diagnostics) {
+        if (diagnostic.severity === 'error') {
+          context.report({ node, message: `[${diagnostic.code}] ${diagnostic.message}` })
+        }
       }
     }
     return {
       ImportDeclaration(node) {
-        if (typeof node.source.value !== 'string' || !isForeignModule(node.source.value)) {
+        if (typeof node.source.value !== 'string') {
           return
         }
+        const names = isForeignModule(node.source.value, options) ? foreign : trusted
         for (const specifier of node.specifiers) {
-          foreign.add(specifier.local.name)
+          names.add(specifier.local.name)
+          if (node.source.value.startsWith('.')) {
+            relative.add(specifier.local.name)
+          }
+        }
+      },
+      VariableDeclarator(node) {
+        const init = node.init
+        if (
+          node.id.type === 'Identifier' &&
+          (init?.type === 'ArrowFunctionExpression' || init?.type === 'FunctionExpression')
+        ) {
+          const factory = factoryOf(node.id.name, init.body)
+          if (factory !== undefined) {
+            factories.push(factory)
+          }
+        }
+        if (
+          node.id.type === 'Identifier' &&
+          node.init?.type === 'NewExpression' &&
+          node.init.callee.type === 'Identifier'
+        ) {
+          engineLocals.push({ localName: node.id.name, className: node.init.callee.name })
+        } else if (
+          node.id.type === 'Identifier' &&
+          init?.type === 'CallExpression' &&
+          init.callee.type === 'MemberExpression' &&
+          nameOf(init.callee) === REGISTER_NAME &&
+          receiverRoot(init.callee) !== undefined
+        ) {
+          engineLocals.push({ localName: node.id.name, derivedFrom: receiverRoot(init.callee) as string })
+        } else {
+          addPatternNames(node.id, rebound)
+        }
+      },
+      FunctionDeclaration(node) {
+        reboundFunction(node)
+        const factory = node.id ? factoryOf(node.id.name, node.body) : undefined
+        if (factory !== undefined) {
+          factories.push(factory)
+        }
+      },
+      FunctionExpression: reboundFunction,
+      ArrowFunctionExpression: reboundFunction,
+      ClassDeclaration(node) {
+        classes.push(heritageOf(node))
+        if (node.id) {
+          rebound.add(node.id.name)
+        }
+      },
+      ClassExpression(node) {
+        classes.push(heritageOf(node))
+        if (node.id) {
+          rebound.add(node.id.name)
+        }
+      },
+      CatchClause(node) {
+        if (node.param) {
+          addPatternNames(node.param, rebound)
         }
       },
       TaggedTemplateExpression(node) {
-        const tag = node.tag
-        const name = tag.type === 'Identifier' ? tag.name : undefined
-        if (name === TAG_NAME && !foreign.has(name) && node.quasi.expressions.length === 0 && node.quasi.quasis[0]) {
-          check(node, node.quasi.quasis[0].value.cooked ?? '')
+        if (nameOf(node.tag) === TAG_NAME && node.quasi.expressions.length === 0 && node.quasi.quasis[0]) {
+          // Report on the template literal, like the call shapes report on their literals.
+          tags.push({
+            literal: node.quasi,
+            expression: node.quasi.quasis[0].value.cooked ?? '',
+            receiverRoot: receiverRoot(node.tag),
+          })
         }
       },
-      CallExpression(node) {
+      'CallExpression, NewExpression'(node: ESTree.CallExpression | ESTree.NewExpression) {
         const callee = node.callee
-        const name =
-          callee.type === 'Identifier'
-            ? callee.name
-            : callee.type === 'MemberExpression' && callee.property.type === 'Identifier'
-              ? callee.property.name
-              : undefined
-        const first = node.arguments[0]
-        if (
-          name !== undefined &&
-          CALL_NAMES.has(name) &&
-          !isForeignCall(foreign, name, receiverRoot(callee as MemberLike)) &&
-          first?.type === 'Literal' &&
-          typeof first.value === 'string'
-        ) {
-          check(node, first.value)
+        const name = nameOf(callee)
+        const policy = name === undefined ? undefined : CALL_SITES.get(name)
+        const argument = policy && node.arguments[policy.argIndex]
+        if (name === undefined || policy === undefined || argument === undefined) {
+          return
+        }
+        // Only DTO columns need to look up: the class they sit in, and the
+        // field they initialize.
+        const ancestors = policy.receiver === 'dto-field' ? context.sourceCode.getAncestors(node) : []
+        calls.push({
+          policy,
+          name,
+          receiverRoot: receiverRoot(callee),
+          node,
+          enclosing: policy.rootFromClass === true ? enclosingClass(ancestors) : undefined,
+          field:
+            policy.receiver === 'dto-field' && node.type === 'CallExpression'
+              ? initializedFieldName(node, ancestors)
+              : undefined,
+        })
+      },
+      'Program:exit'() {
+        const bindings: SourceBindings = { foreign, trusted, rebound, relative }
+        // All imports are known now; resolve engine locals in source order, like
+        // the CLI walker. A `new` local of some other class is a re-binding.
+        for (const local of engineLocals) {
+          const isEngine =
+            'className' in local
+              ? constructsEngine(local.className, bindings)
+              : derivesEngine(REGISTER_NAME, local.derivedFrom, bindings)
+          if (isEngine) {
+            trusted.add(local.localName)
+          } else {
+            rebound.add(local.localName)
+          }
+        }
+        const dtoClasses = dtoClassesOf(classes, bindings, factories)
+        const checked = calls.flatMap(call => {
+          const dto = dtoClasses(call.enclosing)
+          const evidence = call.field !== undefined && dto !== undefined ? { dtoField: true as const } : {}
+          return isCheckedCall(call.policy, call.name, call.receiverRoot, bindings, evidence) ? [{ call, dto }] : []
+        })
+        // Build the column names first. `checkAt` reads them, and every site in
+        // the file shares them, including the tags.
+        for (const { call, dto } of checked) {
+          const declares = call.policy.declaresField
+          if (declares !== undefined && call.field !== undefined) {
+            columnFunctions[call.field] = declaredColumnOverloads(
+              columnFunctions[call.field],
+              columnFunctionDeclaration<ESTree.Node>(declares, call.node.arguments[1], estreeAst, dto?.root)
+            )
+          }
+        }
+        for (const tag of tags) {
+          if (isCheckedTag(tag.receiverRoot, bindings)) {
+            checkAt(tag.literal, tag.expression)
+          }
+        }
+        for (const { call, dto } of checked) {
+          for (const candidate of callExpressionCandidates<ESTree.Node>(
+            call.policy,
+            index => call.node.arguments[index],
+            dto?.root,
+            estreeAst
+          )) {
+            if (candidate.expression !== undefined) {
+              checkAt(candidate.node, candidate.expression, candidate.context)
+            }
+          }
         }
       },
     }
   },
 }
 
+const { name: packageName, version: packageVersion }: { name: string; version: string } = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf8')
+)
+
 const plugin = {
-  meta: { name: 'fhirpath-ts', version: '0.1.0' },
+  meta: { name: packageName, version: packageVersion },
   rules: {
     'no-invalid-expressions': noInvalidExpressions,
   },

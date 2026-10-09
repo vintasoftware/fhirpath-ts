@@ -15,15 +15,9 @@ const FHIR_QUANTITY_TYPES = new Set([
 ])
 
 /**
- * One row per calendar duration keyword — the single source the calendar-unit
- * lookups below are all derived from, so they cannot disagree.
- *
- * - `family`: year/month measure in months, week-and-below measure in seconds;
- *   the two families never convert into each other (`1 year` has no value in days).
- * - `factor`: exact multiplier to the family's base unit (months or seconds).
- * - `ucum`: the UCUM twin. Week-and-below (`exact`) twins are exact durations, so
- *   they compare *equal* to the calendar word (`7 days = 1 'wk'`); year/month are
- *   only *equivalent* (`~`) to `a`/`mo`, never equal (spec §6.1 / official suite).
+ * Calendar duration data used to build every lookup below. Years and months use
+ * months; smaller units use seconds. Week-and-smaller UCUM forms are equal to
+ * calendar values. Year and month UCUM forms are equivalent only.
  */
 interface CalendarUnit {
   plural: string

@@ -1,7 +1,8 @@
 import { pairEquals } from '../engine/operators/equality.ts'
+import { childValue } from '../fhir/element-origin.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import { type TypedValue, toTypedValue } from '../values/typed-value.ts'
+import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
 /**
@@ -34,11 +35,11 @@ export function childrenOf(item: TypedValue, model?: ModelProvider): TypedValue[
     if (Array.isArray(child)) {
       for (const element of child) {
         if (element !== null && element !== undefined) {
-          result.push(toTypedValue(element))
+          result.push(childValue(toTypedValue(element), item, key))
         }
       }
     } else {
-      result.push(toTypedValue(child))
+      result.push(childValue(toTypedValue(child), item, key))
     }
   }
   return result
@@ -51,10 +52,14 @@ function primitiveMetadataChildren(item: TypedValue): TypedValue[] {
   }
   const result: TypedValue[] = []
   if (metadata.id !== undefined && metadata.id !== null) {
-    result.push({ type: 'System.String', value: metadata.id })
+    result.push(childValue({ type: 'System.String', value: metadata.id }, item, 'id'))
   }
   if (Array.isArray(metadata.extension)) {
-    result.push(...metadata.extension.map(extension => ({ type: 'FHIR.Extension', value: extension })))
+    result.push(
+      ...metadata.extension.map(extension =>
+        childValue({ type: 'FHIR.Extension', value: extension }, item, 'extension')
+      )
+    )
   }
   return result
 }
@@ -69,18 +74,41 @@ registerFunction('descendants', {
   minArity: 0,
   maxArity: 0,
   evaluate: (context, input) => {
-    // repeat(children()): collect transitively, excluding the input itself. This
-    // looks like repeat()'s loop but the dedup granularity differs on purpose and
-    // is pinned by the official suites: descendants() keeps `=`-equal siblings
-    // produced in the same round (a batch filter against prior rounds only), where
-    // repeat() collapses them (incremental within-round dedup). They cannot share
-    // one closure without breaking one or the other.
+    // repeat(children()): collect transitively, excluding the input itself. The
+    // dedup granularity differs from repeat() on purpose and is pinned by the
+    // official suites: descendants() keeps `=`-equal siblings produced in the same
+    // round (a batch filter against prior rounds only), where repeat() collapses
+    // them (incremental within-round dedup). They cannot share one closure.
+    //
+    // Dedup is `existing.value === item.value || pairEquals(existing, item)` against
+    // prior rounds, indexed for O(1) on the common case: `seenValues` (a Set of raw
+    // values) resolves the `===` branch, and it also covers `pairEquals` for
+    // String/Boolean, whose equality *is* `===`. The remaining classes (numeric,
+    // temporal, quantity, complex) can be pairEquals-equal without being `===`-equal,
+    // so those fall back to a scan of same-class prior items. The index updates only
+    // between rounds, preserving the batch semantics.
     const collected: TypedValue[] = []
+    const seenValues = new Set<unknown>()
+    const fallback: TypedValue[] = []
+    const needsFallback = (item: TypedValue): boolean => {
+      const type = systemTypeOf(item)
+      return type !== SYSTEM_STRING && type !== SYSTEM_BOOLEAN
+    }
+    const isDuplicate = (item: TypedValue): boolean => {
+      if (seenValues.has(item.value)) {
+        return true
+      }
+      return needsFallback(item) && fallback.some(existing => pairEquals(existing, item) === true)
+    }
     let current = input.flatMap(item => childrenOf(item, context.model))
     while (current.length > 0) {
-      const fresh = current.filter(
-        item => !collected.some(existing => existing.value === item.value || pairEquals(existing, item) === true)
-      )
+      const fresh = current.filter(item => !isDuplicate(item))
+      for (const item of fresh) {
+        seenValues.add(item.value)
+        if (needsFallback(item)) {
+          fallback.push(item)
+        }
+      }
       collected.push(...fresh)
       current = fresh.flatMap(item => childrenOf(item, context.model))
     }

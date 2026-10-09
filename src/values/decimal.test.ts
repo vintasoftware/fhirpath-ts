@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { Decimal } from './decimal.ts'
 
 function decimal(text: string): Decimal {
@@ -10,18 +11,12 @@ function decimal(text: string): Decimal {
 }
 
 describe('parsing and printing', () => {
-  it.each([
-    ['0'],
-    ['1'],
-    ['-1'],
-    ['3.14'],
-    ['-0.5'],
-    ['0.00000001'],
-    ['1.10'],
-    ['1000000'],
-  ])('round trips %s through toString', text => {
-    expect(decimal(text).toString()).toBe(text)
-  })
+  it.each([['0'], ['1'], ['-1'], ['3.14'], ['-0.5'], ['0.00000001'], ['1.10'], ['1000000']])(
+    'round trips %s through toString',
+    text => {
+      expect(decimal(text).toString()).toBe(text)
+    }
+  )
 
   it('keeps trailing zeros (they carry precision)', () => {
     const value = decimal('1.5870')

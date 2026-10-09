@@ -1,5 +1,11 @@
 import { readFileSync } from 'node:fs'
-import { QUIRK_FAMILIES, type QuirkFamily, SKIPPED_MODELS } from '../../test-data/fhirpathjs/quirk-manifest.ts'
+
+import {
+  OFFICIAL_SUITE_COPIES,
+  QUIRK_FAMILIES,
+  type QuirkFamily,
+  SKIPPED_MODELS,
+} from '../../test-data/fhirpathjs/quirk-manifest.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate } from '../api/evaluate.ts'
 import { r4Model } from '../r4/index.ts'
@@ -43,19 +49,30 @@ function loadResource(name: string): unknown {
   return structuredClone(resourceCache.get(name))
 }
 
-/** Why a case is skipped, or undefined when it should run. */
-export function skipReason(test: CorpusTest, expression: string, file: string): string | undefined {
-  if (test.disable === true || test.inheritedDisable === true) {
-    return 'disabled upstream'
+/** Why a corpus case is skipped: a quirk family with the manifest key that names the case, or another reason. */
+export type CaseSkip = { kind: 'quirk'; family: QuirkFamily; key: string } | { kind: 'other'; reason: string }
+
+export function classifyCase(test: CorpusTest, expression: string, file: string): CaseSkip | undefined {
+  if ((test.disable === true || test.inheritedDisable === true) && OFFICIAL_SUITE_COPIES.includes(file)) {
+    return { kind: 'other', reason: 'disabled upstream; official.test.ts runs this official-suite case' }
   }
   if (typeof test.expression === 'object' && !Array.isArray(test.expression)) {
-    return 'non-string expression (fhirpath.js internal AST form)'
+    return { kind: 'other', reason: 'non-string expression (fhirpath.js internal AST form)' }
   }
   if (test.model !== undefined && test.model !== 'r4') {
-    return SKIPPED_MODELS[test.model] ?? `unknown model ${test.model}`
+    return { kind: 'other', reason: SKIPPED_MODELS[test.model] ?? `unknown model ${test.model}` }
   }
-  const quirk = matchQuirk(file, expression)
-  return quirk === undefined ? undefined : `intentional divergence: ${quirk.name}`
+  const quirk = matchQuirk(file, test, expression)
+  return quirk === undefined ? undefined : { kind: 'quirk', ...quirk }
+}
+
+/** Why a case is skipped, or undefined when it should run. */
+export function skipReason(test: CorpusTest, expression: string, file: string): string | undefined {
+  const skip = classifyCase(test, expression, file)
+  if (skip === undefined) {
+    return undefined
+  }
+  return skip.kind === 'quirk' ? `intentional divergence: ${skip.family.name}` : skip.reason
 }
 
 const QUIRK_INDEX = new Map<string, QuirkFamily>()
@@ -65,8 +82,27 @@ for (const family of QUIRK_FAMILIES) {
   }
 }
 
-export function matchQuirk(file: string, expression: string): QuirkFamily | undefined {
-  return QUIRK_INDEX.get(`${file}||${expression}`)
+/** The manifest key forms that can name a case; see `QuirkFamily`. */
+function caseKeys(file: string, test: CorpusTest, expression: string): string[] {
+  const keys = [`${file}||${expression}`, `${file}@${test.model ?? 'none'}||${expression}`]
+  if (test.desc !== undefined) {
+    keys.push(`${file}#${test.desc}||${expression}`)
+  }
+  return keys
+}
+
+export function matchQuirk(
+  file: string,
+  test: CorpusTest,
+  expression: string
+): { family: QuirkFamily; key: string } | undefined {
+  for (const key of caseKeys(file, test, expression)) {
+    const family = QUIRK_INDEX.get(key)
+    if (family !== undefined) {
+      return { family, key }
+    }
+  }
+  return undefined
 }
 
 /** Run one corpus case; returns a failure description or undefined on success. */

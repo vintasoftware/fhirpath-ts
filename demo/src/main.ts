@@ -1,8 +1,13 @@
+import './styles.css'
+// The editor loads lazily, but its frame's styles do not: the frame reserves the
+// section's height so nothing jumps when Monaco mounts into it.
+import './playground/playground.css'
+
+import { $, escapeHtml, renderTabs } from './dom.ts'
 import { run } from './engine.ts'
 import { type Tab, TABS } from './examples.ts'
-import './styles.css'
-
-const $ = <T extends Element>(sel: string) => document.querySelector<T>(sel)!
+import { highlightBlocks } from './highlight.ts'
+import { bindTextareaWordNavigation } from './word-nav.ts'
 
 const exprEl = $<HTMLTextAreaElement>('[data-expr]')
 const highlightEl = $<HTMLDivElement>('[data-highlight]')
@@ -19,30 +24,11 @@ const traceEl = $<SVGSVGElement>('[data-trace]')
 
 let activeTab: Tab = TABS[0]!
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>]/g, (c) => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'))
-}
-
 // --- Chrome: tabs, chips, resource -----------------------------------------
-
-function renderTabs() {
-  tabsEl.replaceChildren(
-    ...TABS.map((tab) => {
-      const b = document.createElement('button')
-      b.type = 'button'
-      b.role = 'tab'
-      b.textContent = tab.label
-      b.className = 'tab'
-      b.setAttribute('aria-selected', String(tab.id === activeTab.id))
-      b.addEventListener('click', () => selectTab(tab))
-      return b
-    })
-  )
-}
 
 function renderChips() {
   chipsEl.replaceChildren(
-    ...activeTab.examples.map((ex) => {
+    ...activeTab.examples.map(ex => {
       const b = document.createElement('button')
       b.type = 'button'
       b.className = 'chip'
@@ -59,7 +45,7 @@ function renderChips() {
 
 function selectTab(tab: Tab) {
   activeTab = tab
-  renderTabs()
+  renderTabs(tabsEl, TABS, tab.id, selectTab)
   renderChips()
   resourceEl.textContent = JSON.stringify(tab.resource, null, 2)
   inputTypeEl.textContent = `input: ${tab.resourceType}`
@@ -87,7 +73,9 @@ function paintHighlight(expr: string, spans: Array<{ start: number; end: number;
   for (const s of ordered) {
     const start = Math.max(cursor, Math.min(s.start, expr.length))
     const end = Math.max(start, Math.min(s.end, expr.length))
-    if (start > cursor) html += escapeHtml(expr.slice(cursor, start))
+    if (start > cursor) {
+      html += escapeHtml(expr.slice(cursor, start))
+    }
     html += `<mark class="mk-${s.severity}">${escapeHtml(expr.slice(start, end)) || '&nbsp;'}</mark>`
     cursor = end
   }
@@ -124,7 +112,7 @@ function renderResults(
     resultEl.className = 'result is-throw'
     if (caughtStatically) {
       // The analyzer already flagged this above — the throw is what you avoided,
-      // not the only way to find it. Say so, so runtime doesn't look like the gate.
+      // Explain that runtime is only one of three places that can report the error.
       resultCountEl.textContent = 'caught first'
       resultEl.innerHTML =
         `<p class="throw-head throw-head-caught">Caught above, before you ran it</p>` +
@@ -133,8 +121,7 @@ function renderResults(
     } else {
       resultCountEl.textContent = 'throws'
       resultEl.innerHTML =
-        `<p class="throw-head">Only surfaces at runtime</p>` +
-        `<p class="throw-msg">${escapeHtml(runtimeError)}</p>`
+        `<p class="throw-head">Only surfaces at runtime</p>` + `<p class="throw-msg">${escapeHtml(runtimeError)}</p>`
     }
     return
   }
@@ -146,7 +133,7 @@ function renderResults(
   }
   resultCountEl.textContent = `${results.length} ${results.length === 1 ? 'value' : 'values'}`
   resultEl.replaceChildren(
-    ...results.map((r) => {
+    ...results.map(r => {
       const row = document.createElement('div')
       row.className = 'result-row'
       row.innerHTML = `<span class="type-badge">${escapeHtml(r.type)}</span><span class="value">${escapeHtml(r.text)}</span>`
@@ -175,10 +162,10 @@ function evaluate() {
 
   const { diagnostics, results, runtimeError } = run(expr, activeTab.resourceType, activeTab.resource)
 
-  const spans = diagnostics.map((d) => ({ start: d.span.start, end: d.span.end, severity: d.severity }))
+  const spans = diagnostics.map(d => ({ start: d.span.start, end: d.span.end, severity: d.severity }))
   paintHighlight(expr, spans)
 
-  const hasError = diagnostics.some((d) => d.severity === 'error')
+  const hasError = diagnostics.some(d => d.severity === 'error')
   const hasWarn = !hasError && diagnostics.length > 0
   const state = hasError ? 'error' : hasWarn ? 'warn' : 'ok'
   const first = diagnostics[0]
@@ -194,7 +181,7 @@ function evaluate() {
   }
 
   diagsEl.replaceChildren(
-    ...diagnostics.map((d) => {
+    ...diagnostics.map(d => {
       const li = document.createElement('li')
       li.className = `diag diag-${d.severity}`
       li.innerHTML = `<code class="diag-code">${escapeHtml(d.code)}</code><span class="diag-msg">${escapeHtml(d.message)}</span>`
@@ -207,19 +194,31 @@ function evaluate() {
 
 // --- Boot -------------------------------------------------------------------
 
-$<HTMLPreElement>('[data-quickstart]').textContent = `import { compile, evaluate } from 'fhirpath-ts'
-import { r4Model } from 'fhirpath-ts/r4'
-import { analyzeExpression } from 'fhirpath-ts/analyzer'
+// Highlight the static example blocks in the "Where a mistake gets caught" section.
+highlightBlocks('.layer-code')
 
-// Result type is inferred by tsc — no plugin:
-const given = compile('Patient.name.given')
-given.evaluate(patient, { model: r4Model })        // string[]
-
-// Check an expression before it ships:
-analyzeExpression('Observation.valueQuantity', { model: r4Model, inputType: 'Observation' })
-// -> [{ code: 'unknown-element', message: "...use the choice stem 'value'...", ... }]`
+// The playground pulls in Monaco (heavy), so load it only once the section is
+// near the viewport rather than blocking the initial page.
+const playgroundEl = $<HTMLDivElement>('[data-playground]')
+const observer = new IntersectionObserver(
+  entries => {
+    if (!entries.some(e => e.isIntersecting)) {
+      return
+    }
+    observer.disconnect()
+    void import('./playground/index.ts').then(
+      module => module.mountPlayground(playgroundEl),
+      () => {
+        $<HTMLParagraphElement>('.pg-loading', playgroundEl).textContent =
+          'The editor could not load. The examples below still show what it does.'
+      }
+    )
+  },
+  { rootMargin: '400px' }
+)
+observer.observe(playgroundEl)
 
 exprEl.addEventListener('input', evaluate)
+bindTextareaWordNavigation(exprEl)
 window.addEventListener('resize', autosize)
-renderTabs()
 selectTab(TABS[0]!)

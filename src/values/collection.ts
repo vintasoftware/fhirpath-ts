@@ -32,10 +32,24 @@ function matchesExpectedType(item: TypedValue, expectedType: string): boolean {
   )
 }
 
-/** Singleton coerced to a boolean, applying the implicit-true rule. Empty → undefined. */
+/**
+ * Singleton evaluation coerced to a boolean, applying the implicit-true rule.
+ * Empty returns undefined, which the three-valued logic operators need as an
+ * answer distinct from false. Do not turn it into `false` here; see
+ * `criteriaBoolean`.
+ */
 export function booleanSingleton(collection: TypedValue[]): boolean | undefined {
   const item = singleton(collection, SYSTEM_BOOLEAN)
   return item === undefined ? undefined : (item.value as boolean)
+}
+
+/**
+ * Returns one criteria Boolean. FHIRPath §4.5 supplies singleton evaluation;
+ * FHIR constraints add that an empty result does not satisfy the criteria, so
+ * empty becomes `false`. Other Boolean functions keep their own item rules.
+ */
+export function criteriaBoolean(collection: TypedValue[]): boolean {
+  return booleanSingleton(collection) ?? false
 }
 
 export function wrapBoolean(value: boolean | undefined): TypedValue[] {
