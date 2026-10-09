@@ -1,9 +1,10 @@
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { childValue } from '../fhir/element-origin.ts'
+import { extensionArraysOf } from '../fhir/extensions.ts'
 import { validateNarrative } from '../fhir/html-checks.ts'
-import { withOrigin } from '../fhir/model-navigation.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
 import { calendarToUcumLoose, compareQuantities, promoteQuantity } from '../values/quantity.ts'
-import { SYSTEM_QUANTITY, SYSTEM_STRING, systemTypeOf, toTypedValue, type TypedValue } from '../values/typed-value.ts'
+import { SYSTEM_QUANTITY, SYSTEM_STRING, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
 import { argAt, registerFunction } from './registry.ts'
 
 /** extension(url): extensions of each item, including primitive `_field` extensions. */
@@ -21,11 +22,10 @@ registerFunction('extension', {
     const url = urlValue.value as string
     const result: TypedValue[] = []
     for (const item of input) {
-      const origin = context.paths ? { parent: item, name: 'extension' } : undefined
       for (const extensions of extensionArraysOf(item)) {
         for (const [index, extension] of extensions.entries()) {
           if ((extension as { url?: unknown } | null)?.url === url) {
-            result.push(withOrigin({ type: 'FHIR.Extension', value: extension }, origin, index))
+            result.push(childValue({ type: 'FHIR.Extension', value: extension }, item, 'extension', index))
           }
         }
       }
@@ -33,21 +33,6 @@ registerFunction('extension', {
     return result
   },
 })
-
-/** The `extension` arrays of an item: its own, and a primitive's `_field` sibling's. */
-function extensionArraysOf(item: TypedValue): unknown[][] {
-  const containers: unknown[] = [item.value, item.primitiveElement]
-  const result: unknown[][] = []
-  for (const container of containers) {
-    if (typeof container === 'object' && container !== null) {
-      const extensions = (container as { extension?: unknown }).extension
-      if (Array.isArray(extensions)) {
-        result.push(extensions)
-      }
-    }
-  }
-  return result
-}
 
 /**
  * True when the input holds a single primitive with an actual value; a multi-item
@@ -87,114 +72,6 @@ registerFunction('getValue', {
     return [{ type: systemTypeOf(item) as string, value: item.value }]
   },
 })
-
-/**
- * Resolves contained references and Bundle entries against the evaluation root.
- * External references return empty. A contained reference inside a Bundle entry
- * also returns empty because resolution does not change root for each entry.
- * A resolved resource sits inside the root, so it records its place there for
- * `pathname()`.
- */
-registerFunction('resolve', {
-  minArity: 0,
-  maxArity: 0,
-  evaluate: (context, input) => {
-    const result: TypedValue[] = []
-    const root = context.root[0]
-    for (const item of input) {
-      const reference = referenceStringOf(item)
-      if (reference === undefined) {
-        continue
-      }
-      const resolved = resolveReference(reference, root, context.paths)
-      if (resolved !== undefined) {
-        result.push(resolved)
-      }
-    }
-    return result
-  },
-})
-
-function referenceStringOf(item: TypedValue): string | undefined {
-  if (typeof item.value === 'string') {
-    return item.value
-  }
-  if (typeof item.value === 'object' && item.value !== null) {
-    const reference = (item.value as { reference?: unknown }).reference
-    return typeof reference === 'string' ? reference : undefined
-  }
-  return undefined
-}
-
-interface BundleEntry {
-  fullUrl?: unknown
-  resource?: { resourceType?: unknown; id?: unknown }
-}
-
-interface ResolveScope {
-  resourceType?: unknown
-  contained?: unknown
-  entry?: unknown
-}
-
-function resolveReference(reference: string, root: TypedValue | undefined, paths: boolean): TypedValue | undefined {
-  const scope = root?.value as ResolveScope | undefined
-  if (root === undefined || !scope) {
-    return undefined
-  }
-  if (reference.startsWith('#')) {
-    const id = reference.slice(1)
-    if (id === '') {
-      return root
-    }
-    if (Array.isArray(scope.contained)) {
-      const index = scope.contained.findIndex(resource => (resource as { id?: unknown } | null)?.id === id)
-      const origin = paths ? { parent: root, name: 'contained' } : undefined
-      return index === -1 ? undefined : withOrigin(toTypedValue(scope.contained[index]), origin, index)
-    }
-    return undefined
-  }
-  if (scope.resourceType === 'Bundle' && Array.isArray(scope.entry)) {
-    const isAbsolute = reference.includes('://') || reference.startsWith('urn:')
-    for (const [index, entry] of scope.entry.entries()) {
-      if (!isObject(entry)) {
-        continue
-      }
-      const { fullUrl, resource } = entry as BundleEntry
-      // Absolute references match a fullUrl exactly. Relative references
-      // (Type/id) match a resource's own type/id — a fullUrl suffix match alone
-      // would wrongly resolve Patient/123 against a different base whose resource
-      // id is not 123, so the resource must confirm the type/id.
-      if (
-        (isAbsolute && fullUrl === reference) ||
-        (resource && `${String(resource.resourceType)}/${String(resource.id)}` === reference)
-      ) {
-        return resource ? bundleEntryResource(root, entry, resource, index, paths) : undefined
-      }
-    }
-  }
-  return undefined
-}
-
-/** The resource of `Bundle.entry[index]`, recording that place when the evaluation tracks paths. */
-function bundleEntryResource(
-  root: TypedValue,
-  entry: object,
-  resource: object,
-  index: number,
-  paths: boolean
-): TypedValue {
-  const item = toTypedValue(resource)
-  if (!paths) {
-    return item
-  }
-  const entryItem = withOrigin({ type: 'FHIR.Bundle.entry', value: entry }, { parent: root, name: 'entry' }, index)
-  return withOrigin(item, { parent: entryItem, name: 'resource' }, undefined)
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
 
 /**
  * Validate narrative against the FHIR rules. An xhtml element is checked as the
@@ -284,4 +161,3 @@ unsupported('subsumedBy', 1, 1, 'terminology functions need a terminology servic
 unsupported('slice', 2, 2, 'profile slicing needs profile definitions')
 unsupported('elementDefinition', 0, 0, 'element definitions need profile definitions')
 unsupported('checkModifiers', 0, 1, 'modifier checking needs profile definitions')
-unsupported('weight', 0, 0, 'item weights need code-system lookups')

@@ -1747,6 +1747,12 @@ export type BuiltinUpperFastSlowParity = Assert<FastSlowInferenceParity<"'abc'.u
 export type BuiltinUpperPositive = Assert<Equal<FhirpathResultIn<"'abc'.upper()", 'opaque'>, string[]>>
 export type BuiltinUpperDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
 export type BuiltinUpperComposition = Assert<Equal<FhirpathResultIn<"('abc'.upper()).count()", 'opaque'>, number[]>>
+export type BuiltinWeightFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.weight()', 'opaque'>>
+export type BuiltinWeightPositive = Assert<Equal<FhirpathResultIn<'Patient.name.weight()', 'opaque'>, number[]>>
+export type BuiltinWeightDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinWeightComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.weight()).count()', 'opaque'>, number[]>
+>
 export type BuiltinWhereFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.where($this)', 'opaque'>>
 export type BuiltinWherePositive = Assert<
   Equal<FhirpathResultIn<'Patient.name.where($this)', 'opaque'>, R4TypeOf['HumanName'][]>

@@ -235,7 +235,6 @@ describe('FHIR equivalence', () => {
     expect(evaluate("conformsTo('http://hl7.org/fhir/StructureDefinition/Patient')", observation, options)).toEqual([
       false,
     ])
-    expect(() => evaluate('weight()', observation, options)).toThrow('not supported in v1')
   })
 })
 

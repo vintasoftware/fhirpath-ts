@@ -1,5 +1,5 @@
-import type { EvaluationContext, HostFunction } from '../engine/context.ts'
-import type { AstNode } from '../parser/ast.ts'
+import type { EvaluationContext } from '../engine/context.ts'
+import { elementOrigin } from '../fhir/element-origin.ts'
 import { printIdentifier } from '../parser/printer.ts'
 import { SYSTEM_STRING, type TypedValue } from '../values/typed-value.ts'
 import { argAt, booleanArgument, registerFunction } from './registry.ts'
@@ -39,10 +39,12 @@ function pathOf(
 ): string | undefined {
   const segments: string[] = []
   let current = item
-  while (current.origin !== undefined) {
-    const { parent, name, index } = current.origin
+  let origin = elementOrigin(current)
+  while (origin !== undefined) {
+    const { parent, name, index } = origin
     segments.push(printIdentifier(name) + indexer(context, parent, name, index, short))
     current = parent
+    origin = elementOrigin(current)
   }
   if (!roots.has(current)) {
     return undefined
@@ -71,80 +73,4 @@ function indexer(
     return ''
   }
   return `[${index}]`
-}
-
-/**
- * True when evaluating `node` can call `pathname()` directly. Navigation
- * records item origins only for such evaluations; `callsPathname` caches the
- * answer per AST, since a compiled expression is evaluated many times.
- */
-export function callsPathname(node: AstNode): boolean {
-  let calls = pathnameCalls.get(node)
-  if (calls === undefined) {
-    calls = containsPathnameCall(node)
-    pathnameCalls.set(node, calls)
-  }
-  return calls
-}
-
-const pathnameCalls = new WeakMap<AstNode, boolean>()
-
-function containsPathnameCall(node: AstNode): boolean {
-  switch (node.kind) {
-    case 'call':
-      return node.name === 'pathname' || node.args.some(containsPathnameCall)
-    case 'dot':
-    case 'binary':
-      return containsPathnameCall(node.left) || containsPathnameCall(node.right)
-    case 'indexer':
-      return containsPathnameCall(node.target) || containsPathnameCall(node.index)
-    case 'unary':
-    case 'typeOp':
-      return containsPathnameCall(node.operand)
-    case 'instance':
-      return node.elements.some(element => containsPathnameCall(element.value))
-    case 'null':
-    case 'boolean':
-    case 'string':
-    case 'number':
-    case 'date':
-    case 'dateTime':
-    case 'time':
-    case 'quantity':
-    case 'identifier':
-    case 'special':
-    case 'external':
-      return false
-    /* v8 ignore start -- exhaustive fallback, unreachable for real ASTs */
-    default: {
-      const unreachable: never = node
-      return unreachable
-    }
-    /* v8 ignore stop */
-  }
-}
-
-/**
- * True when a host expression function's body, or a body it can call through
- * its own function table, calls `pathname()`. A call to such a function needs
- * origins on the items it receives, so the whole evaluation tracks them.
- */
-export function hostFunctionsCallPathname(functions: Iterable<HostFunction>, seen = new Set<object>()): boolean {
-  for (const entry of functions) {
-    for (const fn of 'overloads' in entry ? entry.overloads : [entry]) {
-      if (!('ast' in fn)) {
-        continue
-      }
-      if (callsPathname(fn.ast)) {
-        return true
-      }
-      if (fn.functions !== undefined && !seen.has(fn.functions)) {
-        seen.add(fn.functions)
-        if (hostFunctionsCallPathname(fn.functions.values(), seen)) {
-          return true
-        }
-      }
-    }
-  }
-  return false
 }

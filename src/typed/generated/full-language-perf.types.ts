@@ -498,10 +498,12 @@ export type Capability202 = FhirpathResultIn<'Patient.name.union(Patient.name)',
 export type Composition202 = FhirpathResultIn<'(Patient.name.union(Patient.name)).count()', 'opaque'>
 export type Capability203 = FhirpathResultIn<"'abc'.upper()", 'opaque'>
 export type Composition203 = FhirpathResultIn<"('abc'.upper()).count()", 'opaque'>
-export type Capability204 = FhirpathResultIn<'Patient.name.where($this)', 'opaque'>
-export type Composition204 = FhirpathResultIn<'(Patient.name.where($this)).count()', 'opaque'>
-export type Capability205 = FhirpathResultIn<'@2020-01-01.yearOf()', 'opaque'>
-export type Composition205 = FhirpathResultIn<'(@2020-01-01.yearOf()).count()', 'opaque'>
+export type Capability204 = FhirpathResultIn<'Patient.name.weight()', 'opaque'>
+export type Composition204 = FhirpathResultIn<'(Patient.name.weight()).count()', 'opaque'>
+export type Capability205 = FhirpathResultIn<'Patient.name.where($this)', 'opaque'>
+export type Composition205 = FhirpathResultIn<'(Patient.name.where($this)).count()', 'opaque'>
+export type Capability206 = FhirpathResultIn<'@2020-01-01.yearOf()', 'opaque'>
+export type Composition206 = FhirpathResultIn<'(@2020-01-01.yearOf()).count()', 'opaque'>
 export type LongestCorpusCase = FhirpathResultIn<
   "\n\t\t\tgroup.select(\n\t\t\t\tdefineVariable('grp')\n\t\t\t\t.element\n\t\t\t\t.select(\n\t\t\t\t\tdefineVariable('ele')\n\t\t\t\t\t.target\n\t\t\t\t\t.select(%grp.source & '|' & %ele.code & ' ' & relationship & ' ' & %grp.target & '|' & code)\n\t\t\t\t)\n\t\t\t)\n\t\t\t.trace('all')\n\t\t\t.isDistinct()\n\t\t",
   'ConceptMap'

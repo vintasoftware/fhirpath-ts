@@ -2,12 +2,7 @@ import type { ModelProvider } from '../model/provider.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, toTypedValue, type TypedValue } from '../values/typed-value.ts'
-
-/** The parent and element name a read records on each item it returns, when the evaluation tracks paths. */
-export interface ReadOrigin {
-  parent: TypedValue
-  name: string
-}
+import { childValue } from './element-origin.ts'
 
 export function isFhirPrimitiveType(typeName: string): boolean {
   return FHIR_PRIMITIVE_TO_SYSTEM[typeName] !== undefined
@@ -17,17 +12,11 @@ export function isFhirPrimitiveType(typeName: string): boolean {
  * Read one element with model knowledge: choice elements resolve their suffixed
  * JSON key, primitives parse into System values (dates become Temporal, decimals
  * become Decimal) and carry their `_field` sibling for extension/id access.
- * Undefined when the model does not know the element. With `paths`, each item
- * records where it was read (`TypedValue.origin`).
+ * Undefined when the model does not know the element. Each item records where
+ * it was read (see `elementOrigin`).
  */
-export function readModelProperty(
-  model: ModelProvider,
-  item: TypedValue,
-  name: string,
-  paths = false
-): TypedValue[] | undefined {
-  const origin = paths ? { parent: item, name } : undefined
-  const metadata = readPrimitiveMetadata(item, name, origin)
+export function readModelProperty(model: ModelProvider, item: TypedValue, name: string): TypedValue[] | undefined {
+  const metadata = readPrimitiveMetadata(item, name)
   if (metadata !== undefined) {
     return metadata
   }
@@ -44,13 +33,13 @@ export function readModelProperty(
     for (const typeName of info.types) {
       const key = name + typeName.charAt(0).toUpperCase() + typeName.slice(1)
       if (record[key] !== undefined && record[key] !== null) {
-        return convertValues(record[key], record[`_${key}`], typeName, origin)
+        return convertValues(record[key], record[`_${key}`], typeName, item, name)
       }
       // A choice primitive may be present through its `_field` sibling alone,
       // e.g. { _valueString: { extension: [...] } } with no valueString.
       const sibling = record[`_${key}`]
       if (sibling !== undefined && sibling !== null && isFhirPrimitiveType(typeName)) {
-        return convertValues(undefined, sibling, typeName, origin)
+        return convertValues(undefined, sibling, typeName, item, name)
       }
     }
     return []
@@ -60,19 +49,15 @@ export function readModelProperty(
     // A primitive may be present through its `_field` sibling alone.
     const sibling = record[`_${name}`]
     if (sibling !== undefined && sibling !== null && isFhirPrimitiveType(info.types[0] as string)) {
-      return convertValues(undefined, sibling, info.types[0] as string, origin)
+      return convertValues(undefined, sibling, info.types[0] as string, item, name)
     }
     return []
   }
-  return convertValues(raw, record[`_${name}`], info.types[0] as string, origin)
+  return convertValues(raw, record[`_${name}`], info.types[0] as string, item, name)
 }
 
 /** `id` and `extension` on an already-navigated primitive come from its `_field` sibling. */
-function readPrimitiveMetadata(
-  item: TypedValue,
-  name: string,
-  origin: ReadOrigin | undefined
-): TypedValue[] | undefined {
+function readPrimitiveMetadata(item: TypedValue, name: string): TypedValue[] | undefined {
   if (item.primitiveElement === undefined || (name !== 'id' && name !== 'extension')) {
     return undefined
   }
@@ -82,23 +67,21 @@ function readPrimitiveMetadata(
     return []
   }
   if (name === 'id') {
-    return [withOrigin({ type: 'System.String', value }, origin, undefined)]
+    return [childValue({ type: 'System.String', value }, item, name)]
   }
   if (!Array.isArray(value)) {
-    return [withOrigin({ type: 'FHIR.Extension', value }, origin, undefined)]
+    return [childValue({ type: 'FHIR.Extension', value }, item, name)]
   }
-  return value.map((extension, index) => withOrigin({ type: 'FHIR.Extension', value: extension }, origin, index))
+  return value.map((extension, index) => childValue({ type: 'FHIR.Extension', value: extension }, item, name, index))
 }
 
-/** Record where `item` was read, when the read tracks paths. */
-export function withOrigin(item: TypedValue, origin: ReadOrigin | undefined, index: number | undefined): TypedValue {
-  if (origin !== undefined) {
-    item.origin = { parent: origin.parent, name: origin.name, index }
-  }
-  return item
-}
-
-function convertValues(raw: unknown, sibling: unknown, typeName: string, origin: ReadOrigin | undefined): TypedValue[] {
+function convertValues(
+  raw: unknown,
+  sibling: unknown,
+  typeName: string,
+  parent: TypedValue,
+  name: string
+): TypedValue[] {
   if (Array.isArray(raw) || Array.isArray(sibling)) {
     // The value and _name arrays align by index and either may be the longer one:
     // a tail entry present only in _name is still an element (with extensions).
@@ -108,13 +91,13 @@ function convertValues(raw: unknown, sibling: unknown, typeName: string, origin:
     for (let index = 0; index < Math.max(values.length, siblings.length); index++) {
       const converted = convertSingle(values[index], siblings[index], typeName)
       if (converted) {
-        result.push(withOrigin(converted, origin, index))
+        result.push(childValue(converted, parent, name, index))
       }
     }
     return result
   }
   const converted = convertSingle(raw, sibling, typeName)
-  return converted ? [withOrigin(converted, origin, undefined)] : []
+  return converted ? [childValue(converted, parent, name)] : []
 }
 
 /**

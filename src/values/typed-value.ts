@@ -33,18 +33,6 @@ export interface TypedValue {
   value: unknown
   /** For FHIR primitives navigated with a model: the `_field` sibling (id/extension). */
   primitiveElement?: unknown
-  /** Where navigation read this item from. Set only while an evaluation tracks paths (see `pathname()`). */
-  origin?: PathOrigin
-}
-
-/** One step of an item's path inside its resource: the element it was read from and its position there. */
-export interface PathOrigin {
-  /** The item that holds the element. */
-  parent: TypedValue
-  /** The element name: the FHIRPath name for a choice element (`value`), the JSON key otherwise. */
-  name: string
-  /** The position in the element's JSON array; undefined when the JSON value is not an array. */
-  index: number | undefined
 }
 
 /** FHIR primitive type names to their System twins (FHIR spec "types" page). */

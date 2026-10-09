@@ -2458,6 +2458,16 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     },
     runtime: false,
   },
+  'builtin.weight': {
+    expression: 'Patient.name.weight()',
+    degradation: 'Patient.name.unknownFn()',
+    composition: '(Patient.name.weight()).count()',
+    analyzer: {
+      types: ['System.Decimal'],
+      single: false,
+    },
+    runtime: false,
+  },
   'builtin.where': {
     expression: 'Patient.name.where($this)',
     degradation: 'Patient.name.unknownFn()',

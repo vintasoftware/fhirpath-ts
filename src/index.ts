@@ -76,4 +76,4 @@ export type {
 export { Temporal } from './values/datetime.ts'
 export { Decimal } from './values/decimal.ts'
 export type { ValueKind } from './values/type-compat.ts'
-export type { PathOrigin, QuantityValue, TypedValue } from './values/typed-value.ts'
+export type { QuantityValue, TypedValue } from './values/typed-value.ts'

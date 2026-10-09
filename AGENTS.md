@@ -245,6 +245,23 @@ takes a value (and so a choice element's JSON key). The evaluator and the
 analyzer both call them, so a static diagnostic and a runtime error always
 describe the same rule.
 
+## Element ancestry
+
+`childValue` in `src/fhir/element-origin.ts` records the parent, element name,
+and array index of each value navigation reads. `resolve()`, `weight()`, and
+`pathname()` read it through `elementOrigin` and `ancestors`.
+
+- Record it on every read: navigation, `children()`/`descendants()`,
+  `extension()`, primitive `id`/`extension`, and the resources `resolve()`
+  returns. `evaluateTyped()` results passed back through `vars` must still
+  resolve their contained references and find their questionnaire item, and
+  an evaluation cannot tell whether its results will be reused that way.
+- Keep it in the private `#origin` field. A `WeakMap` entry per child made
+  navigation 2–6× slower, and a public `TypedValue` field would change what
+  `evaluateTyped()` results deep-equal and serialize to.
+- Stamp each wrapper once, where it is built; a second stamp on the same
+  object throws.
+
 ## Criteria booleans
 
 A `this.criteria()` column registers a function with `criteria: true`. The evaluator applies

@@ -37,8 +37,7 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     ([#114](https://github.com/vintasoftware/fhirpath-ts/issues/114)).
   - `pathname([short])` returns the path of each input item inside the input
     resource, such as `Observation.component[0].code[0].coding[0]`. Computed
-    values have no path. Navigation records where items come from only when an
-    evaluation can call `pathname()`
+    values have no path
     ([#115](https://github.com/vintasoftware/fhirpath-ts/issues/115)).
   - Instance selectors build FHIR values:
     `Coding { system: 'http://loinc.org', code: '8480-6' }`, and `Period {:}`
@@ -55,6 +54,13 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   - `combine(other, preserveOrder)` and `encode('ascii')`. `combine()` keeps
     its sources' order with or without `preserveOrder`, as `union()` does
     ([#117](https://github.com/vintasoftware/fhirpath-ts/issues/117)).
+- The SDC `weight()` scores answers locally with a model. It reads `itemWeight`
+  and R4 `ordinalValue` extensions on an answer or its value, then on the
+  matching `answerOption` of the answer's item in `%questionnaire`, so
+  `item.answer.value.weight().sum()` totals a QuestionnaireResponse. It throws
+  without a model, without `%questionnaire` for an answer, for a missing
+  questionnaire item, and when the weight needs a ValueSet or CodeSystem
+  lookup; see [Score questionnaire answers](README.md#score-questionnaire-answers).
 - `engine.compile(expression, type)` declares the type a relative expression
   runs against, as the package-root `compile(expression, type)` does. The input
   must be that type or an array of it, the result is inferred against it, and
@@ -135,6 +141,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `r4.evaluate(compile('clinicalStatus.coding.first().code', 'Condition'), condition, { type: 'code' })`
   failed to compile, and a resource-rooted expression such as `'Patient.name'`
   accepted an input of another resource type.
+- `resolve()` resolves a contained reference inside a Bundle entry against that
+  entry's resource; it returned empty. A reference from a contained resource
+  reaches its siblings and its container, and a resource that `resolve()`
+  returns resolves its own references the same way.
 
 ## 0.4.0 - 2026-10-07
 

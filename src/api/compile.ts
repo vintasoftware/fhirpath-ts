@@ -14,7 +14,6 @@ import {
 } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathTypeError } from '../errors.ts'
-import { callsPathname, hostFunctionsCallPathname } from '../functions/pathname.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
@@ -206,7 +205,7 @@ export class CompiledExpression<
   evaluateTyped(input?: TInput, options?: EvaluateOptions): TypedValue[] {
     const root = toCollection(input)
     assertStrictExpression(this.ast, root, options, this.inputType)
-    return evaluateNode(this.ast, contextFactory(options, [this.ast])(root), root)
+    return evaluateNode(this.ast, contextFactory(options)(root), root)
   }
 
   /** The canonical form of the expression. */
@@ -276,21 +275,14 @@ function planVars(vars: Record<string, AnyExpression | readonly TypedValue[]>): 
 /**
  * Prepares options once, then creates an evaluation context for each root.
  * Variables bind in order. `extraEnv` contains call-specific values, such as
- * projection row numbers, and replaces matching option values. `expressions`
- * are the ASTs the contexts will evaluate; when one of them, a var, or a host
- * function body calls `pathname()`, navigation records item origins.
+ * projection row numbers, and replaces matching option values.
  */
 export function contextFactory(
-  options: EvaluateOptions | undefined,
-  expressions: readonly AstNode[]
+  options: EvaluateOptions | undefined
 ): (root: TypedValue[], extraEnv?: Record<string, unknown>) => EvaluationContext {
   const functions = options?.functions === undefined ? undefined : toHostFunctions(options.functions)
   const env = normalizeEnvKeys(options?.env)
   const vars = options?.vars === undefined ? undefined : planVars(options.vars)
-  const paths =
-    expressions.some(callsPathname) ||
-    (vars ?? []).some(([, value]) => !isResolvedCollection(value) && callsPathname(value)) ||
-    functionsCallPathname(options?.functions, functions)
   return (root, extraEnv) => {
     const context = createContext({
       root,
@@ -301,31 +293,12 @@ export function contextFactory(
       functions,
       regex: options?.regex,
       narrativeSanitizer: options?.narrativeSanitizer,
-      paths,
     })
     if (vars !== undefined) {
       bindVars(context, vars)
     }
     return context
   }
-}
-
-/** `hostFunctionsCallPathname` answers per function record; an engine passes the same record on every call. */
-const pathnameFunctionTables = new WeakMap<object, boolean>()
-
-function functionsCallPathname(
-  record: Record<string, CustomFunction> | undefined,
-  host: Record<string, HostFunction> | undefined
-): boolean {
-  if (record === undefined || host === undefined) {
-    return false
-  }
-  let calls = pathnameFunctionTables.get(record)
-  if (calls === undefined) {
-    calls = hostFunctionsCallPathname(Object.values(host))
-    pathnameFunctionTables.set(record, calls)
-  }
-  return calls
 }
 
 /**

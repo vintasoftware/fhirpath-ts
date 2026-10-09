@@ -1,4 +1,5 @@
-import { readModelProperty, type ReadOrigin, withOrigin } from '../fhir/model-navigation.ts'
+import { childValue } from '../fhir/element-origin.ts'
+import { readModelProperty } from '../fhir/model-navigation.ts'
 import { rootTypeMatches } from '../values/type-compat.ts'
 import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import type { EvaluationContext } from './context.ts'
@@ -10,12 +11,11 @@ import type { EvaluationContext } from './context.ts'
  */
 export function navigateIdentifier(context: EvaluationContext, name: string, input: TypedValue[]): TypedValue[] {
   const results: TypedValue[] = []
-  const paths = context.paths
   for (const item of input) {
     if (rootTypeMatches(context.model, item.type, name)) {
       results.push(item)
     } else if (context.model && item.type.startsWith(`${context.model.namespace}.`)) {
-      const modelRead = readModelProperty(context.model, item, name, paths)
+      const modelRead = readModelProperty(context.model, item, name)
       if (modelRead === undefined) {
         // Unknown model elements navigate to empty. Strict evaluation runs the
         // analyzer before reaching this point, including for choice-key misuse.
@@ -25,26 +25,23 @@ export function navigateIdentifier(context: EvaluationContext, name: string, inp
           name === 'resourceType' ||
           (context.model.listElements !== undefined && context.model.listElements(item.type) === undefined)
         ) {
-          results.push(...getProperty(item, name, paths))
+          results.push(...getProperty(item, name))
         }
       } else {
         results.push(...modelRead)
       }
     } else if (context.model) {
-      const modelRead = readModelProperty(context.model, item, name, paths)
-      results.push(...(modelRead ?? getProperty(item, name, paths)))
+      const modelRead = readModelProperty(context.model, item, name)
+      results.push(...(modelRead ?? getProperty(item, name)))
     } else {
-      results.push(...getProperty(item, name, paths))
+      results.push(...getProperty(item, name))
     }
   }
   return results
 }
 
-/**
- * Read one child element from a complex value, flattening arrays. Missing → empty.
- * With `paths`, each item records where it was read (`TypedValue.origin`).
- */
-export function getProperty(item: TypedValue, name: string, paths = false): TypedValue[] {
+/** Read one child element from a complex value, flattening arrays. Missing → empty. */
+export function getProperty(item: TypedValue, name: string): TypedValue[] {
   const value = item.value
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return []
@@ -58,15 +55,14 @@ export function getProperty(item: TypedValue, name: string, paths = false): Type
   if (child === undefined || child === null) {
     return []
   }
-  const origin: ReadOrigin | undefined = paths ? { parent: item, name } : undefined
   if (Array.isArray(child)) {
     const results: TypedValue[] = []
     for (const [index, element] of child.entries()) {
       if (element !== null && element !== undefined) {
-        results.push(withOrigin(toTypedValue(element), origin, index))
+        results.push(childValue(toTypedValue(element), item, name, index))
       }
     }
     return results
   }
-  return [withOrigin(toTypedValue(child), origin, undefined)]
+  return [childValue(toTypedValue(child), item, name)]
 }

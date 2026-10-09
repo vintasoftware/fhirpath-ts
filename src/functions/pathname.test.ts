@@ -6,7 +6,6 @@ import { FhirPathEngine } from '../api/engine.ts'
 import { evaluate } from '../api/evaluate.ts'
 import type { Patient } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
-import type { TypedValue } from '../values/typed-value.ts'
 
 const options: EvaluateOptions = { model: r4Model }
 
@@ -256,13 +255,7 @@ describe('pathname()', () => {
     expect(evaluate('`odd-key`.`as`.pathname()', { 'odd-key': { as: 1 } })).toEqual(['`odd-key`[0].`as`[0]'])
   })
 
-  it('records origins only when the evaluation can reach pathname()', () => {
-    const hasOrigin = (items: TypedValue[]): boolean => items.some(item => item.origin !== undefined)
-    expect(hasOrigin(compile('Patient.name').evaluateTyped(typedPatient, options))).toBe(false)
-    expect(hasOrigin(compile('Patient.name.where(pathname().exists())').evaluateTyped(typedPatient, options))).toBe(
-      true
-    )
-    // A var body or a host function body that calls pathname() switches tracking on too.
+  it('reaches items through var bodies, host function bodies and instance selectors', () => {
     const withVar = { ...options, vars: { located: 'name.pathname()' } }
     expect(evaluate('%located', patient, withVar)).toEqual(['Patient.name[0]', 'Patient.name[1]'])
     const withFunction = { ...options, functions: { locate: { expression: 'pathname()' } } }
@@ -286,14 +279,19 @@ describe('pathname()', () => {
       'Patient.name[0].family[0]',
       'Patient.name[1].family[0]',
     ])
-    // So does a call inside an instance selector's element value.
     expect(evaluate('Patient.select(Coding { code: name.first().pathname() }).code', patient, options)).toEqual([
       'Patient.name[0]',
     ])
-    const withoutPathname = { ...options, functions: { surname: { expression: 'family' } } }
-    for (let call = 0; call < 2; call++) {
-      expect(hasOrigin(compile('Patient.name.surname()').evaluateTyped(typedPatient, withoutPathname))).toBe(false)
-    }
+  })
+
+  it("leaves out items read from another evaluation's input", () => {
+    const names = compile('Patient.name').evaluateTyped(typedPatient, options)
+    expect(names[0]).toStrictEqual({ type: 'FHIR.HumanName', value: typedPatient.name?.[0] })
+    expect(evaluate('%names.pathname()', patient, { ...options, vars: { names } })).toEqual([])
+    expect(evaluate('Patient.name.pathname()', typedPatient, { ...options, vars: { names } })).toEqual([
+      'Patient.name[0]',
+      'Patient.name[1]',
+    ])
   })
 
   it('works inside a DTO column body, directly and through another DTO', () => {

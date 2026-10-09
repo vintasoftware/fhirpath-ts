@@ -458,19 +458,18 @@ written with element names and indexers, such as
 `pathname(true)` leaves the indexer out when an element is not an array in the
 data or in the model: `Observation.component[0].code.coding[0]`.
 
-- Only items read by navigation have a path. Computed values (`upper()`, `&`,
-  arithmetic) and values from `env` are left out of the result.
+- Only items read by navigation from this evaluation's input have a path.
+  Computed values (`upper()`, `&`, arithmetic), values from `env`, and
+  `evaluateTyped()` items of another evaluation passed through `vars` are left
+  out of the result.
 - A resource reached with `resolve()` has a path when it is a contained resource
-  or a Bundle entry of the input, such as `Patient.contained[1]` or
-  `Bundle.entry[3].resource[0]`.
+  or a Bundle entry of the input, such as `Patient.contained[1]`,
+  `Bundle.entry[3].resource[0]`, or
+  `Bundle.entry[3].resource[0].contained[1]`.
 - When the input has no `resourceType`, paths start at its elements, such as
   `given[0]`, and the input itself has no path.
 - With a model, a choice element uses its FHIRPath name (`value`). Without one,
   it uses the JSON key (`valueQuantity`).
-
-Navigation records where items come from only when the evaluation can call
-`pathname()`: in the expression, in a `vars` body, or in an expression-defined
-function body. In that case `evaluateTyped()` items also carry an `origin`.
 
 ## Custom functions
 

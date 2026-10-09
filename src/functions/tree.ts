@@ -1,5 +1,6 @@
 import { EqualityIndex } from '../engine/operators/equality.ts'
-import { readModelProperty, type ReadOrigin, withOrigin } from '../fhir/model-navigation.ts'
+import { childValue } from '../fhir/element-origin.ts'
+import { readModelProperty } from '../fhir/model-navigation.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
@@ -7,13 +8,12 @@ import { registerFunction } from './registry.ts'
 /**
  * All immediate child nodes of an item. `resourceType` is a JSON discriminator, not
  * an element, and `_field` keys are primitive-extension metadata handled elsewhere.
- * With `paths`, each child records where it was read (`TypedValue.origin`).
  */
-export function childrenOf(item: TypedValue, model?: ModelProvider, paths = false): TypedValue[] {
+export function childrenOf(item: TypedValue, model?: ModelProvider): TypedValue[] {
   const value = item.value
   if (typeof value !== 'object' || value === null) {
     // A primitive's children are its element id and extensions (FHIR spec).
-    return primitiveMetadataChildren(item, paths)
+    return primitiveMetadataChildren(item)
   }
   // With a model, children keep their element types (so `code as Coding` works
   // downstream) and elements present only through a _field sibling still appear.
@@ -22,7 +22,7 @@ export function childrenOf(item: TypedValue, model?: ModelProvider, paths = fals
     if (elements !== undefined) {
       const typed: TypedValue[] = []
       for (const element of elements) {
-        typed.push(...(readModelProperty(model, item, element, paths) ?? []))
+        typed.push(...(readModelProperty(model, item, element) ?? []))
       }
       return typed
     }
@@ -32,40 +32,32 @@ export function childrenOf(item: TypedValue, model?: ModelProvider, paths = fals
     if (key === 'resourceType' || key.startsWith('_') || child === null || child === undefined) {
       continue
     }
-    const origin: ReadOrigin | undefined = paths ? { parent: item, name: key } : undefined
     if (Array.isArray(child)) {
       for (const [index, element] of child.entries()) {
         if (element !== null && element !== undefined) {
-          result.push(withOrigin(toTypedValue(element), origin, index))
+          result.push(childValue(toTypedValue(element), item, key, index))
         }
       }
     } else {
-      result.push(withOrigin(toTypedValue(child), origin, undefined))
+      result.push(childValue(toTypedValue(child), item, key))
     }
   }
   return result
 }
 
-function primitiveMetadataChildren(item: TypedValue, paths: boolean): TypedValue[] {
+function primitiveMetadataChildren(item: TypedValue): TypedValue[] {
   const metadata = item.primitiveElement as { id?: unknown; extension?: unknown } | undefined
   if (metadata === undefined || metadata === null) {
     return []
   }
   const result: TypedValue[] = []
   if (metadata.id !== undefined && metadata.id !== null) {
-    result.push(
-      withOrigin(
-        { type: 'System.String', value: metadata.id },
-        paths ? { parent: item, name: 'id' } : undefined,
-        undefined
-      )
-    )
+    result.push(childValue({ type: 'System.String', value: metadata.id }, item, 'id'))
   }
   if (Array.isArray(metadata.extension)) {
-    const origin: ReadOrigin | undefined = paths ? { parent: item, name: 'extension' } : undefined
     result.push(
       ...metadata.extension.map((extension, index) =>
-        withOrigin({ type: 'FHIR.Extension', value: extension }, origin, index)
+        childValue({ type: 'FHIR.Extension', value: extension }, item, 'extension', index)
       )
     )
   }
@@ -75,7 +67,7 @@ function primitiveMetadataChildren(item: TypedValue, paths: boolean): TypedValue
 registerFunction('children', {
   minArity: 0,
   maxArity: 0,
-  evaluate: (context, input) => input.flatMap(item => childrenOf(item, context.model, context.paths)),
+  evaluate: (context, input) => input.flatMap(item => childrenOf(item, context.model)),
 })
 
 registerFunction('descendants', {
@@ -94,14 +86,14 @@ registerFunction('descendants', {
     const collected = new EqualityIndex()
     const seenValues = new Set<unknown>()
     const isDuplicate = (item: TypedValue): boolean => seenValues.has(item.value) || collected.has(item)
-    let current = input.flatMap(item => childrenOf(item, context.model, context.paths))
+    let current = input.flatMap(item => childrenOf(item, context.model))
     while (current.length > 0) {
       const fresh = current.filter(item => !isDuplicate(item))
       for (const item of fresh) {
         seenValues.add(item.value)
         collected.insert(item)
       }
-      current = fresh.flatMap(item => childrenOf(item, context.model, context.paths))
+      current = fresh.flatMap(item => childrenOf(item, context.model))
     }
     return collected.items
   },
