@@ -1,3 +1,4 @@
+import { requestAsync } from '../engine/async.ts'
 import { ancestors, childValue, elementOrigin } from '../fhir/element-origin.ts'
 import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
@@ -77,4 +78,3 @@ function resolveInBundle(reference: string, bundle: TypedValue): TypedValue | un
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined
 }
-import { requestAsync } from '../engine/async.ts'
