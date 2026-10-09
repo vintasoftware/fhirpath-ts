@@ -184,17 +184,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     ],
   },
   {
-    name: 'math-functions-on-quantities',
-    evidence:
-      "1.1 'kg'.ceiling() works in fhirpath.js, as FHIRPath 3.0.0 allows (\"Math\": ceiling() takes a Quantity); this engine does not yet (#134).",
-    keys: [
-      "5.7_math.yaml||(-1.56 's').truncate() = -1 's'",
-      "5.7_math.yaml||1.1 'kg'.ceiling() = 2 'kg'",
-      "5.7_math.yaml||2.315 's'.round(2) = 2.32 's'",
-      "5.7_math.yaml||2.5 's'.floor() = 2 's'",
-    ],
-  },
-  {
     name: 'component-functions-parse-strings',
     evidence:
       "'2014-01-05'.yearOf() parses the string in fhirpath.js; FHIRPath 3.0.0's component functions take Date/DateTime/Time input, so non-temporal input is empty here.",

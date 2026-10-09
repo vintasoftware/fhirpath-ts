@@ -164,12 +164,40 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `id` are no longer `=`, so `distinct()`, `|`, `union()`, `intersect()`,
   `exclude()`, and `repeat()` keep both
   ([#131](https://github.com/vintasoftware/fhirpath-ts/issues/131)).
+- **Breaking:** math follows FHIRPath 3.0.0
+  ([#134](https://github.com/vintasoftware/fhirpath-ts/issues/134)):
+  - Integer (32-bit) and Long (64-bit) arithmetic that overflows is empty, as
+    is negating the smallest value. `2147483647 + 1` returned the Long
+    `2147483648`; write `2147483647L + 1` for a Long result. A minus sign
+    directly before an integer literal reads as one negative literal, so
+    `-2147483648` is an Integer. `ceiling()`, `floor()`, `truncate()`, and
+    `abs()` results outside the Integer range are empty too.
+  - `power()` always returns a Decimal: `2.power(3)` is `8` as a Decimal.
+  - `log()` is an error for an input or a base of zero or less, which
+    returned empty or `0`.
+  - `sum()`, `min()`, `max()`, and `avg()` are an error unless every item has
+    the same type, counting a FHIR primitive as its System type and any FHIR
+    Quantity, such as `Age`, as a Quantity. `(1 | 2.0).sum()` returned `3.0`.
+  - `min()` and `max()` return the smallest or largest item itself, with its
+    type and unit: `(1 'm' | 50 'cm').max()` is `1 'm'`, which was `100 'cm'`.
+    When two items have no order, such as dates of different precision, the
+    result is empty, as `<` is.
 
 ### Fixed
 
 - `as(Quantity)` and `ofType(Quantity)` return FHIR subtypes of Quantity,
   such as an `Age`, as `is(Quantity)` accepts them. They returned empty
   ([#130](https://github.com/vintasoftware/fhirpath-ts/issues/130)).
+- `ceiling()`, `floor()`, `round()`, and `truncate()` accept a Quantity and
+  keep its unit, as FHIRPath 3.0.0 allows: `(1.5 'mg').ceiling()` is `2 'mg'`
+  ([#134](https://github.com/vintasoftware/fhirpath-ts/issues/134)). The
+  analyzer and type-level inference type these functions and `avg()` as a
+  Quantity for a Quantity input; `avg()` of quantities was typed as a Decimal.
+- `min()` and `max()` accept Date, DateTime, Time, and String items, compared
+  as the comparison operators compare
+  ([#128](https://github.com/vintasoftware/fhirpath-ts/issues/128)). The
+  analyzer and type-level inference type the result as the input item.
+
 - The analyzer no longer reads a lowercase root identifier as a FHIR primitive
   type when the input type is unknown. `code.coding` reported `Element 'coding'
   is not defined on FHIR.code`; the runtime reads `code` as an element.

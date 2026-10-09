@@ -3,7 +3,7 @@ import type { UnaryOperator } from '../../parser/ast.ts'
 import { singleton } from '../../values/collection.ts'
 import { Temporal } from '../../values/datetime.ts'
 import type { Decimal } from '../../values/decimal.ts'
-import { asNumeric, widerKind, wrapNumeric } from '../../values/numeric.ts'
+import { asNumeric, numericResult, widerKind } from '../../values/numeric.ts'
 import {
   alignQuantities,
   calendarToUcumLoose,
@@ -51,10 +51,7 @@ function numericArithmetic(operator: ArithmeticOperator, a: TypedValue, b: Typed
       result = left.value.modulo(right.value)
       break
   }
-  if (result === undefined) {
-    return []
-  }
-  return [wrapNumeric(result, kind)]
+  return numericResult(result, kind)
 }
 
 function temporalArithmetic(operator: ArithmeticOperator, a: TypedValue, b: TypedValue): TypedValue[] {
@@ -209,7 +206,8 @@ function unaryOperator(sign: 1 | -1) {
       if (sign === 1) {
         return [item]
       }
-      return [wrapNumeric(numeric.value.negate(), numeric.kind)]
+      // -(-2147483648) overflows Integer, which is empty (spec "Unary operators").
+      return numericResult(numeric.value.negate(), numeric.kind)
     }
     if (item.type === SYSTEM_QUANTITY) {
       const quantity = item.value as QuantityValue

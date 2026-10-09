@@ -468,13 +468,6 @@ These features are deferred and fail with a clear error today:
 | Full UCUM | A full UCUM implementation behind the current interface |
 | R5 model package | Generated R5 definitions and types |
 
-Parts of FHIRPath 3.0.0 that do not work yet:
-
-| Behavior | Issue |
-| --- | --- |
-| `min()` and `max()` on Date, DateTime, Time, and String | [#128](https://github.com/vintasoftware/fhirpath-ts/issues/128) |
-| `power()` returning a Decimal, `ceiling()`/`floor()`/`round()`/`truncate()` on a Quantity, `log()` errors, empty on overflow, and same-type `sum()`/`min()`/`max()` | [#134](https://github.com/vintasoftware/fhirpath-ts/issues/134) |
-
 `union()`, `|`, and `combine()` keep the order of their sources, where 3.0.0
 gives them none; see
 [Conformance](docs/conformance.md#deviations-from-the-specification).

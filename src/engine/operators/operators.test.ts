@@ -238,9 +238,25 @@ describe('math', () => {
   // Kept out of the table above because its '%j' title formatter can't
   // serialize a bigint: Integer results outside the 32-bit range widen to Long
   // rather than being dropped.
-  it('integer arithmetic past the 32-bit range widens to Long', () => {
-    expect(evaluate('2147483647 + 1')).toEqual([2147483648n])
-    expect(evaluate('-2147483647 - 2')).toEqual([-2147483649n])
+  it('arithmetic past the Integer or Long range is empty', () => {
+    // FHIRPath 3.0.0 "Math" operators; rh testPlusOverflow1, testMinusUnderflow1,
+    // testPolarityNegateOverflow.
+    expect(evaluate('2147483647 + 1')).toEqual([])
+    expect(evaluate('-2147483648 - 1')).toEqual([])
+    expect(evaluate('-2147483647 - 2')).toEqual([])
+    expect(evaluate('(-(0-2147483647-1)).empty()')).toEqual([true])
+    expect(evaluate('65536 * 65536')).toEqual([])
+    expect(evaluate('-2147483648 div -1')).toEqual([])
+    expect(evaluate('9223372036854775807L + 1')).toEqual([])
+    expect(evaluate('-9223372036854775807L - 2L')).toEqual([])
+    expect(evaluate('2147483647L + 1')).toEqual([2147483648n])
+    expect(evaluate('(-2147483648).abs()')).toEqual([])
+  })
+
+  it('a minus sign before an integer literal reads as one negative literal', () => {
+    expect(evaluate('-2147483648 is Integer')).toEqual([true])
+    expect(evaluate('-2147483649 is Long')).toEqual([true])
+    expect(evaluate('(-2147483648).abs()')).toEqual([])
   })
 
   it('rejects string operands for non-concat operators', () => {
