@@ -205,6 +205,12 @@ describe('aggregate and convenience aggregates', () => {
     expect(() => evaluate("(@2012 | 'a').min()")).toThrow(FhirPathTypeError)
   })
 
+  it('quantities whose units do not convert sum to empty', () => {
+    expect(evaluate("(1 'm' | 1 'g').sum()")).toEqual([])
+    expect(evaluate("(1 'm' | 1 'g').avg()")).toEqual([])
+    expect(evaluate("(1 'm' | 50 'cm').sum()")).toEqual([{ value: 150, unit: 'cm' }])
+  })
+
   it('sums overflow to empty', () => {
     expect(evaluate('(2147483647 | 1).sum()')).toEqual([])
     expect(evaluate('(9223372036854775807L | 1L).sum()')).toEqual([])
