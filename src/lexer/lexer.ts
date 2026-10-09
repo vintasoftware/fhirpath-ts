@@ -23,7 +23,7 @@ const ESCAPES: Readonly<Record<string, string>> = {
 
 const TWO_CHAR_OPERATORS: ReadonlySet<string> = new Set(['!=', '!~', '<=', '>='])
 const ONE_CHAR_OPERATORS: ReadonlySet<string> = new Set(['=', '~', '<', '>', '+', '-', '*', '/', '|', '&'])
-const PUNCT: ReadonlySet<string> = new Set(['(', ')', '[', ']', '{', '}', '.', ',', '%'])
+const PUNCT: ReadonlySet<string> = new Set(['(', ')', '[', ']', '{', '}', '.', ',', '%', ':'])
 
 class Lexer {
   private readonly source: string

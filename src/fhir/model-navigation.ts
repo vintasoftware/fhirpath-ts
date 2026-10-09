@@ -92,7 +92,11 @@ function convertValues(raw: unknown, sibling: unknown, typeName: string): TypedV
   return converted ? [converted] : []
 }
 
-function convertSingle(raw: unknown, sibling: unknown, typeName: string): TypedValue | undefined {
+/**
+ * One element from its JSON value and `_field` sibling, typed by its model type
+ * name. Undefined when both are absent.
+ */
+export function convertSingle(raw: unknown, sibling: unknown, typeName: string): TypedValue | undefined {
   if ((raw === undefined || raw === null) && (sibling === undefined || sibling === null)) {
     return undefined
   }

@@ -3,12 +3,14 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { compile } from '../api/compile.ts'
 import { fhirpath } from '../api/tagged.ts'
 import type {
+  Coding,
   HumanName,
   Identifier,
   MedicationRequest,
   Observation,
   Patient,
   PatientContact,
+  Period,
   Quantity,
   SystemQuantity,
 } from '../r4/generated/type-maps.ts'
@@ -603,6 +605,48 @@ describe('degradation to unknown[]', () => {
     expect(fhirpath('Patient.name.given').evaluate(patient, options)).toEqual(['Peter', 'James', 'Jim'])
     const typed = fhirpath('Patient.name.given').evaluate(patient, options)
     expectTypeOf(typed).toEqualTypeOf<string[]>()
+  })
+})
+
+describe('instance selectors', () => {
+  it('infer the named type when the built value satisfies its interface', () => {
+    expectTypeOf<FhirpathResult<"Coding { system: 'http://loinc.org', code: '8480-6' }">>().toEqualTypeOf<Coding[]>()
+    expectTypeOf<FhirpathResult<"FHIR.Coding { code: 'a' }">>().toEqualTypeOf<Coding[]>()
+    expectTypeOf<FhirpathResult<'Period {:}'>>().toEqualTypeOf<Period[]>()
+    // The selector sets resourceType, the only member Patient requires.
+    expectTypeOf<FhirpathResult<'Patient {:}'>>().toEqualTypeOf<Patient[]>()
+    expectTypeOf<FhirpathResult<"Coding { code: 'a' } | Coding {:}">>().toEqualTypeOf<Coding[]>()
+  })
+
+  it('navigate and compose like any other value', () => {
+    expectTypeOf<FhirpathResult<"Coding { code: 'a' }.code">>().toEqualTypeOf<string[]>()
+    expectTypeOf<
+      FhirpathResult<"CodeableConcept { coding: Coding { system: 'a', code: 'b' } | Coding { code: 'c' } }.coding.code">
+    >().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"Coding { code: iif(true, 'a', 'b') }.system">>().toEqualTypeOf<string[]>()
+    expectTypeOf<FhirpathResult<"Patient.select(Coding { system: 'http://x', code: gender })">>().toEqualTypeOf<
+      Coding[]
+    >()
+  })
+
+  it('stay unknown for types with required elements, primitives, and unknown names', () => {
+    // Observation requires status and code, which the selector may leave out.
+    expectTypeOf<FhirpathResult<"Observation { status: 'final' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Observation { value: 5 'mg' }.value">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"code { value: 'final' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Foo { a: 'b' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"System.String { value: 'b' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Coding { code: 'a'">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Period {}'>>().toEqualTypeOf<unknown[]>()
+  })
+
+  it('evaluate at runtime with the inferred type', () => {
+    const coding = r4.evaluate("Patient.select(Coding { system: 'http://x', code: gender })", {
+      resourceType: 'Patient',
+      gender: 'male',
+    })
+    expectTypeOf(coding).toEqualTypeOf<Coding[]>()
+    expect(coding).toEqual([{ system: 'http://x', code: 'male' }])
   })
 })
 

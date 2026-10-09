@@ -903,5 +903,29 @@ export const INFERENCE_CAPABILITIES = {
     composition:
       "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()).exists()",
   },
+  'selector.complex': {
+    source: {
+      expression: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
+      corpusGap: 'instance selectors (FHIRPath 3.0.0) have no reference cases yet',
+    },
+    expectedType: "R4TypeOf['Coding'][]",
+    compositionType: 'string[]',
+    runtime: true,
+    analyzer: { types: ['FHIR.Coding'], single: true },
+    degradation: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).nope",
+    composition: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).code",
+  },
+  'selector.required-elements': {
+    source: {
+      expression: "Observation { status: 'final' }",
+      corpusGap: 'instance selectors (FHIRPath 3.0.0) have no reference cases yet',
+    },
+    expectedType: 'unknown[]',
+    compositionType: 'boolean[]',
+    runtime: true,
+    analyzer: { types: ['FHIR.Observation'], single: true },
+    degradation: "Observation { status: 'final' }.nope",
+    composition: "Observation { status: 'final' }.exists()",
+  },
   ...BUILTIN_FUNCTION_CAPABILITIES,
 } as const satisfies Record<string, CapabilityEntry>

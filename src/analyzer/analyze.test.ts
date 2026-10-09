@@ -793,3 +793,67 @@ describe('analyzeSite', () => {
     expect(analyzeSite({ ...site, expression: 'payload', inputType: 'MyThing' }, options)).toEqual([])
   })
 })
+
+describe('instance selectors', () => {
+  it.each([
+    ["Coding { system: 'http://loinc.org', code: '8480-6' }"],
+    ['Period {:}'],
+    ['Patient.select(Coding { system: %resource.id, code: gender })'],
+    ["Identifier { type: CodeableConcept { coding: Coding { code: 'MR' } }, period: Period { start: @2001-05-06 } }"],
+    ["CodeableConcept { coding: Coding { code: 'a' } | Coding { code: 'b' } }"],
+    ["Observation { value: 5 'mg', status: 'final' }"],
+    ["Extension { url: 'u', value: name.first() }"],
+    ["Quantity { value: 2, unit: 'mg' }"],
+    ["code { value: 'final' }"],
+    ['HumanName { given: name.given }'],
+  ])('accepts %s', expression => {
+    expect(analyzeExpression(expression, options)).toEqual([])
+  })
+
+  it('types the result as one value of the named type', () => {
+    expect(analyzeExpressionDetailed("FHIR.Coding { code: 'a' }", options).result).toEqual({
+      types: ['FHIR.Coding'],
+      single: true,
+      ordered: true,
+    })
+    expect(analyzeExpressionDetailed("Coding { code: 'a' }.code", options).result.types).toEqual(['FHIR.code'])
+    expect(analyzeExpressionDetailed('name.select(HumanName {:})', options).result).toMatchObject({
+      types: ['FHIR.HumanName'],
+      single: false,
+    })
+  })
+
+  it.each([
+    ['Foo { a: 1 }', 'unknown-type', "Unknown type 'Foo'"],
+    [
+      "System.String { value: 'x' }",
+      'unknown-type',
+      "An instance selector builds a model type, but 'System.String' is a System type",
+    ],
+    ["name.Coding { code: 'a' }", 'unknown-type', "Unknown type 'name.Coding'"],
+    ["Coding { cod: 'a' }", 'unknown-element', "Element 'cod' is not defined on FHIR.Coding — did you mean 'code'?"],
+    ['Coding { code: 1 }', 'operand-type', "Element 'code' of FHIR.Coding expects code, found System.Integer"],
+    [
+      'Coding { code: name.given }',
+      'singleton-required',
+      "Element 'code' of FHIR.Coding takes one item — narrow it to one item with first(), last(), or single()",
+    ],
+  ])('reports %s', (expression, code, message) => {
+    expect(analyzeExpression(expression, options).map(d => [d.code, d.message])).toEqual([[code, message]])
+  })
+
+  it('still analyzes the values of an unknown type or element', () => {
+    expect(codes('Foo { a: name.givenn }')).toEqual(['unknown-type', 'unknown-element'])
+    expect(codes('Coding { cod: name.givenn }')).toEqual(['unknown-element', 'unknown-element'])
+  })
+
+  it('without a model, checks only that the type is not a System type', () => {
+    expect(analyzeExpression("Coding { anything: 'x' }", {})).toEqual([])
+    expect(analyzeExpressionDetailed("Coding { anything: 'x' }", {}).result).toEqual({
+      types: undefined,
+      single: true,
+      ordered: true,
+    })
+    expect(analyzeExpression('System.Integer { value: 1 }', {}).map(d => d.code)).toEqual(['unknown-type'])
+  })
+})

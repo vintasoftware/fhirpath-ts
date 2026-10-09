@@ -20,6 +20,15 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   does not check the input, so prefer `compile(expression, type)`.
   `CompiledExpression.inputType` holds the declared type, and the static
   checkers analyze `new CompiledExpression('...')` calls.
+- Instance selectors from FHIRPath 3.0.0 build FHIR values:
+  `Coding { system: 'http://loinc.org', code: '8480-6' }`, and `Period {:}` for
+  a value with no elements. The model checks the type, element names, value
+  types, and cardinality, at runtime and in the static checkers. A choice
+  element takes the key of its value's type, so `Observation { value: 5 'mg' }`
+  sets `valueQuantity`. Type inference gives the named type when it has no
+  required elements other than `resourceType`, as `Coding` and `Patient`, and
+  `unknown[]` otherwise
+  ([#116](https://github.com/vintasoftware/fhirpath-ts/issues/116)).
 
 ### Changed
 

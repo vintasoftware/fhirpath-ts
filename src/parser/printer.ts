@@ -99,6 +99,14 @@ function printInner(node: AstNode): string {
       const bindingPower = INFIX_BINDING_POWER[node.operator] as number
       return `${print(node.left, bindingPower)} ${node.operator} ${print(node.right, bindingPower + 1)}`
     }
+    case 'instance': {
+      const type = node.type.parts.map(printIdentifier).join('.')
+      if (node.elements.length === 0) {
+        return `${type} {:}`
+      }
+      const elements = node.elements.map(element => `${printIdentifier(element.name)}: ${print(element.value, 0)}`)
+      return `${type} { ${elements.join(', ')} }`
+    }
     /* v8 ignore start -- exhaustive fallback, unreachable for real ASTs */
     default: {
       const unreachable: never = node

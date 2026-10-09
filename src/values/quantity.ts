@@ -79,6 +79,25 @@ const UCUM_TIME_TO_CALENDAR: Readonly<Record<string, string>> = Object.fromEntri
 
 const UCUM_SYSTEM = 'http://unitsofmeasure.org'
 
+/** True for FHIR Quantity and its specializations (`Age`, `SimpleQuantity`, ...), by local name. */
+export function isFhirQuantityType(localName: string): boolean {
+  return FHIR_QUANTITY_TYPES.has(localName)
+}
+
+/**
+ * A System.Quantity as FHIR Quantity JSON with a UCUM code. A calendar duration
+ * keeps its word as the unit and takes its UCUM twin as the code, so
+ * `coerceQuantity` reads it back as the same duration.
+ */
+export function toFhirQuantity(quantity: QuantityValue): { value: number; unit: string; system: string; code: string } {
+  return {
+    value: quantity.value.toNumber(),
+    unit: quantity.unit,
+    system: UCUM_SYSTEM,
+    code: asUcum(quantity).unit,
+  }
+}
+
 /** Read a TypedValue as a quantity: System.Quantity directly, FHIR Quantity objects by value+code/unit. */
 export function coerceQuantity(item: TypedValue): QuantityValue | undefined {
   if (item.type === SYSTEM_QUANTITY) {

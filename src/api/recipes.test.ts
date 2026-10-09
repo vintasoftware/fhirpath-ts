@@ -9,6 +9,7 @@ import { type DtoInput, type DtoOptions, FhirPathEngine, type FhirTypeName, type
 import type {
   Appointment,
   Bundle,
+  Coding,
   Condition,
   DiagnosticReport,
   Extension,
@@ -333,6 +334,16 @@ describe('README usage recipes', () => {
       ],
     }
     expect(r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)).toEqual(['g1', 'q1', 'g2', 'q2'])
+  })
+
+  it('build values', () => {
+    const patient: Patient = { resourceType: 'Patient', gender: 'female' }
+    const codings = r4.evaluate(
+      "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
+      patient
+    )
+    expectTypeOf(codings).toEqualTypeOf<Coding[]>()
+    expect(codings).toEqual([{ system: 'http://hl7.org/fhir/administrative-gender', code: 'female' }])
   })
 
   it('deterministic tests and debugging', () => {

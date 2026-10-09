@@ -247,6 +247,26 @@ all depths, so this reads each questionnaire item's `linkId`.
 r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)
 ```
 
+### Build values
+
+An instance selector builds one FHIR value from the current item. An element
+whose value is empty is left out, and `Period {:}` builds a value with no
+elements (`{}` is the empty collection).
+
+```ts
+r4.evaluate(
+  "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
+  patient,
+)
+```
+
+The selector needs at most one item in its focus, so use `select()` to build
+one value per item. Unknown element names, values of the wrong type, and
+several items for an element that does not repeat throw, and the static checkers
+report them. The result above is typed `Coding[]`. A type with required
+elements, such as `Observation`, is typed `unknown[]`, because the selector may
+leave them out.
+
 ### Deterministic tests and debugging
 
 `now` fixes the evaluation clock. `trace()` sends values to the sink you provide
@@ -396,7 +416,7 @@ These features are deferred and fail with a clear error today:
 | `conformsTo()` beyond base StructureDefinitions | Profile-aware validation |
 | `slice()`, `elementDefinition()`, `checkModifiers()` | Profile definitions in the model |
 | `weight()` | Code-system `itemWeight` lookups |
-| `%factory` | Demand for the current R5 draft API |
+| `%factory` | Demand for the current R5 draft API; [instance selectors](#build-values) already build FHIR values |
 | CDA mode | A CDA `ModelProvider` |
 | Full UCUM | A full UCUM implementation behind the current interface |
 | R5 model package | Generated R5 definitions and types |
