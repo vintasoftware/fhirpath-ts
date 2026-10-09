@@ -1,5 +1,6 @@
 import { FhirPathEngine } from '../api/engine.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
+import { R4_PRIMITIVE_PATTERNS } from './generated/primitive-patterns.ts'
 import { R4_RESOURCES_COMPACT } from './generated/resources-data.ts'
 import { R4_DATA_TYPES_COMPACT } from './generated/types-data.ts'
 import { CompactTypeTable, type GeneratedElement, type GeneratedType } from './model-data.ts'
@@ -93,6 +94,11 @@ export const r4Model: ModelProvider = {
     // it, so the walk yields own elements before inherited ones; sorting gives
     // callers one stable order independent of where an element is declared.
     return names.sort()
+  },
+
+  valuePattern(type: string): string | undefined {
+    const name = localName(type)
+    return Object.hasOwn(R4_PRIMITIVE_PATTERNS, name) ? R4_PRIMITIVE_PATTERNS[name] : undefined
   },
 
   isSubtypeOf(type: string, base: string): boolean {

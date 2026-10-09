@@ -876,6 +876,23 @@ describe('analyzeSite', () => {
 })
 
 describe('instance selectors', () => {
+  it('reports literal values that break the FHIR primitive pattern', () => {
+    expect(messages('unsignedInt { value: -1 }')).toEqual([
+      "Element 'value' of unsignedInt does not match the unsignedInt pattern [0]|([1-9][0-9]*)",
+    ])
+    expect(codes("Coding { code: ' final' }")).toEqual(['invalid-value'])
+    expect(codes('Observation { effective: @2020-01-01T10:00 }')).toEqual(['invalid-value'])
+    expect(codes("Observation { effective: @2020-01-01T10:00:00Z, status: 'final' }")).toEqual([])
+    // A time needs seconds; booleans, signed numbers, and decimals have patterns too.
+    expect(codes("Observation { value: @T10:00, status: 'final' }")).toEqual(['invalid-value'])
+    expect(codes("Observation { value: @T10:00:00, status: 'final' }")).toEqual([])
+    expect(codes('Patient { active: true }')).toEqual([])
+    expect(codes('integer { value: -5 }')).toEqual([])
+    expect(codes('decimal { value: -1.50 }')).toEqual([])
+    // A navigated value is checked when the runtime writes it.
+    expect(codes('Coding { code: gender }')).toEqual([])
+  })
+
   it.each([
     ["Coding { system: 'http://loinc.org', code: '8480-6' }"],
     ['Period {:}'],

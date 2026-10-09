@@ -1,7 +1,14 @@
 import '../functions/install.ts'
 
 import { bareEnvironmentName, BUILTIN_ENV_VARIABLE_NAMES, normalizeEnvKeys } from '../engine/context.ts'
-import { acceptingElementType, resolveInstanceType, selectorElement } from '../engine/instance-selector.ts'
+import {
+  acceptingElementType,
+  literalValue,
+  patternedType,
+  resolveInstanceType,
+  selectorElement,
+  valuePatternMessage,
+} from '../engine/instance-selector.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { compileDateFormat } from '../functions/date-format.ts'
 import { intervalKindsMessage, intervalPrecisionMessage, intervalPrecisions } from '../functions/date-intervals.ts'
@@ -1443,6 +1450,18 @@ class Analyzer {
           `Element '${element.name}' of ${type} expects ${info.types.join(' | ')}, found ${value.types.join(' | ')}`,
           element.value.span
         )
+        continue
+      }
+      // A literal value must also match the FHIR primitive's pattern, as the runtime checks.
+      const literal = literalValue(element.value)
+      const elementType = literal === undefined ? undefined : acceptingElementType(model, info.types, literal.type)
+      const primitive = elementType === undefined ? undefined : patternedType(type, element.name, elementType)
+      const message =
+        primitive === undefined
+          ? undefined
+          : valuePatternMessage(model, primitive, literal?.json, element.name, typeLocalName(type))
+      if (message !== undefined) {
+        this.report('invalid-value', message, element.value.span)
       }
     }
     // Without a model the built value has no type the analyzer can name.

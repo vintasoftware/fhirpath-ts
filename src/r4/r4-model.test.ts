@@ -97,3 +97,42 @@ describe('model-aware evaluation', () => {
     expect(evaluate('$this is Observation', patient, { model: r4Model })).toEqual([false])
   })
 })
+
+describe('r4Model value patterns', () => {
+  it('gives each primitive the pattern its value matches whole', () => {
+    expect(r4Model.valuePattern?.('FHIR.positiveInt')).toBe('[1-9][0-9]*')
+    expect(r4Model.valuePattern?.('code')).toBe('[^\\s]+(\\s[^\\s]+)*')
+    expect(r4Model.valuePattern?.('FHIR.xhtml')).toBeUndefined()
+    expect(r4Model.valuePattern?.('FHIR.Coding')).toBeUndefined()
+    expect(r4Model.valuePattern?.('constructor')).toBeUndefined()
+  })
+
+  it('matches every pattern in linear time', () => {
+    // Runs of whitespace before an invalid character make an ambiguous pattern
+    // backtrack exponentially; FHIR's own base64Binary pattern takes minutes here.
+    const inputs = [
+      `${'AAAA  '.repeat(2000)}!`,
+      `${'a '.repeat(5000)} `,
+      `${'0'.repeat(10000)}x`,
+      `${'.0'.repeat(5000)}!`,
+    ]
+    for (const type of ['base64Binary', 'code', 'oid', 'string', 'markdown', 'decimal', 'id', 'uri', 'dateTime']) {
+      const pattern = new RegExp(`^(?:${r4Model.valuePattern?.(type) ?? ''})$`)
+      const start = performance.now()
+      for (const input of inputs) {
+        pattern.test(input)
+      }
+      expect([type, performance.now() - start < 200]).toEqual([type, true])
+    }
+  })
+
+  it('keeps the strings FHIR base64Binary matches', () => {
+    const pattern = new RegExp(`^(?:${r4Model.valuePattern?.('base64Binary') ?? ''})$`)
+    for (const valid of ['QUJD', ' QUJD ', 'QUJD\nQUJD', 'QU==', 'QUJDQUJD']) {
+      expect([valid, pattern.test(valid)]).toEqual([valid, true])
+    }
+    for (const invalid of ['QUJ', 'QU JD', '', 'QUJD!', 'QUJD QU']) {
+      expect([invalid, pattern.test(invalid)]).toEqual([invalid, false])
+    }
+  })
+})

@@ -4,12 +4,20 @@ import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode, InstanceSelectorNode } from '../parser/ast.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
+import { integerLiteral } from '../values/numeric.ts'
 import { isFhirQuantityType, toFhirQuantity } from '../values/quantity.ts'
 import {
   FHIR_PRIMITIVE_TO_SYSTEM,
   OBJECT_TYPE,
   type QuantityValue,
+  SYSTEM_BOOLEAN,
+  SYSTEM_DATE,
+  SYSTEM_DATETIME,
+  SYSTEM_DECIMAL,
+  SYSTEM_LONG,
   SYSTEM_QUANTITY,
+  SYSTEM_STRING,
+  SYSTEM_TIME,
   systemTypeOf,
   type TypedValue,
   typeLocalName,
@@ -133,6 +141,88 @@ export function acceptingElementType(
   )
 }
 
+const VALUE_PATTERNS = new Map<string, RegExp>()
+
+/**
+ * The FHIR primitive whose value pattern a written value must match: the element
+ * type that took it, or the selector's own type for a primitive's `value`.
+ */
+export function patternedType(selectorType: string, element: string, elementType: string): string | undefined {
+  if (isFhirPrimitive(`FHIR.${typeLocalName(elementType)}`) && !elementType.startsWith('System.')) {
+    return elementType
+  }
+  return element === 'value' && isFhirPrimitive(selectorType) ? selectorType : undefined
+}
+
+/**
+ * Why a JSON `value` written as the FHIR primitive `primitive` breaks that type's
+ * value pattern (ModelProvider.valuePattern), or undefined. The message names the
+ * element, type, and pattern, never the value, which may be patient data.
+ */
+export function valuePatternMessage(
+  model: ModelProvider,
+  primitive: string,
+  value: unknown,
+  element: string,
+  owner: string
+): string | undefined {
+  const pattern = model.valuePattern?.(primitive)
+  if (pattern === undefined || value === undefined || value === null) {
+    return undefined
+  }
+  let regex = VALUE_PATTERNS.get(pattern)
+  if (regex === undefined) {
+    regex = new RegExp(`^(?:${pattern})$`)
+    VALUE_PATTERNS.set(pattern, regex)
+  }
+  return regex.test(String(value))
+    ? undefined
+    : `Element '${element}' of ${owner} does not match the ${typeLocalName(primitive)} pattern ${pattern}`
+}
+
+/**
+ * The System type and FHIR JSON of a literal element value, as the runtime writes
+ * it, so the analyzer can check its pattern: strings, booleans, numbers with an
+ * optional sign, dates, and times. Undefined for any other expression.
+ */
+export function literalValue(node: AstNode): { type: string; json: unknown } | undefined {
+  switch (node.kind) {
+    case 'string':
+      return { type: SYSTEM_STRING, json: node.value }
+    case 'boolean':
+      return { type: SYSTEM_BOOLEAN, json: node.value }
+    case 'number':
+      return numberLiteral(node.text, node.isDecimal, node.isLong === true, '')
+    case 'unary':
+      return node.operand.kind === 'number'
+        ? numberLiteral(node.operand.text, node.operand.isDecimal, node.operand.isLong === true, node.operator)
+        : undefined
+    case 'date':
+      return temporalLiteral(SYSTEM_DATE, Temporal.parseDate(node.text))
+    case 'dateTime':
+      return temporalLiteral(SYSTEM_DATETIME, Temporal.parseDateTime(node.text))
+    case 'time':
+      return temporalLiteral(SYSTEM_TIME, Temporal.parseTime(node.text))
+    default:
+      return undefined
+  }
+}
+
+function numberLiteral(
+  text: string,
+  isDecimal: boolean,
+  isLong: boolean,
+  sign: string
+): { type: string; json: unknown } {
+  const type = isLong ? SYSTEM_LONG : isDecimal ? SYSTEM_DECIMAL : integerLiteral(text).type
+  const signed = `${sign === '-' ? '-' : ''}${text}`
+  return { type, json: type === SYSTEM_LONG ? BigInt(signed) : Number(signed) }
+}
+
+function temporalLiteral(type: string, value: Temporal | undefined): { type: string; json: unknown } | undefined {
+  return value === undefined ? undefined : { type, json: value.toString() }
+}
+
 /** One element value as FHIR JSON: the value and, for a FHIR primitive, its `_field` sibling. */
 interface JsonEntry {
   value: unknown
@@ -213,7 +303,7 @@ export function evaluateInstanceSelector(
     if (values.length === 0) {
       continue
     }
-    writeElementValues(json, element.name, info, values, model, typeName)
+    writeElementValues(json, element.name, info, values, model, resolved.type)
   }
   if (!resolved.primitive) {
     return [{ type: resolved.type, value: json }]
@@ -229,8 +319,9 @@ function writeElementValues(
   info: ElementInfo | undefined,
   values: TypedValue[],
   model: ModelProvider | undefined,
-  typeName: string
+  selectorType: string
 ): void {
+  const typeName = typeLocalName(selectorType)
   if (info === undefined || model === undefined) {
     writeElement(
       json,
@@ -255,7 +346,14 @@ function writeElementValues(
       )
     }
     chosen = elementType
-    entries.push(jsonEntry(item, elementType))
+    const entry = jsonEntry(item, elementType)
+    const primitive = patternedType(selectorType, name, elementType)
+    const message =
+      primitive === undefined ? undefined : valuePatternMessage(model, primitive, entry.value, name, typeName)
+    if (message !== undefined) {
+      throw new FhirPathRuntimeError(message)
+    }
+    entries.push(entry)
   }
   const key = info.isChoice && chosen !== undefined ? `${name}${chosen[0]?.toUpperCase()}${chosen.slice(1)}` : name
   writeElement(json, key, entries, info.isCollection)

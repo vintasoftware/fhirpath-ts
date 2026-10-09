@@ -33,4 +33,10 @@ export interface ModelProvider {
    * to raw JSON reads instead of strict unknown-element errors.
    */
   listElements?(type: string): string[] | undefined
+  /**
+   * The regular expression a primitive type's value matches whole, as FHIR's
+   * `regex` extension gives it, or undefined. Instance selectors check the
+   * primitives they build against it.
+   */
+  valuePattern?(type: string): string | undefined
 }

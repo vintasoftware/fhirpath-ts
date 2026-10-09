@@ -263,7 +263,10 @@ r4.evaluate(
 The selector needs at most one item in its focus, so use `select()` to build
 one value per item. Unknown element names, values of the wrong type, and
 several items for an element that does not repeat throw, and the static checkers
-report them. The result above is typed `Coding[]`. A type with required
+report them. Each primitive value must also match its FHIR type's pattern: a
+`code` without leading spaces, a non-empty `string`, a `positiveInt` above zero,
+a `dateTime` with seconds and a time zone when it has a time. The static
+checkers report a literal that does not. The result above is typed `Coding[]`. A type with required
 elements, such as `Observation`, is typed `unknown[]`, because the selector may
 leave them out.
 

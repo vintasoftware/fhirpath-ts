@@ -272,6 +272,22 @@ describe('instance selectors: errors', () => {
       "Element 'value' of positiveInt expects System.Integer, found System.String",
       FhirPathTypeError,
     ],
+    // Values must match the FHIR primitive's pattern; the message leaves the value out.
+    [
+      'unsignedInt { value: -1 }',
+      "Element 'value' of unsignedInt does not match the unsignedInt pattern [0]|([1-9][0-9]*)",
+      FhirPathRuntimeError,
+    ],
+    [
+      'positiveInt { value: 0 }',
+      "Element 'value' of positiveInt does not match the positiveInt pattern [1-9][0-9]*",
+      FhirPathRuntimeError,
+    ],
+    [
+      "Coding { code: ' final' }",
+      "Element 'code' of Coding does not match the code pattern [^\\s]+(\\s[^\\s]+)*",
+      FhirPathRuntimeError,
+    ],
     ['Coding { code: 1 }', "Element 'code' of Coding expects code, found System.Integer", FhirPathTypeError],
     [
       'Coding { code: Patient.name.given }',
@@ -285,6 +301,22 @@ describe('instance selectors: errors', () => {
     ],
   ])('%s throws', (expression, message, type) => {
     expect(() => r4.evaluate(expression, patient)).toThrow(new type(message))
+  })
+
+  it('checks every written primitive against its FHIR pattern', () => {
+    // A dateTime with a time needs seconds and a time zone in FHIR.
+    expect(() => r4.evaluate('Observation { effective: @2020-01-01T10:00 }', patient)).toThrow(
+      "Element 'effective' of Observation does not match the dateTime pattern"
+    )
+    expect(r4.evaluate('Observation { effective: @2020-01-01T10:00:00Z }.effective', patient).map(String)).toEqual([
+      '2020-01-01T10:00:00Z',
+    ])
+    expect(r4.evaluate("Attachment { data: 'QUJD' }", patient)).toEqual([{ data: 'QUJD' }])
+    // Values read from data are checked as well, and the message leaves them out.
+    const invalid = { resourceType: 'Patient', gender: 'two  spaces' }
+    expect(() => r4.evaluate('Coding { code: gender }', invalid)).toThrow(
+      new FhirPathRuntimeError("Element 'code' of Coding does not match the code pattern [^\\s]+(\\s[^\\s]+)*")
+    )
   })
 
   it('checks names before it reads the focus', () => {
