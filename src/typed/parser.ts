@@ -22,7 +22,8 @@ import type {
 type NameToken = ['name', string]
 type KeywordToken = ['keyword', string]
 type SymbolToken = ['symbol', string]
-type LiteralToken = ['string' | 'number' | 'date' | 'dateTime' | 'time', string]
+// `selector` stands for a whole instance selector (CollapseInstanceSelectors).
+type LiteralToken = ['string' | 'number' | 'date' | 'dateTime' | 'time' | 'selector', string]
 type SpecialToken = ['special', 'this' | 'index' | 'total']
 type UnsafeToken = ['unsafe']
 type TypeToken = NameToken | KeywordToken | SymbolToken | LiteralToken | SpecialToken | UnsafeToken
@@ -90,13 +91,72 @@ type IdentifierPart = Letter | Digit
 type Whitespace = ' ' | '\t' | '\r' | '\n' | '\f'
 type Keyword = 'and' | 'or' | 'xor' | 'implies' | 'div' | 'mod' | 'in' | 'contains' | 'is' | 'as' | 'true' | 'false'
 type OneCharacterSymbol =
-  '=' | '~' | '<' | '>' | '+' | '-' | '*' | '|' | '&' | '(' | ')' | '[' | ']' | '{' | '}' | '.' | ',' | '%'
+  '=' | '~' | '<' | '>' | '+' | '-' | '*' | '|' | '&' | '(' | ')' | '[' | ']' | '{' | '}' | '.' | ',' | '%' | ':'
 type SimpleEscape = "'" | '"' | '`' | '/' | '\\' | 'f' | 'n' | 'r' | 't'
 
 type Step<Steps extends unknown[]> = [...Steps, 0]
 
 /** A semantic-token and source-step bounded tokenizer matching the runtime vocabulary. */
-type Tokenize<Source extends string> = Scan<Source, [], []>
+type Tokenize<Source extends string> = Source extends `${string}{${string}:${string}`
+  ? Scan<Source, [], []> extends infer Tokens extends TypeTokens
+    ? CollapseInstanceSelectors<Tokens>
+    : ScanFailure
+  : Scan<Source, [], []>
+
+/**
+ * Replace each instance selector, `Type { name: value, ... }` or `Type {:}`,
+ * with one selector token, as the runtime parser reads a type name before
+ * `{`. The element values are not inferred: the result type does not depend
+ * on them, and each value runs in its own variable scope, so none of its
+ * bindings leave the selector.
+ */
+type CollapseInstanceSelectors<Tokens extends TypeTokens, Out extends TypeTokens = []> = Tokens extends [
+  infer Token extends TypeToken,
+  ...infer Rest extends TypeTokens,
+]
+  ? Token extends ['name', infer Type extends string]
+    ? Rest extends [['symbol', '{'], ...infer Body extends TypeTokens]
+      ? CollapseSelectorBody<Type, Body, Out>
+      : Type extends 'FHIR'
+        ? Rest extends [
+            ['symbol', '.'],
+            ['name', infer Local extends string],
+            ['symbol', '{'],
+            ...infer Body extends TypeTokens,
+          ]
+          ? CollapseSelectorBody<Local, Body, Out>
+          : CollapseInstanceSelectors<Rest, [...Out, Token]>
+        : CollapseInstanceSelectors<Rest, [...Out, Token]>
+    : CollapseInstanceSelectors<Rest, [...Out, Token]>
+  : Out
+
+type CollapseSelectorBody<Type extends string, Body extends TypeTokens, Out extends TypeTokens> = Body extends [
+  ['symbol', ':'],
+  ['symbol', '}'],
+  ...infer Rest extends TypeTokens,
+]
+  ? CollapseInstanceSelectors<Rest, [...Out, ['selector', Type]]>
+  : Body extends [['name' | 'keyword', string], ['symbol', ':'], ...infer Values extends TypeTokens]
+    ? AfterInstanceElements<Values, []> extends infer Rest
+      ? Rest extends TypeTokens
+        ? CollapseInstanceSelectors<Rest, [...Out, ['selector', Type]]>
+        : ScanFailure
+      : ScanFailure
+    : ScanFailure
+
+/** The tokens after the `}` that closes an instance selector; ScanFailure when it never closes. */
+type AfterInstanceElements<Tokens extends TypeTokens, Depth extends unknown[]> = Tokens extends [
+  infer Token extends TypeToken,
+  ...infer Rest extends TypeTokens,
+]
+  ? Token extends ['symbol', '{']
+    ? AfterInstanceElements<Rest, [...Depth, 0]>
+    : Token extends ['symbol', '}']
+      ? Depth extends [unknown, ...infer Outer extends unknown[]]
+        ? AfterInstanceElements<Rest, Outer>
+        : Rest
+      : AfterInstanceElements<Rest, Depth>
+  : ScanFailure
 
 type Scan<Source extends string, Tokens extends TypeTokens, Steps extends unknown[]> = Source extends ''
   ? Tokens
@@ -2242,7 +2302,22 @@ type LiteralState<Token extends LiteralToken> = Token[0] extends 'string'
       ? ['System.DateTime', never]
       : Token[0] extends 'time'
         ? ['System.Time', never]
-        : UnknownState
+        : Token[0] extends 'selector'
+          ? InstanceState<Token[1]>
+          : UnknownState
+
+/**
+ * The value an instance selector builds. The generated interfaces require
+ * every element with minimum cardinality 1, and the selector sets only
+ * `resourceType` by itself, so a type is inferred only when that is all it
+ * requires (`Coding`, `Period`, `Patient`). Other types and primitives stay
+ * unknown.
+ */
+type InstanceState<Type extends string> = Type extends keyof R4TypeOf
+  ? (Type extends keyof R4Resources ? { resourceType: Type } : Record<never, never>) extends R4TypeOf[Type]
+    ? [Type, never]
+    : UnknownState
+  : UnknownState
 
 type IndexResult<Stack extends Values, Index extends InferenceState> = Stack extends [
   ...infer Before extends Values,

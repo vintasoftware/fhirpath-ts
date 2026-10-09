@@ -1,6 +1,7 @@
 import '../functions/install.ts'
 
 import { bareEnvironmentName, BUILTIN_ENV_VARIABLE_NAMES, normalizeEnvKeys } from '../engine/context.ts'
+import { acceptingElementType, resolveInstanceType } from '../engine/instance-selector.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { compileDateFormat } from '../functions/date-format.ts'
 import { intervalPrecisionMessage, intervalPrecisions } from '../functions/date-intervals.ts'
@@ -469,6 +470,8 @@ class Analyzer {
         return this.walkBinary(node, input, scope)
       case 'typeOp':
         return this.walkTypeOp(node, input, scope)
+      case 'instance':
+        return this.walkInstance(node, input, scope)
       /* v8 ignore start -- exhaustive fallback */
       default: {
         const unreachable: never = node
@@ -1338,6 +1341,56 @@ class Analyzer {
     const narrowed =
       node.operator === 'as' && resolved !== undefined ? this.narrowTypes(operand, resolved, node.span) : undefined
     return applyTypeOperatorResultRule(node.operator, narrowed)
+  }
+
+  /**
+   * An instance selector builds one value of the named type from the focus, so
+   * it needs at most one input item. With a model, each element must exist on
+   * the type, take the value's type (`acceptingElementType`, as the runtime
+   * decides), and repeat when the value is a collection.
+   */
+  private walkInstance(node: AstNode & { kind: 'instance' }, input: StaticState, scope: VariableScope): StaticState {
+    this.requireSingle(input, node.span, 'An instance selector expects a single input item')
+    const resolved = resolveInstanceType(this.model, node.type.parts)
+    if ('error' in resolved) {
+      this.report('unknown-type', resolved.error, node.type.span)
+    }
+    const type = 'error' in resolved ? undefined : resolved.type
+    for (const element of node.elements) {
+      // Each element value is its own chain, like an operator operand.
+      const value = this.walk(element.value, input, forkScope(scope))
+      if (type === undefined || this.model === undefined) {
+        continue
+      }
+      const info = this.model.getElement(type, element.name)
+      if (info === undefined) {
+        this.report(
+          'unknown-element',
+          `Element '${element.name}' is not defined on ${type}${didYouMean(element.name, this.elementNames([type]))}`,
+          element.span,
+          'error',
+          element.name
+        )
+        continue
+      }
+      if (!info.isCollection) {
+        this.requireSingle(value, element.value.span, `Element '${element.name}' of ${type} takes one item`)
+      }
+      const model = this.model
+      if (
+        value.types !== undefined &&
+        value.types.length > 0 &&
+        value.types.every(valueType => acceptingElementType(model, info.types, valueType) === undefined)
+      ) {
+        this.report(
+          'operand-type',
+          `Element '${element.name}' of ${type} expects ${info.types.join(' | ')}, found ${value.types.join(' | ')}`,
+          element.value.span
+        )
+      }
+    }
+    // Without a model the built value has no type the analyzer can name.
+    return singleState(type === undefined || this.model === undefined ? undefined : [type])
   }
 
   private checkArithmetic(operator: string, left: StaticState, right: StaticState, span: SourceSpan): void {

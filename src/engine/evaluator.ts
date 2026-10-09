@@ -30,6 +30,7 @@ import {
   withFrame,
   withFunctionOverlay,
 } from './context.ts'
+import { evaluateInstanceSelector } from './instance-selector.ts'
 import { navigateIdentifier } from './navigation.ts'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
 import { resolveHostCall } from './type-matching.ts'
@@ -144,6 +145,8 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
       )
     case 'typeOp':
       return evaluateTypeOp(context, node.operator, evaluateNode(node.operand, context, input), node.type)
+    case 'instance':
+      return evaluateInstanceSelector(node, context, input, evaluateNode)
     /* v8 ignore start -- exhaustive fallback, unreachable for real ASTs */
     default: {
       const unreachable: never = node

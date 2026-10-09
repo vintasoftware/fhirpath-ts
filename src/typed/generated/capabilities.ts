@@ -1287,6 +1287,26 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: true,
     input: 'Organization',
   },
+  'selector.complex': {
+    expression: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
+    degradation: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).nope",
+    composition: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).code",
+    analyzer: {
+      types: ['FHIR.Coding'],
+      single: true,
+    },
+    runtime: true,
+  },
+  'selector.required-elements': {
+    expression: "Observation { status: 'final' }",
+    degradation: "Observation { status: 'final' }.nope",
+    composition: "Observation { status: 'final' }.exists()",
+    analyzer: {
+      types: ['FHIR.Observation'],
+      single: true,
+    },
+    runtime: true,
+  },
   'builtin.abs': {
     expression: 'Patient.name.first().abs()',
     degradation: 'Patient.name.unknownFn()',

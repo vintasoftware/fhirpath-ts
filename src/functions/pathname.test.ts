@@ -283,6 +283,10 @@ describe('pathname()', () => {
       'Patient.name[0].family[0]',
       'Patient.name[1].family[0]',
     ])
+    // So does a call inside an instance selector's element value.
+    expect(evaluate('Patient.select(Coding { code: name.first().pathname() }).code', patient, options)).toEqual([
+      'Patient.name[0]',
+    ])
     const withoutPathname = { ...options, functions: { surname: { expression: 'family' } } }
     for (let call = 0; call < 2; call++) {
       expect(hasOrigin(compile('Patient.name.surname()').evaluateTyped(typedPatient, withoutPathname))).toBe(false)

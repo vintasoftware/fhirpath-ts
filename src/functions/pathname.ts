@@ -101,6 +101,8 @@ function containsPathnameCall(node: AstNode): boolean {
     case 'unary':
     case 'typeOp':
       return containsPathnameCall(node.operand)
+    case 'instance':
+      return node.elements.some(element => containsPathnameCall(element.value))
     case 'null':
     case 'boolean':
     case 'string':

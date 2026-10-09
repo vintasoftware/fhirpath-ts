@@ -210,7 +210,7 @@ export const INFERENCE_CORPUS_AUDIT = {
     {
       id: 'fhirpathjs:fhir-r4.yaml:70:0',
       expression: '@T14:34:28+10:00.is(Time)',
-      error: "Unexpected character ':' (line 1, column 14)",
+      error: "Unexpected ':' after expression (line 1, column 14)",
     },
   ],
 } as const
