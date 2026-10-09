@@ -285,7 +285,7 @@ describe('instance selectors: errors', () => {
     ],
     [
       "Coding { code: ' final' }",
-      "Element 'code' of Coding does not match the code pattern [^\\s]+(\\s[^\\s]+)*",
+      "Element 'code' of Coding does not match the code pattern [^ \\t\\n\\x0B\\f\\r]+([ \\t\\n\\x0B\\f\\r][^ \\t\\n\\x0B\\f\\r]+)*",
       FhirPathRuntimeError,
     ],
     ['Coding { code: 1 }', "Element 'code' of Coding expects code, found System.Integer", FhirPathTypeError],
@@ -312,10 +312,17 @@ describe('instance selectors: errors', () => {
       '2020-01-01T10:00:00Z',
     ])
     expect(r4.evaluate("Attachment { data: 'QUJD' }", patient)).toEqual([{ data: 'QUJD' }])
+    // Unicode spaces are ordinary characters, as in FHIR's (Java) patterns.
+    const spaced: Patient = { resourceType: 'Patient', name: [{ family: 'Yamada　Taro', given: ['A B'] }] }
+    expect(r4.evaluate('Patient.name.select(HumanName { family: family, given: given })', spaced)).toEqual([
+      { family: 'Yamada　Taro', given: ['A B'] },
+    ])
     // Values read from data are checked as well, and the message leaves them out.
     const invalid = { resourceType: 'Patient', gender: 'two  spaces' }
     expect(() => r4.evaluate('Coding { code: gender }', invalid)).toThrow(
-      new FhirPathRuntimeError("Element 'code' of Coding does not match the code pattern [^\\s]+(\\s[^\\s]+)*")
+      new FhirPathRuntimeError(
+        "Element 'code' of Coding does not match the code pattern [^ \\t\\n\\x0B\\f\\r]+([ \\t\\n\\x0B\\f\\r][^ \\t\\n\\x0B\\f\\r]+)*"
+      )
     )
   })
 

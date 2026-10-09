@@ -3,14 +3,14 @@
 
 /**
  * The pattern each R4 primitive type's value matches whole: the `regex` extension on
- * `<type>.value`, with base64Binary's rewritten to an equivalent a JS RegExp matches in
- * linear time (LINEAR_EQUIVALENTS in the script).
+ * `<type>.value`, rewritten for a JS RegExp where it differs: Java's whitespace for `\s`,
+ * and a base64Binary pattern that matches in linear time (JS_PATTERNS in the script).
  */
 export const R4_PRIMITIVE_PATTERNS: Readonly<Record<string, string>> = {
-  base64Binary: '\\s*([0-9a-zA-Z\\+/=]{4}\\s*)+',
+  base64Binary: '[ \\t\\n\\x0B\\f\\r]*([0-9a-zA-Z\\+/=]{4}[ \\t\\n\\x0B\\f\\r]*)+',
   boolean: 'true|false',
-  canonical: '\\S*',
-  code: '[^\\s]+(\\s[^\\s]+)*',
+  canonical: '[^ \\t\\n\\x0B\\f\\r]*',
+  code: '[^ \\t\\n\\x0B\\f\\r]+([ \\t\\n\\x0B\\f\\r][^ \\t\\n\\x0B\\f\\r]+)*',
   date: '([0-9]([0-9]([0-9][1-9]|[1-9]0)|[1-9]00)|[1-9]000)(-(0[1-9]|1[0-2])(-(0[1-9]|[1-2][0-9]|3[0-1]))?)?',
   dateTime:
     '([0-9]([0-9]([0-9][1-9]|[1-9]0)|[1-9]00)|[1-9]000)(-(0[1-9]|1[0-2])(-(0[1-9]|[1-2][0-9]|3[0-1])(T([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|(\\+|-)((0[0-9]|1[0-3]):[0-5][0-9]|14:00)))?)?)?',
@@ -19,13 +19,13 @@ export const R4_PRIMITIVE_PATTERNS: Readonly<Record<string, string>> = {
   instant:
     '([0-9]([0-9]([0-9][1-9]|[1-9]0)|[1-9]00)|[1-9]000)-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?(Z|(\\+|-)((0[0-9]|1[0-3]):[0-5][0-9]|14:00))',
   integer: '-?([0]|([1-9][0-9]*))',
-  markdown: '[ \\r\\n\\t\\S]+',
+  markdown: '[^\\x0B\\f]+',
   oid: 'urn:oid:[0-2](\\.(0|[1-9][0-9]*))+',
   positiveInt: '[1-9][0-9]*',
-  string: '[ \\r\\n\\t\\S]+',
+  string: '[^\\x0B\\f]+',
   time: '([01][0-9]|2[0-3]):[0-5][0-9]:([0-5][0-9]|60)(\\.[0-9]+)?',
   unsignedInt: '[0]|([1-9][0-9]*)',
-  uri: '\\S*',
-  url: '\\S*',
+  uri: '[^ \\t\\n\\x0B\\f\\r]*',
+  url: '[^ \\t\\n\\x0B\\f\\r]*',
   uuid: 'urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
 }

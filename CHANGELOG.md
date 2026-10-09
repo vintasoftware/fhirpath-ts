@@ -43,10 +43,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   - Instance selectors build FHIR values:
     `Coding { system: 'http://loinc.org', code: '8480-6' }`, and `Period {:}`
     for a value with no elements. The model checks the type, element names,
-    value types, and cardinality, at runtime and in the static checkers, and
-    each primitive value against its FHIR type's pattern (a literal one
-    statically). `ModelProvider.valuePattern()` supplies the patterns. A
-    choice element takes the key of its value's type, so
+    value types, and whether an element repeats, at runtime and in the static
+    checkers, and each primitive value against its FHIR type's pattern (a
+    literal one statically). `ModelProvider.valuePattern()` supplies the
+    patterns. A choice element takes the key of its value's type, so
     `Observation { value: 5 'mg' }` sets `valueQuantity`. Type inference gives
     the named type when it has no required elements other than `resourceType`,
     as `Coding` and `Patient`, and `unknown[]` otherwise

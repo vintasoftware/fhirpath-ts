@@ -36,7 +36,6 @@ export function argAt(args: AstNode[], index: number): AstNode {
   return node
 }
 
-/** Function table; the per-section function modules add entries (append-only). */
 /**
  * A Boolean argument such as `combine()`'s `preserveOrder`: one Boolean, or empty.
  * Another type is an error, since no implicit conversion gives a Boolean.
@@ -52,6 +51,7 @@ export function booleanArgument(name: string, value: TypedValue[]): boolean | un
   return item.value as boolean
 }
 
+/** Function table; the per-section function modules add entries (append-only). */
 export const functions = new Map<string, FhirPathFunction>()
 
 export function registerFunction(name: string, fn: FhirPathFunction): void {

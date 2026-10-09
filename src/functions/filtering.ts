@@ -1,9 +1,11 @@
+import type { EvaluationContext } from '../engine/context.ts'
 import { EqualityIndex } from '../engine/operators/equality.ts'
 import { isKnownTypeName, itemMatchesType } from '../engine/type-matching.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
+import type { AstNode } from '../parser/ast.ts'
 import { booleanSingleton, singleton, wrapBoolean } from '../values/collection.ts'
 import type { TypedValue } from '../values/typed-value.ts'
-import { perItem } from './iteration.ts'
+import { type NodeEvaluator, perItem } from './iteration.ts'
 import { argAt, registerFunction } from './registry.ts'
 import { typePartsFromArgument } from './type-specifier.ts'
 
@@ -42,37 +44,56 @@ registerFunction('select', {
  */
 export const MAX_REPEAT_ITEMS = 10_000
 
+/**
+ * The loop repeat() and repeatAll() share: run the projection on each round's
+ * items, keep the results `keep` accepts, and repeat on those until a round
+ * keeps nothing.
+ */
+function repeatProjection(
+  name: string,
+  context: EvaluationContext,
+  input: TypedValue[],
+  expression: AstNode,
+  evaluateNode: NodeEvaluator,
+  keep: (item: TypedValue) => boolean
+): TypedValue[] {
+  const collected: TypedValue[] = []
+  let current = input
+  while (current.length > 0) {
+    const produced: TypedValue[] = []
+    perItem(context, current, expression, evaluateNode, (_item, projected) => {
+      for (const item of projected) {
+        produced.push(item)
+      }
+    })
+    const kept = produced.filter(keep)
+    if (collected.length + kept.length > MAX_REPEAT_ITEMS) {
+      throw new FhirPathRuntimeError(
+        `${name}() collected more than ${MAX_REPEAT_ITEMS} items; the projection may never stop producing values`
+      )
+    }
+    collected.push(...kept)
+    current = kept
+  }
+  return collected
+}
+
 registerFunction('repeat', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const expression = argAt(args, 0)
-    const collected = new EqualityIndex()
+    const distinct = new EqualityIndex()
     // The same value counts as seen even where `=` is not true, as for valueless items.
     const seenValues = new Set<unknown>()
-    let current = input
-    while (current.length > 0) {
-      const produced: TypedValue[] = []
-      perItem(context, current, expression, evaluateNode, (_item, projected) => {
-        produced.push(...projected)
-      })
-      // Only never-seen items continue the loop (including duplicates produced in
-      // the same round), so cyclic data terminates and results stay distinct.
-      const fresh: typeof produced = []
-      for (const item of produced) {
-        if (!seenValues.has(item.value) && collected.add(item)) {
-          seenValues.add(item.value)
-          fresh.push(item)
-        }
+    // Only never-seen items continue the loop, duplicates within one round
+    // included, so cyclic data terminates and results stay distinct.
+    return repeatProjection('repeat', context, input, argAt(args, 0), evaluateNode, item => {
+      if (seenValues.has(item.value) || !distinct.add(item)) {
+        return false
       }
-      if (collected.items.length > MAX_REPEAT_ITEMS) {
-        throw new FhirPathRuntimeError(
-          `repeat() collected more than ${MAX_REPEAT_ITEMS} items; the projection may never stop producing new values`
-        )
-      }
-      current = fresh
-    }
-    return collected.items
+      seenValues.add(item.value)
+      return true
+    })
   },
 })
 
@@ -83,29 +104,8 @@ registerFunction('repeat', {
 registerFunction('repeatAll', {
   minArity: 1,
   maxArity: 1,
-  evaluate: (context, input, args, evaluateNode) => {
-    const expression = argAt(args, 0)
-    const collected: TypedValue[] = []
-    let current = input
-    while (current.length > 0) {
-      const produced: TypedValue[] = []
-      perItem(context, current, expression, evaluateNode, (_item, projected) => {
-        if (collected.length + produced.length + projected.length > MAX_REPEAT_ITEMS) {
-          throw new FhirPathRuntimeError(
-            `repeatAll() collected more than ${MAX_REPEAT_ITEMS} items; the projection may never stop producing values`
-          )
-        }
-        for (const item of projected) {
-          produced.push(item)
-        }
-      })
-      for (const item of produced) {
-        collected.push(item)
-      }
-      current = produced
-    }
-    return collected
-  },
+  evaluate: (context, input, args, evaluateNode) =>
+    repeatProjection('repeatAll', context, input, argAt(args, 0), evaluateNode, () => true),
 })
 
 /** coalesce(...) — ballot STU: the first argument that evaluates non-empty. */

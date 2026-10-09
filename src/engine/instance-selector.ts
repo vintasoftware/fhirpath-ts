@@ -19,6 +19,7 @@ import {
   SYSTEM_STRING,
   SYSTEM_TIME,
   systemTypeOf,
+  systemTypeOfName,
   type TypedValue,
   typeLocalName,
 } from '../values/typed-value.ts'
@@ -93,11 +94,6 @@ const IMPLICIT_TARGETS: Readonly<Record<string, readonly string[]>> = {
   'System.Date': ['System.DateTime'],
 }
 
-/** The System type of a primitive type name (`code`, `System.String`), or undefined for complex types. */
-function systemTwin(type: string): string | undefined {
-  return type.startsWith('System.') ? type : FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(type)]
-}
-
 /**
  * The declared element type that takes a value of `valueType`, or undefined
  * when none does. For a choice element it picks the type, and so the JSON key.
@@ -118,7 +114,7 @@ export function acceptingElementType(
   if (exact !== undefined) {
     return exact
   }
-  const complex = elementTypes.filter(type => systemTwin(type) === undefined)
+  const complex = elementTypes.filter(type => systemTypeOfName(type) === undefined)
   if (valueType === OBJECT_TYPE) {
     return elementTypes.length === 1 ? complex[0] : undefined
   }
@@ -129,15 +125,15 @@ export function acceptingElementType(
   if (valueType === SYSTEM_QUANTITY) {
     return complex.find(type => type === 'Quantity') ?? complex.find(isFhirQuantityType)
   }
-  const system = systemTwin(valueType)
+  const system = systemTypeOfName(valueType)
   if (system === undefined) {
     return undefined
   }
   const named = PRIMITIVE_FOR_SYSTEM[system]
   return (
     elementTypes.find(type => type === named) ??
-    elementTypes.find(type => systemTwin(type) === system) ??
-    elementTypes.find(type => IMPLICIT_TARGETS[system]?.includes(systemTwin(type) ?? '') === true)
+    elementTypes.find(type => systemTypeOfName(type) === system) ??
+    elementTypes.find(type => IMPLICIT_TARGETS[system]?.includes(systemTypeOfName(type) ?? '') === true)
   )
 }
 

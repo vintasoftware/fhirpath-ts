@@ -31,7 +31,7 @@ import {
   unsatisfiedInput,
   type ValueKind,
 } from '../values/type-compat.ts'
-import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
+import { FHIR_PRIMITIVE_TO_SYSTEM, systemTypeOfName, typeLocalName } from '../values/typed-value.ts'
 import {
   analyzerEnvironmentVariables,
   type AnalyzerVariable,
@@ -1181,7 +1181,7 @@ class Analyzer {
     if (kind === undefined || format?.kind !== 'string') {
       return
     }
-    if (input.types !== undefined && !input.types.some(type => systemTypeName(type) === 'System.String')) {
+    if (input.types !== undefined && !input.types.some(type => systemTypeOfName(type) === 'System.String')) {
       return
     }
     try {
@@ -1544,11 +1544,6 @@ const DATE_FORMAT_FUNCTIONS: ReadonlyMap<string, 'date' | 'dateTime'> = new Map(
   ['convertsToDateTime', 'dateTime'],
 ])
 
-/** The System type a model or System type name behaves as (`FHIR.code` → `System.String`). */
-function systemTypeName(type: string): string | undefined {
-  return type.startsWith('System.') ? type : FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(type)]
-}
-
 const TEMPORAL_KINDS: Readonly<Record<string, TemporalKind>> = {
   'System.Date': 'date',
   'System.DateTime': 'dateTime',
@@ -1557,7 +1552,7 @@ const TEMPORAL_KINDS: Readonly<Record<string, TemporalKind>> = {
 
 /** The one temporal kind every candidate type has, if any. */
 function temporalKindOf(types: readonly string[] | undefined): TemporalKind | undefined {
-  const kinds = new Set((types ?? []).map(type => TEMPORAL_KINDS[systemTypeName(type) ?? '']))
+  const kinds = new Set((types ?? []).map(type => TEMPORAL_KINDS[systemTypeOfName(type) ?? '']))
   const [kind] = kinds
   return kinds.size === 1 ? kind : undefined
 }

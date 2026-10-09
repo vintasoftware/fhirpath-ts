@@ -78,10 +78,12 @@ export const FHIR_PRIMITIVE_TO_SYSTEM: Readonly<Record<string, string>> = {
  * undefined. Operators dispatch on this so FHIR-typed primitives keep working.
  */
 export function systemTypeOf(item: TypedValue): string | undefined {
-  if (item.type.startsWith('System.')) {
-    return item.type
-  }
-  return FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(item.type)]
+  return systemTypeOfName(item.type)
+}
+
+/** The System type a type name behaves as, by the same rule as systemTypeOf(). */
+export function systemTypeOfName(type: string): string | undefined {
+  return type.startsWith('System.') ? type : FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(type)]
 }
 
 /** The local part of a qualified type name: `System.Boolean` → `Boolean`. */

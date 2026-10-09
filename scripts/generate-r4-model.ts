@@ -426,15 +426,31 @@ export const ${constName}: string = \`${encodeCompactTypes(data)}\`
   writeGenerated(path, await formatGeneratedTypeScript(content), `${Object.keys(data).length} types`)
 }
 
+/** Java's `\s`: HAPI's validator runs these patterns with java.util.regex. */
+const SPACE = '[ \\t\\n\\x0B\\f\\r]'
+const NON_SPACE = '[^ \\t\\n\\x0B\\f\\r]'
+
 /**
- * Patterns that backtrack exponentially in a JS RegExp, with an equivalent that
- * does not. FHIR's base64Binary pattern allows whitespace on both sides of each
- * 4-character group, so a run of spaces before an invalid character splits many
- * ways; whitespace between groups belongs to one side, which keeps the strings
- * it matches and leaves one way to match them.
+ * R4 patterns rewritten for a JS RegExp, matching the same strings:
+ * - `\s` and `\S` become Java's whitespace sets. A JS `\s` also matches Unicode
+ *   spaces such as U+00A0 and U+3000, so `[ \r\n\t\S]+` would reject a valid
+ *   string that holds one. `[ \r\n\t\S]` is every character but the two Java
+ *   spaces it does not list.
+ * - FHIR's base64Binary pattern allows whitespace on both sides of each
+ *   4-character group, so a run of spaces before an invalid character splits
+ *   many ways and backtracks exponentially. Whitespace between groups belongs
+ *   to one side here, which leaves one way to match.
+ * The script fails when a source pattern changes or another one uses `\s`, so
+ * each rewrite gets reviewed.
  */
-const LINEAR_EQUIVALENTS: Readonly<Record<string, { source: string; linear: string }>> = {
-  base64Binary: { source: '(\\s*([0-9a-zA-Z\\+/=]){4}\\s*)+', linear: '\\s*([0-9a-zA-Z\\+/=]{4}\\s*)+' },
+const JS_PATTERNS: Readonly<Record<string, { source: string; js: string }>> = {
+  base64Binary: { source: '(\\s*([0-9a-zA-Z\\+/=]){4}\\s*)+', js: `${SPACE}*([0-9a-zA-Z\\+/=]{4}${SPACE}*)+` },
+  canonical: { source: '\\S*', js: `${NON_SPACE}*` },
+  code: { source: '[^\\s]+(\\s[^\\s]+)*', js: `${NON_SPACE}+(${SPACE}${NON_SPACE}+)*` },
+  markdown: { source: '[ \\r\\n\\t\\S]+', js: '[^\\x0B\\f]+' },
+  string: { source: '[ \\r\\n\\t\\S]+', js: '[^\\x0B\\f]+' },
+  uri: { source: '\\S*', js: `${NON_SPACE}*` },
+  url: { source: '\\S*', js: `${NON_SPACE}*` },
 }
 
 /** Each primitive type's value pattern: the `regex` extension on the type of `<type>.value`. */
@@ -449,11 +465,15 @@ function primitivePatterns(bundle: Bundle): [string, string][] {
     if (pattern === undefined) {
       continue
     }
-    const equivalent = LINEAR_EQUIVALENTS[definition.id]
-    if (equivalent !== undefined && equivalent.source !== pattern) {
-      throw new Error(`The ${definition.id} pattern changed; review its linear equivalent: ${pattern}`)
+    const rewrite = JS_PATTERNS[definition.id]
+    if (rewrite !== undefined && rewrite.source !== pattern) {
+      throw new Error(`The ${definition.id} pattern changed; review its JS rewrite: ${pattern}`)
     }
-    patterns.push([definition.id, equivalent?.linear ?? pattern])
+    const js = rewrite?.js ?? pattern
+    if (/\\[sS]/.test(js)) {
+      throw new Error(`The ${definition.id} pattern uses \\s, which JS reads differently; add a JS rewrite: ${pattern}`)
+    }
+    patterns.push([definition.id, js])
   }
   return patterns.sort(([a], [b]) => (a < b ? -1 : 1))
 }
@@ -465,8 +485,8 @@ async function emitPrimitivePatterns(patterns: [string, string][]): Promise<void
 
 /**
  * The pattern each R4 primitive type's value matches whole: the \`regex\` extension on
- * \`<type>.value\`, with base64Binary's rewritten to an equivalent a JS RegExp matches in
- * linear time (LINEAR_EQUIVALENTS in the script).
+ * \`<type>.value\`, rewritten for a JS RegExp where it differs: Java's whitespace for \`\\s\`,
+ * and a base64Binary pattern that matches in linear time (JS_PATTERNS in the script).
  */
 export const R4_PRIMITIVE_PATTERNS: Readonly<Record<string, string>> = {
 ${entries.join('\n')}
