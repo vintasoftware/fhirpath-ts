@@ -278,6 +278,15 @@ describe('combining', () => {
     expect(evaluate('(1 | 2 | 3).combine(2 | 3, false)')).toEqual([1, 2, 3, 2, 3])
     expect(evaluate('(1 | 2).combine({}, true)')).toEqual([1, 2])
     expect(() => evaluate('(1 | 2).combine(3, true | false)')).toThrow(FhirPathRuntimeError)
+    // Nothing converts to a Boolean implicitly, so another type is an error.
+    expect(() => evaluate('(1 | 2).combine(3, 1)')).toThrow(
+      'combine() expects a Boolean argument, found System.Integer'
+    )
+    expect(() => evaluate("(1 | 2).combine(3, 'true')")).toThrow(FhirPathTypeError)
+    const patient = { resourceType: 'Patient', active: true, name: [{ family: 'a' }] }
+    expect(evaluate('Patient.name.combine(Patient.name, Patient.active).count()', patient, { model: r4Model })).toEqual(
+      [2]
+    )
   })
 })
 

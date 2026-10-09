@@ -1,6 +1,5 @@
 import { unionCollections } from '../engine/operators/collections.ts'
-import { booleanSingleton } from '../values/collection.ts'
-import { argAt, registerFunction } from './registry.ts'
+import { argAt, booleanArgument, registerFunction } from './registry.ts'
 
 registerFunction('union', {
   minArity: 1,
@@ -17,7 +16,7 @@ registerFunction('combine', {
   evaluate: (context, input, args, evaluateNode) => {
     const other = evaluateNode(argAt(args, 0), context, input)
     if (args.length === 2) {
-      booleanSingleton(evaluateNode(argAt(args, 1), context, input))
+      booleanArgument('combine', evaluateNode(argAt(args, 1), context, input))
     }
     return [...input, ...other]
   },

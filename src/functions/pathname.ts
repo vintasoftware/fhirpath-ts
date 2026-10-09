@@ -1,9 +1,8 @@
 import type { EvaluationContext, HostFunction } from '../engine/context.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { printIdentifier } from '../parser/printer.ts'
-import { booleanSingleton } from '../values/collection.ts'
 import { SYSTEM_STRING, type TypedValue } from '../values/typed-value.ts'
-import { argAt, registerFunction } from './registry.ts'
+import { argAt, booleanArgument, registerFunction } from './registry.ts'
 
 /**
  * pathname([short]): the path of each input item inside the input resource,
@@ -18,7 +17,8 @@ registerFunction('pathname', {
   minArity: 0,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const short = args.length === 1 && booleanSingleton(evaluateNode(argAt(args, 0), context, input)) === true
+    const short =
+      args.length === 1 && booleanArgument('pathname', evaluateNode(argAt(args, 0), context, input)) === true
     const roots = new Set(context.root)
     const result: TypedValue[] = []
     for (const item of input) {

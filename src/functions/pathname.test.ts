@@ -105,6 +105,9 @@ describe('pathname()', () => {
     expect(evaluate('Observation.value.pathname(true)', observation, options)).toEqual(['Observation.value'])
     expect(evaluate('Observation.value.pathname(false)', observation, options)).toEqual(['Observation.value[0]'])
     expect(evaluate('Observation.value.pathname({})', observation, options)).toEqual(['Observation.value[0]'])
+    expect(() => evaluate("Observation.value.pathname('yes')", observation, options)).toThrow(
+      'pathname() expects a Boolean argument, found System.String'
+    )
     // `name` is an array in the model, so it keeps its indexer even with one entry.
     expect(evaluate('Patient.name.family.pathname(true)', patient, options)).toEqual([
       'Patient.name[0].family',
