@@ -88,14 +88,11 @@ Infer literal `env` values before applying `envTypes`; explicit declarations
 remain the override for widened values and Reference targets.
 
 `Tokenize` collapses each instance selector, `Type { ... }`, into one `selector`
-token, so the rest of the expression stays typed. The token infers as the named
-interface only when the type is in the generated `R4OptionalTypes` (no required
-element besides `resourceType`) and so is every selector nested in it; anything
-else is `unknown[]`. Both conditions are load-bearing: the runtime checks the
-codes of required bindings, which the interfaces list, but builds a value
-without its required elements (#124), which the interfaces require.
-`BackboneElement` and `Element` stay out of `R4OptionalTypes` because they
-build the backbone element they are the value of. Keep selector detection in
+token, typed `unknown[]`, so the rest of the expression stays typed. Do not
+type it as the named interface: the interfaces list the codes of required
+bindings and require min-1 elements, and the runtime checks neither in a built
+value. The code sets would add about 23 KB to the runtime model for a
+trial-use feature, and no peer engine checks them. Keep selector detection in
 the tokenizer: a `ParseOperand` branch for a name before `{` cost about 4k API
 surface instantiations even for expressions without selectors.
 

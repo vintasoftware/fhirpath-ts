@@ -46,19 +46,15 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     checkers, and each primitive value against its FHIR type's pattern (a
     literal one statically). `ModelProvider.valuePattern()` supplies the
     patterns. A choice element takes the key of its value's type, so
-    `Observation { value: 5 'mg' }` sets `valueQuantity`
+    `Observation { value: 5 'mg' }` sets `valueQuantity`. Type inference
+    gives a selector `unknown[]`, since the runtime does not check a built
+    value's codes against their required bindings, and the rest of the
+    expression stays typed
     ([#116](https://github.com/vintasoftware/fhirpath-ts/issues/116)).
   - `BackboneElement { ... }` (or `Element { ... }`) written as the value of a
     backbone element builds it, as in
     `Observation { component: BackboneElement { code: CodeableConcept { text: 'x' } } }`
     ([#132](https://github.com/vintasoftware/fhirpath-ts/issues/132)).
-  - A selector rejects a `code` outside its element's required binding, such as
-    `Patient { gender: 'x' }`, and the static checkers report a literal one
-    (`invalid-value`). `ElementInfo.requiredCodes` supplies the codes. Type
-    inference gives a selector its type's interface when the type requires no
-    element and every selector nested in it does the same, such as `Coding[]`;
-    other selectors infer `unknown[]`
-    ([#133](https://github.com/vintasoftware/fhirpath-ts/issues/133)).
   - The static checkers warn (`missing-element`) for a required element a
     selector leaves out; the runtime builds the partial value, as the spec
     allows. `ElementInfo.isRequired` marks those elements

@@ -310,9 +310,8 @@ The analyzer checks:
 - comparisons that cannot match;
 - order-dependent operations on collections known to be unordered;
 - choice-key misuse such as `Observation.valueQuantity`;
-- instance selector literals that do not match their FHIR primitive's pattern or
-  a required binding's codes, and, as a `missing-element` warning, required
-  elements a selector leaves out;
+- instance selector literals that do not match their FHIR primitive's pattern,
+  and, as a `missing-element` warning, required elements a selector leaves out;
 - regular expression literals that may have catastrophic backtracking.
 
 Each fact stays unknown until the analyzer can prove it. For example,

@@ -284,9 +284,9 @@ one value per item. Unknown element names, values of the wrong type, and
 several items for an element that does not repeat throw, and the static checkers
 report them. Each primitive value must also match its FHIR type's pattern: a
 `code` without leading spaces, a non-empty `string`, a `positiveInt` above zero,
-a `dateTime` with seconds and a time zone when it has a time. A `code` with a
-required binding must be one of its codes, so `Patient { gender: 'x' }` throws.
-The static checkers report a literal that breaks either rule.
+a `dateTime` with seconds and a time zone when it has a time. The static checkers
+report a literal that breaks the pattern. A `code` is not checked against its
+required binding, so type inference gives a selector `unknown[]`.
 
 Backbone elements have no type name, so `BackboneElement { ... }` written as
 the value of one builds it:
