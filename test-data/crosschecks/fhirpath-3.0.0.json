@@ -1,0 +1,2301 @@
+{
+  "sources": {
+    "gofhir/fhirpath": {
+      "commit": "ee6e131b49a1f607f5576c1a0cc154756a457ebc",
+      "license": "LICENSE-gofhir.md"
+    },
+    "aehrc/pathling": {
+      "commit": "56a3b4ab76cde001b363c4a36adf3017700bbbae",
+      "license": "LICENSE-pathling.txt"
+    },
+    "brendankowitz/ignixa-fhir": {
+      "commit": "a9a8833143ab62b4eb5216e9d9f2d3cc97b03404",
+      "license": "LICENSE-ignixa.md"
+    },
+    "HL7/fhirpath.js": {
+      "commit": "137c5014cb0fb7ba66c5762ff40bd5a3a000fd48",
+      "license": "LICENSE-fhirpath.js.md"
+    }
+  },
+  "inputs": {
+    "patient-empty": {
+      "resourceType": "Patient"
+    },
+    "empty-object": {},
+    "patient-two-smiths": {
+      "resourceType": "Patient",
+      "name": [
+        {
+          "family": "Smith"
+        },
+        {
+          "family": "Smith"
+        }
+      ]
+    },
+    "questionnaire-nested": {
+      "resourceType": "Questionnaire",
+      "id": "test-questionnaire",
+      "status": "draft",
+      "item": [
+        {
+          "linkId": "1",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "1.1",
+              "type": "group",
+              "item": [
+                {
+                  "linkId": "1.1.1",
+                  "type": "display"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "linkId": "2",
+          "type": "display"
+        }
+      ]
+    },
+    "patient-names-gender": {
+      "resourceType": "Patient",
+      "name": [
+        {
+          "family": "Smith"
+        },
+        {
+          "family": "Jones"
+        }
+      ],
+      "gender": "male",
+      "maritalStatus": {
+        "coding": [
+          {
+            "code": "M"
+          }
+        ]
+      }
+    },
+    "patient-nested-extensions": {
+      "resourceType": "Patient",
+      "id": "test-patient",
+      "extension": [
+        {
+          "url": "http://example.com/simple",
+          "valueString": "simple-value"
+        },
+        {
+          "url": "http://example.com/parent",
+          "extension": [
+            {
+              "url": "http://example.com/child",
+              "valueString": "child-value"
+            }
+          ]
+        }
+      ],
+      "name": [
+        {
+          "family": "Smith"
+        },
+        {
+          "family": "Jones"
+        }
+      ],
+      "gender": "male",
+      "maritalStatus": {
+        "coding": [
+          {
+            "system": "http://example.com/cs",
+            "code": "M",
+            "display": "Married"
+          }
+        ]
+      }
+    },
+    "questionnaire-no-items": {
+      "resourceType": "Questionnaire",
+      "id": "empty-questionnaire",
+      "status": "draft"
+    },
+    "questionnaire-flat": {
+      "resourceType": "Questionnaire",
+      "id": "flat-questionnaire",
+      "status": "draft",
+      "item": [
+        {
+          "linkId": "a",
+          "type": "display"
+        },
+        {
+          "linkId": "b",
+          "type": "display"
+        },
+        {
+          "linkId": "c",
+          "type": "display"
+        }
+      ]
+    },
+    "questionnaire-duplicate-link-ids": {
+      "resourceType": "Questionnaire",
+      "id": "dup-questionnaire",
+      "status": "draft",
+      "item": [
+        {
+          "linkId": "A",
+          "type": "group",
+          "item": [
+            {
+              "linkId": "B",
+              "type": "display"
+            }
+          ]
+        },
+        {
+          "linkId": "B",
+          "type": "display"
+        }
+      ]
+    },
+    "questionnaire-response-answer-items": {
+      "resourceType": "QuestionnaireResponse",
+      "id": "cross-type-qr",
+      "status": "completed",
+      "item": [
+        {
+          "linkId": "root",
+          "answer": [
+            {
+              "item": [
+                {
+                  "linkId": "nested-1",
+                  "answer": [
+                    {
+                      "item": [
+                        {
+                          "linkId": "nested-2"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "observation-quantity": {
+      "resourceType": "Observation",
+      "id": "test-observation",
+      "status": "final",
+      "valueQuantity": {
+        "value": 42.0,
+        "unit": "mg",
+        "system": "http://unitsofmeasure.org"
+      }
+    },
+    "questionnaire-item-extensions": {
+      "resourceType": "Questionnaire",
+      "id": "ext-questionnaire",
+      "status": "draft",
+      "item": [
+        {
+          "extension": [
+            {
+              "url": "http://example.com/ext",
+              "valueString": "ext-1"
+            }
+          ],
+          "linkId": "1",
+          "type": "group",
+          "item": [
+            {
+              "extension": [
+                {
+                  "url": "http://example.com/ext",
+                  "valueString": "ext-1.1"
+                }
+              ],
+              "linkId": "1.1",
+              "type": "display"
+            }
+          ]
+        },
+        {
+          "extension": [
+            {
+              "url": "http://example.com/ext",
+              "valueString": "ext-2"
+            }
+          ],
+          "linkId": "2",
+          "type": "display"
+        }
+      ]
+    },
+    "ints": {
+      "ints": [
+        1,
+        2,
+        3
+      ]
+    },
+    "integer-1": [
+      1
+    ],
+    "integers-1-2-3": [
+      1,
+      2,
+      3
+    ],
+    "patient-doe": {
+      "resourceType": "Patient",
+      "name": [
+        {
+          "family": "Doe"
+        }
+      ]
+    },
+    "patient-names-contacts": {
+      "resourceType": "Patient",
+      "id": "example",
+      "name": [
+        {
+          "family": "Doe",
+          "given": [
+            "John",
+            "F"
+          ]
+        },
+        {
+          "family": "Smith",
+          "given": [
+            "Jeremy"
+          ]
+        }
+      ],
+      "contact": [
+        {
+          "relationship": [
+            {
+              "text": "Parent"
+            }
+          ],
+          "name": {
+            "family": "Jones",
+            "given": [
+              "John"
+            ]
+          }
+        },
+        {
+          "relationship": [
+            {
+              "text": "Emergency"
+            }
+          ],
+          "name": {
+            "family": "Smith",
+            "given": [
+              "Jane",
+              "Francis"
+            ]
+          }
+        }
+      ],
+      "birthDate": "1990-01-15",
+      "active": true
+    },
+    "observation-components": {
+      "resourceType": "Observation",
+      "id": "obs1",
+      "status": "final",
+      "code": {
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "85354-9"
+          },
+          {
+            "system": "http://snomed.info/sct",
+            "code": "75367002"
+          }
+        ],
+        "text": "Blood pressure"
+      },
+      "component": [
+        {
+          "code": {
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "8480-6"
+              }
+            ]
+          },
+          "valueQuantity": {
+            "value": 120,
+            "unit": "mmHg"
+          }
+        },
+        {
+          "code": {
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "8462-4"
+              }
+            ]
+          },
+          "valueQuantity": {
+            "value": 80,
+            "unit": "mmHg"
+          }
+        }
+      ]
+    },
+    "questionnaire-response-nested": {
+      "resourceType": "QuestionnaireResponse",
+      "id": "qr1",
+      "status": "completed",
+      "item": [
+        {
+          "linkId": "q1",
+          "answer": [
+            {
+              "valueString": "Answer 1"
+            }
+          ]
+        },
+        {
+          "linkId": "q2",
+          "item": [
+            {
+              "linkId": "q2.1",
+              "answer": [
+                {
+                  "valueString": "Nested answer"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "patient-male": {
+      "resourceType": "Patient",
+      "gender": "male"
+    },
+    "empty-collection": [],
+    "two-patients": [
+      {
+        "resourceType": "Patient"
+      },
+      {
+        "resourceType": "Patient"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2024-12-31.duration(@2025-01-01, 'year')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        0
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2024-12-31.difference(@2025-01-01, 'month')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        1
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025-01-07.difference(@2025-01-02, 'week')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        -1
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025-01-01.duration(@2024-01-01, 'year')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        -1
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2000-06-15.duration(@2025-06-14, 'year')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        24
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2000-06-15.duration(@2025-06-15, 'year')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        25
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025.difference(@2025-01-07, 'day')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025-01.duration(@2025-09, 'day')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025-01.difference(@2025-03, 'week')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025.difference(@2027, 'year')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        2
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "{}.difference(@2025-01-07, 'day')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025-01-07.difference({}, 'day')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025-01-01T12:00:00Z.difference(@2025-01-01T13:00:00+01:00, 'hour')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        0
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025-01-01T12:00:00Z.difference(@2025-01-01T13:00:00Z, 'hour')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        1
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@T10:30:00.difference(@T11:15:00, 'minute')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        45
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@T10:30:00.difference(@T11:15:00, 'hour')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        1
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@T10:30:00.duration(@T11:15:00, 'hour')",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        0
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025-01-02.difference(@2025-01-07, 'hour')",
+      "input": "patient-empty",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@T10:30:00.difference(@T11:15:00, 'day')",
+      "input": "patient-empty",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "temporal_difference_test.go",
+      "expression": "@2025-01-02.difference(@2025-01-07, 'fortnight')",
+      "input": "patient-empty",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "default_offset_reach_test.go",
+      "expression": "@2020-01-01.duration(@2020-01-01T10:00:00, 'day')",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        0
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'ABC'.matches('abc', 'i')",
+      "input": "empty-object",
+      "values": [
+        true
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'ABC'.matchesFull('abc', 'i')",
+      "input": "empty-object",
+      "values": [
+        true
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'aAbB'.replaceMatches('a', 'x', 'i')",
+      "input": "empty-object",
+      "values": [
+        "xxbB"
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'ABC\\nDEF'.matches('^def', 'mi')",
+      "input": "empty-object",
+      "values": [
+        true
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'ABC\\nDEF'.matches('^def', 'iim')",
+      "input": "empty-object",
+      "values": [
+        true
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'A\\nB'.matches('A.B', '')",
+      "input": "empty-object",
+      "values": [
+        true
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'A\\nB'.matches('A.B', 'm')",
+      "input": "empty-object",
+      "values": [
+        true
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'abc'.matches('a', 'z')",
+      "input": "empty-object",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'abc'.matches('a', 'ix')",
+      "input": "empty-object",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'abc'.matches('a', 's')",
+      "input": "empty-object",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'abc'.matchesFull('a', 'g')",
+      "input": "empty-object",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "regex_flags_test.go",
+      "expression": "'abc'.replaceMatches('a', 'x', 'u')",
+      "input": "empty-object",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "scoped_functions_test.go",
+      "expression": "name.repeatAll(family).count()",
+      "input": "patient-two-smiths",
+      "model": "r4",
+      "values": [
+        2
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(item).linkId",
+      "input": "questionnaire-nested",
+      "model": "r4",
+      "values": [
+        "1",
+        "2",
+        "1.1",
+        "1.1.1"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(item).count()",
+      "input": "questionnaire-nested",
+      "model": "r4",
+      "values": [
+        4
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(item).where(type = 'group').linkId",
+      "input": "questionnaire-nested",
+      "model": "r4",
+      "values": [
+        "1",
+        "1.1"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "item.where(linkId = 'nonexistent').repeatAll(item)",
+      "input": "questionnaire-nested",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll($index)",
+      "input": "questionnaire-nested",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(name).family",
+      "input": "patient-names-gender",
+      "model": "r4",
+      "values": [
+        "Smith",
+        "Jones"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(gender)",
+      "input": "patient-names-gender",
+      "model": "r4",
+      "values": [
+        "male"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(maritalStatus).coding.code",
+      "input": "patient-names-gender",
+      "model": "r4",
+      "values": [
+        "M"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "gender.repeatAll($this)",
+      "input": "patient-nested-extensions",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "gender.repeatAll('someValue')",
+      "input": "patient-nested-extensions",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "gender.repeatAll(length())",
+      "input": "patient-nested-extensions",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "name.repeatAll(first()).count()",
+      "input": "patient-nested-extensions",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll($this)",
+      "input": "patient-nested-extensions",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "name.repeatAll(%resource).gender",
+      "input": "patient-nested-extensions",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(extension).url",
+      "input": "patient-nested-extensions",
+      "model": "r4",
+      "values": [
+        "http://example.com/simple",
+        "http://example.com/parent",
+        "http://example.com/child"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(extension).value.ofType(string)",
+      "input": "patient-nested-extensions",
+      "model": "r4",
+      "values": [
+        "simple-value",
+        "child-value"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(item)",
+      "input": "questionnaire-no-items",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(item).count()",
+      "input": "questionnaire-no-items",
+      "model": "r4",
+      "values": [
+        0
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "{}.repeatAll($this)",
+      "input": "questionnaire-no-items",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(item).linkId",
+      "input": "questionnaire-flat",
+      "model": "r4",
+      "values": [
+        "a",
+        "b",
+        "c"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(item).linkId",
+      "input": "questionnaire-duplicate-link-ids",
+      "model": "r4",
+      "values": [
+        "A",
+        "B",
+        "B"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(item).count()",
+      "input": "questionnaire-duplicate-link-ids",
+      "model": "r4",
+      "values": [
+        3
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "item.repeatAll(answer.item).linkId",
+      "input": "questionnaire-response-answer-items",
+      "model": "r4",
+      "values": [
+        "nested-1",
+        "nested-2"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(item | answer.item).linkId",
+      "input": "questionnaire-response-answer-items",
+      "model": "r4",
+      "values": [
+        "root",
+        "nested-1",
+        "nested-2"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "value.repeatAll($this)",
+      "input": "observation-quantity",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "value.repeatAll(ofType(Quantity)).count()",
+      "input": "observation-quantity",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "value.repeatAll(first())",
+      "input": "observation-quantity",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/RepeatAllFunctionDslTest.java",
+      "expression": "repeatAll(item).extension('http://example.com/ext').value.ofType(string)",
+      "input": "questionnaire-item-extensions",
+      "model": "r4",
+      "values": [
+        "ext-1",
+        "ext-2",
+        "ext-1.1"
+      ]
+    },
+    {
+      "source": "aehrc/pathling",
+      "file": "fhirpath/src/test/java/au/csiro/pathling/fhirpath/dsl/CombiningFunctionsDslTest.java",
+      "expression": "ints.combine(1, 2)",
+      "input": "ints",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Coding { system: 'http://example.org', code: 'c1' }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "system": "http://example.org",
+          "code": "c1"
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Identifier { system: 'http://hl7.org', value: 'N0001', use: 'official' }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "system": "http://hl7.org",
+          "value": "N0001",
+          "use": "official"
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Identifier { type: CodeableConcept { coding: Coding { code: 'MR' } } }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "type": {
+            "coding": [
+              {
+                "code": "MR"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Patient { name: HumanName { given: 'John', family: 'Doe' } }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "name": [
+            {
+              "given": [
+                "John"
+              ],
+              "family": "Doe"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "FHIR.Identifier { value: 'N0001' }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "value": "N0001"
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Coding { system: 'http://example.org', code: (1 | 2).where(false), display: 'Test' }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "system": "http://example.org",
+          "display": "Test"
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Period { start: (1).where(false), end: (2).where(false) }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {}
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "(1 | 2 | 3).select(Coding { code: $this.toString() })",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "code": "1"
+        },
+        {
+          "code": "2"
+        },
+        {
+          "code": "3"
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "(1 | 2).where(false).select(Coding { code: 'test' })",
+      "input": "integer-1",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Quantity { value: 42 }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "value": 42
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Quantity { value: 3.14 }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "value": 3.14
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Patient { active: true }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "active": true
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Coding { code: 'TEST'.lower() }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "code": "test"
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Quantity { value: 10 + 5 }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "value": 15
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "HumanName { given: ('John' | 'Jacob') }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "given": [
+            "John",
+            "Jacob"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "(1 | 2).select(Patient { identifier: Identifier { value: $this.toString() } })",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "identifier": [
+            {
+              "value": "1"
+            }
+          ]
+        },
+        {
+          "identifier": [
+            {
+              "value": "2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Coding { code: 'c1' }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "code": "c1"
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "FHIR.Coding { code: 'c1' }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "code": "c1"
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Observation { value: Quantity { value: 70 } }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "valueQuantity": {
+            "value": 70
+          }
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "HumanName { family: 'Smith', family: 'Jones' }",
+      "input": "integer-1",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Observation { value: 70 'kg' }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "valueQuantity": {
+            "value": 70,
+            "unit": "kg"
+          }
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "expression": "Observation { valueString: 'a', valueString: 'b' }",
+      "input": "integer-1",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "test": "multiple focus items",
+      "expression": "Coding { code: 'test' }",
+      "input": "integers-1-2-3",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorTests.cs",
+      "test": "empty focus",
+      "expression": "Coding { code: 'test' }",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorValidationTests.cs",
+      "expression": "Patient { birth-date: @2020-01-01 }",
+      "input": "integer-1",
+      "model": "r4",
+      "error": "FhirPathSyntaxError"
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorValidationTests.cs",
+      "expression": "Patient { field@name: 'value' }",
+      "input": "integer-1",
+      "model": "r4",
+      "error": "FhirPathSyntaxError"
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/InstanceSelectorValidationTests.cs",
+      "expression": "Coding { system: 'http://loinc.org', code: '1234-5', display: 'Test Code' }",
+      "input": "integer-1",
+      "model": "r4",
+      "contains": [
+        {
+          "system": "http://loinc.org",
+          "code": "1234-5",
+          "display": "Test Code"
+        }
+      ]
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Analysis/FhirPathAnalyzerTests.cs",
+      "expression": "Coding { system: 'http://x', code: 'c1' }",
+      "model": "r4",
+      "analyzer": {
+        "inputType": "Patient",
+        "valid": true,
+        "types": [
+          "Coding"
+        ]
+      }
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Analysis/FhirPathAnalyzerTests.cs",
+      "expression": "UnknownFhirType { value: 'x' }",
+      "model": "r4",
+      "analyzer": {
+        "inputType": "Patient",
+        "valid": false
+      }
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/RemainingCoverageTests.cs",
+      "expression": "(1 | 2).repeatAll({})",
+      "input": "integer-1",
+      "values": []
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/RemainingCoverageTests.cs",
+      "expression": "1.repeatAll({})",
+      "input": "integer-1",
+      "values": []
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/RemainingCoverageTests.cs",
+      "expression": "{}.repeatAll($this)",
+      "input": "integer-1",
+      "values": []
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.FhirPath.Tests/Evaluation/RemainingCoverageTests.cs",
+      "expression": "1.repeatAll($this)",
+      "input": "integer-1",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "brendankowitz/ignixa-fhir",
+      "file": "test/Ignixa.Validation.Tests/Checks/FhirPathInvariantCheckTests.cs",
+      "expression": "repeatAll($this).exists()",
+      "input": "patient-doe",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > basic pathname without short parameter > returns path for a simple property",
+      "expression": "Patient.id.pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": [
+        "Patient.id[0]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > basic pathname without short parameter > returns path for an array element",
+      "expression": "Patient.name.first().pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": [
+        "Patient.name[0]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > basic pathname without short parameter > returns paths for multiple array elements",
+      "expression": "Patient.name.pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": [
+        "Patient.name[0]",
+        "Patient.name[1]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > basic pathname without short parameter > returns path for nested properties with indexers",
+      "expression": "Patient.name.first().family.pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": [
+        "Patient.name[0].family[0]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > basic pathname without short parameter > returns paths for given names",
+      "expression": "Patient.name.first().given.pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": [
+        "Patient.name[0].given[0]",
+        "Patient.name[0].given[1]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > basic pathname without short parameter > returns path for deeply nested property",
+      "expression": "Patient.contact.skip(1).name.given.first().pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": [
+        "Patient.contact[1].name[0].given[0]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > basic pathname without short parameter > returns path for Observation.component codings",
+      "expression": "Observation.component.first().code.coding.first().pathname()",
+      "input": "observation-components",
+      "model": "r4",
+      "values": [
+        "Observation.component[0].code[0].coding[0]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > pathname with short parameter > short=true removes indexers for singleton elements",
+      "expression": "Patient.name.first().family.pathname(true)",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": [
+        "Patient.name[0].family"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > pathname with short parameter > short=true on deeply nested path",
+      "expression": "Patient.contact.skip(1).name.given.first().pathname(true)",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": [
+        "Patient.contact[1].name.given[0]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > pathname with short parameter > short=false behaves same as default",
+      "expression": "Patient.name.first().family.pathname(false)",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": [
+        "Patient.name[0].family[0]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > pathname with short parameter > short=true on Observation.component.code.coding",
+      "expression": "Observation.component.first().code.coding.first().pathname(true)",
+      "input": "observation-components",
+      "model": "r4",
+      "values": [
+        "Observation.component[0].code.coding[0]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > computed values are excluded > string concatenation result is excluded",
+      "expression": "(Patient.name.first().family + ' test').pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > computed values are excluded > numeric computation result is excluded",
+      "expression": "(1 + 2).pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > computed values are excluded > string literal is excluded",
+      "expression": "'hello'.pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > empty collection handling > returns empty for empty input collection",
+      "expression": "Patient.name.where(family = 'nonexistent').pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > choice type handling > handles choice type (value[x]) elements",
+      "expression": "Observation.component.first().value.pathname()",
+      "input": "observation-components",
+      "model": "r4",
+      "values": [
+        "Observation.component[0].value[0]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > choice type handling > handles choice type with short=true",
+      "expression": "Observation.component.first().value.pathname(true)",
+      "input": "observation-components",
+      "model": "r4",
+      "values": [
+        "Observation.component[0].value"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > QuestionnaireResponse paths > returns path for nested QR items",
+      "expression": "QuestionnaireResponse.item.skip(1).item.first().answer.first().value.pathname()",
+      "input": "questionnaire-response-nested",
+      "model": "r4",
+      "values": [
+        "QuestionnaireResponse.item[1].item[0].answer[0].value[0]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > QuestionnaireResponse paths > short form for nested QR items",
+      "expression": "QuestionnaireResponse.item.skip(1).item.first().answer.first().value.pathname(true)",
+      "input": "questionnaire-response-nested",
+      "model": "r4",
+      "values": [
+        "QuestionnaireResponse.item[1].item[0].answer[0].value"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/pathname.test.js",
+      "test": "pathname() > used with other functions > pathname inside where clause",
+      "expression": "Patient.name.where(family = 'Smith').pathname()",
+      "input": "patient-names-contacts",
+      "model": "r4",
+      "values": [
+        "Patient.name[1]"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > omits an element whose value evaluates to an empty collection",
+      "expression": "Coding { system : 'http://x', code : {} }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "system": "http://x"
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > omits an element whose value is a missing path",
+      "expression": "Coding { system : 'http://x', code : missingProperty }",
+      "input": "patient-empty",
+      "model": "r4",
+      "values": [
+        {
+          "system": "http://x"
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > supports navigation into a created object",
+      "expression": "Identifier { system : 'urn:oid:1.2', value : 'N1' }.value",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        "N1"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > serializes metadata-only primitive scalar elements",
+      "expression": "Patient { birthDate: date { id: 'bd1' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "resourceType": "Patient",
+          "_birthDate": {
+            "id": "bd1"
+          }
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > keeps raw metadata-only primitive nodes",
+      "expression": "date { id: 'bd1' }",
+      "input": "empty-object",
+      "model": "r4",
+      "count": 1
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > uses concrete FHIR JSON keys for choice-type elements",
+      "expression": "Extension { url: 'http://example.org/fhir/StructureDefinition/demo', value: Coding { system: 'http://example.org/system', code: 'c1' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "url": "http://example.org/fhir/StructureDefinition/demo",
+          "valueCoding": {
+            "system": "http://example.org/system",
+            "code": "c1"
+          }
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > uses concrete FHIR JSON keys for choice-type elements",
+      "expression": "Extension { value: Reference { reference: 'Patient/example' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "valueReference": {
+            "reference": "Patient/example"
+          }
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > does not reuse remembered types across evaluations",
+      "expression": "Extension { value: %coding }",
+      "input": "empty-object",
+      "model": "r4",
+      "env": {
+        "coding": {
+          "system": "http://example.org/system",
+          "code": "c1"
+        }
+      },
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > supports navigation through created choice-type elements",
+      "expression": "Extension { url: 'http://example.org/fhir/StructureDefinition/demo', value: Coding { system: 'http://example.org/system', code: 'c1' } }.value.code",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        "c1"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > uses FHIR primitive constructors for choice-type elements",
+      "expression": "Extension { value: string { value: 'abc' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "valueString": "abc"
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > uses FHIR primitive constructors for choice-type elements",
+      "expression": "Extension { value: integer { value: 3 } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "valueInteger": 3
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > uses FHIR primitive constructors for choice-type elements",
+      "expression": "Extension { value: date { value: @2020 } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "valueDate": "2020"
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > serializes xhtml elements as strings",
+      "expression": "Narrative { status: 'generated', `div`: '<div xmlns=\"http://www.w3.org/1999/xhtml\">x</div>' }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "status": "generated",
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">x</div>"
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > serializes xhtml elements as strings",
+      "expression": "Narrative { status: 'generated', `div`: xhtml { value: '<div xmlns=\"http://www.w3.org/1999/xhtml\">x</div>' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "status": "generated",
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">x</div>"
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects non-FHIR namespaces in instance selectors",
+      "expression": "System.Quantity { value: 3 'mg' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > keeps unqualified Quantity constructors in the FHIR namespace",
+      "expression": "Quantity { value: 3, unit: 'mg' }.type().namespace",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        "FHIR"
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > creates a FHIR Quantity from decimal quantity fields",
+      "expression": "Quantity { value: 3, unit: 'mg' }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "value": 3,
+          "unit": "mg"
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects quantity literals for FHIR Quantity.value",
+      "expression": "Quantity { value: 3 'mg' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects primitive scalar assignments with incompatible types",
+      "expression": "Coding { code: 3 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects primitive scalar assignments with incompatible types",
+      "expression": "Patient { active: 'true' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects primitive scalar assignments with incompatible types",
+      "expression": "integer { value: '3' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects primitive scalar assignments with incompatible types",
+      "expression": "integer { value: 3.1 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects primitive scalar assignments with incompatible types",
+      "expression": "date { value: 3 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects primitive scalar assignments with incompatible types",
+      "expression": "dateTime { value: 3 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects primitive scalar assignments with incompatible types",
+      "expression": "time { value: 3 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects primitive scalar assignments with incompatible types",
+      "expression": "Coding { system: 3 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects primitive scalar assignments with incompatible types",
+      "expression": "Attachment { url: 3 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects primitive scalar assignments with incompatible types",
+      "expression": "id { value: 3 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects complex assignments with incompatible scalar types",
+      "expression": "Observation { subject: 'Patient/1' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects complex assignments with incompatible scalar types",
+      "expression": "Observation { code: 'abc' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects complex assignments with incompatible scalar types",
+      "expression": "Patient { managingOrganization: 'Organization/1' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects complex assignments with incompatible scalar types",
+      "expression": "Identifier { type: 'MR' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > accepts compatible complex assignments",
+      "expression": "Observation { code: CodeableConcept { text: 'Body weight' }, subject: Reference { reference: 'Patient/example' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "resourceType": "Observation",
+          "code": {
+            "text": "Body weight"
+          },
+          "subject": {
+            "reference": "Patient/example"
+          }
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > uses FHIR Quantity JSON for quantity choice-type elements",
+      "expression": "Extension { value: 3 'mg' }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "valueQuantity": {
+            "value": 3,
+            "unit": "mg",
+            "system": "http://unitsofmeasure.org",
+            "code": "mg"
+          }
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > populates a collection element using the union operator",
+      "expression": "CodeableConcept { coding: Coding { system: 'http://a', code: 'MR' } | Coding { system: 'http://b', code: 'mr' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "coding": [
+            {
+              "system": "http://a",
+              "code": "MR"
+            },
+            {
+              "system": "http://b",
+              "code": "mr"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > serializes single-item repeating elements as arrays",
+      "expression": "HumanName { given: code { value: 'a' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "given": [
+            "a"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects multiple values for scalar elements",
+      "expression": "Coding { code: 'a' | 'b' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects multiple values for primitive value element",
+      "expression": "code { value: 'a' | 'b' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects duplicate element selectors when a value is empty",
+      "expression": "Coding { code: {}, code: 'x' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects duplicate element selectors when a value is empty",
+      "expression": "Coding { code: 'x', code: {} }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects duplicate element selectors when a value is empty",
+      "expression": "Extension { value: {}, value: 'x' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects duplicate element selectors when a value is empty",
+      "expression": "HumanName { given: {}, given: 'x' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects duplicate repeating element selectors",
+      "expression": "HumanName { given: 'a', given: 'b' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects duplicate choice-type element selectors",
+      "expression": "Extension { value: 'a', value: 1 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects path-qualified types as non-FHIR namespaces",
+      "expression": "Observation.component { code: CodeableConcept { text: 'x' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > preserves primitive metadata for collection elements",
+      "expression": "HumanName { given: code { value: 'a', id: 'one' } | code { value: 'b', id: 'two' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "given": [
+            "a",
+            "b"
+          ],
+          "_given": [
+            {
+              "id": "one"
+            },
+            {
+              "id": "two"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > uses %resource within element selectors",
+      "expression": "Patient.select( Coding { system: %resource.gender, code: gender } )",
+      "input": "patient-male",
+      "model": "r4",
+      "env": {
+        "resource": {
+          "resourceType": "Patient",
+          "gender": "male"
+        }
+      },
+      "values": [
+        {
+          "system": "male",
+          "code": "male"
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > returns empty when the input collection is empty",
+      "expression": "Coding { code : 'c1' }",
+      "input": "empty-collection",
+      "model": "r4",
+      "values": []
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > signals an error for an unknown type",
+      "expression": "NotARealType { a: 1 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > signals an error for an unknown element",
+      "expression": "Coding { notAField: 'x' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > signals an error for an unknown element with an empty value",
+      "expression": "Coding { notAField: {} }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects direct primitive metadata selectors",
+      "expression": "Patient { _birthDate: %meta }",
+      "input": "empty-object",
+      "model": "r4",
+      "env": {
+        "meta": {
+          "id": "m1"
+        }
+      },
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects unsafe property names as instance selector elements",
+      "expression": "Coding { prototype: 'x', system: 's' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects out-of-range FHIR integer primitive values",
+      "expression": "integer { value: 2147483647 }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        2147483647
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects out-of-range FHIR integer primitive values",
+      "expression": "integer { value: 2147483648 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects out-of-range FHIR integer primitive values",
+      "expression": "integer { value: -2147483649 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects out-of-range FHIR integer primitive values",
+      "expression": "Extension { value: 2147483648 }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > signals an error when the input collection has multiple items",
+      "expression": "Coding { code : 'c1' }",
+      "input": "two-patients",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > builds objects from the patient example via select()",
+      "expression": "Patient.identifier.select( Identifier { system: 'urn:system', value: value } )",
+      "fixture": "fhirpathjs/resources/patient-example.json",
+      "model": "r4",
+      "values": [
+        {
+          "system": "urn:system",
+          "value": "12345"
+        }
+      ]
+    },
+    {
+      "source": "gofhir/fhirpath",
+      "file": "default_offset_reach_test.go",
+      "expression": "@2020-06-15T23:00:00.0.duration(@2020-06-15T22:00:00.0, 'day')",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        0
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects unsafe property names as instance selector elements",
+      "expression": "Coding { __proto__: Coding { code: 'x' }, system: 's' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects unsafe property names as instance selector elements",
+      "expression": "Coding { constructor: 'x', system: 's' }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    }
+  ]
+}

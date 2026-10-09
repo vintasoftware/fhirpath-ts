@@ -25,7 +25,7 @@ function bindingPowerOf(node: AstNode): number {
 
 const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
 
-function printIdentifier(name: string): string {
+export function printIdentifier(name: string): string {
   if (PLAIN_IDENTIFIER.test(name) && !KEYWORDS.has(name)) {
     return name
   }
@@ -98,6 +98,14 @@ function printInner(node: AstNode): string {
     case 'binary': {
       const bindingPower = INFIX_BINDING_POWER[node.operator] as number
       return `${print(node.left, bindingPower)} ${node.operator} ${print(node.right, bindingPower + 1)}`
+    }
+    case 'instance': {
+      const type = node.type.parts.map(printIdentifier).join('.')
+      if (node.elements.length === 0) {
+        return `${type} {:}`
+      }
+      const elements = node.elements.map(element => `${printIdentifier(element.name)}: ${print(element.value, 0)}`)
+      return `${type} { ${elements.join(', ')} }`
     }
     /* v8 ignore start -- exhaustive fallback, unreachable for real ASTs */
     default: {

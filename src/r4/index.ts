@@ -1,5 +1,6 @@
 import { FhirPathEngine } from '../api/engine.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
+import { R4_PRIMITIVE_PATTERNS } from './generated/primitive-patterns.ts'
 import { R4_RESOURCES_COMPACT } from './generated/resources-data.ts'
 import { R4_DATA_TYPES_COMPACT } from './generated/types-data.ts'
 import { CompactTypeTable, type GeneratedElement, type GeneratedType } from './model-data.ts'
@@ -36,7 +37,8 @@ function findElement(typeName: string, element: string): GeneratedElement | unde
     if (!definition) {
       return undefined
     }
-    const found: GeneratedElement | undefined = definition.e[element]
+    // Own keys only, so `Patient.constructor` is an unknown element, not Object's.
+    const found: GeneratedElement | undefined = Object.hasOwn(definition.e, element) ? definition.e[element] : undefined
     if (found) {
       return found
     }
@@ -92,6 +94,11 @@ export const r4Model: ModelProvider = {
     // it, so the walk yields own elements before inherited ones; sorting gives
     // callers one stable order independent of where an element is declared.
     return names.sort()
+  },
+
+  valuePattern(type: string): string | undefined {
+    const name = localName(type)
+    return Object.hasOwn(R4_PRIMITIVE_PATTERNS, name) ? R4_PRIMITIVE_PATTERNS[name] : undefined
   },
 
   isSubtypeOf(type: string, base: string): boolean {

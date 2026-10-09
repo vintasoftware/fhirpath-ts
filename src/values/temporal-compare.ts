@@ -11,7 +11,7 @@ type Level = (typeof LEVELS)[number]
 export type TemporalComparison = -1 | 0 | 1 | 'differentPrecision' | 'incompatible'
 
 /**
- * Compare two temporal values per spec §6.1/§6.4: equal at the shared precision but
+ * Compare two temporal values per spec "Date/Time Equality" and "Comparison": equal at the shared precision but
  * with different precisions → 'differentPrecision' (empty for `=` and `<`); a time
  * never compares with a date/dateTime. Values without a timezone are treated as UTC.
  */
@@ -22,7 +22,7 @@ export function compareTemporal(a: Temporal, b: Temporal): TemporalComparison {
   const levelA = comparisonLevel(a)
   const levelB = comparisonLevel(b)
   const shared = Math.min(levelA, levelB)
-  // At time precision, a value with a timezone and one without cannot be ordered (spec §6.1).
+  // At time precision, a value with a timezone and one without cannot be ordered (spec "Date/Time Equality").
   if (shared >= 3 && (a.timezoneOffsetMinutes === undefined) !== (b.timezoneOffsetMinutes === undefined)) {
     return 'differentPrecision'
   }

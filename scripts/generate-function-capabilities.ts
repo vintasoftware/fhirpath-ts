@@ -71,6 +71,20 @@ function functionExpression(name: string, signature: FunctionSignature): string 
       return "Patient.name.defineVariable('generatedVariable')"
     case 'aggregate':
       return 'Patient.name.aggregate($total | $this, {})'
+    case 'duration':
+    case 'difference':
+      return `@2020-01-01.${name}(@2020-02-01, 'day')`
+    case 'matches':
+    case 'matchesFull':
+      return `'abc'.${name}('x', 'i')`
+    case 'replaceMatches':
+      return "'abc'.replaceMatches('x', 'y', 'i')"
+    case 'encode':
+    case 'decode':
+      return `'616263'.${name}('hex')`
+    case 'escape':
+    case 'unescape':
+      return `'abc'.${name}('html')`
     default:
       break
   }

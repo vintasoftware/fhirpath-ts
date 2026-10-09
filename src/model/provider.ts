@@ -14,7 +14,7 @@ export interface ElementInfo {
 }
 
 /**
- * The spec's ModelInfo concept (§10/§12.2): everything the engine and the static
+ * The spec's ModelInfo concept ("Types and Reflection", "Model Information"): everything the engine and the static
  * analyzer need to know about a data model. The core never assumes FHIR; the R4
  * model package implements this from generated StructureDefinition data.
  */
@@ -33,4 +33,10 @@ export interface ModelProvider {
    * to raw JSON reads instead of strict unknown-element errors.
    */
   listElements?(type: string): string[] | undefined
+  /**
+   * The regular expression a primitive type's value matches whole, as FHIR's
+   * `regex` extension gives it, or undefined. Instance selectors check the
+   * primitives they build against it.
+   */
+  valuePattern?(type: string): string | undefined
 }

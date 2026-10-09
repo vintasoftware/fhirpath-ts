@@ -1,6 +1,6 @@
 /** Shared, conservative type compatibility for runtime dispatch and static checks. */
 import type { ModelProvider } from '../model/provider.ts'
-import { FHIR_PRIMITIVE_TO_SYSTEM, OBJECT_TYPE, typeLocalName } from './typed-value.ts'
+import { FHIR_PRIMITIVE_TO_SYSTEM, OBJECT_TYPE, systemTypeOfName, typeLocalName } from './typed-value.ts'
 
 /** System type names recognized by type specifiers and uppercase root selectors. */
 export const SYSTEM_TYPE_LOCAL_NAMES: ReadonlySet<string> = new Set([
@@ -46,7 +46,7 @@ export function rootTypeMatches(model: ModelProvider | undefined, itemType: stri
 export type ValueKind = 'Boolean' | 'String' | 'Numeric' | 'Temporal' | 'Quantity' | 'Complex'
 
 export function valueKindOfTypeName(canonical: string): ValueKind {
-  const system = canonical.startsWith('System.') ? canonical : FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(canonical)]
+  const system = systemTypeOfName(canonical)
   switch (system) {
     case 'System.Boolean':
       return 'Boolean'

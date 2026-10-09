@@ -23,7 +23,7 @@ const ESCAPES: Readonly<Record<string, string>> = {
 
 const TWO_CHAR_OPERATORS: ReadonlySet<string> = new Set(['!=', '!~', '<=', '>='])
 const ONE_CHAR_OPERATORS: ReadonlySet<string> = new Set(['=', '~', '<', '>', '+', '-', '*', '/', '|', '&'])
-const PUNCT: ReadonlySet<string> = new Set(['(', ')', '[', ']', '{', '}', '.', ',', '%'])
+const PUNCT: ReadonlySet<string> = new Set(['(', ')', '[', ']', '{', '}', '.', ',', '%', ':'])
 
 class Lexer {
   private readonly source: string
@@ -117,7 +117,7 @@ class Lexer {
         this.advance()
       }
     } else if (this.source[this.pos] === 'L') {
-      // Long literal suffix (ballot STU): 5L is a System.Long.
+      // Long literal suffix (FHIRPath 3.0.0, trial use): 5L is a System.Long.
       this.advance()
     }
     const text = this.source.slice(start, this.pos)

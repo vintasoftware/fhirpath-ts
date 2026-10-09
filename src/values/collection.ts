@@ -2,7 +2,7 @@ import { FhirPathRuntimeError } from '../errors.ts'
 import { SYSTEM_BOOLEAN, type TypedValue, typeLocalName } from './typed-value.ts'
 
 /**
- * Singleton evaluation of collections, spec §4.5:
+ * Singleton evaluation of collections, spec "Singleton Evaluation of Collections":
  * 1. one item of the expected type → the item;
  * 2. one item, expected type Boolean → `true`;
  * 3. empty → empty (undefined here);
@@ -44,7 +44,7 @@ export function booleanSingleton(collection: TypedValue[]): boolean | undefined 
 }
 
 /**
- * Returns one criteria Boolean. FHIRPath §4.5 supplies singleton evaluation;
+ * Returns one criteria Boolean. FHIRPath's singleton evaluation of collections applies;
  * FHIR constraints add that an empty result does not satisfy the criteria, so
  * empty becomes `false`. Other Boolean functions keep their own item rules.
  */

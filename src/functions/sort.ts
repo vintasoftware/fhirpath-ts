@@ -12,10 +12,13 @@ interface SortKey {
   descending: boolean
 }
 
-/** sort([keys...]) — ballot STU. `-key` sorts that key descending; no keys sorts by value. */
+/**
+ * sort([keys...]) (FHIRPath 3.0.0, trial use). `-key` sorts that key descending; no
+ * keys sorts by value. 3.0.0's `asc`/`desc` qualifiers are not parsed yet (#127).
+ */
 registerFunction('sort', {
   minArity: 0,
-  // The ballot puts no limit on sort keys; 8 is a practical cap for arity checking.
+  // The spec puts no limit on sort keys; 8 is a practical cap for arity checking.
   maxArity: 8,
   evaluate: (context, input, args, evaluateNode) => {
     const keys: SortKey[] = args.length

@@ -3,7 +3,7 @@ import type { TypedValue } from '../../values/typed-value.ts'
 import type { BinaryOperatorTable } from './index.ts'
 
 /**
- * Three-valued logic straight from the spec §6.5 truth tables. `undefined` is the
+ * Three-valued logic straight from the spec "Boolean logic" truth tables. `undefined` is the
  * empty collection. Notable asymmetric cells: `false and empty` is false,
  * `true or empty` is true, `empty implies false` is empty, `false implies x` is true.
  */

@@ -113,6 +113,26 @@ describe('filtering and projection', () => {
     expect(evaluate("'a'.repeat('a' | 'b')")).toEqual(['a', 'b'])
   })
 
+  it('repeatAll keeps duplicates and walks the same tree as repeat', () => {
+    const tree = {
+      resourceType: 'Basic',
+      part: [{ name: 'a', part: [{ name: 'b' }, { name: 'c', part: [{ name: 'd' }] }] }],
+    }
+    expect(evaluate('repeatAll(part).name', tree)).toEqual(['a', 'b', 'c', 'd'])
+    // Only projected items are output, not the input (fhirpath-rs counts the 10 as well).
+    expect(evaluate('10.repeatAll(iif($this > 1, $this - 2, {}))')).toEqual([8, 6, 4, 2, 0])
+    expect(evaluate('(1 | 2).repeatAll(iif($this < 3, 3, {}))')).toEqual([3, 3])
+    expect(evaluate('{}.repeatAll($this + 1).empty()')).toEqual([true])
+  })
+
+  it('repeatAll fails once a projection never stops', () => {
+    // Spec examples of unsafe projections: each round produces a value again.
+    expect(() => evaluate("'abc'.repeatAll(replace('a', 'A'))")).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
+    expect(() => evaluate("Patient.repeatAll('item')", { resourceType: 'Patient' })).toThrow(FhirPathRuntimeError)
+    expect(() => evaluate('1.repeatAll($this | $this.combine($this))')).toThrow(FhirPathRuntimeError)
+    expect(evaluate(`0.repeatAll(iif($this < ${MAX_REPEAT_ITEMS}, $this + 1, {})).count()`)).toEqual([MAX_REPEAT_ITEMS])
+  })
+
   it('repeat reaches its limit quickly on temporal values', () => {
     expect(() => evaluate('@2016-01-01.repeat($this + 1 day)')).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
     expect(() => evaluate("@T00:00:00.000.repeat($this + 1 'ms')")).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
@@ -251,6 +271,22 @@ describe('combining', () => {
     expect(evaluate('(1 | 2).union(2 | 3)')).toEqual([1, 2, 3])
     expect(evaluate('(1 | 2).combine(2 | 3)')).toEqual([1, 2, 2, 3])
     expect(evaluate('{}.combine(1)')).toEqual([1])
+  })
+
+  it('combine() accepts preserveOrder and appends in order', () => {
+    expect(evaluate('(1 | 2 | 3).combine(2 | 3, true)')).toEqual([1, 2, 3, 2, 3])
+    expect(evaluate('(1 | 2 | 3).combine(2 | 3, false)')).toEqual([1, 2, 3, 2, 3])
+    expect(evaluate('(1 | 2).combine({}, true)')).toEqual([1, 2])
+    expect(() => evaluate('(1 | 2).combine(3, true | false)')).toThrow(FhirPathRuntimeError)
+    // Nothing converts to a Boolean implicitly, so another type is an error.
+    expect(() => evaluate('(1 | 2).combine(3, 1)')).toThrow(
+      'combine() expects a Boolean argument, found System.Integer'
+    )
+    expect(() => evaluate("(1 | 2).combine(3, 'true')")).toThrow(FhirPathTypeError)
+    const patient = { resourceType: 'Patient', active: true, name: [{ family: 'a' }] }
+    expect(evaluate('Patient.name.combine(Patient.name, Patient.active).count()', patient, { model: r4Model })).toEqual(
+      [2]
+    )
   })
 })
 

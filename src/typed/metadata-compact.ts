@@ -32,7 +32,9 @@ export interface CompactFunctionRules {
   decode: readonly ['fixed', 'System.String']
   defineVariable: readonly ['input']
   descendants: readonly ['unknown']
+  difference: readonly ['fixed', 'System.Integer']
   distinct: readonly ['input']
+  duration: readonly ['fixed', 'System.Integer']
   empty: readonly ['fixed', 'System.Boolean']
   encode: readonly ['fixed', 'System.String']
   endsWith: readonly ['fixed', 'System.Boolean']
@@ -71,9 +73,11 @@ export interface CompactFunctionRules {
   not: readonly ['fixed', 'System.Boolean']
   now: readonly ['fixed', 'System.DateTime']
   ofType: readonly ['unknown']
+  pathname: readonly ['fixed', 'System.String']
   power: readonly ['unknown']
   precision: readonly ['fixed', 'System.Integer']
   repeat: readonly ['unknown']
+  repeatAll: readonly ['unknown']
   replace: readonly ['fixed', 'System.String']
   replaceMatches: readonly ['fixed', 'System.String']
   resolve: readonly ['reference-targets']
@@ -118,11 +122,31 @@ export interface CompactFunctionRules {
 }
 
 export type CompactLambdaArgument0Name =
-  'exists' | 'all' | 'where' | 'select' | 'repeat' | 'iif' | 'aggregate' | 'sort' | 'coalesce'
+  'exists' | 'all' | 'where' | 'select' | 'repeat' | 'repeatAll' | 'iif' | 'aggregate' | 'sort' | 'coalesce'
 export type CompactLambdaArgument1Name =
-  'exists' | 'all' | 'where' | 'select' | 'repeat' | 'iif' | 'trace' | 'sort' | 'defineVariable' | 'coalesce'
+  | 'exists'
+  | 'all'
+  | 'where'
+  | 'select'
+  | 'repeat'
+  | 'repeatAll'
+  | 'iif'
+  | 'trace'
+  | 'sort'
+  | 'defineVariable'
+  | 'coalesce'
 export type CompactLambdaArgument2Name =
-  'exists' | 'all' | 'where' | 'select' | 'repeat' | 'iif' | 'trace' | 'sort' | 'defineVariable' | 'coalesce'
+  | 'exists'
+  | 'all'
+  | 'where'
+  | 'select'
+  | 'repeat'
+  | 'repeatAll'
+  | 'iif'
+  | 'trace'
+  | 'sort'
+  | 'defineVariable'
+  | 'coalesce'
 
 export type CompactFastFunctionName =
   | 'empty'
@@ -149,6 +173,7 @@ export type CompactFastFunctionName =
   | 'exclude'
   | 'not'
   | 'trace'
+  | 'pathname'
   | 'hasValue'
   | 'htmlChecks'
   | 'comparable'
@@ -215,6 +240,8 @@ export type CompactFastFunctionName =
   | 'timezoneOffsetOf'
   | 'dateOf'
   | 'timeOf'
+  | 'duration'
+  | 'difference'
   | 'precision'
 
 export interface CompactOperatorRules {

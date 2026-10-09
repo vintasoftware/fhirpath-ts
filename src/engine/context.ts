@@ -56,7 +56,7 @@ export interface HostExpressionFunction {
   functions?: ReadonlyMap<string, HostFunction>
   /**
    * Apply the criteria rule to the body's result, so the function always returns
-   * exactly one Boolean. That rule is `criteriaBoolean`: §4.5 singleton
+   * exactly one Boolean. That rule is `criteriaBoolean`: singleton
    * evaluation, with an empty result read as false. It is what makes a DTO
    * criteria column mean the same thing whether it is projected or called from
    * an expression.
@@ -89,7 +89,7 @@ export type HostFunction = HostSingleFunction | HostOverloadedFunction
  */
 export interface RegexEngine {
   /**
-   * Compile `pattern` with `flags` (a subset of 's' and 'g'; matchesFull
+   * Compile `pattern` with `flags` (a subset of 's', 'g', 'i', and 'm'; matchesFull
    * wraps the pattern in `^(?:...)$` before compiling). Throw on invalid
    * patterns — the engine converts that to the spec's type error.
    */
@@ -158,6 +158,12 @@ export interface EvaluationContext {
   regex: RegexEngine | undefined
   /** Sanitizer htmlChecks() also requires to accept the narrative; undefined means none. */
   narrativeSanitizer: NarrativeSanitizer | undefined
+  /**
+   * True when navigation records where each item was read (`TypedValue.origin`)
+   * for `pathname()`. Only evaluations that can reach a `pathname()` call pay
+   * for it (see `callsPathname`).
+   */
+  paths: boolean
   frame: Frame
 }
 
@@ -228,6 +234,7 @@ export function createContext(options: {
   functions?: Record<string, HostFunction> | undefined
   regex?: RegexEngine | undefined
   narrativeSanitizer?: NarrativeSanitizer | undefined
+  paths?: boolean | undefined
 }): EvaluationContext {
   const env = new Map<string, TypedValue[]>()
   for (const [name, url] of BUILTIN_CONSTANTS) {
@@ -259,6 +266,7 @@ export function createContext(options: {
     activeExpressionFunctions: new Set(),
     regex: options.regex,
     narrativeSanitizer: options.narrativeSanitizer,
+    paths: options.paths ?? false,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
 }
@@ -287,7 +295,7 @@ export function forkVariables(context: EvaluationContext): EvaluationContext {
   return { ...context, variables: new Map(context.variables) }
 }
 
-/** Resolve `%name`; referencing an undefined environment variable is an error (spec §9). */
+/** Resolve `%name`; referencing an undefined environment variable is an error (spec "Environment variables"). */
 export function resolveEnvironmentVariable(context: EvaluationContext, name: string): TypedValue[] {
   const value = context.variables.get(name) ?? context.env.get(name)
   if (value !== undefined) {

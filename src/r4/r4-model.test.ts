@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { evaluate } from '../api/evaluate.ts'
+import { R4_PRIMITIVE_PATTERNS } from './generated/primitive-patterns.ts'
 import { r4Model } from './index.ts'
 
 describe('r4Model type resolution', () => {
@@ -95,5 +96,62 @@ describe('model-aware evaluation', () => {
     // with the FHIR-extras phase; resources already carry their type here.
     expect(evaluate('$this is DomainResource', patient, { model: r4Model })).toEqual([true])
     expect(evaluate('$this is Observation', patient, { model: r4Model })).toEqual([false])
+  })
+})
+
+describe('r4Model value patterns', () => {
+  const regexOf = (type: string) => new RegExp(`^(?:${r4Model.valuePattern?.(type) ?? ''})$`)
+
+  it('gives each primitive the pattern its value matches whole', () => {
+    expect(r4Model.valuePattern?.('FHIR.positiveInt')).toBe('[1-9][0-9]*')
+    expect(r4Model.valuePattern?.('FHIR.xhtml')).toBeUndefined()
+    expect(r4Model.valuePattern?.('FHIR.Coding')).toBeUndefined()
+    expect(r4Model.valuePattern?.('constructor')).toBeUndefined()
+  })
+
+  it('reads whitespace as Java does, so Unicode spaces are ordinary characters', () => {
+    // A JS \s also matches U+00A0 and U+3000, which would reject valid strings.
+    for (const pattern of Object.values(R4_PRIMITIVE_PATTERNS)) {
+      expect(pattern).not.toMatch(/\\[sS]/)
+    }
+    for (const type of ['string', 'markdown', 'code']) {
+      for (const valid of ['a b', 'Yamada　Taro', 'A B']) {
+        expect([type, valid, regexOf(type).test(valid)]).toEqual([type, valid, true])
+      }
+    }
+    expect(regexOf('string').test('a\nb\tc')).toBe(true)
+    expect(regexOf('string').test('a\fb')).toBe(false)
+    expect(regexOf('code').test('a  b')).toBe(false)
+    expect(regexOf('code').test(' a')).toBe(false)
+    expect(regexOf('uri').test('urn:a b')).toBe(false)
+  })
+
+  it('matches every pattern in linear time', () => {
+    // Runs of whitespace before an invalid character make an ambiguous pattern
+    // backtrack exponentially; FHIR's own base64Binary pattern takes minutes here.
+    const inputs = [
+      `${'AAAA  '.repeat(2000)}!`,
+      `${'a '.repeat(5000)} `,
+      `${'0'.repeat(10000)}x`,
+      `${'.0'.repeat(5000)}!`,
+    ]
+    for (const type of Object.keys(R4_PRIMITIVE_PATTERNS)) {
+      const pattern = regexOf(type)
+      const start = performance.now()
+      for (const input of inputs) {
+        pattern.test(input)
+      }
+      expect([type, performance.now() - start < 200]).toEqual([type, true])
+    }
+  })
+
+  it('keeps the strings FHIR base64Binary matches', () => {
+    const pattern = regexOf('base64Binary')
+    for (const valid of ['QUJD', ' QUJD ', 'QUJD\nQUJD', 'QU==', 'QUJDQUJD']) {
+      expect([valid, pattern.test(valid)]).toEqual([valid, true])
+    }
+    for (const invalid of ['QUJ', 'QU JD', '', 'QUJD!', 'QUJD QU']) {
+      expect([invalid, pattern.test(invalid)]).toEqual([invalid, false])
+    }
   })
 })

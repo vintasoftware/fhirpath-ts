@@ -248,6 +248,89 @@ describe('type specifiers', () => {
   })
 })
 
+describe('instance selectors', () => {
+  it('parses a type name followed by element selectors', () => {
+    expect(ast("Coding { system: 'http://loinc.org', code: '8480-6' }")).toEqual({
+      kind: 'instance',
+      type: { parts: ['Coding'] },
+      elements: [
+        { name: 'system', value: { kind: 'string', value: 'http://loinc.org' } },
+        { name: 'code', value: { kind: 'string', value: '8480-6' } },
+      ],
+    })
+  })
+
+  it('parses a qualified type name and `{:}` for no elements', () => {
+    expect(ast('FHIR.Period {:}')).toEqual({ kind: 'instance', type: { parts: ['FHIR', 'Period'] }, elements: [] })
+    expect(ast('Period { : }')).toEqual({ kind: 'instance', type: { parts: ['Period'] }, elements: [] })
+  })
+
+  it('takes any expression as a value, including nested selectors', () => {
+    expect(ast("CodeableConcept { coding: Coding { code: 'a' } | Coding {:}, text: name.first() }")).toEqual({
+      kind: 'instance',
+      type: { parts: ['CodeableConcept'] },
+      elements: [
+        {
+          name: 'coding',
+          value: {
+            kind: 'binary',
+            operator: '|',
+            left: {
+              kind: 'instance',
+              type: { parts: ['Coding'] },
+              elements: [{ name: 'code', value: { kind: 'string', value: 'a' } }],
+            },
+            right: { kind: 'instance', type: { parts: ['Coding'] }, elements: [] },
+          },
+        },
+        {
+          name: 'text',
+          value: {
+            kind: 'dot',
+            left: { kind: 'identifier', name: 'name' },
+            right: { kind: 'call', name: 'first', args: [] },
+          },
+        },
+      ],
+    })
+  })
+
+  it('accepts keyword and delimited element names, as after a dot', () => {
+    expect(ast("Narrative { div: 'x', `status`: 'generated' }")).toMatchObject({
+      elements: [{ name: 'div' }, { name: 'status' }],
+    })
+  })
+
+  it('is a term: it can start a path and sit inside a call', () => {
+    expect(ast("Coding { code: 'a' }.code")).toMatchObject({
+      kind: 'dot',
+      left: { kind: 'instance' },
+      right: { kind: 'identifier', name: 'code' },
+    })
+    expect(ast('Patient.select(Coding { code: gender })')).toMatchObject({
+      kind: 'dot',
+      right: { kind: 'call', name: 'select', args: [{ kind: 'instance' }] },
+    })
+  })
+
+  it('spans the type name through the closing brace', () => {
+    expect(parse("x | Coding { code: 'a' }")).toMatchObject({ right: { span: { start: 4, end: 24 } } })
+  })
+
+  it.each([
+    ['Period {}', "An instance selector without elements is written 'Period {:}'; '{}' is the empty collection"],
+    ["Coding { code 'a' }", "Expected ':', got ''a''"],
+    ["Coding { 'code': 'a' }", "Expected an element name, got ''code''"],
+    ["Coding { code: 'a', code: 'b' }", "Element 'code' is set more than once"],
+    ["Coding { code: 'a' ", "Expected '}', got 'end of expression'"],
+    ["Coding { code: 'a', }", "Expected an element name, got '}'"],
+    ['Coding {', "Expected an element name, got 'end of expression'"],
+    ["name.first() { code: 'a' }", "Unexpected '{' after expression"],
+  ])('rejects %j', (source, message) => {
+    expect(() => parse(source)).toThrow(message)
+  })
+})
+
 describe('syntax errors', () => {
   it.each([
     ['', 'Unexpected end of expression'],

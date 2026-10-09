@@ -92,13 +92,13 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'nested-extension-equality',
     evidence:
-      "fhirpath.js's own equality still recurses into each primitive's raw _field extension wrapper when comparing a containing complex object, even with { model: r4Model } — it only strips extensions when comparing a bare primitive directly (see Bundle.entry[1].resource.name.given[0] = ... above, model-free-field-convention). Spec §6.1.1 excludes extensions from a value's identity at every nesting depth, so this engine's = now matches its own ~ (which already ignored id/extension metadata) and ignores them however deep the comparison goes.",
+      "fhirpath.js's own equality still recurses into each primitive's raw _field extension wrapper when comparing a containing complex object, even with { model: r4Model } — it only strips extensions when comparing a bare primitive directly (see Bundle.entry[1].resource.name.given[0] = ... above, model-free-field-convention). Spec \"= (Equals)\" excludes extensions from a value's identity at every nesting depth, so this engine's = now matches its own ~ (which already ignored id/extension metadata) and ignores them however deep the comparison goes.",
     keys: ['6.1_equality.yaml||Bundle.entry[1] != Bundle.entry[2]'],
   },
   {
     name: 'year-month-definite-conversions',
     evidence:
-      "fhirpath.js refuses UCUM a/mo conversions and duration ratios, and treats calendar month as 30 days. UCUM defines 'a' and 'mo' as definite Julian units, so this engine converts them exactly; the spec keeps calendar year/month indefinite (\u00a74.2.2) and the official suite pins 1 year = 1 'a' as false.",
+      "fhirpath.js refuses UCUM a/mo conversions and duration ratios, and treats calendar month as 30 days. UCUM defines 'a' and 'mo' as definite Julian units, so this engine converts them exactly; the spec keeps calendar year/month indefinite (\"Time-valued Quantities\") and the official suite pins 1 year = 1 'a' as false.",
     keys: [
       "5.5_conversion.yaml||'1 \\'mo\\''.toQuantity('days')",
       "6.1_equality.yaml||1 'mo' = 30 days",
@@ -148,23 +148,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     ],
   },
   {
-    name: 'matches-flags-argument',
-    evidence:
-      'The flags argument of matches()/matchesFull() is a fhirpath.js extension; the spec signature is matches(regex : String) : Boolean (N1 \u00a75.6.9, 2025Jan ballot).',
-    keys: [
-      "5.6_string_manipulation.yaml||'Hello World'.matches('hello', '')",
-      "5.6_string_manipulation.yaml||'Hello World'.matches('hello', 'i')",
-      "5.6_string_manipulation.yaml||'Test String'.matchesFull('test string', '')",
-      "5.6_string_manipulation.yaml||'Test String'.matchesFull('test string', 'i')",
-      "5.6_string_manipulation.yaml||'abc\ndef'.matchesFull('abc', 'm')",
-      "5.6_string_manipulation.yaml||'first line\nsecond line'.matches('^SECOND', 'im')",
-      "5.6_string_manipulation.yaml||'first line\nsecond line'.matches('^second', '')",
-      "5.6_string_manipulation.yaml||'first line\nsecond line'.matches('^second', 'm')",
-      "5.6_string_manipulation.yaml||'first line\nsecond line'.matches('line.second', '')",
-      "5.6_string_manipulation.yaml||'first line\nsecond line'.matchesFull('first line.second line', '')",
-    ],
-  },
-  {
     name: 'full-ucum-table',
     evidence:
       'Offset and logarithmic units (Cel, [degF], K, B) need a complete UCUM implementation \u2014 a deferred feature (README register).',
@@ -204,7 +187,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'equivalence-rounding',
     evidence:
-      'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec \u00a76.1.2 says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding.',
+      'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec "~ (Equivalent)" says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding.',
     keys: [
       '6.1_equality.yaml||0.00000011 ~ 0.00000010',
       '6.1_equality.yaml||1.1 ~ 1.0',
@@ -218,7 +201,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'math-functions-on-quantities',
     evidence:
-      "1.1 'kg'.ceiling() is a fhirpath.js extension; spec \u00a75.7 defines the math functions for Integer/Decimal input only.",
+      "1.1 'kg'.ceiling() works in fhirpath.js, as FHIRPath 3.0.0 allows (\"Math\": ceiling() takes a Quantity); this engine does not yet (#134).",
     keys: [
       "5.7_math.yaml||(-1.56 's').truncate() = -1 's'",
       "5.7_math.yaml||1.1 'kg'.ceiling() = 2 'kg'",
@@ -229,7 +212,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'component-functions-parse-strings',
     evidence:
-      "'2014-01-05'.yearOf() parses the string in fhirpath.js; ballot \u00a75.8 component functions take Date/DateTime/Time input, so non-temporal input is empty here.",
+      "'2014-01-05'.yearOf() parses the string in fhirpath.js; FHIRPath 3.0.0's component functions take Date/DateTime/Time input, so non-temporal input is empty here.",
     keys: [
       "5.9_utility_functions.yaml||'2012-01-01T12:30:00.000+08:45'.timezoneOffsetOf()",
       "5.9_utility_functions.yaml||'2012-01-01T12:30:00.000-07:00'.dateOf()",
@@ -293,7 +276,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   },
   {
     name: 'negative-round-precision',
-    evidence: 'round(-2) is a fhirpath.js extension; spec \u00a75.7.round precision is a count of decimal places.',
+    evidence: 'round(-2) is a fhirpath.js extension; spec "Math" round() precision is a count of decimal places, at least 0.',
     keys: ['5.7_math.yaml||Math.d2.round(n2)'],
   },
   {
@@ -377,7 +360,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'empty-operand-error',
     evidence:
-      'Cases disabled upstream that expect an error for an empty operand. Spec \u00a76.6 returns empty when either operand is empty, and the same file expects [] for n1 + n4.',
+      'Cases disabled upstream that expect an error for an empty operand. Spec "Math" operators return empty when either operand is empty, and the same file expects [] for n1 + n4.',
     keys: [
       '6.6_math.yaml#** Error adding missing numbers||n1 + n4',
       '6.6_math.yaml||MathTestData.n1 div MathTestData.n4',

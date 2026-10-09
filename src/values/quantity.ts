@@ -79,6 +79,25 @@ const UCUM_TIME_TO_CALENDAR: Readonly<Record<string, string>> = Object.fromEntri
 
 const UCUM_SYSTEM = 'http://unitsofmeasure.org'
 
+/** True for FHIR Quantity and its specializations (`Age`, `SimpleQuantity`, ...), by local name. */
+export function isFhirQuantityType(localName: string): boolean {
+  return FHIR_QUANTITY_TYPES.has(localName)
+}
+
+/**
+ * A System.Quantity as FHIR Quantity JSON with a UCUM code. A calendar duration
+ * keeps its word as the unit and takes its UCUM twin as the code, so
+ * `coerceQuantity` reads it back as the same duration.
+ */
+export function toFhirQuantity(quantity: QuantityValue): { value: number; unit: string; system: string; code: string } {
+  return {
+    value: quantity.value.toNumber(),
+    unit: quantity.unit,
+    system: UCUM_SYSTEM,
+    code: asUcum(quantity).unit,
+  }
+}
+
 /** Read a TypedValue as a quantity: System.Quantity directly, FHIR Quantity objects by value+code/unit. */
 export function coerceQuantity(item: TypedValue): QuantityValue | undefined {
   if (item.type === SYSTEM_QUANTITY) {
@@ -102,7 +121,7 @@ export function coerceQuantity(item: TypedValue): QuantityValue | undefined {
   return { value, unit, calendar: false }
 }
 
-/** A quantity as-is, or a number implicitly converted to a unity quantity (spec §5.5). */
+/** A quantity as-is, or a number implicitly converted to a unity quantity (spec "Conversion"). */
 export function promoteQuantity(item: TypedValue): QuantityValue | undefined {
   const coerced = coerceQuantity(item)
   if (coerced) {
@@ -114,7 +133,7 @@ export function promoteQuantity(item: TypedValue): QuantityValue | undefined {
 
 /**
  * Coerce a pair of operands for quantity operations. Integers, Longs, and
- * Decimals implicitly convert to unity quantities (spec §5.5) when the other
+ * Decimals implicitly convert to unity quantities (spec "Conversion") when the other
  * side is a quantity: `9 = 9 '1'` and `2 * 4 'kg'` both work.
  */
 export function coerceQuantityPair(a: TypedValue, b: TypedValue): [QuantityValue, QuantityValue] | undefined {
@@ -156,7 +175,7 @@ function calendarFamily(unit: string): { family: 'month' | 'second'; factor: Dec
 /**
  * Compare two quantities. Undefined when the units are not comparable: different
  * dimensions, opaque units with different spellings, or calendar words above
- * seconds against UCUM time units (those are only equivalent, spec §6.1).
+ * seconds against UCUM time units (those are only equivalent, spec "Quantity Equality").
  */
 export function compareQuantities(a: QuantityValue, b: QuantityValue): -1 | 0 | 1 | undefined {
   if (a.calendar && b.calendar) {

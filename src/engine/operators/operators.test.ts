@@ -16,7 +16,7 @@ function triResult(value: boolean | undefined): unknown[] {
   return value === undefined ? [] : [value]
 }
 
-describe('three-valued logic (spec §6.5, all 9 cells per operator)', () => {
+describe('three-valued logic (spec "Boolean logic", all 9 cells per operator)', () => {
   const T = true
   const F = false
   const E = undefined

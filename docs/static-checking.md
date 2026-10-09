@@ -1,7 +1,8 @@
 # Static checking
 
-[FHIRPath specification §11](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation)
-defines type safety and strict evaluation rules. This package applies them before expressions
+FHIRPath's
+[type safety and strict evaluation section](https://hl7.org/fhirpath/STU3/en/index.html#type-safety-and-strict-evaluation)
+defines rules for checking expressions. This package applies them before expressions
 run through TypeScript inference, an ESLint rule, a CLI, a public analyzer API,
 and opt-in strict evaluation.
 
@@ -39,7 +40,8 @@ names.evaluate(patient) // string[]; input must be a Patient
 
 The parser covers literals, operators and precedence, paths, built-in functions,
 lambda scope, variables, generated Reference targets, and declared host context.
-A construct remains `unknown[]` when its result cannot be expressed safely.
+A construct remains `unknown[]` when its result cannot be expressed safely, as an
+instance selector does: the expression around it stays typed.
 
 Malformed, dynamically widened, and deliberately opaque expressions also become
 `unknown[]`, not TypeScript errors. Use the analyzer to report expression errors.
@@ -307,6 +309,7 @@ The analyzer checks:
 - comparisons that cannot match;
 - order-dependent operations on collections known to be unordered;
 - choice-key misuse such as `Observation.valueQuantity`;
+- instance selector literals that do not match their FHIR primitive's pattern;
 - regular expression literals that may have catastrophic backtracking.
 
 Each fact stays unknown until the analyzer can prove it. For example,
@@ -315,7 +318,9 @@ known undefined order, while an undeclared `%var` also has unknown ordering. The
 rejected operations are the ones that select items by position — the indexer,
 `first()`, `last()`, `tail()`, `skip()`, and `take()` — and only on a collection
 known to be unordered. Functions whose result merely varies with iteration
-order, such as `join()` and `aggregate()`, are not rejected.
+order, such as `join()` and `aggregate()`, are not rejected. `union()`, `|`,
+and `combine()` keep the order of their sources
+([Conformance](conformance.md#deviations-from-the-specification)).
 
 Declare host variables and functions so the analyzer can check their use:
 

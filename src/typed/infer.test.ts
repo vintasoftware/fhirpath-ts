@@ -606,6 +606,38 @@ describe('degradation to unknown[]', () => {
   })
 })
 
+describe('instance selectors', () => {
+  it('type the built value as unknown', () => {
+    // The generated interfaces promise required-binding codes, which a built
+    // value need not hold: Patient { gender: 'x' } is a Patient with gender 'x'.
+    expectTypeOf<FhirpathResult<"Coding { system: 'http://loinc.org', code: '8480-6' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient { gender: 'x' }.gender">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Quantity { value: 1, comparator: 'x' }.comparator">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Period {:}'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"code { value: 'final' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Foo { a: 'b' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Coding { code: 'a'">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Period {}'>>().toEqualTypeOf<unknown[]>()
+  })
+
+  it('keep the surrounding expression typed', () => {
+    expectTypeOf<FhirpathResult<"Coding { code: 'a' }.exists()">>().toEqualTypeOf<boolean[]>()
+    expectTypeOf<FhirpathResult<"Patient.select(Coding { system: 'http://x', code: gender }).count()">>().toEqualTypeOf<
+      number[]
+    >()
+    expectTypeOf<FhirpathResult<"Patient.name.where(Coding { code: 'a' }.exists()).given">>().toEqualTypeOf<string[]>()
+  })
+
+  it('evaluate at runtime with the inferred type', () => {
+    const coding = r4.evaluate("Patient.select(Coding { system: 'http://x', code: gender })", {
+      resourceType: 'Patient',
+      gender: 'male',
+    })
+    expectTypeOf(coding).toEqualTypeOf<unknown[]>()
+    expect(coding).toEqual([{ system: 'http://x', code: 'male' }])
+  })
+})
+
 describe('input typing rejects the wrong resource shape', () => {
   it('flags mismatched inputs at compile time (and the engine yields empty at runtime)', () => {
     const expression = compile('Patient.name.given')
