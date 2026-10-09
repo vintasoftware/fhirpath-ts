@@ -129,7 +129,7 @@ const systolic = r4.filter(
   { env: { loinc: 'http://loinc.org' } },
 )
 const newestFirst = r4.evaluate(
-  'Observation.sort(-(effective.ofType(dateTime) | issued).first())',
+  'Observation.sort((effective.ofType(dateTime) | issued).first() desc)',
   systolic,
 )
 ```
@@ -457,7 +457,6 @@ Parts of FHIRPath 3.0.0 that do not work yet:
 
 | Behavior | Issue |
 | --- | --- |
-| `sort()` with `asc`/`desc` and empty keys first; `-key` sorts descending today | [#127](https://github.com/vintasoftware/fhirpath-ts/issues/127) |
 | `min()` and `max()` on Date, DateTime, Time, and String | [#128](https://github.com/vintasoftware/fhirpath-ts/issues/128) |
 | Instance selectors for backbone elements, `BackboneElement { ... }` | [#132](https://github.com/vintasoftware/fhirpath-ts/issues/132) |
 | `power()` returning a Decimal, `ceiling()`/`floor()`/`round()`/`truncate()` on a Quantity, `log()` errors, empty on overflow, and same-type `sum()`/`min()`/`max()` | [#134](https://github.com/vintasoftware/fhirpath-ts/issues/134) |

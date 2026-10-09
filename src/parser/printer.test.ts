@@ -39,6 +39,8 @@ describe('canonical printing', () => {
     ['FHIR.Period { : }', 'FHIR.Period {:}'],
     ["Narrative { div: 'x' }", "Narrative { `div`: 'x' }"],
     ["Coding { code: 'a' }.code", "Coding { code: 'a' }.code"],
+    ['sort($this  desc,name asc,-id)', 'sort($this desc, name asc, -id)'],
+    ['sort(desc desc)', 'sort(desc desc)'],
   ])('prints %j as %j', (source, expected) => {
     expect(printExpression(parse(source))).toBe(expected)
   })

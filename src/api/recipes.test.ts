@@ -105,7 +105,7 @@ describe('README usage recipes', () => {
     )
     expect(systolic).toHaveLength(3)
     const newestFirst = r4.evaluate(
-      'Observation.sort(-(effective.ofType(dateTime) | issued).first())',
+      'Observation.sort((effective.ofType(dateTime) | issued).first() desc)',
       systolic
     ) as Observation[]
     expect(newestFirst.map(o => o.effectiveDateTime ?? o.issued)).toEqual([

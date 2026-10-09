@@ -50,7 +50,7 @@ const documentation: readonly DocumentExpectation[] = [
         'Patient.name.family',
         'birthDate <= today()',
         "Observation.code.coding.exists(system = %loinc and code = '8480-6')",
-        'Observation.sort(-(effective.ofType(dateTime) | issued).first())'
+        'Observation.sort((effective.ofType(dateTime) | issued).first() desc)'
       ),
       valid('contact.all(name.exists() or telecom.exists())'),
       valid(

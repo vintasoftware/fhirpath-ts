@@ -183,4 +183,20 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     reason:
       'R4 expected fractional seconds to truncate; R5 revised them to add as milliseconds, which this engine follows',
   },
+  {
+    suite: 'r4',
+    group: 'testSort',
+    test: 'testSort10',
+    runtimeOnly: true,
+    reason:
+      "suite sorts the name without a family first under -family; FHIRPath 3.0.0 makes an empty key lower than every value, so it sorts last descending and the first name is 'maiden'",
+  },
+  {
+    suite: 'r5',
+    group: 'testSort',
+    test: 'testSort10',
+    runtimeOnly: true,
+    reason:
+      "suite sorts the name without a family first under -family; FHIRPath 3.0.0 makes an empty key lower than every value, so it sorts last descending and the first name is 'maiden'",
+  },
 ]

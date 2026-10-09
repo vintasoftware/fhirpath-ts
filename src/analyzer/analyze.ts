@@ -13,6 +13,7 @@ import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { compileDateFormat } from '../functions/date-format.ts'
 import { intervalKindsMessage, intervalPrecisionMessage, intervalPrecisions } from '../functions/date-intervals.ts'
 import { describeArity, functions } from '../functions/registry.ts'
+import { sortKeys } from '../functions/sort.ts'
 import { invalidRegexFlagMessage, unsupportedConversionMessage } from '../functions/string.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
@@ -1024,13 +1025,12 @@ class Analyzer {
   ): { argStates: (StaticState | undefined)[]; typeTarget: string | undefined } {
     const argStates: (StaticState | undefined)[] = []
     let typeTarget: string | undefined
+    const keys = sortKeys(node)
     node.args.forEach((argument, index) => {
       const spec = signature.args?.[index] ?? signature.args?.at(-1)
       if (spec === 'expression' || spec === 'condition' || spec === 'sort-key') {
-        // A top-level unary '-' on a sort key marks descending order (any type),
-        // mirroring how sort() reads the AST; only the key itself is analyzed.
-        const body =
-          spec === 'sort-key' && argument.kind === 'unary' && argument.operator === '-' ? argument.operand : argument
+        // sort() reads a key without its direction, as the runtime does.
+        const body = spec === 'sort-key' ? (keys[index]?.expression ?? argument) : argument
         // $this is one item of the input — same candidates and reference targets.
         // repeat() and repeatAll() also run the projection on its own results.
         const itemState = withSingle(
@@ -1041,6 +1041,9 @@ class Analyzer {
         const state = this.walk(body, itemState, forkScope(scope))
         this.frames.pop()
         argStates.push(state)
+        if (spec === 'sort-key') {
+          this.requireSingle(state, body.span, `${node.name}() expects a single value for each key`)
+        }
         if (spec === 'condition') {
           this.requireSingle(state, argument.span, `${node.name}() expects a single Boolean criterion`)
           if (!isCollection(state)) {

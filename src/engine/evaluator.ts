@@ -130,7 +130,7 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
         return evaluateHostFunction(node.name, host, node.args, context, input)
       }
       // Each function argument evaluates in its own defineVariable() scope.
-      return lookupFunction(node.name, node.args.length).evaluate(context, input, node.args, evaluateArgument)
+      return lookupFunction(node.name, node.args.length).evaluate(context, input, node.args, evaluateArgument, node)
     }
     case 'unary':
       return evaluateUnary(context, node.operator, evaluateNode(node.operand, context, input))
@@ -204,8 +204,11 @@ function evaluateSpecialVariable(name: 'this' | 'index' | 'total', context: Eval
       return frame.thisValue
     case 'index': {
       let current: typeof frame | undefined = frame
-      while (current && current.index === undefined) {
+      while (current && current.index === undefined && current.hidesIndex === undefined) {
         current = current.parent
+      }
+      if (current?.hidesIndex !== undefined) {
+        throw new FhirPathTypeError(`$index is undefined inside ${current.hidesIndex}() keys`)
       }
       if (!current || current.index === undefined) {
         throw new FhirPathTypeError('$index is only defined inside iteration functions')
