@@ -1,7 +1,7 @@
-import { pairEquals } from '../engine/operators/equality.ts'
+import { DistinctItems, distinctItems } from '../engine/operators/equality.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import { booleanSingleton, wrapBoolean } from '../values/collection.ts'
-import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
+import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, systemTypeOf } from '../values/typed-value.ts'
 import { perItem } from './iteration.ts'
 import { argAt, registerFunction } from './registry.ts'
 
@@ -65,17 +65,6 @@ registerFunction('count', {
   evaluate: (_context, input) => [{ type: SYSTEM_INTEGER, value: input.length }],
 })
 
-/** Duplicate elimination with `=` semantics; shared with the `|` operator and isDistinct(). */
-export function distinctItems(input: TypedValue[]): TypedValue[] {
-  const result: TypedValue[] = []
-  for (const item of input) {
-    if (!result.some(existing => pairEquals(existing, item) === true)) {
-      result.push(item)
-    }
-  }
-  return result
-}
-
 registerFunction('distinct', {
   minArity: 0,
   maxArity: 0,
@@ -93,7 +82,8 @@ registerFunction('subsetOf', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const other = evaluateNode(argAt(args, 0), context, input)
-    return wrapBoolean(input.every(item => other.some(candidate => pairEquals(item, candidate) === true)))
+    const others = new DistinctItems(other)
+    return wrapBoolean(input.every(item => others.has(item)))
   },
 })
 
@@ -102,6 +92,7 @@ registerFunction('supersetOf', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const other = evaluateNode(argAt(args, 0), context, input)
-    return wrapBoolean(other.every(item => input.some(candidate => pairEquals(item, candidate) === true)))
+    const inputs = new DistinctItems(input)
+    return wrapBoolean(other.every(item => inputs.has(item)))
   },
 })

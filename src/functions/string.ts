@@ -418,15 +418,16 @@ function unescapeJson(value: string): string {
   return result
 }
 
-const HTML_NAMED_REFERENCES: Readonly<Record<string, string>> = {
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  amp: '&',
-}
+/** The named references escape('html') writes, by name: `lt` → `<`. */
+const HTML_NAMED_REFERENCES: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(HTML_ESCAPES).flatMap(([character, reference]) => {
+    const name = /^&([a-z]+);$/.exec(reference)?.[1]
+    return name === undefined ? [] : [[name, character]]
+  })
+)
 
 /**
- * Decodes the named references escape('html') writes and decimal (`&#65;`) or
+ * Decodes the named references escape('html') writes, and decimal (`&#65;`) or
  * hexadecimal (`&#x41;`) character references, in one pass so a decoded `&`
  * never starts another reference. A reference to no valid scalar value, such as
  * a surrogate, stays as written.

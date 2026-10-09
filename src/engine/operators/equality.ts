@@ -1,7 +1,13 @@
 import { Temporal } from '../../values/datetime.ts'
 import { asNumeric } from '../../values/numeric.ts'
-import { coerceQuantityPair, compareQuantities, quantitiesEquivalent } from '../../values/quantity.ts'
-import { compareTemporal } from '../../values/temporal-compare.ts'
+import {
+  coerceQuantityPair,
+  compareQuantities,
+  promoteQuantity,
+  quantitiesEquivalent,
+  quantityEqualityKey,
+} from '../../values/quantity.ts'
+import { compareTemporal, temporalEqualityKey } from '../../values/temporal-compare.ts'
 import {
   SYSTEM_BOOLEAN,
   SYSTEM_STRING,
@@ -47,6 +53,88 @@ export function pairEquals(a: TypedValue, b: TypedValue): boolean | undefined {
     return deepEquals(a.value, b.value)
   }
   return false
+}
+
+/**
+ * Items kept distinct by `=` (`pairEquals`), in insertion order. Most items
+ * answer through `equalityKey` in constant time; the rest are compared one by one.
+ */
+export class DistinctItems {
+  readonly items: TypedValue[] = []
+  private readonly keys = new Set<string>()
+  private readonly unkeyed: TypedValue[] = []
+
+  constructor(items: Iterable<TypedValue> = []) {
+    for (const item of items) {
+      this.add(item)
+    }
+  }
+
+  /** True when an item equal to this one is present. */
+  has(item: TypedValue): boolean {
+    return this.find(item, equalityKey(item))
+  }
+
+  /** Adds the item unless an equal one is present; true when added. */
+  add(item: TypedValue): boolean {
+    const key = equalityKey(item)
+    if (this.find(item, key)) {
+      return false
+    }
+    this.insert(item, key)
+    return true
+  }
+
+  /** Adds the item without looking for an equal one. */
+  push(item: TypedValue): void {
+    this.insert(item, equalityKey(item))
+  }
+
+  private find(item: TypedValue, key: string | undefined): boolean {
+    if (key === undefined) {
+      return this.items.some(existing => pairEquals(existing, item) === true)
+    }
+    // A keyed item can still equal an unkeyed one: an untyped object deep-equals a FHIR Quantity.
+    return this.keys.has(key) || this.unkeyed.some(existing => pairEquals(existing, item) === true)
+  }
+
+  private insert(item: TypedValue, key: string | undefined): void {
+    if (key === undefined) {
+      this.unkeyed.push(item)
+    } else {
+      this.keys.add(key)
+    }
+    this.items.push(item)
+  }
+}
+
+/** Duplicate elimination with `=` semantics: `distinct()`, `|`, `union()`, and `intersect()`. */
+export function distinctItems(input: Iterable<TypedValue>): TypedValue[] {
+  return new DistinctItems(input).items
+}
+
+/**
+ * A key that decides `pairEquals` on its own: two keyed items are equal exactly
+ * when their keys are the same. A number takes the key of a Quantity with unit
+ * '1', which it equals. Undefined for complex values, compared by deep equality,
+ * and for valueless items, which equal nothing.
+ */
+function equalityKey(item: TypedValue): string | undefined {
+  if (item.value === undefined) {
+    return undefined
+  }
+  if (item.value instanceof Temporal) {
+    return `t${temporalEqualityKey(item.value)}`
+  }
+  const quantity = promoteQuantity(item)
+  if (quantity) {
+    return `q${quantityEqualityKey(quantity)}`
+  }
+  const type = systemTypeOf(item)
+  if (type === SYSTEM_STRING || type === SYSTEM_BOOLEAN) {
+    return `${type}|${String(item.value)}`
+  }
+  return undefined
 }
 
 /** Single-item `~` semantics (spec §6.1.3). Never empty. */

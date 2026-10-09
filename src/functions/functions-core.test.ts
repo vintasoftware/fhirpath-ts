@@ -112,6 +112,68 @@ describe('filtering and projection', () => {
     expect(evaluate("'a'.repeat('a' | 'b')")).toEqual(['a', 'b'])
   })
 
+  it('repeat reaches its limit quickly on temporal values', () => {
+    expect(() => evaluate('@2016-01-01.repeat($this + 1 day)')).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
+    expect(() => evaluate("@T00:00:00.000.repeat($this + 1 'ms')")).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
+  })
+
+  it('distinct() keeps two values exactly when = is not true for them', () => {
+    // Every kind the deduplication index keys differently: numbers and quantities
+    // by canonical unit, calendar words, opaque units, temporals at each precision
+    // and zone, strings, and booleans.
+    const values = [
+      '1',
+      '1.0',
+      '1L',
+      '2',
+      "1 '1'",
+      "1 'g'",
+      "1000 'mg'",
+      '1 day',
+      "1 'd'",
+      '24 hours',
+      "86400 's'",
+      '1 week',
+      "7 'd'",
+      '1 year',
+      '12 months',
+      "1 'a'",
+      "12 'mo'",
+      "100 '%'",
+      "1 '{tablet}'",
+      "1 '[foo]'",
+      "1 'cm'",
+      "10 'mm'",
+      "1 'g/m'",
+      "1 'mg/mm'",
+      '@2016-01-01',
+      '@2016-01-01T',
+      '@2016-01',
+      '@2016-01-01T10:00',
+      '@2016-01-01T10:00Z',
+      '@2016-01-01T12:00+02:00',
+      '@2016-01-01T10:00:00.000Z',
+      '@2016-01-01T10:00:00Z',
+      '@T10:00',
+      '@T10:00:00',
+      '@T10:00:00.000',
+      "'1'",
+      "'a'",
+      "'true'",
+      'true',
+      'false',
+    ]
+    for (const a of values) {
+      for (const b of values) {
+        const equal = evaluate(`${a} = ${b}`)[0] === true
+        expect([`${a}, ${b}`, evaluate(`(${a}).combine(${b}).distinct().count()`)]).toEqual([
+          `${a}, ${b}`,
+          [equal ? 1 : 2],
+        ])
+      }
+    }
+  })
+
   it('ofType filters by type', () => {
     expect(evaluate("(1 | 'a' | 2.5 | true).ofType(Integer)")).toEqual([1])
     expect(evaluate("(1 | 'a' | 2.5 | true).ofType(String)")).toEqual(['a'])
