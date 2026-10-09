@@ -158,7 +158,8 @@ registerFunction('power', {
     if (decimal === undefined) {
       return []
     }
-    // Integer ^ Integer stays an Integer when the result is whole (spec §5.7.7).
+    // Integer ^ Integer stays an Integer when the result is whole, as FHIRPath 2.0.0 had
+    // it; 3.0.0's power() always returns a Decimal (#134).
     if (numeric.item.type === SYSTEM_INTEGER && exponentInput?.type === SYSTEM_INTEGER && decimal.isInteger()) {
       return [wrapNumeric(decimal, 'Integer')]
     }

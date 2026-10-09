@@ -56,7 +56,7 @@ export interface HostExpressionFunction {
   functions?: ReadonlyMap<string, HostFunction>
   /**
    * Apply the criteria rule to the body's result, so the function always returns
-   * exactly one Boolean. That rule is `criteriaBoolean`: §4.5 singleton
+   * exactly one Boolean. That rule is `criteriaBoolean`: singleton
    * evaluation, with an empty result read as false. It is what makes a DTO
    * criteria column mean the same thing whether it is projected or called from
    * an expression.
@@ -295,7 +295,7 @@ export function forkVariables(context: EvaluationContext): EvaluationContext {
   return { ...context, variables: new Map(context.variables) }
 }
 
-/** Resolve `%name`; referencing an undefined environment variable is an error (spec §9). */
+/** Resolve `%name`; referencing an undefined environment variable is an error (spec "Environment variables"). */
 export function resolveEnvironmentVariable(context: EvaluationContext, name: string): TypedValue[] {
   const value = context.variables.get(name) ?? context.env.get(name)
   if (value !== undefined) {

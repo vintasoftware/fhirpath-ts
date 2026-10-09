@@ -14,7 +14,7 @@ export interface ElementInfo {
 }
 
 /**
- * The spec's ModelInfo concept (§10/§12.2): everything the engine and the static
+ * The spec's ModelInfo concept ("Types and Reflection", "Model Information"): everything the engine and the static
  * analyzer need to know about a data model. The core never assumes FHIR; the R4
  * model package implements this from generated StructureDefinition data.
  */

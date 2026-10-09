@@ -17,7 +17,7 @@ function isSystemAmbiguousName(name: string): boolean {
 
 /**
  * Does an item satisfy a type specifier, for the `is`, `ofType`, or `as` test?
- * Resolution order per spec §10.1: the context model's types first, then the
+ * Resolution order per spec "Models": the context model's types first, then the
  * System namespace. `is` always walks subtypes; `ofType` and `as` do too, except
  * when the requested name aliases a System primitive, where the official
  * inheritance tests pin an exact match instead (see isSystemAmbiguousName).

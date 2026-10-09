@@ -9,7 +9,7 @@ const TIMEZONE_PATTERN = /(Z|[+-]\d{2}:\d{2})$/
 /**
  * A Date, DateTime, or Time value with partial precision. Components beyond the
  * value's precision are undefined; comparison across precisions is decided by the
- * operators (spec §6.2/§6.4), not here.
+ * operators (spec "Equality" and "Comparison"), not here.
  */
 export class Temporal {
   readonly kind: TemporalKind

@@ -18,7 +18,7 @@ import {
 import type { BinaryOperatorTable } from './index.ts'
 
 /**
- * Single-item `=` semantics (spec §6.1.1). Undefined means empty: date/time values
+ * Single-item `=` semantics (spec "= (Equals)"). Undefined means empty: date/time values
  * whose precisions differ, or quantities whose units cannot be compared yet.
  */
 export function pairEquals(a: TypedValue, b: TypedValue): boolean | undefined {
@@ -154,7 +154,7 @@ function equalityKey(item: TypedValue): string | undefined {
   return undefined
 }
 
-/** Single-item `~` semantics (spec §6.1.3). Never empty. */
+/** Single-item `~` semantics (spec "~ (Equivalent)"). Never empty. */
 export function pairEquivalent(a: TypedValue, b: TypedValue): boolean {
   if (a.value === undefined || b.value === undefined) {
     // Two valueless primitives are equivalent; a valueless one never matches a value.
@@ -217,7 +217,7 @@ function isComplex(item: TypedValue): boolean {
 }
 
 function normalizeString(value: string): string {
-  // "Normalizing whitespace" (spec §6.1.2) makes tab/newline/space interchangeable;
+  // "Normalizing whitespace" (spec "~ (Equivalent)") makes tab/newline/space interchangeable;
   // it does not trim or collapse runs — 'a  b' and 'a b' stay different.
   return value.replace(/\s/g, ' ').toLowerCase()
 }

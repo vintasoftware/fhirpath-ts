@@ -140,7 +140,7 @@ function requireKnownType(context: Parameters<typeof isKnownTypeName>[0], name: 
   }
 }
 
-// Deprecated function forms of the `is` and `as` operators (spec §6.3).
+// Deprecated function forms of the `is` and `as` operators (spec "Types").
 registerFunction('is', {
   minArity: 1,
   maxArity: 1,

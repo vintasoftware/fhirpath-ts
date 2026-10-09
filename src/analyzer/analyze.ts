@@ -205,10 +205,10 @@ export interface AnalyzerRoot {
 }
 
 /**
- * Statically check one expression against the model: spec §11's strict-mode rules
+ * Statically check one expression against the model: the spec's type safety and strict evaluation rules
  * (singleton misuse, wrong operand and argument types, incomparable equality)
  * plus unknown elements, functions, arities, type names, and variables.
- * See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
+ * See: https://hl7.org/fhirpath/STU3/en/index.html#type-safety-and-strict-evaluation
  */
 export function analyzeExpression(expression: string, options?: AnalyzeOptions): AnalyzerDiagnostic[] {
   return analyzeExpressionDetailed(expression, options).diagnostics
@@ -494,7 +494,7 @@ class Analyzer {
 
   /**
    * `%name`: defineVariable() bindings and built-in variables resolve with their
-   * known state; anything else is an undefined variable (spec §9), the same
+   * known state; anything else is an undefined variable (spec "Environment variables"), the same
    * check the runtime applies. Host-supplied variables must be declared to the
    * analyzer (AnalyzeOptions is the place this will grow).
    */
@@ -540,7 +540,7 @@ class Analyzer {
   }
 
   /**
-   * A quantity's components (spec §4: `value` and `unit`), the one System type
+   * A quantity's components (spec "Quantity" literals: `value` and `unit`), the one System type
    * with navigable elements. The runtime reads them off the quantity's raw
    * `{ value, unit }` shape (a `toQuantity()` result, a quantity literal), so
    * the analyzer must know them too or flag working navigation.
@@ -996,7 +996,7 @@ class Analyzer {
     if (signature.input.singleton && input.types !== undefined && input.single === false) {
       this.report(
         'singleton-required',
-        `${node.name}() expects a single item as input, but this is a collection (spec §11)${NARROW_HINT}`,
+        `${node.name}() expects a single item as input, but this is a collection (FHIRPath strict evaluation)${NARROW_HINT}`,
         node.span
       )
     }
@@ -1064,7 +1064,7 @@ class Analyzer {
         if (argState.types !== undefined && argState.single === false) {
           this.report(
             'argument-singleton',
-            `${node.name}() expects a single ${spec} argument, but this is a collection (spec §11)${NARROW_HINT}`,
+            `${node.name}() expects a single ${spec} argument, but this is a collection (FHIRPath strict evaluation)${NARROW_HINT}`,
             argument.span,
             'warning'
           )
@@ -1510,7 +1510,11 @@ class Analyzer {
       return
     }
     if (leftKind !== rightKind) {
-      this.report('equality-incompatible', `${leftKind} and ${rightKind} operands can never be equal (spec §11)`, span)
+      this.report(
+        'equality-incompatible',
+        `${leftKind} and ${rightKind} operands can never be equal (FHIRPath strict evaluation)`,
+        span
+      )
     }
   }
 

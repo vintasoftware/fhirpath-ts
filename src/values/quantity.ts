@@ -121,7 +121,7 @@ export function coerceQuantity(item: TypedValue): QuantityValue | undefined {
   return { value, unit, calendar: false }
 }
 
-/** A quantity as-is, or a number implicitly converted to a unity quantity (spec §5.5). */
+/** A quantity as-is, or a number implicitly converted to a unity quantity (spec "Conversion"). */
 export function promoteQuantity(item: TypedValue): QuantityValue | undefined {
   const coerced = coerceQuantity(item)
   if (coerced) {
@@ -133,7 +133,7 @@ export function promoteQuantity(item: TypedValue): QuantityValue | undefined {
 
 /**
  * Coerce a pair of operands for quantity operations. Integers, Longs, and
- * Decimals implicitly convert to unity quantities (spec §5.5) when the other
+ * Decimals implicitly convert to unity quantities (spec "Conversion") when the other
  * side is a quantity: `9 = 9 '1'` and `2 * 4 'kg'` both work.
  */
 export function coerceQuantityPair(a: TypedValue, b: TypedValue): [QuantityValue, QuantityValue] | undefined {
@@ -175,7 +175,7 @@ function calendarFamily(unit: string): { family: 'month' | 'second'; factor: Dec
 /**
  * Compare two quantities. Undefined when the units are not comparable: different
  * dimensions, opaque units with different spellings, or calendar words above
- * seconds against UCUM time units (those are only equivalent, spec §6.1).
+ * seconds against UCUM time units (those are only equivalent, spec "Quantity Equality").
  */
 export function compareQuantities(a: QuantityValue, b: QuantityValue): -1 | 0 | 1 | undefined {
   if (a.calendar && b.calendar) {

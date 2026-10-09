@@ -47,7 +47,7 @@ describe('string functions', () => {
     ["'ABC'.replaceMatches('[a-z]+', 'x')", ['ABC']],
     ["'a\\nb'.replaceMatches('^', '> ', 'm')", ['> a\n> b']],
     ["'abc123def'.replaceMatches('\\\\d+', '|')", ['abc|def']],
-    // Spec §5.6.10 example: PCRE-style named group references.
+    // Spec replaceMatches() example: PCRE-style named group references.
     [
       "'11/30/1972'.replaceMatches('\\\\b(?<month>\\\\d{1,2})/(?<day>\\\\d{1,2})/(?<year>\\\\d{2,4})\\\\b', '${day}-${month}-${year}')",
       ['30-11-1972'],

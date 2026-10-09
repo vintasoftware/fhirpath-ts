@@ -98,7 +98,7 @@ const UNKNOWN = { kind: 'unknown' } as const satisfies ResultRule
 // An unknown type that is at most one item at runtime (aggregates, singleton-input
 // conversions), so its order is defined even when the input's is not.
 const UNKNOWN_ITEM = { kind: 'unknown', ordered: true } as const satisfies ResultRule
-// Tree traversals return their matches in no defined order (spec §5.1).
+// Tree traversals return their matches in no defined order (spec "Tree navigation").
 const UNORDERED = { kind: 'unknown', ordered: false } as const satisfies ResultRule
 const SAME = { kind: 'input' } as const satisfies ResultRule
 const ITEM = { kind: 'input-item' } as const satisfies ResultRule

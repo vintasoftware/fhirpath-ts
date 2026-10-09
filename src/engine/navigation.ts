@@ -4,7 +4,7 @@ import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import type { EvaluationContext } from './context.ts'
 
 /**
- * Evaluate a bare identifier against the input. The spec's root rule (§10.1) applies
+ * Evaluate a bare identifier against the input. The spec's root rule ("Models") applies
  * first: an identifier naming the item's own type yields the item itself, which is
  * how `Patient.name` works when the context is a Patient.
  */

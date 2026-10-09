@@ -2,7 +2,7 @@ import { type TypedValue, typeLocalName } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
 /**
- * type() reflection (spec §10.2, STU). Returns one TypeInfo per item; the official
+ * type() reflection (spec "Reflection", trial use). Returns one TypeInfo per item; the official
  * tests only inspect `namespace` and `name`, so ClassInfo element lists are not
  * materialized.
  */

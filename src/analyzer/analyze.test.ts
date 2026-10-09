@@ -44,7 +44,7 @@ describe('clean expressions produce no diagnostics', () => {
   })
 })
 
-describe('spec §11 rules', () => {
+describe('type safety and strict evaluation rules', () => {
   it('flags unknown elements, including choice-key misuse', () => {
     expect(codes('Patient.nope')).toEqual(['unknown-element'])
     expect(codes("(1 'kg').nope")).toEqual(['unknown-element'])
@@ -77,12 +77,14 @@ describe('spec §11 rules', () => {
 
   it('spells out how to fix a singleton misuse', () => {
     expect(messages('Patient.name.given.substring(1)')).toEqual([
-      'substring() expects a single item as input, but this is a collection (spec §11) — narrow it to one item with first(), last(), or single()',
+      'substring() expects a single item as input, but this is a collection (FHIRPath strict evaluation) — narrow it to one item with first(), last(), or single()',
     ])
   })
 
   it('names both types in an incompatible equality', () => {
-    expect(messages('Patient.gender = 5')).toEqual(['String and Numeric operands can never be equal (spec §11)'])
+    expect(messages('Patient.gender = 5')).toEqual([
+      'String and Numeric operands can never be equal (FHIRPath strict evaluation)',
+    ])
   })
 
   it('flags unknown functions and wrong arity', () => {

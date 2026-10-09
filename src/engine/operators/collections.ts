@@ -3,7 +3,7 @@ import { SYSTEM_BOOLEAN, type TypedValue } from '../../values/typed-value.ts'
 import { distinctItems, pairEquals } from './equality.ts'
 import type { BinaryOperatorTable } from './index.ts'
 
-/** Merge with duplicate elimination using `=` semantics (spec §6.4.1 / `union()`). */
+/** Merge with duplicate elimination using `=` semantics (spec "| (union collections)" / `union()`). */
 export function unionCollections(left: TypedValue[], right: TypedValue[]): TypedValue[] {
   return distinctItems([...left, ...right])
 }

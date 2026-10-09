@@ -25,8 +25,8 @@ describe('model navigation branches', () => {
 
   it('unknown elements and choice-key misuse navigate to empty', () => {
     const resource = { resourceType: 'Patient', unknownKey: 'x' }
-    // Typos are the static analyzer's job (spec §11); runtime navigation is lenient.
-    // See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
+    // Typos are the static analyzer's job (spec "Type safety and strict evaluation"); runtime navigation is lenient.
+    // See: https://hl7.org/fhirpath/STU3/en/index.html#type-safety-and-strict-evaluation
     expect(evaluate('unknownKey', resource, options)).toEqual([])
     // Names on Object.prototype are not elements of any type.
     expect(evaluate('constructor', resource, options)).toEqual([])

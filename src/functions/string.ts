@@ -6,7 +6,7 @@ import { SYSTEM_INTEGER, SYSTEM_STRING, systemTypeOf, type TypedValue } from '..
 import type { NodeEvaluator } from './iteration.ts'
 import { argAt, type FhirPathFunction, registerFunction } from './registry.ts'
 
-/** Singleton String input; empty stays empty, anything else is a type error (spec §5.6). */
+/** Singleton String input; empty stays empty, anything else is a type error (spec "String Manipulation"). */
 function stringInput(name: string, input: TypedValue[]): string | undefined {
   const item = singleton(input)
   if (item === undefined) {

@@ -29,7 +29,7 @@ import { argAt, registerFunction } from './registry.ts'
 type Converter = (item: TypedValue) => TypedValue | undefined
 
 /**
- * Registers `to<Type>()` plus its `convertsTo<Type>()` twin (spec §5.5). With
+ * Registers `to<Type>()` plus its `convertsTo<Type>()` twin (spec "Conversion"). With
  * `formatted`, both take an optional format argument (FHIRPath 3.0.0) that
  * replaces the default format for a String input; other inputs ignore it.
  */
