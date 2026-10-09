@@ -138,6 +138,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   or a number gives empty instead of an error, and the analyzer accepts
   `1.comparable(2)`
   ([#125](https://github.com/vintasoftware/fhirpath-ts/issues/125)).
+- `=` on complex values compares element `id`s, since equality compares every
+  child element. `~` still ignores them. Two Codings that differ only in their
+  `id` are no longer `=`, so `distinct()`, `|`, `union()`, `intersect()`,
+  `exclude()`, and `repeat()` keep both
+  ([#131](https://github.com/vintasoftware/fhirpath-ts/issues/131)).
 
 ### Fixed
 

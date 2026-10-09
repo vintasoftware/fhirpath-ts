@@ -99,7 +99,7 @@ describe('equality (=, !=)', () => {
     expect(evaluate('name = name', patient)).toEqual([true])
   })
 
-  it('ignores id and primitive extensions on nested complex values, same as bare primitives', () => {
+  it('ignores primitive extensions on nested complex values, same as bare primitives', () => {
     const patient = {
       resourceType: 'Patient',
       communication: [
@@ -120,6 +120,24 @@ describe('equality (=, !=)', () => {
     expect(evaluate('communication.first() = communication.last()', patient, options)).toEqual([true])
     expect(evaluate('communication.distinct().count()', patient, options)).toEqual([1])
     expect(evaluate('communication.isDistinct()', patient, options)).toEqual([false])
+  })
+
+  it('compares element ids, which ~ ignores (#131)', () => {
+    const data = {
+      child: [
+        { id: '1', a: 'x' },
+        { id: '2', a: 'x' },
+      ],
+      nodes: [{ child: { id: '1' } }, { child: { id: '2' } }],
+    }
+    expect(evaluate("child.where(id = '1') = child.where(id = '2')", data)).toEqual([false])
+    expect(evaluate("child.where(id = '1') ~ child.where(id = '2')", data)).toEqual([true])
+    expect(evaluate('nodes.repeat(child).count()', data)).toEqual([2])
+    expect(evaluate('child.distinct().count()', data)).toEqual([2])
+    expect(evaluate('child.isDistinct()', data)).toEqual([true])
+    expect(evaluate('(child | child).count()', data)).toEqual([2])
+    expect(evaluate("child.where(id = '1').intersect(child).count()", data)).toEqual([1])
+    expect(evaluate("child.exclude(child.where(id = '1')).id", data)).toEqual(['2'])
   })
 
   it('quantities with the same unit compare by value', () => {
