@@ -346,6 +346,9 @@ describe('README usage recipes', () => {
       { trace: name => traced.push(name) }
     )
     expect(traced).toEqual(['names'])
+
+    const named: Patient = { resourceType: 'Patient', name: [{ family: 'Okoro' }, { given: ['Ada'] }] }
+    expect(r4.evaluate('Patient.name.where(family.empty()).pathname()', named)).toEqual(['Patient.name[1]'])
   })
 
   it('covers expressions used by the longer reference docs', () => {

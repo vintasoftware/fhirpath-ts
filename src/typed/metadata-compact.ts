@@ -71,6 +71,7 @@ export interface CompactFunctionRules {
   not: readonly ['fixed', 'System.Boolean']
   now: readonly ['fixed', 'System.DateTime']
   ofType: readonly ['unknown']
+  pathname: readonly ['fixed', 'System.String']
   power: readonly ['unknown']
   precision: readonly ['fixed', 'System.Integer']
   repeat: readonly ['unknown']
@@ -149,6 +150,7 @@ export type CompactFastFunctionName =
   | 'exclude'
   | 'not'
   | 'trace'
+  | 'pathname'
   | 'hasValue'
   | 'htmlChecks'
   | 'comparable'

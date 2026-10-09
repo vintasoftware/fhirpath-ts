@@ -49,6 +49,8 @@ describe('reference-derived type-inference inventory', () => {
 
   it('has runnable cases for every signed built-in except the documented skipped gap', () => {
     expect(INFERENCE_CORPUS_AUDIT.signedFunctions).toBe(Object.keys(FUNCTION_SIGNATURES).length)
-    expect(INFERENCE_CORPUS_AUDIT.missingSignedFunctions).toEqual(['convertsToLong'])
+    // No reference suite calls these yet. pathname() (FHIRPath 3.0.0, trial
+    // use) has its own cases in src/functions/pathname.test.ts.
+    expect(INFERENCE_CORPUS_AUDIT.missingSignedFunctions).toEqual(['convertsToLong', 'pathname'])
   })
 })

@@ -10,6 +10,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Added
 
+- `pathname([short])` from FHIRPath 3.0.0 (trial use) returns the path of each
+  input item inside the input resource, such as
+  `Observation.component[0].code[0].coding[0]`. Computed values have no path.
+  Navigation records where items come from only when an evaluation can call
+  `pathname()` ([#115](https://github.com/vintasoftware/fhirpath-ts/issues/115)).
 - `engine.compile(expression, type)` declares the type a relative expression
   runs against, as the package-root `compile(expression, type)` does. The input
   must be that type or an array of it, the result is inferred against it, and

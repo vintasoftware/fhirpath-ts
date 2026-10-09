@@ -262,6 +262,14 @@ r4.evaluate("Patient.name.trace('names').given", patient, {
 })
 ```
 
+`pathname()` gives the path of each item inside the resource. Paths locate a
+problem without carrying patient data, so they suit traces and reports.
+
+```ts
+r4.evaluate('Patient.name.where(family.empty()).pathname()', patient)
+// ['Patient.name[1]']
+```
+
 ## Important gotchas
 
 - FHIRPath always evaluates collections. Use `first()` when application code
@@ -456,4 +464,4 @@ settings override the adapter's defaults one by one.
 
 `trace()` does nothing unless a trace sink is provided. Traced values may contain
 patient data. Never send PHI values to console output or production logs; use
-record identifiers instead.
+record identifiers or element paths from `pathname()` instead.

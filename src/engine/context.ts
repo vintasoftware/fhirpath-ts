@@ -158,6 +158,12 @@ export interface EvaluationContext {
   regex: RegexEngine | undefined
   /** Sanitizer htmlChecks() also requires to accept the narrative; undefined means none. */
   narrativeSanitizer: NarrativeSanitizer | undefined
+  /**
+   * True when navigation records where each item was read (`TypedValue.origin`)
+   * for `pathname()`. Only evaluations that can reach a `pathname()` call pay
+   * for it (see `callsPathname`).
+   */
+  paths: boolean
   frame: Frame
 }
 
@@ -228,6 +234,7 @@ export function createContext(options: {
   functions?: Record<string, HostFunction> | undefined
   regex?: RegexEngine | undefined
   narrativeSanitizer?: NarrativeSanitizer | undefined
+  paths?: boolean | undefined
 }): EvaluationContext {
   const env = new Map<string, TypedValue[]>()
   for (const [name, url] of BUILTIN_CONSTANTS) {
@@ -259,6 +266,7 @@ export function createContext(options: {
     activeExpressionFunctions: new Set(),
     regex: options.regex,
     narrativeSanitizer: options.narrativeSanitizer,
+    paths: options.paths ?? false,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
 }

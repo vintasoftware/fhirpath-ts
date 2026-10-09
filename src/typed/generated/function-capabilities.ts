@@ -1051,6 +1051,21 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     degradation: 'Patient.name.unknownFn()',
     composition: '(Patient.name.ofType(HumanName)).count()',
   },
+  'builtin.pathname': {
+    source: {
+      expression: 'Patient.name.pathname(true)',
+      corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
+    },
+    expectedType: 'string[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: {
+      types: ['System.String'],
+      single: undefined,
+    },
+    degradation: 'Patient.name.unknownFn()',
+    composition: '(Patient.name.pathname(true)).count()',
+  },
   'builtin.power': {
     source: {
       expression: '2.power(1)',
