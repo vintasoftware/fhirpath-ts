@@ -25,36 +25,79 @@ import {
 } from '../values/typed-value.ts'
 import { type EvaluationContext, forkVariables } from './context.ts'
 
-/** The type an instance selector builds, or why the name names none. */
-export type InstanceType = { type: string; primitive: boolean; resource: boolean } | { error: string }
+/**
+ * The type an instance selector builds, or why the name names none. `name` is
+ * the type without its namespace (`Observation.component` for a backbone
+ * element), for `resourceType` and messages.
+ */
+export type InstanceType = { type: string; name: string; primitive: boolean; resource: boolean } | { error: string }
+
+/** Type names that build the backbone element the selector is the value of. */
+const BACKBONE_SELECTOR_TYPES = new Set(['BackboneElement', 'Element'])
 
 /**
  * Resolve an instance selector's type name. With a model, the name must be one
  * of its types, optionally prefixed with the model's namespace. Without a
  * model, any name works and an unqualified name gets the FHIR namespace, as
  * resource values do. System types have literals instead.
+ *
+ * Backbone elements have no type name of their own, so `BackboneElement { ... }`
+ * (or `Element { ... }`) written directly as the value of an element whose
+ * type is a backbone element builds that element's type, such as
+ * `Observation.component`. `elementTypes` are the declared types of that
+ * element. Anywhere else the name means the abstract type itself.
  */
-export function resolveInstanceType(model: ModelProvider | undefined, parts: readonly string[]): InstanceType {
+export function resolveInstanceType(
+  model: ModelProvider | undefined,
+  parts: readonly string[],
+  elementTypes?: readonly string[]
+): InstanceType {
   const text = parts.join('.')
   if (parts[0] === 'System') {
     return { error: `An instance selector builds a model type, but '${text}' is a System type` }
   }
   if (model === undefined) {
     const type = parts.length === 1 ? `FHIR.${text}` : text
-    return { type, primitive: isFhirPrimitive(type), resource: false }
+    return { type, name: text, primitive: isFhirPrimitive(type), resource: false }
   }
   const local =
     parts.length === 1 ? parts[0] : parts.length === 2 && parts[0] === model.namespace ? parts[1] : undefined
   const type = local === undefined ? undefined : model.resolveType(local)
-  if (type === undefined) {
+  if (type === undefined || local === undefined) {
     return { error: `Unknown type '${text}'` }
+  }
+  const backbone = elementTypes === undefined ? undefined : backboneElementType(model, type, local, elementTypes)
+  if (backbone !== undefined) {
+    return { type: backbone, name: backbone.slice(model.namespace.length + 1), primitive: false, resource: false }
   }
   const resourceBase = model.resolveType('Resource')
   return {
     type,
+    name: local,
     primitive: isFhirPrimitive(type),
     resource: resourceBase !== undefined && model.isSubtypeOf(type, resourceBase),
   }
+}
+
+/**
+ * The backbone element type among `elementTypes` that a selector of `type`
+ * builds, or undefined. The model names a backbone element type by its path,
+ * such as `Observation.component`, and that type must derive from `type`.
+ */
+function backboneElementType(
+  model: ModelProvider,
+  type: string,
+  local: string,
+  elementTypes: readonly string[]
+): string | undefined {
+  if (!BACKBONE_SELECTOR_TYPES.has(local)) {
+    return undefined
+  }
+  const backbones = elementTypes
+    .filter(elementType => elementType.includes('.') && !elementType.startsWith('System.'))
+    .map(elementType => model.resolveType(elementType))
+    .filter(resolved => resolved !== undefined && model.isSubtypeOf(resolved, type))
+  return backbones.length === 1 ? backbones[0] : undefined
 }
 
 function isFhirPrimitive(type: string): boolean {
@@ -176,6 +219,39 @@ export function valuePatternMessage(
     : `Element '${element}' of ${owner} does not match the ${typeLocalName(primitive)} pattern ${pattern}`
 }
 
+/** How many codes a message lists before it gives only their number. */
+const LISTED_CODES = 10
+
+/**
+ * Why a value written to a `code` element breaks the element's required
+ * binding (ElementInfo.requiredCodes), or undefined. The message lists the
+ * allowed codes, never the value, which may be patient data.
+ */
+export function requiredCodeMessage(
+  info: ElementInfo,
+  value: unknown,
+  element: string,
+  owner: string
+): string | undefined {
+  const codes = info.requiredCodes
+  if (codes === undefined || typeof value !== 'string' || codes.includes(value)) {
+    return undefined
+  }
+  const allowed = codes.length <= LISTED_CODES ? `: ${codes.join(' | ')}` : ` (${codes.length} codes)`
+  return `Element '${element}' of ${owner} takes a code of its required binding${allowed}`
+}
+
+/**
+ * The required elements (ElementInfo.isRequired) of `type` that a selector
+ * listing `listed` leaves out. The spec lets a selector build a partial value,
+ * so the static checkers warn and the runtime builds it.
+ */
+export function missingRequiredElements(model: ModelProvider, type: string, listed: ReadonlySet<string>): string[] {
+  return (model.listElements?.(type) ?? []).filter(
+    name => !listed.has(name) && model.getElement(type, name)?.isRequired === true
+  )
+}
+
 /**
  * The System type and FHIR JSON of a literal element value, as the runtime writes
  * it, so the analyzer can check its pattern: strings, booleans, numbers with an
@@ -272,14 +348,15 @@ export function evaluateInstanceSelector(
   node: InstanceSelectorNode,
   context: EvaluationContext,
   input: TypedValue[],
-  evaluateNode: (node: AstNode, context: EvaluationContext, input: TypedValue[]) => TypedValue[]
+  evaluateNode: (node: AstNode, context: EvaluationContext, input: TypedValue[]) => TypedValue[],
+  elementTypes?: readonly string[]
 ): TypedValue[] {
   const model = context.model
-  const resolved = resolveInstanceType(model, node.type.parts)
+  const resolved = resolveInstanceType(model, node.type.parts, elementTypes)
   if ('error' in resolved) {
     throw new FhirPathTypeError(resolved.error)
   }
-  const typeName = typeLocalName(resolved.type)
+  const typeName = resolved.name
   const elements = node.elements.map(element => {
     const info = model === undefined ? undefined : selectorElement(model, resolved.type, element.name)
     if (model !== undefined && info === undefined) {
@@ -295,17 +372,25 @@ export function evaluateInstanceSelector(
   }
   const json: Record<string, unknown> = resolved.resource ? { resourceType: typeName } : {}
   for (const { element, info } of elements) {
-    const values = evaluateNode(element.value, forkVariables(context), input)
+    // A selector written as an element's value may build that element's backbone type.
+    const values =
+      element.value.kind === 'instance' && info !== undefined
+        ? evaluateInstanceSelector(element.value, forkVariables(context), input, evaluateNode, info.types)
+        : evaluateNode(element.value, forkVariables(context), input)
     if (values.length === 0) {
       continue
     }
-    writeElementValues(json, element.name, info, values, model, resolved.type)
+    writeElementValues(json, element.name, info, values, model, resolved)
   }
   if (!resolved.primitive) {
     return [{ type: resolved.type, value: json }]
   }
   const { value, ...metadata } = json
-  const primitive = convertSingle(value, Object.keys(metadata).length > 0 ? metadata : undefined, typeName)
+  const primitive = convertSingle(
+    value,
+    Object.keys(metadata).length > 0 ? metadata : undefined,
+    typeLocalName(resolved.type)
+  )
   return primitive === undefined ? [] : [primitive]
 }
 
@@ -315,9 +400,9 @@ function writeElementValues(
   info: ElementInfo | undefined,
   values: TypedValue[],
   model: ModelProvider | undefined,
-  selectorType: string
+  selector: { type: string; name: string }
 ): void {
-  const typeName = typeLocalName(selectorType)
+  const typeName = selector.name
   if (info === undefined || model === undefined) {
     writeElement(
       json,
@@ -343,9 +428,10 @@ function writeElementValues(
     }
     chosen = elementType
     const entry = jsonEntry(item, elementType)
-    const primitive = patternedType(selectorType, name, elementType)
+    const primitive = patternedType(selector.type, name, elementType)
     const message =
-      primitive === undefined ? undefined : valuePatternMessage(model, primitive, entry.value, name, typeName)
+      (primitive === undefined ? undefined : valuePatternMessage(model, primitive, entry.value, name, typeName)) ??
+      requiredCodeMessage(info, entry.value, name, typeName)
     if (message !== undefined) {
       throw new FhirPathRuntimeError(message)
     }

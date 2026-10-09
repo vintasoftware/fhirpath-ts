@@ -4,7 +4,9 @@ import { bareEnvironmentName, BUILTIN_ENV_VARIABLE_NAMES, normalizeEnvKeys } fro
 import {
   acceptingElementType,
   literalValue,
+  missingRequiredElements,
   patternedType,
+  requiredCodeMessage,
   resolveInstanceType,
   selectorElement,
   valuePatternMessage,
@@ -1410,22 +1412,36 @@ class Analyzer {
    * An instance selector builds one value of the named type from the focus, so
    * it needs at most one input item. With a model, each element must exist on
    * the type, take the value's type (`acceptingElementType`, as the runtime
-   * decides), and repeat when the value is a collection.
+   * decides), and repeat when the value is a collection. A literal value must
+   * match its primitive's pattern and a required binding's codes, and a
+   * required element the selector leaves out is a warning. `elementTypes` are
+   * the declared types of the element this selector is the value of, which
+   * lets `BackboneElement { ... }` build a backbone element.
    */
-  private walkInstance(node: AstNode & { kind: 'instance' }, input: StaticState, scope: VariableScope): StaticState {
+  private walkInstance(
+    node: AstNode & { kind: 'instance' },
+    input: StaticState,
+    scope: VariableScope,
+    elementTypes?: readonly string[]
+  ): StaticState {
     this.requireSingle(input, node.span, 'An instance selector expects a single input item')
-    const resolved = resolveInstanceType(this.model, node.type.parts)
+    const resolved = resolveInstanceType(this.model, node.type.parts, elementTypes)
     if ('error' in resolved) {
       this.report('unknown-type', resolved.error, node.type.span)
     }
     const type = 'error' in resolved ? undefined : resolved.type
+    const owner = 'error' in resolved ? '' : resolved.name
+    const model = this.model
     for (const element of node.elements) {
+      const info = type === undefined || model === undefined ? undefined : selectorElement(model, type, element.name)
       // Each element value is its own chain, like an operator operand.
-      const value = this.walk(element.value, input, forkScope(scope))
-      if (type === undefined || this.model === undefined) {
+      const value =
+        element.value.kind === 'instance' && info !== undefined
+          ? this.walkInstance(element.value, input, forkScope(scope), info.types)
+          : this.walk(element.value, input, forkScope(scope))
+      if (type === undefined || model === undefined) {
         continue
       }
-      const info = selectorElement(this.model, type, element.name)
       if (info === undefined) {
         this.report(
           'unknown-element',
@@ -1439,7 +1455,6 @@ class Analyzer {
       if (!info.isCollection) {
         this.requireSingle(value, element.value.span, `Element '${element.name}' of ${type} takes one item`)
       }
-      const model = this.model
       if (
         value.types !== undefined &&
         value.types.length > 0 &&
@@ -1452,20 +1467,36 @@ class Analyzer {
         )
         continue
       }
-      // A literal value must also match the FHIR primitive's pattern, as the runtime checks.
+      // A literal value must also hold, as the runtime checks.
       const literal = literalValue(element.value)
       const elementType = literal === undefined ? undefined : acceptingElementType(model, info.types, literal.type)
-      const primitive = elementType === undefined ? undefined : patternedType(type, element.name, elementType)
+      if (literal === undefined || elementType === undefined) {
+        continue
+      }
+      const primitive = patternedType(type, element.name, elementType)
       const message =
-        primitive === undefined
+        (primitive === undefined
           ? undefined
-          : valuePatternMessage(model, primitive, literal?.json, element.name, typeLocalName(type))
+          : valuePatternMessage(model, primitive, literal.json, element.name, owner)) ??
+        requiredCodeMessage(info, literal.json, element.name, owner)
       if (message !== undefined) {
         this.report('invalid-value', message, element.value.span)
       }
     }
+    if (type !== undefined && model !== undefined) {
+      const listed = new Set(node.elements.map(element => element.name))
+      for (const name of missingRequiredElements(model, type, listed)) {
+        this.report(
+          'missing-element',
+          `${owner} requires element '${name}', which the instance selector leaves out`,
+          node.type.span,
+          'warning',
+          name
+        )
+      }
+    }
     // Without a model the built value has no type the analyzer can name.
-    return singleState(type === undefined || this.model === undefined ? undefined : [type])
+    return singleState(type === undefined || model === undefined ? undefined : [type])
   }
 
   private checkArithmetic(operator: string, left: StaticState, right: StaticState, span: SourceSpan): void {
