@@ -57,6 +57,7 @@ export type { HostNativeFunction, NarrativeSanitizer, RegexEngine } from './engi
 export type { SourceSpan } from './errors.ts'
 export { FhirPathError, FhirPathRuntimeError, FhirPathSyntaxError, FhirPathTypeError } from './errors.ts'
 export { type DomPurifyLike, domPurifySanitizer } from './fhir/narrative-sanitizer.ts'
+export type { ReferenceResolver } from './fhir/reference-resolver.ts'
 export type { ElementInfo, ModelProvider } from './model/provider.ts'
 export type { AstNode } from './parser/ast.ts'
 export { parse } from './parser/parser.ts'

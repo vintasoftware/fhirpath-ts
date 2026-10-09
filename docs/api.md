@@ -34,7 +34,7 @@ const fp = new FhirPathEngine({
 })
 ```
 
-### Asynchronous terminology
+### Asynchronous services
 
 The free `evaluateAsync(expression, input, options)` returns a Promise of plain
 values. `compile()` also exposes `evaluateAsync()` and `evaluateTypedAsync()`;
@@ -70,6 +70,24 @@ Coding pair establishes the relationship. A configured provider
 reserves `%terminologies`; applications must not replace it through `env` or
 `vars`. Static analysis accepts an explicit variable declaration for this host
 service, while strict runtime evaluation supplies that declaration automatically.
+
+### External references
+
+`options.resolver` is a `ReferenceResolver`: `(reference: string) => Promise<unknown>`.
+`resolve()` first searches the originating resource and available Bundle. Only
+unresolved external references reach the callback; `#fragment` misses stay empty.
+The engine passes relative and absolute references unchanged. The host chooses
+how to resolve them, including the server base, credentials, and request policy.
+
+Return a FHIR resource as plain JSON, or `undefined` if it cannot be resolved.
+Answers without a string `resourceType` are ignored. Provider rejections propagate.
+Each reference is requested once per asynchronous evaluation. A returned resource
+becomes the owner for subsequent navigation, so its contained references resolve
+locally. The same options and cache remain available for further external hops.
+
+Without a resolver, external misses remain empty. With one configured, a sync
+call that needs it throws a message directing the caller to `evaluateAsync()`;
+a call that resolves locally remains synchronous.
 
 ### Strict evaluation
 

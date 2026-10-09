@@ -231,7 +231,9 @@ warnings. See [Static checking](docs/static-checking.md).
 `resolve()` follows contained references and references to another entry of the
 Bundle the expression runs on. Fragment references in an entry resolve within
 that resource; references from a contained resource can reach its siblings and
-container.
+container. With `evaluateAsync()`, `options.resolver` handles unresolved external
+references. Fragment misses stay local. The resolver receives the reference
+unchanged and owns server-base handling, authentication, and network requests.
 
 ```ts
 r4.evaluate(
@@ -410,7 +412,6 @@ These features are deferred and fail with a clear error today:
 
 | Feature | What it needs |
 | --- | --- |
-| External `resolve()` | A reference resolver |
 | `conformsTo()` beyond base StructureDefinitions | Profile-aware validation |
 | `slice()`, `elementDefinition()`, `checkModifiers()` | Profile definitions in the model |
 | `weight()` via ValueSets or contained CodeSystems | Additional terminology weight lookup |
