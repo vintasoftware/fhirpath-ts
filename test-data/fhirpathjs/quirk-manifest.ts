@@ -270,6 +270,16 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     keys: ['6.6_math.yaml||@T23:59:60 + 1 minute = @T00:00:59'],
   },
   {
+    name: 'time-units-on-dates',
+    evidence:
+      'fhirpath.js converts hours to days when adding them to a Date. The FHIRPath 3.0.0 Date/Time Arithmetic table allows only years, months, weeks, and days for a Date and makes an unsupported unit for the type an error; N1 lists the same Date units.',
+    keys: [
+      '6.6_math.yaml||@2016-01 + 1 hour',
+      '6.6_math.yaml||@2016-01-01 + 24 hours',
+      '6.6_math.yaml||@2016-01-01 + 47 hours',
+    ],
+  },
+  {
     name: 'plural-unit-rendering',
     evidence:
       'fhirpath.js prints "180 hours"; this engine prints the canonical singular calendar keyword. Both spellings parse back identically.',

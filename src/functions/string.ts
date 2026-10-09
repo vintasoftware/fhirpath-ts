@@ -59,22 +59,36 @@ function stringFunction(
   registerFunction(name, fn)
 }
 
+/**
+ * Characters are Unicode scalar values (spec "Unicode and String Operations"),
+ * so a surrogate pair is one character. String iteration yields code points.
+ */
+function characters(value: string): string[] {
+  return Array.from(value)
+}
+
+/** The character position of a UTF-16 offset; -1 stays -1. */
+function characterIndex(value: string, unitIndex: number): number {
+  return unitIndex < 0 ? -1 : characters(value.slice(0, unitIndex)).length
+}
+
 stringFunction('indexOf', { min: 1, max: 1 }, (value, [substring]) =>
-  substring === undefined ? [] : int(value.indexOf(substring))
+  substring === undefined ? [] : int(characterIndex(value, value.indexOf(substring)))
 )
 
 stringFunction('lastIndexOf', { min: 1, max: 1 }, (value, [substring]) =>
-  substring === undefined ? [] : int(value.lastIndexOf(substring))
+  substring === undefined ? [] : int(characterIndex(value, value.lastIndexOf(substring)))
 )
 
 registerFunction('substring', {
   minArity: 1,
   maxArity: 2,
   evaluate: (context, input, args, evaluateNode) => {
-    const value = stringInput('substring', input)
-    if (value === undefined) {
+    const text = stringInput('substring', input)
+    if (text === undefined) {
       return []
     }
+    const value = characters(text)
     const start = singleton(evaluateNode(argAt(args, 0), context, input), SYSTEM_INTEGER)
     if (start === undefined || typeof start.value !== 'number') {
       return []
@@ -83,19 +97,19 @@ registerFunction('substring', {
       return []
     }
     if (args.length === 1) {
-      return str(value.slice(start.value))
+      return str(value.slice(start.value).join(''))
     }
     const lengthCollection = evaluateNode(argAt(args, 1), context, input)
     if (lengthCollection.length === 0) {
       // An empty length means "to the end", like the one-argument form.
-      return str(value.slice(start.value))
+      return str(value.slice(start.value).join(''))
     }
     const length = singleton(lengthCollection, SYSTEM_INTEGER)
     /* v8 ignore next 3 -- singleton(SYSTEM_INTEGER) only returns integer items */
     if (length === undefined || typeof length.value !== 'number') {
       return []
     }
-    return str(value.slice(start.value, start.value + Math.max(0, length.value)))
+    return str(value.slice(start.value, start.value + Math.max(0, length.value)).join(''))
   },
 })
 
@@ -121,7 +135,7 @@ stringFunction('replace', { min: 2, max: 2 }, (value, [pattern, substitution]) =
   }
   if (pattern === '') {
     // Spec: an empty pattern surrounds every character with the substitution.
-    return str(substitution + value.split('').join(substitution) + substitution)
+    return str(substitution + characters(value).join(substitution) + substitution)
   }
   return str(value.split(pattern).join(substitution))
 })
@@ -205,9 +219,11 @@ function jsSubstitution(substitution: string): string {
   })
 }
 
-stringFunction('length', { min: 0, max: 0 }, value => int(value.length))
+stringFunction('length', { min: 0, max: 0 }, value => int(characters(value).length))
 
-stringFunction('toChars', { min: 0, max: 0 }, value => value.split('').map(ch => ({ type: SYSTEM_STRING, value: ch })))
+stringFunction('toChars', { min: 0, max: 0 }, value =>
+  characters(value).map(ch => ({ type: SYSTEM_STRING, value: ch }))
+)
 
 stringFunction('trim', { min: 0, max: 0 }, value => str(value.trim()))
 
@@ -402,6 +418,34 @@ function unescapeJson(value: string): string {
   return result
 }
 
+/** The named references escape('html') writes, by name: `lt` → `<`. */
+const HTML_NAMED_REFERENCES: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(HTML_ESCAPES).flatMap(([character, reference]) => {
+    const name = /^&([a-z]+);$/.exec(reference)?.[1]
+    return name === undefined ? [] : [[name, character]]
+  })
+)
+
+/**
+ * Decodes the named references escape('html') writes, and decimal (`&#65;`) or
+ * hexadecimal (`&#x41;`) character references, in one pass so a decoded `&`
+ * never starts another reference. A reference to no valid scalar value, such as
+ * a surrogate, stays as written.
+ */
+function unescapeHtml(value: string): string {
+  return value.replace(
+    /&(?:([a-z]+)|#([0-9]+)|#[xX]([0-9a-fA-F]+));/g,
+    (reference, name?: string, decimal?: string, hex?: string) => {
+      if (name !== undefined) {
+        return HTML_NAMED_REFERENCES[name] ?? reference
+      }
+      const code = decimal !== undefined ? Number.parseInt(decimal, 10) : Number.parseInt(hex as string, 16)
+      const isScalarValue = code <= 0x10ffff && (code < 0xd800 || code > 0xdfff)
+      return isScalarValue ? String.fromCodePoint(code) : reference
+    }
+  )
+}
+
 stringFunction('escape', { min: 1, max: 1 }, (value, [target]) => {
   switch (target) {
     case undefined:
@@ -420,14 +464,7 @@ stringFunction('unescape', { min: 1, max: 1 }, (value, [target]) => {
     case undefined:
       return []
     case 'html':
-      return str(
-        value
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&quot;/g, '"')
-          .replace(/&#39;/g, "'")
-          .replace(/&amp;/g, '&')
-      )
+      return str(unescapeHtml(value))
     case 'json':
       return str(unescapeJson(value))
     default:

@@ -7,8 +7,7 @@ export const typeOperator: TypeOperatorImpl = (context, operator, operand, type)
   if (item === undefined) {
     return []
   }
-  // `is` walks subtypes; the `as` cast demands the exact type (spec + official tests).
-  const matches = itemMatchesType(context, item, type.parts, { exact: operator === 'as' })
+  const matches = itemMatchesType(context, item, type.parts, operator)
   if (operator === 'is') {
     return wrapBoolean(matches)
   }

@@ -406,7 +406,9 @@ These features are deferred and fail with a clear error today:
 ### Expression trust
 
 Parser depth, tokenization, decimal and UCUM exponents, and property navigation
-have limits suitable for untrusted input. Regular expressions need one extra
+have limits suitable for untrusted input. `repeat()` fails after it collects
+10,000 items, so a projection that keeps producing new values, such as
+`1.repeat($this + 1)`, cannot loop forever. Regular expressions need one extra
 step. By default, `matches()`, `matchesFull()`, and `replaceMatches()` use the
 host `RegExp`, so a pattern with catastrophic backtracking can block the event
 loop.

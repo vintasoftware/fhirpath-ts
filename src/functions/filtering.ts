@@ -1,4 +1,4 @@
-import { pairEquals } from '../engine/operators/equality.ts'
+import { EqualityIndex } from '../engine/operators/equality.ts'
 import { isKnownTypeName, itemMatchesType } from '../engine/type-matching.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import { booleanSingleton, singleton, wrapBoolean } from '../values/collection.ts'
@@ -33,12 +33,21 @@ registerFunction('select', {
   },
 })
 
+/**
+ * The most items repeat() collects before it fails. Cycles in data stop by
+ * deduplication, but a projection can keep producing new values
+ * (`1.repeat($this + 1)`), and only this limit ends that loop.
+ */
+export const MAX_REPEAT_ITEMS = 10_000
+
 registerFunction('repeat', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const expression = argAt(args, 0)
-    const collected: TypedValue[] = []
+    const collected = new EqualityIndex()
+    // The same value counts as seen even where `=` is not true, as for valueless items.
+    const seenValues = new Set<unknown>()
     let current = input
     while (current.length > 0) {
       const produced: TypedValue[] = []
@@ -49,14 +58,19 @@ registerFunction('repeat', {
       // the same round), so cyclic data terminates and results stay distinct.
       const fresh: typeof produced = []
       for (const item of produced) {
-        if (!collected.some(existing => existing.value === item.value || pairEquals(existing, item) === true)) {
-          collected.push(item)
+        if (!seenValues.has(item.value) && collected.add(item)) {
+          seenValues.add(item.value)
           fresh.push(item)
         }
       }
+      if (collected.items.length > MAX_REPEAT_ITEMS) {
+        throw new FhirPathRuntimeError(
+          `repeat() collected more than ${MAX_REPEAT_ITEMS} items; the projection may never stop producing new values`
+        )
+      }
       current = fresh
     }
-    return collected
+    return collected.items
   },
 })
 
@@ -81,7 +95,7 @@ registerFunction('ofType', {
   evaluate: (context, input, args) => {
     const parts = typePartsFromArgument('ofType', argAt(args, 0))
     requireKnownType(context, 'ofType', parts)
-    return input.filter(item => itemMatchesType(context, item, parts, { exact: true }))
+    return input.filter(item => itemMatchesType(context, item, parts, 'ofType'))
   },
 })
 
@@ -101,7 +115,7 @@ registerFunction('is', {
     if (item === undefined) {
       return []
     }
-    return wrapBoolean(itemMatchesType(context, item, typePartsFromArgument('is', argAt(args, 0))))
+    return wrapBoolean(itemMatchesType(context, item, typePartsFromArgument('is', argAt(args, 0)), 'is'))
   },
 })
 
@@ -115,6 +129,6 @@ registerFunction('as', {
     if (item === undefined) {
       return []
     }
-    return itemMatchesType(context, item, parts, { exact: true }) ? [item] : []
+    return itemMatchesType(context, item, parts, 'as') ? [item] : []
   },
 })

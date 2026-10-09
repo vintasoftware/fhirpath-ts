@@ -465,6 +465,14 @@ describe('lambda result typing', () => {
     expect(codes("coalesce(Patient.name.family.first(), 'unknown').length()")).toEqual([])
   })
 
+  it('as() keeps a FHIR primitive that casts to the System type', () => {
+    expect(codes('Patient.gender.as(System.String).length()')).toEqual([])
+    expect(codes('(Patient.deceased as System.Boolean).not()')).toEqual([])
+    expect(analyzeExpressionDetailed('Patient.active as System.Boolean', options).result.types).toEqual([
+      'FHIR.boolean',
+    ])
+  })
+
   it('aggregate() returns the aggregator result or its initializer for empty input', () => {
     expect(codes('Patient.name.aggregate($this.given.first()).length()')).toEqual([])
     expect(codes('Patient.name.aggregate($this.given.first()) + 1')).toEqual(['operand-type'])

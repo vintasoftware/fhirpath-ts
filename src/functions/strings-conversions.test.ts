@@ -68,6 +68,39 @@ describe('string functions', () => {
     expect(evaluate(expression)).toEqual(expected)
   })
 
+  // Characters are Unicode scalar values, so a surrogate pair counts as one.
+  it.each([
+    ["'a🔥b'.length()", [3]],
+    ["'a\\uD83D\\uDD25b'.length()", [3]],
+    ["'e\\u0301'.length()", [2]],
+    ["'a🔥b'.indexOf('b')", [2]],
+    ["'a🔥b'.indexOf('🔥')", [1]],
+    ["'a🔥b'.indexOf('x')", [-1]],
+    ["'a🔥b🔥c'.lastIndexOf('🔥')", [3]],
+    ["'a🔥b'.lastIndexOf('')", [3]],
+    ["'a🔥b'.substring(1, 1)", ['🔥']],
+    ["'a🔥b'.substring(2)", ['b']],
+    ["'a🔥b'.substring(3)", []],
+    ["'a🔥b'.toChars()", ['a', '🔥', 'b']],
+    ["'a🔥c'.replace('', 'x')", ['xax🔥xcx']],
+    // Indexing selects from the collection; a string is one item.
+    ["'a🔥b'[0]", ['a🔥b']],
+  ])('counts characters as scalar values: %s -> %j', (expression, expected) => {
+    expect(evaluate(expression)).toEqual(expected)
+  })
+
+  it.each([
+    ["'&#65;&#x42;&#X43;'.unescape('html')", ['ABC']],
+    ["'caf&#233; &#128512;'.unescape('html')", ['café 😀']],
+    ["'&#39;&lt;&gt;&quot;&amp;'.unescape('html')", ['\'<>"&']],
+    // One pass: a decoded ampersand does not start another reference.
+    ["'&amp;#65;&amp;lt;'.unescape('html')", ['&#65;&lt;']],
+    // References to no scalar value and unknown names stay as written.
+    ["'&#xD800;&#1114112;&nbsp;&#;'.unescape('html')", ['&#xD800;&#1114112;&nbsp;&#;']],
+  ])('decodes HTML character references: %s -> %j', (expression, expected) => {
+    expect(evaluate(expression)).toEqual(expected)
+  })
+
   it('base64 handles padding variants', () => {
     expect(evaluate("'a'.encode('base64')")).toEqual(['YQ=='])
     expect(evaluate("'YQ=='.decode('base64')")).toEqual(['a'])
