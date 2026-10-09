@@ -99,6 +99,37 @@ describe('paths, calls, and indexers', () => {
     })
   })
 
+  it('reads asc and desc after a sort() key as its direction', () => {
+    expect(ast('sort($this desc, name asc, id)')).toEqual({
+      kind: 'call',
+      name: 'sort',
+      args: [
+        { kind: 'special', name: 'this' },
+        { kind: 'identifier', name: 'name' },
+        { kind: 'identifier', name: 'id' },
+      ],
+      // stripSpans goes through JSON, which writes an undefined entry as null.
+      directions: ['desc', 'asc', null],
+    })
+    expect(ast('sort(desc)')).toEqual({ kind: 'call', name: 'sort', args: [{ kind: 'identifier', name: 'desc' }] })
+    expect(ast('sort(desc desc)')).toEqual({
+      kind: 'call',
+      name: 'sort',
+      args: [{ kind: 'identifier', name: 'desc' }],
+      directions: ['desc'],
+    })
+  })
+
+  it('keeps asc and desc as names outside sort() keys', () => {
+    expect(ast('where(desc)')).toEqual({ kind: 'call', name: 'where', args: [{ kind: 'identifier', name: 'desc' }] })
+    expect(ast('sort(a.desc)')).toMatchObject({ args: [{ kind: 'dot' }] })
+    expect(ast('sort(`desc`)')).toEqual({ kind: 'call', name: 'sort', args: [{ kind: 'identifier', name: 'desc' }] })
+    expect(() => parse('where(a desc)')).toThrow(FhirPathSyntaxError)
+    expect(() => parse('sort((a desc))')).toThrow(FhirPathSyntaxError)
+    expect(() => parse('sort(a desc + 1)')).toThrow(FhirPathSyntaxError)
+    expect(() => parse('sort(a desc desc)')).toThrow(FhirPathSyntaxError)
+  })
+
   it('parses indexers over paths', () => {
     expect(ast('name[0].given')).toEqual({
       kind: 'dot',

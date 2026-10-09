@@ -90,7 +90,12 @@ function printInner(node: AstNode): string {
     case 'indexer':
       return `${print(node.target, BindingPower.Indexer)}[${print(node.index, 0)}]`
     case 'call':
-      return `${printIdentifier(node.name)}(${node.args.map(arg => print(arg, 0)).join(', ')})`
+      return `${printIdentifier(node.name)}(${node.args
+        .map((arg, index) => {
+          const direction = node.directions?.[index]
+          return direction === undefined ? print(arg, 0) : `${print(arg, 0)} ${direction}`
+        })
+        .join(', ')})`
     case 'unary':
       return `${node.operator}${print(node.operand, BindingPower.Unary)}`
     case 'typeOp':

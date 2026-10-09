@@ -1213,7 +1213,14 @@ type ParseOperator<
               : Operator extends keyof CompactInfixParselets
                 ? PushBinary<Operator, ParseletBindingPower<Operator>, Rest, Stack, Ops, Delimiters, Context>
                 : OpaqueState
-            : OpaqueState
+            : Token extends ['name', 'asc' | 'desc']
+              ? // `asc` or `desc` ends a `sort()` key; the key's type does not reach the result.
+                Delimiters[0] extends { 0: 'call'; 5: 'sort' }
+                ? Rest extends [['symbol', ',' | ')'], ...TypeTokens]
+                  ? ParseOperator<Rest, Stack, Ops, Delimiters, Context>
+                  : OpaqueState
+                : OpaqueState
+              : OpaqueState
     : OpaqueState
 
 type StartCall<

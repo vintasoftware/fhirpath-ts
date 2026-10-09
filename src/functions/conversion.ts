@@ -385,11 +385,11 @@ registerFunction('convertsToQuantity', {
   maxArity: 1,
   // Same path as toQuantity so the toX/convertsToX contract holds with a unit
   // argument too: convertible exactly when toQuantity(unit) is non-empty.
-  evaluate: (context, input, args, evaluateNode) => {
+  evaluate: (context, input, args, evaluateNode, call) => {
     const item = singleton(input)
     if (item === undefined) {
       return []
     }
-    return wrapBoolean(toQuantityImpl(context, input, args, evaluateNode).length > 0)
+    return wrapBoolean(toQuantityImpl(context, input, args, evaluateNode, call).length > 0)
   },
 })

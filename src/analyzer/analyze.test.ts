@@ -571,6 +571,14 @@ describe('lambda result typing', () => {
     expect(codes('Patient.name.sort(-family, given.first()).first().use')).toEqual([])
     expect(codes('Patient.name.sort(-nope)')).toEqual(['unknown-element'])
   })
+
+  it('sort() keys take asc and desc and must be single', () => {
+    expect(codes('Patient.name.sort(family desc, given.first() asc).first().use')).toEqual([])
+    expect(codes('Patient.name.sort(nope desc)')).toEqual(['unknown-element'])
+    expect(codes('Patient.name.sort(-family desc)')).toEqual(['operand-type'])
+    expect(codes('Patient.name.sort(given)')).toEqual(['singleton-required'])
+    expect(codes('Patient.name.sort(given desc)')).toEqual(['singleton-required'])
+  })
 })
 
 describe('variable tracking', () => {

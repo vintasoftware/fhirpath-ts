@@ -54,6 +54,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   - `combine(other, preserveOrder)` and `encode('ascii')`. `combine()` keeps
     its sources' order with or without `preserveOrder`, as `union()` does
     ([#117](https://github.com/vintasoftware/fhirpath-ts/issues/117)).
+  - `sort()` keys take an `asc` or `desc` qualifier, as in
+    `Patient.name.sort(family desc, given.first())`. `asc` and `desc` stay
+    ordinary element names elsewhere. The `-key` form still sorts descending
+    ([#127](https://github.com/vintasoftware/fhirpath-ts/issues/127)).
 - The SDC `weight()` scores answers locally with a model. It reads `itemWeight`
   and R4 `ordinalValue` extensions on an answer or its value, then on the
   matching `answerOption` of the answer's item in `%questionnaire`, so
@@ -74,6 +78,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
+- **Breaking:** `sort()` puts an empty key before every value, as FHIRPath
+  3.0.0 says, so it comes first ascending and last descending. It came last
+  ascending. `$index` inside a `sort()` key is an error even inside another
+  iteration function, and the analyzer requires each key to be a single value
+  ([#127](https://github.com/vintasoftware/fhirpath-ts/issues/127)).
 - **Breaking:** the optional `typescript` peer range is `>=5.4.0 <7.0.0`
   (was `>=5.0.0`). The published declarations use `NoInfer`, which TypeScript
   5.4 added, and TypeScript 5.0 already failed to check them with
