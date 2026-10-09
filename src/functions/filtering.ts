@@ -108,7 +108,7 @@ registerFunction('repeatAll', {
     repeatProjection('repeatAll', context, input, argAt(args, 0), evaluateNode, () => true),
 })
 
-/** coalesce(...) — ballot STU: the first argument that evaluates non-empty. */
+/** coalesce(...) (FHIRPath 3.0.0, trial use): the first argument that evaluates non-empty. */
 registerFunction('coalesce', {
   minArity: 0,
   maxArity: 99,

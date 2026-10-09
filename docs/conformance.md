@@ -1,7 +1,8 @@
 # Conformance
 
-The test suite checks official FHIRPath behavior, error phases, static analysis,
-and known differences from other implementations.
+The engine follows [FHIRPath 3.0.0](https://hl7.org/fhirpath/STU3/). The test
+suite checks official FHIRPath behavior, error phases, static analysis, and known
+differences from other implementations.
 
 ## Official suites
 

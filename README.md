@@ -1,7 +1,7 @@
 # fhirpath-ts
 
-A TypeScript-native [FHIRPath](https://hl7.org/fhirpath/) engine for application
-development. It has zero runtime dependencies and includes:
+A TypeScript-native [FHIRPath 3.0.0](https://hl7.org/fhirpath/STU3/) engine for
+application development. It has zero runtime dependencies and includes:
 
 - typed results for literal expressions in plain TypeScript;
 - DTOs that transform FHIR resources into typed application data;
@@ -350,8 +350,9 @@ The CLI imports exported DTOs and records engines constructed by their modules.
 This checks runtime context, registered functions, and cross-DTO calls that
 TypeScript and source-only ESLint cannot see.
 
-The analyzer is also public for editors, tests, and other tools. It follows the
-[FHIRPath §11 rules](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation)
+The analyzer is also public for editors, tests, and other tools. It follows
+FHIRPath's
+[type safety and strict evaluation rules](https://hl7.org/fhirpath/STU3/en/index.html#type-safety-and-strict-evaluation)
 and is tested against the official valid and invalid cases.
 See [Static checking](docs/static-checking.md) for configuration, supported call
 sites, DTO discovery, and cases where source-only checks stay quiet.
@@ -432,6 +433,19 @@ These features are deferred and fail with a clear error today:
 | CDA mode | A CDA `ModelProvider` |
 | Full UCUM | A full UCUM implementation behind the current interface |
 | R5 model package | Generated R5 definitions and types |
+
+Parts of FHIRPath 3.0.0 that do not work yet:
+
+| Behavior | Issue |
+| --- | --- |
+| `sort()` with `asc`/`desc` and empty keys first; `-key` sorts descending today | [#127](https://github.com/vintasoftware/fhirpath-ts/issues/127) |
+| `min()` and `max()` on Date, DateTime, Time, and String | [#128](https://github.com/vintasoftware/fhirpath-ts/issues/128) |
+| A backslash that starts no escape, as in `'\p'`, read as the next character | [#129](https://github.com/vintasoftware/fhirpath-ts/issues/129) |
+| Instance selectors for backbone elements, `BackboneElement { ... }` | [#132](https://github.com/vintasoftware/fhirpath-ts/issues/132) |
+
+`union()`, `|`, and `combine()` keep the order of their sources, where 3.0.0
+gives them none; see
+[Conformance](docs/conformance.md#deviations-from-the-specification).
 
 ## Security guidelines
 

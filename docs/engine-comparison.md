@@ -29,7 +29,7 @@ outside that tool's purpose.
 | Tests from other engines | yes, with reasons for each difference | no | no | no | no | no | no | no | Not applicable |
 | Compile-time result types | plain `tsc` | no | no | no | no | no | no | no | no |
 | Default unknown-member result | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` | `[]` through fhirpath.js |
-| [Optional invalid-member check](https://hl7.org/fhirpath/N1/#type-safety-and-strict-evaluation) | strict runtime mode, CLI, ESLint, and API | no | no | analyzer API | no | `check()` API | strict runtime mode | strict runtime mode | editor inference |
+| [Optional invalid-member check](https://hl7.org/fhirpath/STU3/en/index.html#type-safety-and-strict-evaluation) | strict runtime mode, CLI, ESLint, and API | no | no | analyzer API | no | `check()` API | strict runtime mode | strict runtime mode | editor inference |
 | Terminology, async evaluation, `%factory` | deferred | yes | partial | `%factory` | no | yes | — | — | Not applicable |
 | FHIR models | R4; provider interface | DSTU2 through R5 | DSTU2 through R5 | R5 | R4 | DSTU2 through R5 | R4 and R5 | R4, R4B, and R5 | — |
 

@@ -212,7 +212,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'component-functions-parse-strings',
     evidence:
-      "'2014-01-05'.yearOf() parses the string in fhirpath.js; ballot \u00a75.8 component functions take Date/DateTime/Time input, so non-temporal input is empty here.",
+      "'2014-01-05'.yearOf() parses the string in fhirpath.js; FHIRPath 3.0.0's component functions take Date/DateTime/Time input, so non-temporal input is empty here.",
     keys: [
       "5.9_utility_functions.yaml||'2012-01-01T12:30:00.000+08:45'.timezoneOffsetOf()",
       "5.9_utility_functions.yaml||'2012-01-01T12:30:00.000-07:00'.dateOf()",

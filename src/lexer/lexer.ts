@@ -117,7 +117,7 @@ class Lexer {
         this.advance()
       }
     } else if (this.source[this.pos] === 'L') {
-      // Long literal suffix (ballot STU): 5L is a System.Long.
+      // Long literal suffix (FHIRPath 3.0.0, trial use): 5L is a System.Long.
       this.advance()
     }
     const text = this.source.slice(start, this.pos)

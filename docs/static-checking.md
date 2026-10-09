@@ -1,7 +1,8 @@
 # Static checking
 
-[FHIRPath specification §11](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation)
-defines type safety and strict evaluation rules. This package applies them before expressions
+FHIRPath's
+[type safety and strict evaluation section](https://hl7.org/fhirpath/STU3/en/index.html#type-safety-and-strict-evaluation)
+defines rules for checking expressions. This package applies them before expressions
 run through TypeScript inference, an ESLint rule, a CLI, a public analyzer API,
 and opt-in strict evaluation.
 

@@ -985,9 +985,9 @@ Engine-generated failures use these exported `FhirPathError` subclasses:
 | `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. |
 
 This follows FHIRPath's
-[empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/N1/#singleton-evaluation-of-collections)
+[empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/STU3/en/index.html#singleton-evaluation-of-collections)
 and its
-[type-safety and strict evaluation model](https://hl7.org/fhirpath/N1/#type-safety-and-strict-evaluation).
+[type-safety and strict evaluation model](https://hl7.org/fhirpath/STU3/en/index.html#type-safety-and-strict-evaluation).
 Caller-supplied callbacks, including
 custom functions, conversions, regular expression engines, and trace sinks, may
 throw their own errors; the engine does not swallow them. Use
