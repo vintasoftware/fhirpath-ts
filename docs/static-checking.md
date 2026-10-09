@@ -316,7 +316,9 @@ known undefined order, while an undeclared `%var` also has unknown ordering. The
 rejected operations are the ones that select items by position — the indexer,
 `first()`, `last()`, `tail()`, `skip()`, and `take()` — and only on a collection
 known to be unordered. Functions whose result merely varies with iteration
-order, such as `join()` and `aggregate()`, are not rejected.
+order, such as `join()` and `aggregate()`, are not rejected. `union()`, `|`,
+and `combine()` keep the order of their sources
+([Conformance](conformance.md#deviations-from-the-specification)).
 
 Declare host variables and functions so the analyzer can check their use:
 

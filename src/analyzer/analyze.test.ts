@@ -228,13 +228,10 @@ describe('collection ordering', () => {
     expect(codes('Patient.children().min().first()')).toEqual([])
   })
 
-  it('orders a combine() result only when preserveOrder is true', () => {
-    expect(codes('Patient.name.combine(Patient.telecom).first()')).toEqual(['order-dependent'])
-    expect(codes('Patient.name.combine(Patient.telecom, false).first()')).toEqual(['order-dependent'])
-    expect(codes('Patient.name.combine(Patient.telecom, true).first()')).toEqual([])
+  it('keeps the order of a combine() result with or without preserveOrder', () => {
+    expect(codes('Patient.name.combine(Patient.telecom).first()')).toEqual([])
+    expect(codes('Patient.name.combine(Patient.telecom, false).first()')).toEqual([])
     expect(codes('Patient.children().combine(Patient.name, true).first()')).toEqual(['order-dependent'])
-    // A computed flag leaves the order unknown, which the check accepts.
-    expect(codes('Patient.name.combine(Patient.telecom, Patient.active).first()')).toEqual([])
     expect(codes("Patient.name.combine(Patient.telecom, 'yes')")).toEqual(['operand-type'])
   })
 

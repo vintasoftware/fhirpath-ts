@@ -263,7 +263,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   intersect: { args: ['any'], result: SAME },
   exclude: { args: ['any'], result: SAME },
   union: { args: ['any'], result: { kind: 'union', sources: ['input', 0], single: false, sequential: true } },
-  // The analyzer keeps this order only when `preserveOrder` is true (walkCall).
+  // The optional argument is `preserveOrder`. The result keeps its sources' order
+  // either way, as the runtime does (docs/conformance.md).
   combine: {
     args: ['any', 'Boolean'],
     result: { kind: 'union', sources: ['input', 0], single: false, sequential: true },

@@ -314,6 +314,15 @@ describe('date conversion formats', () => {
     ["'2025-01-01 12 AM'.toDateTime('yyyy-MM-dd h a')", '2025-01-01T00'],
     ["'2025-01-01 12 p'.toDateTime('yyyy-MM-dd h a')", '2025-01-01T12'],
     ["'2025-01-01 10:00:00.5'.toDateTime('yyyy-MM-dd HH:mm:ss.S')", '2025-01-01T10:00:00.5'],
+    // `z` takes the zone's offset at the date and time read.
+    ["'2025-01-15 10:30 America/New_York'.toDateTime('yyyy-MM-dd HH:mm z')", '2025-01-15T10:30-05:00'],
+    ["'2025-07-15 10:30 America/New_York'.toDateTime('yyyy-MM-dd HH:mm z')", '2025-07-15T10:30-04:00'],
+    ["'2025-07-15 10 Asia/Kolkata'.toDateTime('yyyy-MM-dd HH z')", '2025-07-15T10+05:30'],
+    ["'2025-07-15 10:30 UTC'.toDateTime('yyyy-MM-dd HH:mm z')", '2025-07-15T10:30Z'],
+    ["'2025-07-15 3 PM Etc/GMT+5'.toDateTime('yyyy-MM-dd h a z')", '2025-07-15T15-05:00'],
+    ["'2025-07-15 10:30 America/New_York'.toDate('yyyy-MM-dd HH:mm z')", '2025-07-15'],
+    // A wall time that happens twice takes the earlier instant.
+    ["'2025-11-02 01:30 America/New_York'.toDateTime('yyyy-MM-dd HH:mm z')", '2025-11-02T01:30-04:00'],
   ])('%s -> %s', (expression, expected) => {
     expect(evaluate(expression).map(String)).toEqual([expected])
   })
@@ -330,6 +339,18 @@ describe('date conversion formats', () => {
     expect(evaluate("'2024-01-15'.convertsToDateTime('dd-MM-yyyy')")).toEqual([false])
   })
 
+  it('gives empty for a time zone it cannot resolve', () => {
+    const read = (text: string) => evaluate(`'${text}'.toDateTime('yyyy-MM-dd HH:mm z')`)
+    // Abbreviations and names are not ids, and Intl does not know Foo/Bar.
+    expect(read('2025-01-15 10:30 PST')).toEqual([])
+    expect(read('2025-01-15 10:30 Pacific Standard Time')).toEqual([])
+    expect(read('2025-01-15 10:30 Foo/Bar')).toEqual([])
+    // A forward transition skips the wall time.
+    expect(read('2025-03-09 02:30 America/New_York')).toEqual([])
+    // Local mean time is not a whole number of minutes.
+    expect(read('1850-01-01 10:00 America/New_York')).toEqual([])
+  })
+
   it('ignores the format for other inputs and for an empty format', () => {
     expect(evaluate("@2024-01-15T23:30:00-05:00.toDate('yyyy')").map(String)).toEqual(['2024-01-15'])
     expect(evaluate("@2024-01-15.toDateTime('MM-yy')").map(String)).toEqual(['2024-01-15'])
@@ -342,7 +363,9 @@ describe('date conversion formats', () => {
     expect(() => evaluate("'x'.toDate('dd-yyyy')")).toThrow('it gives the day but no month')
     expect(() => evaluate("'x'.toDate('yyy')")).toThrow("'yyy' is not a format code")
     expect(() => evaluate("'x'.toDate('yyyy-MM-ddyyyy')")).toThrow('it gives the year more than once')
-    expect(() => evaluate("'x'.toDateTime('yyyy z')")).toThrow("the time zone name code 'z' is not supported")
+    expect(() => evaluate("'x'.toDateTime('yyyy z')")).toThrow("the time zone code 'z' needs an hour")
+    expect(() => evaluate("'x'.toDateTime('yyyy-MM-dd HH zz')")).toThrow("'zz' is not a format code")
+    expect(() => evaluate("'x'.toDateTime('yyyy-MM-dd HH z Z')")).toThrow('it gives the zone more than once')
     expect(() => evaluate("'x'.toDateTime('yyyy-MM-dd h')")).toThrow("need the AM/PM code 'a'")
     expect(() => evaluate("'x'.toDateTime('yyyy-MM-dd HH a')")).toThrow("the AM/PM code 'a' needs 'h' or 'hh'")
     expect(() => evaluate("'x'.toDateTime('yyyy Z')")).toThrow("the time zone code 'Z' needs an hour")

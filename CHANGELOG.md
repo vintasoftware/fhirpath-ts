@@ -30,9 +30,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   - `toDate()`, `toDateTime()`, `convertsToDate()`, and `convertsToDateTime()`
     take an optional `format` for a String input, such as
     `'01/15/2025'.toDate('MM/dd/yyyy')`. Every code the spec requires is
-    supported, plus `yy`, `M`, `d`, `h`, `H`, `m`, `s`, and English month
-    names (`MMM`, `MMMM`); the time zone name code `z` is not. A format the
-    conversion cannot use is an error
+    supported, plus `yy`, `M`, `d`, `h`, `H`, `m`, `s`, English month names
+    (`MMM`, `MMMM`), and `z` for an IANA time zone id such as
+    `America/Los_Angeles`, which takes the zone's offset at that date and
+    time. A format the conversion cannot use is an error
     ([#114](https://github.com/vintasoftware/fhirpath-ts/issues/114)).
   - `pathname([short])` returns the path of each input item inside the input
     resource, such as `Observation.component[0].code[0].coding[0]`. Computed
@@ -48,7 +49,8 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     the named type when it has no required elements other than `resourceType`,
     as `Coding` and `Patient`, and `unknown[]` otherwise
     ([#116](https://github.com/vintasoftware/fhirpath-ts/issues/116)).
-  - `combine(other, preserveOrder)` and `encode('ascii')`
+  - `combine(other, preserveOrder)` and `encode('ascii')`. `combine()` keeps
+    its sources' order with or without `preserveOrder`, as `union()` does
     ([#117](https://github.com/vintasoftware/fhirpath-ts/issues/117)).
 - `engine.compile(expression, type)` declares the type a relative expression
   runs against, as the package-root `compile(expression, type)` does. The input
@@ -63,12 +65,6 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
-- **Breaking:** the analyzer treats a `combine()` result as unordered unless
-  `preserveOrder` is `true`, because FHIRPath 3.0.0 gives it no order
-  otherwise. `Patient.name.combine(Patient.contact.name).first()` is now an
-  `order-dependent` error, so strict evaluation throws; write
-  `combine(..., true)` when the order matters. The runtime keeps appending in
-  order either way.
 - **Breaking:** the optional `typescript` peer range is `>=5.4.0 <7.0.0`
   (was `>=5.0.0`). The published declarations use `NoInfer`, which TypeScript
   5.4 added, and TypeScript 5.0 already failed to check them with

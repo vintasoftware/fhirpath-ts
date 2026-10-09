@@ -70,6 +70,16 @@ The fhirpath-rs corpus was also reviewed. Its official R5 cases are already
 covered by the official suite. Its additional cases are included in
 `src/reference-crosschecks.test.ts`, together with selected Medplum comparisons.
 
+## Deviations from the specification
+
+`union()`, `|`, and `combine()` keep the order of their sources: the input's
+items, then the argument's. FHIRPath 3.0.0 gives `union()` no order, and
+`combine()` an order only when its `preserveOrder` argument is `true`. The
+runtime appends in order either way, and the analyzer treats these results as
+ordered, so `(a | b).first()` and `a.combine(b).first()` are not
+`order-dependent` errors. Reading them as unordered would reject many common
+expressions that rely on that order.
+
 ## Property and differential tests
 
 Generated tests cover behavior that a fixed example list may miss:

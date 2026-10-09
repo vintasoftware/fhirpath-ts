@@ -43,7 +43,6 @@ import {
   singleState,
   singletonOrder,
   unionStates,
-  withOrder,
   withSingle,
 } from './signatures.ts'
 import { SOURCE_VARIABLE_DEFAULTS, type SourceVariableDefaults, type SourceVariablePlan } from './source-options.ts'
@@ -788,8 +787,7 @@ class Analyzer {
     if (expressionResult !== undefined) {
       return callResult(expressionResult, this.runtime)
     }
-    const result = applyResultRule(signature.result, input, argStates)
-    return callResult(node.name === 'combine' ? withOrder(result, combineOrder(node, result)) : result, this.runtime)
+    return callResult(applyResultRule(signature.result, input, argStates), this.runtime)
   }
 
   /** Apply the expression-body and criteria rules in one place for signed and unsigned declarations. */
@@ -1485,22 +1483,6 @@ function temporalKindOf(types: readonly string[] | undefined): TemporalKind | un
   const kinds = new Set((types ?? []).map(type => TEMPORAL_KINDS[systemTypeName(type) ?? '']))
   const [kind] = kinds
   return kinds.size === 1 ? kind : undefined
-}
-
-/**
- * combine() keeps the order of its sources only when `preserveOrder` is true
- * (FHIRPath 3.0.0); without it the result has no defined order. A computed
- * argument leaves the order unknown.
- */
-function combineOrder(node: AstNode & { kind: 'call' }, sequential: StaticState): boolean | undefined {
-  const preserveOrder = node.args[1]
-  if (preserveOrder === undefined) {
-    return false
-  }
-  if (preserveOrder.kind !== 'boolean') {
-    return undefined
-  }
-  return preserveOrder.value ? sequential.ordered : false
 }
 
 /** Functions whose first argument is a regular expression pattern, with the position of their flags argument. */

@@ -6,8 +6,10 @@ import { Temporal, type TemporalKind } from '../values/datetime.ts'
  * Functions): the optional `format` argument of toDate(), toDateTime(),
  * convertsToDate(), and convertsToDateTime(). Codes are case-sensitive; any
  * other character must match itself. Month names and AM/PM markers are read in
- * English. The time zone name code `z` is optional in the spec and not
- * supported.
+ * English. The time zone name code `z` reads an IANA time zone id in
+ * Area/Location form, such as America/Los_Angeles, or UTC or GMT, and takes the
+ * zone's offset at the date and time read. Abbreviations such as PST and names
+ * such as Pacific Standard Time do not match.
  */
 
 type Field = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'fraction' | 'meridiem' | 'zone'
@@ -15,6 +17,7 @@ type Field = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'fraction
 interface Code {
   field: Field
   pattern: string
+  /** A number for the components and the `Z` offset; text for fractions, AM/PM, and `z` ids. */
   read: (text: string) => number | string | undefined
   /** True for the 12-hour codes, which need the AM/PM code. */
   twelveHour?: true
@@ -73,7 +76,8 @@ const CODES: Readonly<Record<string, Code>> = {
     pattern: ['am', 'pm', 'a', 'p'].map(caseless).join('|'),
     read: text => text.toLowerCase().charAt(0),
   },
-  Z: { field: 'zone', pattern: 'Z|[+-]\\d{2}:?\\d{2}', read: text => text },
+  z: { field: 'zone', pattern: '[A-Za-z][\\w+-]*(?:/[\\w+-]+)+|UTC|GMT', read: text => text },
+  Z: { field: 'zone', pattern: 'Z|[+-]\\d{2}:?\\d{2}', read: offsetMinutes },
 }
 
 const CODE_LETTERS = new Set(['y', 'M', 'd', 'H', 'h', 'm', 's', 'S', 'a', 'z', 'Z'])
@@ -97,6 +101,7 @@ export function compileDateFormat(name: string, format: string, kind: 'date' | '
     throw new FhirPathTypeError(`${name}() received an invalid format '${format}': ${reason}`)
   }
   const codes: Code[] = []
+  let zoneCode: string | undefined
   let source = ''
   let index = 0
   while (index < format.length) {
@@ -113,12 +118,13 @@ export function compileDateFormat(name: string, format: string, kind: 'date' | '
     }
     const code = letter === 'S' ? fractionCode(run.length) : CODES[run]
     if (code === undefined) {
-      fail(letter === 'z' ? "the time zone name code 'z' is not supported" : `'${run}' is not a format code`)
+      fail(`'${run}' is not a format code`)
     }
     if (codes.some(existing => existing.field === code.field)) {
       fail(`it gives the ${code.field} more than once`)
     }
     codes.push(code)
+    zoneCode = code.field === 'zone' ? run : zoneCode
     source += `(${code.pattern})`
   }
   const fields = new Set(codes.map(code => code.field))
@@ -136,8 +142,8 @@ export function compileDateFormat(name: string, format: string, kind: 'date' | '
   if (twelveHour !== fields.has('meridiem')) {
     fail(twelveHour ? "the 12-hour codes 'h' and 'hh' need the AM/PM code 'a'" : "the AM/PM code 'a' needs 'h' or 'hh'")
   }
-  if (fields.has('zone') && !fields.has('hour')) {
-    fail("the time zone code 'Z' needs an hour")
+  if (zoneCode !== undefined && !fields.has('hour')) {
+    fail(`the time zone code '${zoneCode}' needs an hour`)
   }
   const pattern = new RegExp(`^${source}$`)
   return {
@@ -170,7 +176,13 @@ function temporalFrom(
     }
     hour = (hour % 12) + (values.meridiem === 'p' ? 12 : 0)
   }
-  const zone = values.zone as string | undefined
+  let zone = values.zone as number | undefined
+  if (typeof values.zone === 'string') {
+    zone = zoneOffsetMinutes(values.zone, values, hour)
+    if (zone === undefined) {
+      return undefined
+    }
+  }
   return Temporal.fromFields(kind, {
     year: values.year as number,
     month: values.month as number | undefined,
@@ -180,7 +192,7 @@ function temporalFrom(
       minute: values.minute as number | undefined,
       second: values.second as number | undefined,
       fraction: values.fraction as string | undefined,
-      timezoneOffsetMinutes: zone === undefined ? undefined : offsetMinutes(zone),
+      timezoneOffsetMinutes: zone,
     }),
   })
 }
@@ -192,6 +204,75 @@ function offsetMinutes(zone: string): number {
   const digits = zone.replace(':', '')
   const minutes = Number(digits.slice(1, 3)) * 60 + Number(digits.slice(3, 5))
   return digits.startsWith('-') ? -minutes : minutes
+}
+
+const MINUTE_MS = 60_000
+const DAY_MS = 24 * 60 * MINUTE_MS
+
+/** Formatters by time zone id, since Intl.DateTimeFormat is slow to construct. */
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>()
+const MAX_ZONE_FORMATTERS = 64
+
+/**
+ * The offset, in minutes, that time zone `id` uses at the wall time in
+ * `values`, or undefined when Intl does not know the zone, the wall time never
+ * happens there (a forward transition skips it), or the offset is not a whole
+ * number of minutes (local mean time before standard zones). A wall time that
+ * happens twice takes the earlier instant, as Temporal's `compatible`
+ * disambiguation does.
+ */
+function zoneOffsetMinutes(
+  id: string,
+  values: Partial<Record<Field, number | string | undefined>>,
+  hour: number | undefined
+): number | undefined {
+  const formatter = zoneFormatter(id)
+  if (formatter === undefined) {
+    return undefined
+  }
+  const date = new Date(0)
+  date.setUTCFullYear(values.year as number, (values.month as number) - 1, values.day as number)
+  date.setUTCHours(hour ?? 0, (values.minute as number | undefined) ?? 0, (values.second as number | undefined) ?? 0)
+  const wall = date.getTime()
+  // A day either side of the wall time, the zone uses the offsets that can apply
+  // at it: real zones change offset at most once in two days.
+  const offsets = [offsetAt(formatter, wall - DAY_MS), offsetAt(formatter, wall + DAY_MS)].filter(
+    offset => offsetAt(formatter, wall - offset) === offset
+  )
+  if (offsets.length === 0) {
+    return undefined
+  }
+  const offset = Math.max(...offsets)
+  return offset % MINUTE_MS === 0 ? offset / MINUTE_MS : undefined
+}
+
+function zoneFormatter(id: string): Intl.DateTimeFormat | undefined {
+  let formatter = zoneFormatters.get(id)
+  if (formatter === undefined) {
+    try {
+      formatter = new Intl.DateTimeFormat('en-US', { timeZone: id, timeZoneName: 'longOffset' })
+    } catch {
+      // A RangeError: Intl does not know the zone.
+      return undefined
+    }
+    if (zoneFormatters.size >= MAX_ZONE_FORMATTERS) {
+      zoneFormatters.clear()
+    }
+    zoneFormatters.set(id, formatter)
+  }
+  return formatter
+}
+
+/** The offset from UTC, in milliseconds, of the zone `formatter` formats in at `instant`. */
+function offsetAt(formatter: Intl.DateTimeFormat, instant: number): number {
+  const name = formatter.formatToParts(instant).find(part => part.type === 'timeZoneName')?.value ?? ''
+  const match = /^GMT([+-])(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(name)
+  if (match === null) {
+    return 0
+  }
+  const [, sign, hours, minutes, seconds] = match
+  const offset = ((Number(hours) * 60 + Number(minutes)) * 60 + Number(seconds ?? 0)) * 1000
+  return sign === '-' ? -offset : offset
 }
 
 /** A pattern for `word` in any letter case; literals in the format stay case-sensitive. */
