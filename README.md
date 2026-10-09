@@ -300,10 +300,7 @@ r4.evaluate(
 
 A selector may leave out an element FHIR requires, such as `Observation {:}`
 without `status` and `code`; the static checkers warn (`missing-element`) and
-the runtime builds the partial value. Type inference gives a selector its
-type's interface, as `Coding[]` for the first example, when that type requires
-no element and every selector nested in it does the same. Any other selector
-infers `unknown[]`.
+the runtime builds the partial value.
 
 ### Deterministic tests and debugging
 

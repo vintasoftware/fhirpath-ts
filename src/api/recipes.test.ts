@@ -343,7 +343,6 @@ describe('README usage recipes', () => {
     )
     expectTypeOf(codings).toEqualTypeOf<unknown[]>()
     expect(codings).toEqual([{ system: 'http://hl7.org/fhir/administrative-gender', code: 'female' }])
-    // Observation requires elements, so its selector infers unknown[].
     const observations = r4.evaluate(
       "Observation { status: 'final', code: CodeableConcept { text: 'BP' }, component: BackboneElement { code: CodeableConcept { text: 'Systolic' }, value: 120 'mm[Hg]' } }",
       patient

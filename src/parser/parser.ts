@@ -110,7 +110,13 @@ class Parser {
 
   private parseUnary(token: Token, parselet: Extract<PrefixParseletRecord, { reducer: 'unary' }>): AstNode {
     this.advance()
+    const literalFollows = token.text === '-' && this.peek().kind === 'number'
     const operand = this.parseExpression(parselet.bindingPower)
+    if (literalFollows && operand.kind === 'number') {
+      // A minus sign written directly before a number is part of the literal, so
+      // `-2147483648` is the Integer minimum. `-(2147483648)` stays a negation.
+      return { ...operand, text: `-${operand.text}`, span: this.spanBetween(token.span, operand.span) }
+    }
     return {
       kind: 'unary',
       operator: token.text as UnaryOperator,

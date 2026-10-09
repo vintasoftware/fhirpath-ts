@@ -165,8 +165,8 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   - Integer (32-bit) and Long (64-bit) arithmetic that overflows is empty, as
     is negating the smallest value. `2147483647 + 1` returned the Long
     `2147483648`; write `2147483647L + 1` for a Long result. A minus sign
-    directly before an integer literal reads as one negative literal, so
-    `-2147483648` is an Integer. `ceiling()`, `floor()`, `truncate()`, and
+    directly before a number literal is part of the literal, so
+    `-2147483648` is an Integer; `-(2147483648)` negates the Long. `ceiling()`, `floor()`, `truncate()`, and
     `abs()` results outside the Integer range are empty too.
     Without a model, a whole JSON number outside the Integer range, such as
     `3000000000`, reads as a Decimal, and `'3000000000'.toInteger()` is
@@ -184,6 +184,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Fixed
 
+- Arithmetic operators, unary minus, the math functions, and `sum()`,
+  `avg()`, `min()`, and `max()` give empty for a primitive that has
+  extensions and no value, as the comparison operators do. Most of them threw
+  a raw `TypeError`.
 - `as(Quantity)` and `ofType(Quantity)` return FHIR subtypes of Quantity,
   such as an `Age`, as `is(Quantity)` accepts them. They returned empty
   ([#130](https://github.com/vintasoftware/fhirpath-ts/issues/130)).

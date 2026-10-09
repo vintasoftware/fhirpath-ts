@@ -1,5 +1,5 @@
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
-import { singleton } from '../values/collection.ts'
+import { singleton, valuedSingleton } from '../values/collection.ts'
 import { Decimal } from '../values/decimal.ts'
 import { asNumeric, numericResult } from '../values/numeric.ts'
 import { coerceQuantity } from '../values/quantity.ts'
@@ -7,7 +7,7 @@ import { SYSTEM_DECIMAL, SYSTEM_INTEGER, SYSTEM_QUANTITY, type TypedValue } from
 import { argAt, registerFunction } from './registry.ts'
 
 function numericInput(name: string, input: TypedValue[]): { item: TypedValue; value: Decimal } | undefined {
-  const item = singleton(input)
+  const item = valuedSingleton(input)
   if (item === undefined) {
     return undefined
   }
@@ -22,7 +22,7 @@ registerFunction('abs', {
   minArity: 0,
   maxArity: 0,
   evaluate: (_context, input) => {
-    const item = singleton(input)
+    const item = valuedSingleton(input)
     if (item === undefined) {
       return []
     }
@@ -53,7 +53,7 @@ function rounding(
     minArity: 0,
     maxArity,
     evaluate: (context, input, args, evaluateNode) => {
-      const item = singleton(input)
+      const item = valuedSingleton(input)
       if (item === undefined) {
         return []
       }

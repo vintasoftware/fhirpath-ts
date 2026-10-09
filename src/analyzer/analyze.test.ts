@@ -233,6 +233,7 @@ describe('literal types', () => {
     expect(analyzeExpressionDetailed('-2147483648', {}).result.types).toEqual(['System.Integer'])
     expect(analyzeExpressionDetailed('-2147483649', {}).result.types).toEqual(['System.Long'])
     expect(codes('integer { value: -2147483648 }')).toEqual([])
+    expect(analyzeExpressionDetailed('-(2147483648)', {}).result.types).toEqual(['System.Long'])
   })
 })
 

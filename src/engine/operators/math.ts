@@ -1,6 +1,6 @@
 import { FhirPathTypeError } from '../../errors.ts'
 import type { UnaryOperator } from '../../parser/ast.ts'
-import { singleton } from '../../values/collection.ts'
+import { valuedSingleton } from '../../values/collection.ts'
 import { Temporal } from '../../values/datetime.ts'
 import type { Decimal } from '../../values/decimal.ts'
 import { asNumeric, numericResult, widerKind } from '../../values/numeric.ts'
@@ -148,18 +148,13 @@ function isTemporalType(item: TypedValue): boolean {
 
 function arithmeticOperator(operator: ArithmeticOperator) {
   return (_context: unknown, leftInput: TypedValue[], rightInput: TypedValue[]): TypedValue[] => {
-    const a = singleton(leftInput)
-    const b = singleton(rightInput)
+    const a = valuedSingleton(leftInput)
+    const b = valuedSingleton(rightInput)
     if (a === undefined || b === undefined) {
       return []
     }
     if (systemTypeOf(a) === SYSTEM_STRING || systemTypeOf(b) === SYSTEM_STRING) {
       if (operator === '+' && systemTypeOf(a) === SYSTEM_STRING && systemTypeOf(b) === SYSTEM_STRING) {
-        if (a.value === undefined || b.value === undefined) {
-          // A primitive present only through its _field sibling has no value; +
-          // propagates that like an empty operand.
-          return []
-        }
         return [{ type: SYSTEM_STRING, value: (a.value as string) + (b.value as string) }]
       }
       throw new FhirPathTypeError(`Operator '${operator}' is not defined for strings`)
@@ -197,7 +192,7 @@ export const arithmeticOperators = {
 
 function unaryOperator(sign: 1 | -1) {
   return (_context: unknown, input: TypedValue[]): TypedValue[] => {
-    const item = singleton(input)
+    const item = valuedSingleton(input)
     if (item === undefined) {
       return []
     }

@@ -28,9 +28,9 @@ export const INFERENCE_PRECISION_REPORT = {
       conflict: 0,
     },
     operators: {
-      total: 1531,
-      precise: 1439,
-      opaque: 92,
+      total: 1504,
+      precise: 1426,
+      opaque: 78,
       conflict: 0,
     },
     paths: {

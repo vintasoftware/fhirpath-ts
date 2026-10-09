@@ -257,6 +257,27 @@ describe('math', () => {
     expect(evaluate('-2147483648 is Integer')).toEqual([true])
     expect(evaluate('-2147483649 is Long')).toEqual([true])
     expect(evaluate('(-2147483648).abs()')).toEqual([])
+    // A parenthesized literal is negated as a value: 2147483648 is a Long.
+    expect(evaluate('-(2147483648) is Long')).toEqual([true])
+    expect(evaluate('-(2147483648) - 1')).toEqual([-2147483649n])
+  })
+
+  it('reads a primitive with only extensions as empty in arithmetic and math functions', () => {
+    const patient = { resourceType: 'Patient', _multipleBirthInteger: { extension: [{ url: 'u', valueString: 'x' }] } }
+    const options = { model: r4Model }
+    for (const expression of [
+      'Patient.multipleBirth + 1',
+      '-Patient.multipleBirth',
+      'Patient.multipleBirth.abs()',
+      'Patient.multipleBirth.round()',
+      'Patient.multipleBirth.exp()',
+      '2.power(Patient.multipleBirth)',
+      'Patient.multipleBirth.sum()',
+      'Patient.multipleBirth.avg()',
+      'Patient.multipleBirth.max()',
+    ]) {
+      expect(evaluate(expression, patient, options), expression).toEqual([])
+    }
   })
 
   it('rejects string operands for non-concat operators', () => {

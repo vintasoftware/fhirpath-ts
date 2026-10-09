@@ -13,8 +13,14 @@ const INTEGER_MAX = 2147483647n
 export const LONG_MIN = -9223372036854775808n
 export const LONG_MAX = 9223372036854775807n
 
-/** Read an Integer/Long/Decimal operand as a Decimal, remembering its kind. */
+/**
+ * Read an Integer/Long/Decimal operand as a Decimal, remembering its kind.
+ * Undefined for any other item, and for a primitive with no value.
+ */
 export function asNumeric(item: TypedValue): NumericOperand | undefined {
+  if (item.value === undefined) {
+    return undefined
+  }
   switch (systemTypeOf(item)) {
     case SYSTEM_INTEGER:
       return { kind: 'Integer', value: Decimal.fromString(String(item.value as number)) as Decimal }
@@ -69,19 +75,4 @@ export function numericResult(value: Decimal | undefined, kind: NumericKind): Ty
 export function integerLiteral(text: string): TypedValue {
   const whole = Decimal.fromString(text) as Decimal
   return wrapNumeric(whole, 'Integer') ?? wrapNumeric(whole, 'Long') ?? { type: SYSTEM_DECIMAL, value: whole }
-}
-
-/**
- * The value of unary minus applied directly to an integer literal, read as one
- * negative literal, so `-2147483648` is the Integer minimum rather than the
- * negated Long `2147483648`. Undefined for any other operand.
- */
-export function negativeIntegerLiteral(
-  operator: string,
-  operand: { kind: string; text?: string; isDecimal?: boolean; isLong?: boolean }
-): TypedValue | undefined {
-  if (operator !== '-' || operand.kind !== 'number' || operand.isDecimal === true || operand.isLong === true) {
-    return undefined
-  }
-  return integerLiteral(`-${operand.text as string}`)
 }

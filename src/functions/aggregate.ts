@@ -41,10 +41,14 @@ const ORDERED_TYPES = [...NUMERIC_TYPES, SYSTEM_DATE, SYSTEM_DATETIME, SYSTEM_TI
  * "Aggregates": "All items in the input collection SHALL be the same type").
  * A FHIR primitive counts as its System type and any FHIR Quantity, such as
  * Age, as System.Quantity. A type outside `accepted` or a second type throws.
+ * Undefined when an item is a primitive with no value: the aggregate is then
+ * empty, as an arithmetic operator on that item is.
  */
-function sharedType(name: string, input: TypedValue[], accepted: readonly string[]): string {
+function sharedType(name: string, input: TypedValue[], accepted: readonly string[]): string | undefined {
   let shared: string | undefined
+  let valueless = false
   for (const item of input) {
+    valueless ||= item.value === undefined
     const type = coerceQuantity(item) ? SYSTEM_QUANTITY : systemTypeOf(item)
     if (type === undefined || !accepted.includes(type)) {
       throw new FhirPathTypeError(`${name}() is not defined for ${item.type}`)
@@ -54,7 +58,7 @@ function sharedType(name: string, input: TypedValue[], accepted: readonly string
     }
     shared = type
   }
-  return shared as string
+  return valueless ? undefined : shared
 }
 
 /**
@@ -88,6 +92,9 @@ registerFunction('sum', {
       return []
     }
     const type = sharedType('sum', input, NUMERIC_TYPES)
+    if (type === undefined) {
+      return []
+    }
     if (type === SYSTEM_QUANTITY) {
       const total = sumQuantities(input)
       return total === undefined ? [] : [{ type: SYSTEM_QUANTITY, value: total }]
@@ -111,7 +118,9 @@ function extremum(name: string, keep: (comparison: number) => boolean): void {
       if (input.length === 0) {
         return []
       }
-      sharedType(name, input, ORDERED_TYPES)
+      if (sharedType(name, input, ORDERED_TYPES) === undefined) {
+        return []
+      }
       let best = input[0] as TypedValue
       for (const item of input.slice(1)) {
         const comparison = compareValues(item, best)
@@ -122,8 +131,7 @@ function extremum(name: string, keep: (comparison: number) => boolean): void {
           best = item
         }
       }
-      // A primitive present only through its _field sibling has no value to order by.
-      return best.value === undefined ? [] : [best]
+      return [best]
     },
   })
 }
@@ -138,8 +146,12 @@ registerFunction('avg', {
     if (input.length === 0) {
       return []
     }
+    const type = sharedType('avg', input, NUMERIC_TYPES)
+    if (type === undefined) {
+      return []
+    }
     const count = Decimal.fromString(String(input.length)) as Decimal
-    if (sharedType('avg', input, NUMERIC_TYPES) === SYSTEM_QUANTITY) {
+    if (type === SYSTEM_QUANTITY) {
       const total = sumQuantities(input)
       const average = total?.value.divide(count)
       return total === undefined || average === undefined

@@ -182,7 +182,13 @@ describe('operator precedence', () => {
   })
 
   it('unary binds tighter than multiplication', () => {
-    expect(ast('-1 * 2')).toEqual(binary('*', { kind: 'unary', operator: '-', operand: n('1') }, n('2')))
+    expect(ast('-a * 2')).toEqual(binary('*', { kind: 'unary', operator: '-', operand: id('a') }, n('2')))
+  })
+
+  it('reads a minus sign directly before a number as part of the literal', () => {
+    expect(ast('-1 * 2')).toEqual(binary('*', n('-1'), n('2')))
+    expect(ast('-(1)')).toEqual({ kind: 'unary', operator: '-', operand: n('1') })
+    expect(ast('+1')).toEqual({ kind: 'unary', operator: '+', operand: n('1') })
   })
 
   it('multiplicative binds tighter than additive', () => {

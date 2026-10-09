@@ -242,11 +242,7 @@ export function literalValue(node: AstNode): { type: string; json: unknown } | u
     case 'boolean':
       return { type: SYSTEM_BOOLEAN, json: node.value }
     case 'number':
-      return numberLiteral(node.text, node.isDecimal, node.isLong === true, '')
-    case 'unary':
-      return node.operand.kind === 'number'
-        ? numberLiteral(node.operand.text, node.operand.isDecimal, node.operand.isLong === true, node.operator)
-        : undefined
+      return numberLiteral(node.text, node.isDecimal, node.isLong === true)
     case 'date':
       return temporalLiteral(SYSTEM_DATE, Temporal.parseDate(node.text))
     case 'dateTime':
@@ -258,15 +254,9 @@ export function literalValue(node: AstNode): { type: string; json: unknown } | u
   }
 }
 
-function numberLiteral(
-  text: string,
-  isDecimal: boolean,
-  isLong: boolean,
-  sign: string
-): { type: string; json: unknown } {
-  const signed = `${sign === '-' ? '-' : ''}${text}`
-  const type = isLong ? SYSTEM_LONG : isDecimal ? SYSTEM_DECIMAL : integerLiteral(signed).type
-  return { type, json: type === SYSTEM_LONG ? BigInt(signed) : Number(signed) }
+function numberLiteral(text: string, isDecimal: boolean, isLong: boolean): { type: string; json: unknown } {
+  const type = isLong ? SYSTEM_LONG : isDecimal ? SYSTEM_DECIMAL : integerLiteral(text).type
+  return { type, json: type === SYSTEM_LONG ? BigInt(text) : Number(text) }
 }
 
 function temporalLiteral(type: string, value: Temporal | undefined): { type: string; json: unknown } | undefined {

@@ -243,10 +243,10 @@ registered function call has a focus but no row.
 
 `resolveInstanceType` and `acceptingElementType` in
 `src/engine/instance-selector.ts` decide the built type and which element type
-takes a value (and so a choice element's JSON key). `valuePatternMessage`,
-`requiredCodeMessage`, and `missingRequiredElements` decide which values and
-omissions to report. The evaluator and the analyzer both call them, so a static
-diagnostic and a runtime error always describe the same rule.
+takes a value (and so a choice element's JSON key). `valuePatternMessage` and
+`missingRequiredElements` decide which values and omissions to report. The
+evaluator and the analyzer both call them, so a static diagnostic and a
+runtime error always describe the same rule.
 
 `BackboneElement { ... }` builds a backbone element only when it is written
 directly as an element's value: both walkers pass that element's declared types

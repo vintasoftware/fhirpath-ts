@@ -21,6 +21,8 @@ describe('canonical printing', () => {
     ['{ }', '{}'],
     ['-1.abs()', '-1.abs()'],
     ['(-1).abs()', '(-1).abs()'],
+    ['-(2147483648)', '-(2147483648)'],
+    ['-2147483648 - 1', '-2147483648 - 1'],
     ['a as B | c', 'a as B | c'],
     ['(a is System.Boolean).not()', '(a is System.Boolean).not()'],
     ["4.5 'mg'", "4.5 'mg'"],
