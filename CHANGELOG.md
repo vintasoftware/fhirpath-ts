@@ -135,6 +135,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Fixed
 
+- `as(Quantity)` and `ofType(Quantity)` return FHIR subtypes of Quantity,
+  such as an `Age`, as `is(Quantity)` accepts them. They returned empty
+  ([#130](https://github.com/vintasoftware/fhirpath-ts/issues/130)).
 - The analyzer no longer reads a lowercase root identifier as a FHIR primitive
   type when the input type is unknown. `code.coding` reported `Element 'coding'
   is not defined on FHIR.code`; the runtime reads `code` as an element.

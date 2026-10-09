@@ -401,6 +401,20 @@ describe('is / as', () => {
     expect(evaluate('Patient.gender.ofType(string)', gendered, options)).toEqual([])
     expect(evaluate('Patient.gender.as(code)', gendered, options)).toEqual(['male'])
   })
+
+  it('as/ofType(Quantity) keep FHIR subtypes of Quantity such as Age', () => {
+    // testFHIRPathAsFunction26 (reason-healthcare/rh extended R5 suite).
+    const observation = {
+      resourceType: 'Observation',
+      extension: [{ url: 'u', valueAge: { value: 41, unit: 'yr', system: 'http://unitsofmeasure.org', code: 'a' } }],
+    }
+    const options = { model: r4Model }
+    expect(evaluate("Observation.extension('u').value.is(Quantity)", observation, options)).toEqual([true])
+    expect(evaluate("Observation.extension('u').value.as(Quantity).value", observation, options)).toEqual([41])
+    expect(evaluate("Observation.extension('u').value.ofType(Quantity).value", observation, options)).toEqual([41])
+    expect(evaluate("Observation.extension('u').value.as(FHIR.Quantity).value", observation, options)).toEqual([41])
+    expect(evaluate("Observation.extension('u').value.as(Duration)", observation, options)).toEqual([])
+  })
 })
 
 describe('quantity arithmetic', () => {
