@@ -1,6 +1,6 @@
 // tsc-perf fixture: keeps roughly a hundred typed expressions in the normal
-// typecheck run so type-level inference cost regressions surface in CI.
-import type { FhirpathResult } from './infer.ts'
+// typecheck run so CI reports higher type-level inference costs.
+import type { FhirpathResult, FhirpathResultIn } from '../infer.ts'
 
 export type T001 = FhirpathResult<'Patient.name.given'>
 export type T002 = FhirpathResult<'Patient.name.family'>
@@ -99,3 +99,78 @@ export type T094 = FhirpathResult<'ValueSet.status'>
 export type T095 = FhirpathResult<'ValueSet.url'>
 export type T096 = FhirpathResult<'ValueSet.expansion.contains.code'>
 export type T097 = FhirpathResult<'ValueSet.compose.include.system'>
+export type T098 = FhirpathResult<"Observation.value.ofType(Quantity).toQuantity('kg').value">
+export type T099 = FhirpathResult<"Observation.value.ofType(Quantity).toQuantity('kg.m/s2').value">
+export type T100 = FhirpathResult<'Patient.birthDate.toDate()'>
+export type T101 = FhirpathResult<'Patient.birthDate.convertsToDateTime()'>
+export type T102 = FhirpathResult<"Patient.name.given.join(', ')">
+export type T103 = FhirpathResult<'Patient.name.family.first().toChars()'>
+export type T104 = FhirpathResult<'Patient.name.given.first().toString()'>
+export type T105 = FhirpathResult<"Patient.name.where(given.first() = 'Peter').family">
+export type T106 = FhirpathResult<'Patient.name.where(use.exists() and given.exists()).given'>
+export type T107 = FhirpathResult<"Patient.name.exists(use = 'official')">
+export type T108 = FhirpathResult<'Patient.name.select(given.first()).count()'>
+export type T109 = FhirpathResult<"MedicationRequest.dosageInstruction.text.join('; ')">
+export type T110 = FhirpathResult<'Observation.component.value.ofType(Quantity).value.first().toString()'>
+// Fixed-return batch 2 (string/boolean/numeric) and identity functions.
+export type T111 = FhirpathResult<'Patient.name.family.first().trim()'>
+export type T112 = FhirpathResult<'Patient.name.given.first().substring(0, 1)'>
+export type T113 = FhirpathResult<"Patient.name.family.first().replace('mers', 'm')">
+export type T114 = FhirpathResult<"Patient.name.family.first().matches('^Ch')">
+export type T115 = FhirpathResult<"Patient.name.given.first().startsWith('Pe')">
+export type T116 = FhirpathResult<"Patient.name.given.first().indexOf('e')">
+export type T117 = FhirpathResult<'Patient.name.count().toDecimal().round()'>
+export type T118 = FhirpathResult<'Patient.name.count().sqrt()'>
+export type T119 = FhirpathResult<'Patient.name.given.distinct()'>
+export type T120 = FhirpathResult<'Patient.name.given.skip(1).take(2)'>
+export type T121 = FhirpathResult<"Patient.name.given.first().split('e')">
+export type T122 = FhirpathResult<'Patient.name.all(use.exists())'>
+// Union groups, top-level unions, and %var roots.
+export type T123 = FhirpathResult<'Patient.name.given | Patient.name.family'>
+export type T124 = FhirpathResult<'(Patient.name.given | Patient.name.family).first()'>
+export type T125 =
+  FhirpathResult<'(DiagnosticReport.effective.ofType(dateTime) | DiagnosticReport.issued).first().toString()'>
+export type T126 = FhirpathResult<'((Patient.name.given | Patient.name.family) | Patient.id).first()'>
+export type T127 = FhirpathResult<'Patient.name.select((given | family).first())'>
+export type T128 =
+  FhirpathResult<'MedicationRequest.dosageInstruction.first().route.select(text | coding.display.first()).first()'>
+export type T129 = FhirpathResult<'%rowIndex.toString()'>
+export type T130 =
+  FhirpathResult<'(%report.effective.ofType(dateTime) | %report.issued | ServiceRequest.authoredOn | ServiceRequest.occurrence.ofType(dateTime)).first().toString()'>
+export type T131 = FhirpathResult<'(id | %rowIndex.toString()).first()'>
+export type T132 = FhirpathResult<"Patient.name.where(family = 'a|b').given">
+export type T133 = FhirpathResult<'Patient.name.where(a.exists()).given'>
+export type T134 = FhirpathResult<'Patient.name.select(given.first()).count()'>
+// Host declarations, expression vars/functions, overload selection, and roots.
+type HostContext = {
+  env: {
+    report: { type: 'DiagnosticReport' }
+    fallback: { type: 'string'; collection: true }
+  }
+  vars: {
+    status: { type: 'string' }
+    reportId: { type: never; __expression: '%report.id' }
+  }
+  functions: {
+    display: { expression: '(text | coding.display).first()' }
+    labelled: { expression: '%prefix & text'; envTypes: { prefix: { type: 'string' } } }
+    render: {
+      overloads: readonly [
+        { signature: { input: { types: readonly ['Patient'] }; result: { types: readonly ['string']; single: true } } },
+        {
+          signature: {
+            input: { types: readonly ['Observation'] }
+            result: { types: readonly ['integer']; single: true }
+          }
+        },
+      ]
+    }
+  }
+}
+export type T135 = FhirpathResult<'%report.status.combine(%fallback)', HostContext>
+export type T136 = FhirpathResult<'%reportId', HostContext>
+export type T137 = FhirpathResult<'Condition.code.display()', HostContext>
+export type T138 = FhirpathResult<'Condition.code.labelled()', HostContext>
+export type T139 = FhirpathResult<'Patient.render()', HostContext>
+export type T140 = FhirpathResult<'Observation.render()', HostContext>
+export type T141 = FhirpathResultIn<'%context.name.given', 'Patient', HostContext>

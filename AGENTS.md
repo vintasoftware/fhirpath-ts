@@ -1,0 +1,405 @@
+# Working in this repository
+
+This file records maintenance decisions that are easy to break. User-facing
+behavior belongs in the documentation:
+
+- [README.md](README.md): features, suggested use, short recipes, and important
+  limits.
+- [API reference](docs/api.md): engine methods, options, custom functions, DTOs,
+  Bundles, and caching.
+- [Static checking](docs/static-checking.md): inference, ESLint, CLI, and analyzer
+  behavior.
+- [Conformance](docs/conformance.md): suites, skips, fuzzing, and coverage.
+- [Engine comparison](docs/engine-comparison.md): comparison and architecture.
+- [Demo README](demo/README.md): playground development and deployment.
+
+Keep this file focused on implementation constraints. Add a rule after a real
+design decision, not for ordinary code conventions.
+
+## Expression-site walkers
+
+There are two source walkers because their callers receive different ASTs:
+
+- `src/eslint/index.ts` walks ESLint's ESTree.
+- `src/sites/index.ts` walks the TypeScript AST for the CLI, demo, and other
+  source tools.
+
+`createSiteFinder(ts)` receives the TypeScript namespace from its caller. The
+`fhirpath-ts/sites` entry point imports TypeScript types only. This keeps
+TypeScript out of runtime dependencies and lets Monaco use the compiler already
+inside its worker.
+
+Do not add a third walker unless a real consumer cannot supply either supported
+AST.
+
+Keep decisions shared between the walkers in
+`src/analyzer/expression-policy.ts`: call names, expression argument positions,
+receiver checks, tag checks, DTO roots, site context, and expression shapes. A
+walker should only translate its AST into that shared policy.
+
+Do not make the CLI call the ESLint rule. The CLI must work in projects that do
+not use ESLint, and it must keep analyzer warning severities such as
+`regex-backtracking`.
+
+`src/analyzer/expression-policy.test.ts` runs one corpus through both walkers and
+compares positions, context, and analyzer diagnostics. Add every new source shape
+to that corpus.
+
+The analyzer package stays independent of both compilers. Runtime tools such as
+an expression editor can call `analyzeExpression`, `analyzeDto`, and
+`analyzeSite` without loading TypeScript.
+
+## Type-level inference
+
+`src/typed/parser.ts` is the only type-level parser. It consumes generated
+parser, function, and R4 model metadata. Keep the runtime parser, analyzer
+signatures, and model maps as the sources of truth; do not add handwritten
+copies.
+
+Keep inference bounded by `src/typed/inference-limits.ts`. Returning `unknown[]`
+is safe; returning a type narrower than `analyzeExpressionDetailed()` is not,
+with one exception: a string literal union where the analyzer says
+`System.String`. The literal carrier (`LiteralCarrier` in `src/typed/parser.ts`)
+may reach a result only through paths that return a subset of their input; a
+rule that computes a new value rebuilds the state without it. The precision
+ratchet accepts any literal union there, so it cannot tell wrong literal text
+from right, and `src/typed/operators.test.ts` guards the texts instead. The
+required checks below cover generated drift, corpus soundness, and compiler
+cost. A helper that means "nothing to read" returns a sentinel such as
+`undefined`, not `never`: `never` distributes through later conditionals and
+erases the whole result (`HostBodySource` did this for host functions without a
+body or result type).
+
+The generated `R4Elements` map is type-only. It carries `codes`, the code set
+of a required binding, next to `t` and `a`; `NavigateCore` attaches it as the
+literal carrier and `PublicResult` returns it. The interfaces also enumerate
+extensible bindings and `Reference.type` (a superset of medplum's
+enumerations, for assignability), but those admit other codes, so they get no
+`codes` and infer `string`. The runtime tables and `R4TypeOf['code']` stay
+`string`. The generated interfaces require elements with FHIR minimum
+cardinality 1 (`docs/adr/0003`); every input site (`FhirpathInput`, the
+declared-root forms, declared host values, required-column leaves) goes through
+`InputOf`, the one lenient rule: elements optional, codes kept, a code set that
+names resources widened to `string`, the root pinned by `LenientResource`.
+
+Normalize host declaration names through `src/typed/context-maps.ts`. Per-call
+declarations override engine defaults, matching runtime option merging.
+Infer literal `env` values before applying `envTypes`; explicit declarations
+remain the override for widened values and Reference targets.
+
+An engine method infers `Expr` from its expression argument only. A parameter
+typed from `Expr` is an inference site too: `FhirpathInput` reads a literal
+`resourceType` back into `Expr`. Type such an input as its own type parameter
+constrained by `EngineInput<Expr>`, or wrap the whole type as
+`NoInfer<EngineInput<Expr>>`, which inference skips. `EngineInput<NoInfer<Expr>>`
+is also correct but still walks `FhirpathInput`'s branches, about 4% of the API
+surface budget. `NoInfer` is why the `typescript` peer range starts at 5.4.
+Every engine method types its input this way, `test()`, `evaluateTyped()`, and
+`filter()` included. `filter()` takes its whole input as one `Input` type
+parameter, as `evaluate()` does; an item type parameter constrained by
+`FilterItem` costs about 9k API surface instantiations.
+
+A compiled expression with a declared root types an engine call as
+`engine.compile(expression, type)` does: `EngineCallInput` and
+`EngineCallResult` over the one `RootedInput`. Engine methods read the root
+from the type-only `declaredRoot` member, not from `CompiledExpression`'s type
+arguments: TypeScript 5.4 compares the `Root` argument contravariantly, so a
+union of rooted expressions would be refused there. Compute the input as
+`InputOf<Root>` rather than reading `TInput`, whose inference keeps one
+candidate for a union of expressions. Keep the `Root` test inside
+`RootedInput`'s argument, as in
+`RootedInput<Root extends FhirTypeName ? InputOf<Root> : never>`; a conditional
+on `Root` around `RootedInput<InputOf<Root>>` costs about 9k API surface
+instantiations with any union. Construct a
+`CompiledExpression` from a wide `FhirTypeName` with explicit type arguments:
+inferring `Root` from the constructor's `Root & FhirTypeName` doubles check
+time without moving the instantiation count. A declared root has one runtime
+effect: strict evaluation roots its analysis there, as the static checkers do,
+while the data still gives the cardinality.
+
+`evaluate()`, `first()`, `test()`, and `evaluateTyped()` read a Bundle as one
+resource, as FHIRPath does; `EngineInputRoot` and
+`inputRoot` give it the `Bundle` root. The per-resource methods (`filter`,
+`project`, `checkConstraints`, DTO `from()`) read it as its entries through
+`toSubjects`, so their roots (`ProjectionInputRoot`, `inputRoot` for an
+`inputEach` call) stay opaque for a Bundle. Do not bring back an
+expression-dependent reading: it needed an ambiguity error for expressions
+that start at a Bundle element, and each method drifted to its own rule.
+
+## Monaco worker integration
+
+`demo/src/playground/ts.custom.worker.ts` adds expression-site extraction to
+Monaco's TypeScript worker. The side-effect import starts Monaco's protocol and
+sets `globalThis.ts`. The custom channel handles only messages with
+`fhirpathSites`; Monaco handles messages with `vsWorker`.
+
+The playground `lint()` call is asynchronous. Request IDs and model versions
+discard old replies. `analyzeSite` runs on the main thread after the worker
+returns the sites.
+
+After a Monaco upgrade, confirm these details:
+
+- `globalThis.ts` still contains the compiler;
+- Monaco still ignores messages without `vsWorker` in both directions;
+- `MonacoEnvironment.getWorker` still allows the application to create and keep
+  the worker handle.
+- `tsWorkerHandle` still waits for Monaco's worker accessor before the playground
+  posts to the worker. The worker bootstrap reads Monaco's first messages by
+  position, so an earlier `fhirpathSites` message is taken for one of them and
+  the TypeScript worker starts without its compiler options and extra libs.
+
+## `fhirpath-check`
+
+The CLI has two separate passes:
+
+1. the TypeScript walker finds source literals;
+2. `src/cli/dto-check.ts` imports DTO modules through `src/cli/ts-loader.mjs` and
+   calls `analyzeDto` on each exported DTO, which uses the engine the DTO was
+   defined on.
+
+The first pass has only source information and avoids claims it cannot prove. The
+second pass can be complete because it loads the DTOs and engines.
+
+DTO discovery uses the conventions documented in
+[Static checking](docs/static-checking.md#dto-discovery). Keep these implementation
+details:
+
+- Exported classes are the only DTOs a module loader can enumerate.
+- Each DTO is checked against its own engine. Checking it against a merged
+  context of every engine would accept names its engine does not bind.
+- The source pass still merges the declarations of the engines the imports
+  construct. That recording uses a closable `recordEngines()` session around the
+  imports; an always-on recording mode would retain every engine and its
+  environment.
+- Do not add `fhirpath.config.ts`; the checker obtains its inputs from module
+  discovery and DTO declarations.
+
+## Source analysis and loaded DTO analysis
+
+`analyzeSite` is the only function that turns a source site into diagnostics. It
+applies the source-only limits described in
+[Static checking](docs/static-checking.md#source-only-limits). Keep the ESLint
+rule, CLI source pass, and editor on this function so they agree.
+
+A source site's input type may come from the call's input argument
+(`CallSitePolicy.inputArg`). Only the TypeScript walker with a program can read
+it, so the parity corpus does not cover it; `src/sites/sites.test.ts` does.
+`inputRoot` in `src/analyzer/expression-policy.ts` must give the root that
+`EngineInputRoot` infers, or give none. A path from an untyped root is an
+`unchecked-navigation` warning under `reportUnchecked`, never an error.
+
+`analyzeDto` is the loaded counterpart. It has the class, model, functions, and
+environment, so it should perform the full check. Source analysis must avoid
+false positives; loaded DTO analysis must not omit checks that its context can
+perform.
+
+## DTO function dispatch
+
+The public behavior is documented in [DTOs](docs/api.md#dtos). These functions
+hold the shared implementation rules:
+
+- `unsatisfiedInput` in `src/values/type-compat.ts` decides whether a focus can
+  call a typed function. Both runtime dispatch and the analyzer use it.
+- `typesOverlap` decides whether two same-name declarations can be distinguished
+  during DTO registration.
+- `resolveByInput` chooses the first registered declaration that accepts the
+  focus.
+- `mergedDeclaration` in `src/analyzer/analyze.ts` widens source declarations
+  when the source cannot choose one safely.
+
+Do not copy the type compatibility rule into the analyzer or evaluator. They
+must differ only in reporting: runtime code throws, while the analyzer returns
+an `input-type` diagnostic.
+
+`typesOverlap` must ask the model even when value kinds differ.
+`FHIR.SimpleQuantity` is `Complex`, while `FHIR.Quantity` is `Quantity`, but the
+model says that they overlap.
+
+Built-in functions must not set `input.types`. Specification functions accept a
+wide range of inputs. `src/analyzer/signatures.test.ts` checks this rule.
+
+DTO environment values are applied in two paths: projection options and
+expression-defined function calls. Both must give the DTO's own value priority
+over caller values. A column can be reached through both paths during one
+projection, so different precedence would give one declaration two answers.
+
+DTO `vars` win over per-call vars for the same reason, and because
+`DtoContext` infers column types from the DTO's own bindings. Keep the runtime
+precedence in `dtoCallOptions` and the type-level merge in `DtoContext` equal.
+
+DTO `vars` remain projection-only. A variable is evaluated against a row; a
+registered function call has a focus but no row.
+
+## Criteria booleans
+
+A `this.criteria()` column registers a function with `criteria: true`. The evaluator applies
+`criteriaBoolean` to its body so projection and function calls return the same
+single boolean.
+
+FHIRPath singleton evaluation returns empty for an empty collection. FHIR
+constraint use adds the rule that empty has not satisfied the constraint, so the
+criteria result becomes `false`.
+
+Keep that `false` conversion in criteria handling. Do not move it into
+`booleanSingleton`: three-valued `and`, `or`, `xor`, and `implies` require
+`undefined` for empty input. `where`, `exists`, `all`, and `iif` keep their own
+single-item tests for the same reason.
+
+The input-type check is required for criteria functions. A criteria body called
+on the wrong focus would otherwise return a plausible `false` instead of an
+empty result.
+
+## Engine-bound DTOs
+
+A DTO or view is defined on an engine (`engine.defineDto()` /
+`engine.defineView()`), and `register()` returns a derived engine. Keep these
+rules together; each protects the types:
+
+- `register()` never mutates. TypeScript fixes a value's type where it is
+  declared, so only a new engine can carry the new functions in its type. There
+  is no `with()`: a derived engine that could redefine an env name or the model
+  would break the types of DTOs defined on its parent.
+- A DTO projects on its engine or an engine derived from it (`derivesFrom`), and
+  `register()` accepts only DTOs of that lineage.
+- A column body reads what its definition fixed: `DtoDefinition.columnEnv` (the
+  defining engine's env with the DTO's own env over it) and `columnFunctionTable`
+  (the defining engine's functions with a registered DTO's own columns added
+  through `declaredWith`, as `register()` adds them). `withDtos`, projection,
+  and `analyzeDto` all read that one table, so a same-name column of another
+  DTO stays an overload everywhere. The
+  registered function carries both as overlays, and `dtoCallOptions` applies
+  both over the caller's options, so per-call values never change what a
+  column's type was inferred from. The function table rides under the internal
+  `COLUMN_FUNCTIONS` symbol, not a public field, because the type layer does not
+  model per-function tables. `defineDto()` / `defineView()` refuse a
+  `callerEnv` name the engine's env binds. Engine `vars` stay out of the column
+  context (`EngineColumnContext`): they are evaluated against the caller's root.
+- `DtoFunctions` types registered columns from the class's field types. That is
+  sound only because `assertRegistrable` rejects views, getters, and plain fields,
+  and `dtoDefinition` rejects `as`/`choices` on DTO columns: a registered
+  function returns the expression result, not the projected value.
+- The projection input type is structural (`DtoInput`): the root's
+  `resourceType` plus the paths of the class's required columns, never the
+  generated resource interface (see `docs/adr/0001`). `required` is type-only:
+  the input type proves presence, the `column()` return type drops `undefined`,
+  the recorded column spec never carries the option, `BundleInput` refuses a
+  Bundle for a class with a required column (the one input whose entries the
+  types cannot see), and the
+  runtime reads the column as any other, so projection and function-call parity
+  is untouched. The field type carries the path through the optional-symbol
+  `RequiredColumn` marker; that is the only channel from a field to the class's
+  input type, so keep the marker optional (a plain value must still assign to
+  the field) and read it only through `DtoInput`.
+- `from()` and the DTO form of `project()` are one signature over
+  `DtoProjectionInput`, whose return type `DtoProjection` follows the runtime
+  rule (a Bundle or an array gives rows, one subject gives a row), so the two
+  cannot disagree. The single-subject member excludes a Bundle (`NotBundle`):
+  a `Resource` root names Bundle among its subtypes and a datatype root accepts
+  any object, while the runtime unwraps a Bundle wherever it appears. Keep the
+  DTO overload count low: TypeScript details every overload's error only up to
+  three, which is what lets the `BundleInput` refusal text reach the caller.
+- `assertInputMatchesDto` rejects a non-object or a missing `resourceType` only
+  when the engine's model says the root is a resource. Without a model it
+  compares a present `resourceType` and nothing else. A `resourceType` that
+  derives from the root in the model passes, so a `Resource` DTO projects any
+  resource.
+- A `base` (`docs/adr/0002`) is real class inheritance: `createDtoBase` extends
+  the base class, so the base's field initializers run under the subclass's
+  collection and its methods and getters are inherited; `baseDefinition` adds
+  the base's env, vars, and caller environment to the subclass's own and
+  refuses a name the base already binds, because the inherited columns' types
+  came from the base's binding while the runtime would read the subclass's.
+  Projection and registration run every column on the subclass root; analysis
+  checks a column inherited unchanged on the root it was written for
+  (`DtoDefinition.columnRoots`, found from the collection order: the base's
+  markers come first). `base` sits in `DtoBaseOptions`, outside `DtoOptions`,
+  and `defineDto()`/`defineView()` have a base overload and a plain one: a
+  function forwarding generic `DtoOptions` must resolve to a base class with
+  statically known members, which a conditional over an unresolved type
+  parameter is not. The base's context and kind travel under a type-only
+  symbol-keyed static on the class the engine returns, because instance-side
+  members would become row keys and a named static would read as a value.
+- A field's TypeScript type maps back to the union of every FHIR type with that
+  TypeScript form (`TypeNamesOf`). Naming one type would let `ofType()` infer
+  empty where the runtime returns a value. A member no FHIR type represents
+  makes the whole result undeclared; dropping it would narrow the call.
+- Registered functions live in the engine's options type (`RegisteredOptions`),
+  not in a second engine type parameter: measuring that parameter's variance
+  taxed every engine call. Type aliases in `dto.ts` take the model maps as type
+  parameters, because a concrete map in an alias body is resolved whenever the
+  file is checked.
+
+## DTO column collection
+
+A column is a field initialized with `this.column()` or `this.criteria()`,
+protected methods of `DtoBase`. The field's type comes from the method's return
+type, which reads the class's `fhirType` and context from the generic base the
+engine returns: the engine's context, then the DTO's `env`, `vars`, and
+`callerEnv`. Keep those in the `defineDto()`/`defineView()` options: that is the
+only place the column types can see them.
+
+`dtoDefinition` constructs the class once. While `collecting` holds the class,
+each column call returns a `ColumnMarker`, and the columns are the own
+properties that hold one. At any other time the methods return `undefined`, so
+projected rows start empty. The previous marker must already sit in a public
+field when the next column is declared, and the last one at the end of
+construction; that is how a column in a private field or a nested value is
+reported.
+
+`collecting` is keyed by class because collection is re-entrant: a field
+initializer may construct an engine that reads another DTO definition.
+`src/api/dto.test.ts` covers this case.
+
+`column`, `criteria`, and the type-only `dtoKind` stay protected, so rows do not
+expose them. The cost: an exported class extending a class returned by a user
+function needs that function's return type written out when declarations are
+emitted (TS4094). `ViewBaseClass<Engine, Root, Options, Fields>` exists for that
+annotation; the dogfood factories use it.
+
+The walkers read a column only in a class `dtoClassesOf` proves to be a DTO:
+extending `<engine>.defineDto/defineView(...)` whose receiver is not another
+package's import, directly, through a base class, or through a factory function
+of the same file. The TypeScript walker also accepts a class whose `this.column`
+resolves to the package's `DtoBase`. This keeps an unrelated class's own
+`column()` method out of the analyzer.
+
+## Required checks
+
+Run the checks that match the change:
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm lint
+pnpm check:fhirpath
+pnpm check:inference
+pnpm check:type-perf
+pnpm coverage
+pnpm build
+pnpm check:package
+```
+
+`scripts/type-perf-budget.json` sets the type-instantiation budget. Explain any
+budget increase in the same change.
+
+`generate:*` commands rewrite generated sources; their `check:*` variants report
+drift. Precision and type-performance ratchets accept new baselines only with
+`--update`; review the measurements first.
+
+The demo has its own typecheck. Files under `demo/src/monaco/*.d.ts` are
+generated; run `npm run generate:dts` in `demo/` after a public API change.
+
+`pnpm build` and `pnpm check:package` catch problems that `pnpm typecheck` misses.
+The build uses `nodenext` resolution, which matches how Node reads published
+output. The root config uses bundler resolution. `check:package` resolves every
+entry point's types and executes the installed tarball and CLI as a consumer. An
+import that exists only as a `devDependency` passes typecheck and fails here. See
+[RELEASING.md](RELEASING.md) for what the published tarball contains and why
+`sideEffects` is an allowlist rather than `false`.
+
+The checked-in `main`, `types`, `exports`, and `bin` fields point at `src` so
+repository self-references never load a second copy from `dist`.
+`publishConfig` mirrors those entry-point keys with paths under `dist`; pnpm
+rewrites them into the tarball manifest. Keep the key-parity assertion in
+`scripts/check-package.ts`, and pack with pnpm rather than npm. npm does not apply
+these overrides.

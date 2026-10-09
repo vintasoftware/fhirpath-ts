@@ -12,13 +12,14 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+
 import { CompiledExpression } from '../src/api/compile.ts'
 import { valueToString } from '../src/functions/conversion.ts'
 import { r4Model } from '../src/r4/index.ts'
 import type { TerminologyProvider } from '../src/terminology/provider.ts'
 import { type TxFixtureEntry, type TxFixtureFile, txProvider } from '../src/testing/tx-fixtures.ts'
 
-const SERVER = process.env.TX_SERVER ?? 'https://tx.fhir.org/r5'
+const SERVER = process.env['TX_SERVER'] ?? 'https://tx.fhir.org/r5'
 const DATA_DIR = resolve(import.meta.dirname, '../test-data/official/r5')
 
 async function get(path: string, query: Record<string, string>): Promise<unknown> {

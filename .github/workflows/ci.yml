@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+    name: node ${{ matrix.node-version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `pnpm lint` runs ESLint — including the dogfooded
+      # fhirpath/no-invalid-expressions rule, i.e. the spec §11 analyzer over the
+      # library source — followed by a Prettier format check.
+      # See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
+      - name: Lint (ESLint + FHIRPath analyzer + Prettier)
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Type-inference generated data and soundness
+        if: matrix.node-version == 24
+        run: pnpm check:inference
+
+      # The other half of the analyzer story: `fhirpath-check` imports the
+      # project's *.dto.ts modules and checks every DTO against the engine that
+      # projects it — resolving column-to-column calls and per-row vars, which a
+      # source walker (and therefore the lint step above) cannot.
+      - name: Check DTOs (fhirpath-check)
+        run: pnpm check:fhirpath
+
+      # Instantiation counts are deterministic for the lockfile-pinned and
+      # previous-minor TypeScript versions, so inference-cost regressions in FhirpathResult
+      # fail here against scripts/type-perf-budget.json instead of landing
+      # silently. `pnpm check:type-perf --update` re-baselines deliberately.
+      - name: Type-inference perf budget
+        if: matrix.node-version == 24
+        run: pnpm check:type-perf
+
+      # Coverage thresholds (vitest.config.ts) only guarantee anything if CI
+      # actually measures coverage, so the test step runs `pnpm coverage`.
+      - name: Test (with coverage thresholds)
+        run: pnpm coverage
+
+      # `pnpm typecheck` reads the source the way the repo's own tooling does
+      # (bundler resolution, `.ts` imports, tests included). The build resolves
+      # and emits the way Node will read the published result, so it catches a
+      # different class of problem — and it is what `bin` and `exports` point at.
+      - name: Build
+        run: pnpm build
+
+      # Packaging is easy to break from a distance: a moved entry point, a new
+      # `files` pattern, a dependency that only ever existed as a devDependency.
+      # publint checks the manifest against the tarball; attw resolves every
+      # entry point's types the way a consumer's TypeScript will.
+      - name: Check published package shape
+        run: pnpm check:package
+
+  # The demo is its own npm project, so the root install and `pnpm typecheck`
+  # (which covers `src` only) never reach it. Its own job does.
+  demo:
+    runs-on: ubuntu-latest
+    name: demo
+    steps:
+      - uses: actions/checkout@v7
+
+      # No root install on purpose. The demo has its own npm lockfile, and the
+      # declaration generator compiles the library under demo/tsconfig.dts.json,
+      # so this job runs the same way the documented Cloudflare Pages build does
+      # — `cd demo && npm install && npm run build`. If that stops working
+      # standalone, this job is what says so.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: demo/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix demo
+
+      - name: Typecheck
+        run: npm run typecheck --prefix demo
+
+      - name: Test editor samples
+        run: npm test --prefix demo
+
+      # `prebuild` rolls demo/src/monaco/*.d.ts up from the library's current
+      # types, so this also covers the declarations the playground feeds Monaco.
+      - name: Build
+        run: npm run build --prefix demo

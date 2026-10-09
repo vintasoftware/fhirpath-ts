@@ -977,10 +977,15 @@ Any text enclosed within is ignored
 		<test name="testSplit2" testing="split" version="2.1.0" inputfile="patient-example.xml"><expression>'A,,C'.split(',').join(',') = 'A,,C'</expression><output type="boolean">true</output></test>
 		<test name="testSplit3" testing="split" version="2.1.0" inputfile="patient-example.xml"><expression>'[stop]ONE[stop][stop]TWO[stop][stop][stop]THREE[stop][stop]'.split('[stop]').trace('n').count() = 9</expression><output type="boolean">true</output></test>
 		<test name="testSplit4" testing="split" version="2.1.0" inputfile="patient-example.xml"><expression>'[stop]ONE[stop][stop]TWO[stop][stop][stop]THREE[stop][stop]'.split('[stop]').join('[stop]')</expression><output type="string">[stop]ONE[stop][stop]TWO[stop][stop][stop]THREE[stop][stop]</output></test>
+		<test name="testSplit5" testing="split" version="2.1.0" inputfile="patient-example.xml"><expression>'fr-BE'.split('-').first() = 'fr'</expression><output type="boolean">true</output></test>
+		<test name="testSplit6" testing="split" version="2.1.0" inputfile="patient-example.xml"><expression>'fr-BE'.split('-').last() = 'BE'</expression><output type="boolean">true</output></test>
+		<test name="testSplit7" testing="split" version="2.1.0" inputfile="patient-example.xml"><expression>'a-b-c'.split('-').skip(1).first() = 'b'</expression><output type="boolean">true</output></test>
+		<test name="testSplit8" testing="split" version="2.1.0" inputfile="patient-example.xml"><expression>'a-b-c'.split('-').take(2).join('-') = 'a-b'</expression><output type="boolean">true</output></test>
   </group>
 
 	<group name="testJoin">
 		<test name="testJoin" testing="join" version="2.1.0" inputfile="patient-example.xml"><expression>name.given.join(',')</expression><output type="string">Peter,James,Jim,Peter,James</output></test>
+		<test name="testJoinEmpty" testing="join" description="join() on an empty collection returns empty, not an empty string" version="2.1.0" inputfile="patient-example.xml"><expression>name.prefix.join(',')</expression></test>
 	</group>
 
 	<group name="testTrace">
@@ -1040,6 +1045,8 @@ Any text enclosed within is ignored
 		<test name="testEquality26" testing="=" inputfile="patient-example.xml"><expression>name.take(2) = name.take(2).first() | name.take(2).last()</expression><output type="boolean">true</output></test>
 		<test name="testEquality27" testing="=" inputfile="patient-example.xml"><expression>name.take(2) = name.take(2).last() | name.take(2).first()</expression><output type="boolean">false</output></test>
 		<test name="testEquality28" testing="=" inputfile="observation-example.xml"><expression>Observation.value = 185 '[lb_av]'</expression><output type="boolean">true</output></test>
+		<test name="testEquality29" testing="=" inputfile="patient-example.xml" description="A primitive and a complex value are different types, so they are not equal"><expression>name.first() = 'Peter'</expression><output type="boolean">false</output></test>
+		<test name="testEquality30" testing="=" inputfile="patient-example.xml" description="A primitive and a complex value are different types, so they are not equal"><expression>'Peter' = name.first()</expression><output type="boolean">false</output></test>
 	</group>
 
 	<group name="testNEquality">
@@ -1067,6 +1074,14 @@ Any text enclosed within is ignored
 		<test name="testNEquality22" testing="!=" inputfile="patient-example.xml"><expression>(1.2 / 1.8).round(2) != 0.6666667</expression><output type="boolean">true</output></test>
 		<test name="testNEquality23" testing="!=" inputfile="patient-example.xml"><expression>(1.2 / 1.8).round(2) != 0.67</expression><output type="boolean">false</output></test>
 		<test name="testNEquality24" testing="!=" inputfile="observation-example.xml"><expression>Observation.value != 185 'kg'</expression><output type="boolean">true</output></test>
+		<test name="testNEquality25" testing="!=" inputfile="patient-example.xml" description="A primitive and a complex value are different types, so they are not equal"><expression>name.first() != 'Peter'</expression><output type="boolean">true</output></test>
+		<test name="testNEquality26" testing="!=" inputfile="patient-example.xml" description="A primitive and a complex value are different types, so they are not equal"><expression>'Peter' != name.first()</expression><output type="boolean">true</output></test>
+	</group>
+
+	<group name="testHasValue" description="hasValue() is true only for a primitive with a value">
+		<test name="testHasValue1" testing="hasValue" inputfile="patient-example.xml"><expression>name.first().given.first().hasValue()</expression><output type="boolean">true</output></test>
+		<test name="testHasValue2" testing="hasValue" inputfile="patient-example.xml" description="Only a primitive has a value: a complex type is never hasValue(), even when it has content"><expression>name.first().hasValue()</expression><output type="boolean">false</output></test>
+		<test name="testHasValue3" testing="hasValue" inputfile="patient-example.xml" description="A complex item never has a value, and it is not equal to a string - the pattern used in a context invariant that applies to both a code and a TypeRef"><expression>name.first().given.first().hasValue() and name.first() != 'Peter'</expression><output type="boolean">true</output></test>
 	</group>
 
 	<group name="testEquivalent">
@@ -1776,6 +1791,53 @@ Any text enclosed within is ignored
 		  <expression>Patient.name.given.select($this.hasValue())</expression>
   		<output type="boolean">false</output>
 	  	<output type="boolean">true</output>
+		</test>
+	</group>
+
+	<group name="primitivesWithoutValue" description="FHIR primitive elements that carry extensions but no value (e.g. the data-absent-reason extension). Such an element is present in the tree, but it has no system value, so functions that need the value get an empty collection as input, and return empty (see hasValue()/getValue() in the FHIR spec)">
+		<test name="testNoValueExists" testing="exists" inputfile="patient-name-extensions.json">
+			<expression>Patient.name.given.first().exists()</expression>
+			<output type="boolean">true</output>
+		</test>
+		<test name="testNoValueExistsElement" testing="exists" inputfile="patient-name-extensions.json" mode="element">
+			<expression>Patient.name.given.first().exists()</expression>
+			<output type="boolean">true</output>
+		</test>
+		<test name="testNoValueHasValue" testing="hasValue" inputfile="patient-name-extensions.json">
+			<expression>Patient.name.given.first().hasValue()</expression>
+			<output type="boolean">false</output>
+		</test>
+		<test name="testNoValueLength" testing="length" inputfile="patient-name-extensions.json">
+			<!-- no value means no string to take the length of: empty in, empty out -->
+			<expression>Patient.name.given.first().length()</expression>
+		</test>
+		<test name="testNoValueLengthElement" testing="length" inputfile="patient-name-extensions.json" mode="element">
+			<expression>Patient.name.given.first().length()</expression>
+		</test>
+		<test name="testValueLength" testing="length" inputfile="patient-name-extensions.json">
+			<expression>Patient.name.given.last().length()</expression>
+			<output type="integer">5</output>
+		</test>
+		<test name="testNoValueToChars" testing="toChars" inputfile="patient-name-extensions.json">
+			<expression>Patient.name.given.first().toChars()</expression>
+		</test>
+		<test name="testNoValueSubstring" testing="substring" inputfile="patient-name-extensions.json">
+			<expression>Patient.name.given.first().substring(0, 1)</expression>
+		</test>
+		<test name="testNoValueUpper" testing="upper" inputfile="patient-name-extensions.json">
+			<expression>Patient.name.given.first().upper()</expression>
+		</test>
+		<test name="testNoValueComparison" testing="comparison" inputfile="patient-name-extensions.json">
+			<!-- comparing with something that has no value is comparing with empty -->
+			<expression>Patient.name.given.first() &lt; 'x'</expression>
+		</test>
+		<test name="testNoValueInvariant" testing="length" inputfile="patient-name-extensions.json">
+			<!-- the pattern used by invariants that check the length of a name part: exists() is true, but
+			     length() is empty, so the whole expression is empty (and therefore not true) -->
+			<expression>Patient.name.given.first().exists() and Patient.name.given.first().length() = 1</expression>
+		</test>
+		<test name="testNoValueInvariantElement" testing="length" inputfile="patient-name-extensions.json" mode="element">
+			<expression>Patient.name.given.first().exists() and Patient.name.given.first().length() = 1</expression>
 		</test>
 	</group>
 

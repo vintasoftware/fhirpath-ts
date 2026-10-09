@@ -1,13 +1,15 @@
 /**
  * Converts the vendored official FHIRPath test suites (fhir-test-cases XML) to the
- * committed JSON the vitest harness runs. Preserves groups, invalid/predicate/mode
+ * committed JSON the Vitest runner reads. Preserves groups, invalid/predicate/mode
  * attributes, and multiple outputs.
  *
  * Run from packages/fhirpath: node scripts/convert-official-tests.ts
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+
 import { XMLParser } from 'fast-xml-parser'
+
 import type { OfficialGroup, OfficialTest } from '../src/testing/official-harness.ts'
 
 const parser = new XMLParser({
@@ -72,6 +74,9 @@ function convert(release: 'r4' | 'r5'): void {
       }
       if (testNode['@_mode'] !== undefined) {
         test.mode = String(testNode['@_mode'])
+      }
+      if (testNode['@_skipStaticCheck'] === 'true') {
+        test.skipStaticCheck = true
       }
       const invalid =
         typeof expressionNode === 'object' && expressionNode !== null

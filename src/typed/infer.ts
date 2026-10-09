@@ -1,121 +1,198 @@
-import type { R4Bases, R4Elements, R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type { R4Resources, R4TypeOf } from '../r4/generated/type-maps.ts'
+import type {
+  BareContextName,
+  ContextProperty,
+  EmptyContextMap,
+  InferredHostValueDeclarations,
+  MergeContextMaps,
+  NormalizeContextMap,
+} from './context-maps.ts'
+import type { InferTypeExpression } from './parser.ts'
 
-/**
- * Type-level FHIRPath inference for a tractable subset of the language:
- * dotted paths, indexers, first()/last()/single(), type-preserving where(),
- * select() over sub-paths, ofType(), exists()/empty()/count()/not()/hasValue(),
- * and choice elements by stem name. Everything else degrades to `unknown[]` —
- * never a type error. The runtime engine and the static analyzer cover the
- * full language; this layer only makes the common cases precise in plain tsc.
- */
+/** A type name known by the generated R4 model. */
+export type FhirTypeName = keyof R4TypeOf & string
+export type EmptyFhirpathTypeContext = EmptyContextMap
 
-/** Inference state: the current type name(s) — or opaque, the designed escape valve. */
-interface State {
-  n: string
-  many: boolean
+/** A host declaration that the type-level evaluator can use without reading a runtime value. */
+export interface FhirpathTypeDeclaration<
+  Type extends FhirTypeName = FhirTypeName,
+  Collection extends boolean = boolean,
+> {
+  /** One candidate type, or every candidate a value may hold. */
+  type: Type | readonly Type[]
+  /** Omitted means at most one item; true means the value may contain many. */
+  collection?: Collection
+  /** Resource targets when `type` includes Reference. */
+  targets?: FhirTypeName | readonly FhirTypeName[]
 }
 
-/** Element lookup by name, walking base types. */
-type ElementInfo<T extends string, E extends string> = T extends keyof R4Elements
-  ? E extends keyof R4Elements[T]
-    ? R4Elements[T][E]
-    : T extends keyof R4Bases
-      ? R4Bases[T] extends string
-        ? ElementInfo<R4Bases[T], E>
-        : never
-      : never
-  : never
+export type FhirpathTypeDeclarations = Readonly<Record<string, FhirpathTypeDeclaration>>
 
-/** Navigate one element from a (possibly union) type name. */
-type Navigate<S extends State, E extends string> =
-  ElementInfo<S['n'], E> extends { t: infer N extends string; a: infer A extends boolean }
-    ? { n: N; many: S['many'] extends true ? true : A }
-    : 'opaque'
+/** The static fields of a native, expression-defined, or overloaded custom function. */
+export type FhirpathFunctionDeclaration =
+  | {
+      readonly signature?: {
+        readonly input?: { readonly types?: readonly string[]; readonly ordered?: boolean }
+        readonly args?: readonly string[]
+        readonly result?: { readonly types?: readonly string[]; readonly single?: boolean; readonly ordered?: boolean }
+      }
+      readonly expression?: string | { readonly source: string }
+      readonly criteria?: boolean
+      readonly env?: Readonly<Record<string, unknown>>
+      readonly envTypes?: FhirpathTypeDeclarations
+    }
+  | { readonly overloads: readonly FhirpathFunctionDeclaration[] }
 
-type StripCount<S extends string> = S extends `${infer N}[${string}]` ? N : S
+/** Type information supplied by a host around a literal FHIRPath expression. */
+export interface FhirpathTypeContext {
+  env?: FhirpathTypeDeclarations
+  vars?: FhirpathTypeDeclarations
+  /** The same declarations accepted by `EvaluateOptions.functions`. */
+  functions?: Readonly<Record<string, FhirpathFunctionDeclaration>>
+}
 
-/** One `.`-separated segment: a function the subset knows, an indexer, or an element. */
-type Step<S extends State | 'opaque', Seg extends string> = S extends State
-  ? Seg extends `where(${string})`
-    ? S
-    : Seg extends `ofType(${infer T})` | `as(${infer T})`
-      ? T extends keyof R4TypeOf & string
-        ? { n: T; many: S['many'] }
-        : 'opaque'
-      : Seg extends 'first()' | 'last()' | 'single()'
-        ? { n: S['n']; many: false }
-        : Seg extends 'exists()' | 'empty()' | 'not()' | 'hasValue()'
-          ? { n: 'boolean'; many: false }
-          : Seg extends 'count()' | 'length()'
-            ? { n: 'integer'; many: false }
-            : Seg extends `select(${infer Inner})`
-              ? ParseSegments<Inner, { n: S['n']; many: false }> extends infer Projected
-                ? Projected extends State
-                  ? { n: Projected['n']; many: true }
-                  : 'opaque'
-                : 'opaque'
-              : Seg extends `${string}(${string})` | `${string}()`
-                ? 'opaque'
-                : Seg extends `${infer N}[${string}]`
-                  ? Navigate<S, StripCount<N>> extends infer Indexed
-                    ? Indexed extends State
-                      ? { n: Indexed['n']; many: false }
-                      : 'opaque'
-                    : 'opaque'
-                  : Navigate<S, Seg>
-  : 'opaque'
-
-/** Walk the remaining `.`-separated segments. */
-type ParseSegments<Expr extends string, S extends State | 'opaque'> = Expr extends ''
-  ? S
-  : Expr extends `${infer Head}.${infer Rest}`
-    ? Head extends `${string}(` | `${string}(${string}`
-      ? // A '.' inside parentheses split the segment: outside the subset.
-        StepAcrossParen<Expr, S>
-      : ParseSegments<Rest, Step<S, Head>>
-    : Step<S, Expr>
+/** The inferred result of evaluating a literal FHIRPath expression. */
+export type FhirpathResult<
+  Expression extends string,
+  Context extends FhirpathTypeContext = EmptyFhirpathTypeContext,
+> = FhirpathResultIn<Expression, 'opaque', Context>
 
 /**
- * A segment whose parentheses contain dots (e.g. `select(name.given)`) needs the
- * matching close before the next real segment; one nesting level is supported.
+ * The inferred result with an explicit FHIR input type. Non-literal,
+ * malformed, over-budget, or unsupported expressions safely become
+ * `unknown[]`.
  */
-type StepAcrossParen<Expr extends string, S extends State | 'opaque'> = Expr extends `${infer Head})${''}`
-  ? Step<S, `${Head})`>
-  : Expr extends `${infer Head}).${infer Rest}`
-    ? Head extends `${string})${string}`
-      ? 'opaque'
-      : ParseSegments<Rest, Step<S, `${Head})`>>
-    : 'opaque'
+export type FhirpathResultIn<
+  Expression extends string,
+  Input extends string,
+  Context extends FhirpathTypeContext = EmptyFhirpathTypeContext,
+> = FhirpathResultForContext<Expression, Input, Context>
 
-/** The root segment names the resource type. */
-type ParseRoot<Expr extends string> = Expr extends `${infer Root}.${infer Rest}`
-  ? Root extends keyof R4Resources & string
-    ? ParseSegments<Rest, { n: Root; many: false }>
-    : 'opaque'
-  : Expr extends keyof R4Resources & string
-    ? { n: Expr; many: false }
-    : 'opaque'
+/** Internal inference entry point for contexts assembled from generic API options. */
+export type FhirpathResultForContext<
+  Expression extends string,
+  Input extends string,
+  Context extends object = EmptyFhirpathTypeContext,
+> = string extends Expression ? unknown[] : InferTypeExpression<Expression, Input, Context>
 
-/** The unwrapped result element type for a state. */
-type ResultOf<S extends State | 'opaque'> = S extends State
-  ? S['n'] extends keyof R4TypeOf
-    ? R4TypeOf[S['n']][]
-    : unknown[]
-  : unknown[]
+/** Merge contexts by normalized name. The later context wins, matching per-call runtime options. */
+export type MergeFhirpathTypeContexts<Base extends object, Overlay extends object> = {
+  env: MergeContextMaps<ContextProperty<Base, 'env'>, ContextProperty<Overlay, 'env'>>
+  vars: MergeContextMaps<ContextProperty<Base, 'vars'>, ContextProperty<Overlay, 'vars'>>
+  functions: MergeContextMaps<ContextProperty<Base, 'functions'>, ContextProperty<Overlay, 'functions'>>
+}
 
-/**
- * The inferred result of evaluating `Expr` against its root resource.
- * `string` (a non-literal expression) and anything outside the subset give `unknown[]`.
- */
-export type FhirpathResult<Expr extends string> = string extends Expr ? unknown[] : ResultOf<ParseRoot<Expr>>
+type LiteralVarDeclaration<Value> = Value extends string
+  ? string extends Value
+    ? FhirpathTypeDeclaration
+    : FhirpathTypeDeclaration & { readonly __expression: Value }
+  : Value extends { readonly source: infer Source extends string }
+    ? string extends Source
+      ? FhirpathTypeDeclaration
+      : FhirpathTypeDeclaration & { readonly __expression: Source }
+    : FhirpathTypeDeclaration
 
-/** The expected input resource for `Expr` (`Patient.name` wants a Patient). */
-export type FhirpathInput<Expr extends string> = string extends Expr
-  ? unknown
-  : Expr extends `${infer Root}.${string}`
-    ? Root extends keyof R4Resources
-      ? R4Resources[Root]
+type LiteralVarDeclarations<Values> =
+  Values extends Readonly<Record<PropertyKey, unknown>>
+    ? { readonly [Name in keyof Values]: LiteralVarDeclaration<Values[Name]> }
+    : EmptyFhirpathTypeContext
+
+type OptionEnvironmentContext<Options> = Options extends { readonly env?: infer Env }
+  ? InferredHostValueDeclarations<Exclude<Env, undefined>, ContextProperty<Options, 'envTypes'>>
+  : NormalizeContextMap<ContextProperty<Options, 'envTypes'>>
+
+/** The inference context retained from one literal engine or per-call options object. */
+export type FhirpathTypeContextOf<Options> = {
+  env: OptionEnvironmentContext<Options>
+  vars: MergeContextMaps<LiteralVarDeclarations<ContextProperty<Options, 'vars'>>, ContextProperty<Options, 'varTypes'>>
+  functions: NormalizeContextMap<ContextProperty<Options, 'functions'>>
+}
+
+/** A declared host value is an input, so it enters as any input of its type does. */
+type DeclarationElement<Declaration> = Declaration extends { readonly type: infer Type }
+  ? Type extends readonly FhirTypeName[]
+    ? InputOf<Type[number]>
+    : Type extends FhirTypeName
+      ? InputOf<Type>
       : unknown
-    : Expr extends keyof R4Resources
-      ? R4Resources[Expr]
+  : unknown
+
+type DeclaredHostValue<Declaration> = Declaration extends { readonly collection: true }
+  ? DeclarationElement<Declaration> | readonly DeclarationElement<Declaration>[] | undefined
+  : DeclarationElement<Declaration> | readonly [] | readonly [DeclarationElement<Declaration>] | undefined
+
+type ConstrainedDeclaredValues<Values, Declarations> =
+  Values extends Readonly<Record<PropertyKey, unknown>>
+    ? {
+        [Name in keyof Values]: LookupNormalizedDeclaration<Declarations, Name> extends infer Declaration
+          ? [Declaration] extends [never]
+            ? Values[Name]
+            : Values[Name] extends DeclaredHostValue<Declaration>
+              ? Values[Name]
+              : never
+          : Values[Name]
+      }
+    : Values
+
+type LookupNormalizedDeclaration<Declarations, Name extends PropertyKey> =
+  BareContextName<Name> extends keyof NormalizeContextMap<Declarations>
+    ? NormalizeContextMap<Declarations>[BareContextName<Name>]
+    : never
+
+/** Cross-check declarations and values when both remain visible in one literal options object. */
+export type CheckedFhirpathOptionValues<Options> = Options extends {
+  readonly env: infer Env
+  readonly envTypes: infer EnvTypes
+}
+  ? { readonly env: ConstrainedDeclaredValues<Env, EnvTypes> }
+  : unknown
+
+/** A model root known from a resource-shaped input; ambiguous and structural inputs stay opaque. */
+export type FhirpathRootOf<Input> = Input extends readonly (infer Item)[]
+  ? FhirpathRootOf<Item>
+  : Input extends { readonly resourceType: infer Root extends FhirTypeName }
+    ? Root
+    : 'opaque'
+
+/**
+ * A value as an input may be incomplete: the generated interfaces require the
+ * elements FHIR requires, but data read from a server, a fixture, or a form
+ * need not carry them to be navigated. Every element becomes optional. A code
+ * keeps its union, so a misspelled status is still rejected, except a code set
+ * that names resources (`Reference.type`, `DataRequirement.type`,
+ * `SearchParameter.base`), which widens to string: another model adds
+ * resources, and `@medplum/fhirtypes` puts its own there and types the broad
+ * lists as string. The check is per member, so one resource name in a set
+ * widens the whole set; a set of primitive-type names such as
+ * `SearchParameter.type` keeps its union.
+ */
+export type Lenient<Value> = Value extends string
+  ? Value extends keyof R4Resources
+    ? string
+    : Value
+  : Value extends readonly (infer Item)[]
+    ? Lenient<Item>[]
+    : Value extends object
+      ? { [Key in keyof Value]?: Lenient<Value[Key]> }
+      : Value
+
+/** The input a resource-rooted literal expression accepts: the root's resource, lenient and pinned to its name. */
+export type LenientResource<Root extends keyof R4Resources> = { readonly resourceType: Root } & Lenient<
+  R4Resources[Root]
+>
+
+/** The input a value of FHIR type `Type` enters as: a resource pinned to its name, anything else lenient. */
+export type InputOf<Type extends FhirTypeName> = Type extends keyof R4Resources
+  ? LenientResource<Type>
+  : Lenient<R4TypeOf[Type]>
+
+/** The expected input resource for a resource-rooted literal expression. */
+export type FhirpathInput<Expression extends string> = string extends Expression
+  ? unknown
+  : Expression extends `${infer Root}.${string}`
+    ? Root extends keyof R4Resources
+      ? InputOf<Root>
+      : unknown
+    : Expression extends keyof R4Resources
+      ? InputOf<Expression>
       : unknown

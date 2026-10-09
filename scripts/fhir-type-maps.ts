@@ -1,0 +1,36 @@
+/** Maps FHIR primitive names to the TypeScript values returned after `unwrap()`. */
+export const FHIR_PRIMITIVE_TO_TYPESCRIPT: Readonly<Record<string, string>> = {
+  boolean: 'boolean',
+  integer: 'number',
+  positiveInt: 'number',
+  unsignedInt: 'number',
+  integer64: 'bigint',
+  decimal: 'number',
+  date: 'string',
+  dateTime: 'string',
+  instant: 'string',
+  time: 'string',
+  string: 'string',
+  code: 'string',
+  id: 'string',
+  markdown: 'string',
+  uri: 'string',
+  url: 'string',
+  canonical: 'string',
+  oid: 'string',
+  uuid: 'string',
+  base64Binary: 'string',
+  xhtml: 'string',
+}
+
+export const FHIRPATH_SYSTEM_TO_TYPESCRIPT: Readonly<Record<string, string>> = {
+  'System.String': 'string',
+  'System.Boolean': 'boolean',
+  'System.Integer': 'number',
+  'System.Long': 'bigint',
+  'System.Decimal': 'number',
+  'System.Date': 'string',
+  'System.DateTime': 'string',
+  'System.Time': 'string',
+  'System.Quantity': 'SystemQuantity',
+}

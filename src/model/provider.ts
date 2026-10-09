@@ -5,6 +5,12 @@ export interface ElementInfo {
   isCollection: boolean
   /** True for `[x]` elements, whose JSON keys carry a type suffix (`valueQuantity`). */
   isChoice: boolean
+  /**
+   * Resource type names a Reference-typed element may point to, from
+   * `Reference.targetProfile` — what resolve() statically yields. Absent when
+   * the element is not a reference or the reference is unconstrained.
+   */
+  referenceTargets?: string[]
 }
 
 /**

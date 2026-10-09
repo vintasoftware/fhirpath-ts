@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+
 import type { TerminologyProvider } from '../terminology/provider.ts'
 import { testDataPath } from './test-data.ts'
 

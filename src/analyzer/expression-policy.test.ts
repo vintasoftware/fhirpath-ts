@@ -1,0 +1,1187 @@
+import { Linter } from 'eslint'
+import ts from 'typescript'
+import tseslint from 'typescript-eslint'
+import { describe, expect, it } from 'vitest'
+
+import eslintPlugin from '../eslint/index.ts'
+import { r4, r4Model } from '../r4/index.ts'
+import { createSiteFinder } from '../sites/index.ts'
+import { analyzeSite } from './analyze.ts'
+import {
+  CALL_SITES,
+  type ExpressionAst,
+  expressionCandidates,
+  inputRoot,
+  isCheckedCall,
+  optionScopes,
+} from './expression-policy.ts'
+
+const findExpressionSites = createSiteFinder(ts)
+
+type MiniNode =
+  | { kind: 'string'; value: string }
+  | { kind: 'boolean'; value: boolean }
+  | { kind: 'array'; values: MiniNode[] }
+  | { kind: 'object'; properties: { name: string | undefined; value: MiniNode; spread?: true }[] }
+  | { kind: 'dynamic'; label: string }
+
+const miniAst: ExpressionAst<MiniNode> = {
+  string: node => (node.kind === 'string' ? { node, expression: node.value } : undefined),
+  boolean: node => (node.kind === 'boolean' ? node.value : undefined),
+  properties: node => (node.kind === 'object' ? node.properties : undefined),
+  elements: node => (node.kind === 'array' ? node.values : undefined),
+}
+
+const stringNode = (value: string): MiniNode => ({ kind: 'string', value })
+const dynamicNode = (label: string): MiniNode => ({ kind: 'dynamic', label })
+const arrayNode = (...values: MiniNode[]): MiniNode => ({ kind: 'array', values })
+const objectNode = (...properties: { name: string | undefined; value: MiniNode; spread?: true }[]): MiniNode => ({
+  kind: 'object',
+  properties,
+})
+
+/**
+ * Runs one invalid-expression corpus through the TypeScript and ESTree walkers.
+ * Each literal produces one diagnostic, which lets the test compare positions,
+ * site context, and analyzer output. The walkers stay separate because ESLint
+ * must use the AST supplied by its configured parser without loading TypeScript.
+ */
+const corpus: { name: string; code: string; expected: number; typescript?: true }[] = [
+  {
+    name: 'asynchronous evaluation',
+    code: [
+      "import { evaluateAsync } from 'fhirpath-ts'",
+      "import * as api from 'fhirpath-ts'",
+      "import other from 'other-library'",
+      "evaluateAsync('x..1', input, { vars: { score: 'x..2' } })",
+      "api.evaluateAsync('x..3', input)",
+      "other.evaluateAsync('x..4')",
+    ].join('\n'),
+    expected: 3,
+  },
+  {
+    name: 'expression-first calls and the tag',
+    code: [
+      'const a = fhirpath`x..1`',
+      "const b = compile('x..2')",
+      "const c = evaluate('x..3', input)",
+      "const d = api.evaluate('x..4', input)",
+      "const e = analyzeExpression('x..5')",
+      "const f = r4.evaluateTyped('x..6', input)",
+    ].join('\n'),
+    expected: 6,
+  },
+  {
+    name: 'a CompiledExpression constructed from the package import',
+    code: [
+      "import { CompiledExpression } from 'fhirpath-ts'",
+      "const a = new CompiledExpression('x..1')",
+      "const b = new Other.CompiledExpression('x..2')",
+    ].join('\n'),
+    expected: 1,
+  },
+  {
+    name: 'a DTO with a base, each column against its own class',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Keyed extends r4.defineDto('Resource') {",
+      "  id = this.column('x..1')",
+      '}',
+      "class Row extends r4.defineDto('Condition', { base: Keyed, env: { label: 'x' } }) {",
+      "  code = this.column('x..2')",
+      '}',
+    ].join('\n'),
+    expected: 2,
+  },
+  {
+    name: 'engine helpers on a package-imported receiver',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "const a = r4.test(patient, 'x..1')",
+      "const b = r4.filter(patients, 'x..2')",
+      "const c = r4.first('x..3', patient)",
+      'const d = r4.project(patients, {',
+      "  plain: 'x..4',",
+      "  nested: { path: 'x..5', collection: true },",
+      "  quoted: { 'path': 'x..6' },",
+      "  criteria: { test: 'x..7' },",
+      "  [computed]: 'x..8',",
+      '  dynamic: someVariable,',
+      '  ...spread,',
+      '  shorthand,',
+      '})',
+      "const e = r4.checkConstraints(patient, [{ key: 'k', expression: 'x..9' }, variable, null])",
+    ].join('\n'),
+    expected: 9,
+  },
+  {
+    name: 'engine helpers on a new FhirPathEngine local, used before declaration',
+    code: [
+      "import { FhirPathEngine } from 'fhirpath-ts'",
+      "function f(p) { return engine.test(p, 'x..1') }",
+      'const engine = new FhirPathEngine({})',
+      "const a = engine.first('x..2', patient)",
+    ].join('\n'),
+    expected: 2,
+  },
+  {
+    name: 'project columns and inline vars are both expression sites',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "r4.project(input, { value: 'x..1' }, { env: { reports }, vars: { report: 'x..2' } })",
+    ].join('\n'),
+    expected: 2,
+  },
+  {
+    // Computed string-literal keys read like plain ones. Other computed vars
+    // keys make the final values/order dynamic, so their bodies are not sites.
+    name: 'computed and spread keys in EvaluateOptions',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "r4.evaluate('x..1', patient, { env: { ['known']: 1 }, vars: { ['v']: 'x..2', [computed]: 'x..3' } })",
+      "r4.evaluate('x..4', patient, { ...spreadOptions })",
+    ].join('\n'),
+    expected: 2,
+  },
+  {
+    name: 'common-name helpers without an engine binding are skipped',
+    code: [
+      "import knex from 'knex'",
+      'const db = knex({})',
+      "const a = db.first('x..1')",
+      "const b = db.filter(rows, 'x..2')",
+      "const c = validator.test(input, 'x..3')",
+      "const d = this.engine.filter(patients, 'x..4')",
+      "const e = r4.project(patients, { col: 'x..5' })",
+    ].join('\n'),
+    expected: 0,
+  },
+  {
+    name: 'foreign imports are skipped, package imports are checked',
+    code: [
+      "import Handlebars, { compile } from 'handlebars'",
+      "import fhirpath from 'other-lib'",
+      "import { evaluate } from 'fhirpath-ts'",
+      "const a = compile('x..1')",
+      'const b = fhirpath`x..2`',
+      "const c = evaluate('x..3', input)",
+      "const d = Handlebars.compile('x..4')",
+      "const e = Unbound.compile('x..5')", // an unbound receiver root does not make a distinctive name foreign
+    ].join('\n'),
+    expected: 2,
+  },
+  {
+    name: 'namespace imports bind like named imports',
+    code: [
+      "import * as fp from 'fhirpath-ts/r4'",
+      "import * as Handlebars from 'handlebars'",
+      "const a = fp.r4.filter(patients, 'x..1')", // package namespace root is an engine binding
+      "const b = Handlebars.compile('x..2')", // foreign namespace root is foreign
+    ].join('\n'),
+    expected: 1,
+  },
+  {
+    name: 'callees without a static name are skipped',
+    code: [
+      "const a = arr[0]('x..1')",
+      "const b = obj[method](patient, 'x..2')",
+      "const c = getEngine().evaluate('x..3', input)", // deep root is fine for receiver:any names
+    ].join('\n'),
+    expected: 1,
+  },
+  {
+    name: 'trusted names re-bound in the file are demoted',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "import * as fp from 'fhirpath-ts/r4'",
+      "import { FhirPathEngine } from 'fhirpath-ts'",
+      "function query(r4) { return r4.filter(rows, 'x..1') }", // parameter shadows the import
+      'const engine = new FhirPathEngine({})',
+      "function b(engine) { return engine.filter(rows, 'x..2') }", // parameter shadows the engine local
+      "function c({ fp }) { return fp.r4.filter(rows, 'x..3') }", // destructured parameter shadows the namespace
+      'const still = new FhirPathEngine({})',
+      "const ok = still.test(patient, 'x..4')", // demotion does not spread to other trusted names
+    ].join('\n'),
+    expected: 1,
+  },
+  {
+    // A namespace import reaches the API through a member access, and every place
+    // that resolves a name must read it the same way. These two shapes are why:
+    // the tag and the `extends` clause each used to be checked with their own
+    // Identifier-only test in the rule, so both went unreported there while
+    // `fhirpath-ts/sites` reported them.
+    name: 'names reached through a namespace import',
+    code: [
+      "import * as api from 'fhirpath-ts'",
+      'const a = api.fhirpath`x..1`',
+      "const b = api.compile('x..2')",
+      // An engine reached through the namespace defines a DTO, so its vars and columns count.
+      "class Row extends api.r4.defineView('Condition', { vars: { v: 'x..3' } }) { name = this.column('x..4') }",
+    ].join('\n'),
+    expected: 4,
+    typescript: true,
+  },
+  {
+    // A tag is gated on its receiver like a call: only the last of these is ours.
+    // The rule and the finder each used to decide this alone, and neither looked
+    // at the receiver.
+    name: 'tags are gated on the name they are reached through',
+    code: [
+      "import * as hb from 'handlebars'",
+      "import { compile } from 'handlebars'",
+      'const a = hb.fhirpath`x..1`',
+      "const b = hb.compile('x..2')",
+      'const c = fhirpath`x..3`',
+    ].join('\n'),
+    expected: 1,
+  },
+  {
+    name: 'DTO declarations: column, criteria and vars',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Row extends r4.defineView('Condition', { vars: { badge: 'x..1' } }) {",
+      "  name = this.column('x..2', { type: 'string' })",
+      "  all = this.column('x..3', { collection: true })",
+      "  flag = this.criteria('x..4')",
+      '}',
+    ].join('\n'),
+    expected: 4,
+    typescript: true,
+  },
+  {
+    // No statically-known root, so `analyzeSite` keeps syntax findings only — the
+    // corpus is all syntax errors, so both walkers must still report every one.
+    // The class a factory of the file builds is a DTO, and so is its subclass.
+    name: 'DTO declarations on a class with no statically-known root',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      'function badgedRow(fhirType: string) {',
+      '  class BadgedRow extends r4.defineView(fhirType) {',
+      "    name = this.column('x..1')",
+      "    flag = this.criteria('x..2')",
+      '  }',
+      '  return BadgedRow',
+      '}',
+      "class LabRow extends badgedRow('DiagnosticReport') {",
+      "  date = this.column('x..3')",
+      '}',
+    ].join('\n'),
+    expected: 3,
+    typescript: true,
+  },
+  {
+    name: 'DTO classes built by arrow, class-expression, and chained factories',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      'const keyed = (fhirType: string) => r4.defineView(fhirType)',
+      'const wrapped = (fhirType: string) => class extends r4.defineView(fhirType) {}',
+      'function chained(fhirType: string) { return keyed(fhirType) }',
+      "class A extends keyed('Condition') { a = this.column('x..1') }",
+      "class B extends wrapped('Condition') { b = this.column('x..2') }",
+      "class C extends chained('Condition') { c = this.column('x..3') }",
+      // Not a class-building function: nothing it builds is a DTO.
+      'const other = () => Object',
+      "class D extends other() { d = this.column('x..4') }",
+    ].join('\n'),
+    expected: 3,
+    typescript: true,
+  },
+  {
+    name: 'an engine derived with register() is an engine, and so is a project engine a view imports',
+    code: [
+      "import { FhirPathEngine } from 'fhirpath-ts'",
+      "import { shared } from './portal.dto'",
+      'const base = new FhirPathEngine({})',
+      "class ConceptDto extends base.defineDto('CodeableConcept') { text = this.column('x..1') }",
+      'const fp = base.register(ConceptDto)',
+      "const later = fp.first('x..2', resource)",
+      "class ProblemRow extends shared.defineView('Condition', { vars: { v: 'x..3' } }) { name = this.column('x..4') }",
+      // Registering on something that is not an engine derives nothing.
+      'const notEngine = registry.register(ConceptDto)',
+      "const skipped = notEngine.first('x..5', resource)",
+    ].join('\n'),
+    expected: 4,
+    typescript: true,
+  },
+  {
+    name: 'a class resolves through its own clause even when its name is declared twice',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      'const keyed = (fhirType: string) => r4.defineView(fhirType)',
+      "function a() { class Row extends keyed('Condition') { x = this.column('x..1') } return Row }",
+      "function b() { class Row extends keyed('Patient') { y = this.column('x..2') } return Row }",
+      // A base named by both classes proves nothing.
+      "class Sub extends Row { z = this.column('x..3') }",
+    ].join('\n'),
+    expected: 2,
+    typescript: true,
+  },
+  {
+    name: 'a factory that casts the class it returns still builds a DTO',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      'function keyed(fhirType: string) {',
+      "  class Keyed extends r4.defineView(fhirType) { id = this.column('x..1') }",
+      '  return Keyed as unknown as typeof Keyed',
+      '}',
+      'const checked = (fhirType: string) => r4.defineView(fhirType) satisfies object',
+      "class Row extends keyed('Condition') { code = this.column('x..2') }",
+      "class Other extends checked('Patient') { name = this.column('x..3') }",
+    ].join('\n'),
+    expected: 3,
+    typescript: true,
+  },
+  {
+    name: 'only the whole initializer of a public instance field is a column',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Row extends r4.defineView('Condition') {",
+      "  name = this.column('x..1')",
+      "  'quoted' = this.column('x..6')",
+      // Without the semicolon, the previous initializer would continue into `['computed']`.
+      "  ;['computed'] = this.column('x..7')",
+      "  static shared = this.column('x..2')",
+      "  #hidden = this.column('x..3')",
+      "  wrapped = [this.column('x..4')]",
+      "  later() { return this.criteria('x..5') }",
+      '}',
+    ].join('\n'),
+    expected: 3,
+    typescript: true,
+  },
+  {
+    name: 'a class is not a DTO when its defineView belongs to another package',
+    code: [
+      "import { views } from 'some-report-library'",
+      "class Row extends views.defineView('Condition') {",
+      "  name = this.column('x..1')",
+      '}',
+    ].join('\n'),
+    expected: 0,
+    typescript: true,
+  },
+  {
+    name: 'a class of the file that is not a DTO keeps its own column method',
+    code: [
+      "import { r4 } from 'fhirpath-ts/r4'",
+      "class Table { column(header: string) { return header } names = this.column('x..1') }",
+      "class Wide extends Table { more = this.column('x..2') }",
+    ].join('\n'),
+    expected: 0,
+    typescript: true,
+  },
+]
+
+const linter = new Linter()
+
+describe('literal call context extraction', () => {
+  it('keeps semantic engine evidence inside the shared receiver policy', () => {
+    const bindings = { foreign: new Set<string>(), trusted: new Set<string>(), rebound: new Set<string>() }
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'engine' }, 'first', 'fp', bindings, { engine: true })
+    ).toBe(true)
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'any' }, 'evaluate', 'fp', bindings, { engine: true })
+    ).toBe(true)
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'import' }, 'column', 'fp', bindings, {
+        engine: true,
+      })
+    ).toBe(false)
+    // Foreign/rebound are conservative file-wide facts, while compiler evidence
+    // proves the exact receiver node — so evidence wins for a name both sets hold.
+    const ambiguous = { foreign: new Set(['fp']), trusted: new Set<string>(), rebound: new Set(['fp']) }
+    expect(
+      isCheckedCall({ argIndex: 0, shape: 'expression', receiver: 'engine' }, 'first', 'fp', ambiguous, {
+        engine: true,
+      })
+    ).toBe(true)
+  })
+
+  it('lets a typed input argument fix the root only where the engine reads it as one', () => {
+    const first = CALL_SITES.get('first')!
+    const filter = CALL_SITES.get('filter')!
+    expect(inputRoot(first, { resourceType: 'Condition', array: false })).toBe('Condition')
+    expect(inputRoot(filter, { resourceType: 'Condition', array: false })).toBe('Condition')
+    // filter() runs on each item; first() runs on the whole array as one root collection.
+    expect(inputRoot(filter, { resourceType: 'Condition', array: true })).toBe('Condition')
+    expect(inputRoot(first, { resourceType: 'Condition', array: true })).toBeUndefined()
+    // first() reads a Bundle as one resource; filter() reads its entries, whose types it does not name.
+    expect(inputRoot(first, { resourceType: 'Bundle', array: false })).toBe('Bundle')
+    expect(inputRoot(filter, { resourceType: 'Bundle', array: false })).toBeUndefined()
+    expect(inputRoot(first, undefined)).toBeUndefined()
+  })
+
+  it('reads known names and closed type declarations from EvaluateOptions', () => {
+    const options = objectNode(
+      {
+        name: 'env',
+        value: objectNode(
+          { name: '%plain', value: dynamicNode('plain') },
+          { name: undefined, value: dynamicNode('computed') }
+        ),
+      },
+      {
+        name: 'envTypes',
+        value: objectNode(
+          { name: undefined, value: objectNode({ name: 'type', value: stringNode('Observation') }) },
+          {
+            name: 'patient',
+            value: objectNode(
+              { name: 'type', value: stringNode('Patient') },
+              { name: 'collection', value: { kind: 'boolean', value: true } },
+              { name: 'targets', value: stringNode('Organization') }
+            ),
+          },
+          {
+            name: 'choice',
+            value: objectNode(
+              { name: 'type', value: arrayNode(stringNode('Condition'), stringNode('Observation')) },
+              { name: 'collection', value: { kind: 'boolean', value: false } },
+              { name: 'targets', value: arrayNode(stringNode('Patient'), stringNode('Organization')) }
+            ),
+          },
+          { name: 'invalid', value: dynamicNode('invalid declaration') },
+          {
+            name: 'ambiguous',
+            value: objectNode(
+              { name: 'type', value: stringNode('Patient') },
+              { name: 'collection', value: dynamicNode('collection') },
+              { name: 'targets', value: arrayNode(stringNode('Patient'), dynamicNode('target')) }
+            ),
+          },
+          {
+            name: 'partlyDynamic',
+            value: objectNode({ name: 'type', value: arrayNode(stringNode('Condition'), dynamicNode('type')) }),
+          },
+          { name: 'missingType', value: objectNode({ name: 'collection', value: { kind: 'boolean', value: true } }) }
+        ),
+      },
+      { name: 'vars', value: objectNode({ name: 'row', value: stringNode('%plain') }) },
+      {
+        name: 'varTypes',
+        value: objectNode({ name: 'row', value: objectNode({ name: 'type', value: stringNode('Observation') }) }),
+      }
+    )
+
+    const scopes = optionScopes(options, miniAst)
+    expect(scopes?.env).toEqual({
+      plain: {},
+    })
+    expect(scopes?.vars).toEqual({
+      row: { types: ['Observation'], single: true },
+    })
+    expect(scopes?.expressions).toEqual([{ node: stringNode('%plain'), name: 'row', expression: '%plain' }])
+    // The computed keys in env and envTypes may declare more names than the
+    // source can list.
+    expect(scopes?.openBeforeVars).toBe(true)
+    expect(scopes?.openAfterVars).toBe(true)
+    expect(optionScopes(dynamicNode('options'), miniAst)).toBeUndefined()
+
+    const closed = optionScopes(
+      objectNode({
+        name: 'envTypes',
+        value: objectNode({
+          name: 'choice',
+          value: objectNode(
+            { name: 'type', value: arrayNode(stringNode('Condition'), stringNode('Observation')) },
+            { name: 'collection', value: { kind: 'boolean', value: false } },
+            { name: 'targets', value: arrayNode(stringNode('Patient'), stringNode('Organization')) }
+          ),
+        }),
+      }),
+      miniAst
+    )
+    expect(closed?.env).toEqual({
+      choice: {
+        types: ['Condition', 'Observation'],
+        single: true,
+        targets: ['Patient', 'Organization'],
+      },
+    })
+  })
+
+  it('marks scopes open only for constructs that bind unknown names', () => {
+    const closed = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: 'a', value: dynamicNode('a') }) },
+        { name: 'vars', value: objectNode({ name: 'v', value: stringNode('%a') }) }
+      ),
+      miniAst
+    )
+    expect(closed?.openBeforeVars).toBe(false)
+    expect(closed?.openAfterVars).toBe(false)
+    expect(closed?.expressions).toEqual([{ node: stringNode('%a'), name: 'v', expression: '%a' }])
+
+    // A spread can overwrite an earlier value without moving its key, so no var
+    // body has a provable final value/order.
+    const dynamicVarValues = objectNode(
+      { name: 'v', value: stringNode('%a') },
+      { name: undefined, value: dynamicNode('rest'), spread: true }
+    )
+    const spreadVars = optionScopes(objectNode({ name: 'vars', value: dynamicVarValues }), miniAst)
+    expect(spreadVars?.openBeforeVars).toBe(false)
+    expect(spreadVars?.openAfterVars).toBe(true)
+    expect(spreadVars?.expressions).toEqual([{ node: dynamicVarValues, uncheckable: 'dynamic-vars' }])
+
+    // An env that is not an object literal, and a spread in the options object
+    // itself, both bind names the source cannot list.
+    expect(optionScopes(objectNode({ name: 'env', value: dynamicNode('bag') }), miniAst)?.openBeforeVars).toBe(true)
+    expect(
+      optionScopes(objectNode({ name: undefined, value: dynamicNode('rest'), spread: true }), miniAst)?.openBeforeVars
+    ).toBe(true)
+
+    const dynamicVarTypes = optionScopes(
+      objectNode(
+        { name: 'vars', value: objectNode({ name: 'v', value: stringNode('%typo') }) },
+        { name: 'varTypes', value: objectNode({ name: undefined, value: dynamicNode('types') }) }
+      ),
+      miniAst
+    )
+    expect(dynamicVarTypes?.openBeforeVars).toBe(false)
+    expect(dynamicVarTypes?.openAfterVars).toBe(true)
+  })
+
+  it('does not keep declarations that an unknown object write may replace', () => {
+    const patientType = objectNode({ name: 'type', value: stringNode('Patient') })
+    const hiddenByOptionsSpread = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: 'x', value: dynamicNode('patient') }) },
+        { name: 'envTypes', value: objectNode({ name: 'x', value: patientType }) },
+        { name: undefined, value: dynamicNode('options'), spread: true }
+      ),
+      miniAst
+    )
+    expect(hiddenByOptionsSpread?.env).toEqual({})
+    expect(hiddenByOptionsSpread?.openBeforeVars).toBe(true)
+
+    const envTypes = objectNode(
+      { name: 'x', value: patientType },
+      { name: undefined, value: dynamicNode('types'), spread: true }
+    )
+    const hiddenByTypeSpread = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: 'x', value: dynamicNode('patient') }) },
+        { name: 'envTypes', value: envTypes }
+      ),
+      miniAst
+    )
+    expect(hiddenByTypeSpread?.env).toEqual({ x: {} })
+    expect(hiddenByTypeSpread?.openBeforeVars).toBe(true)
+
+    const hiddenInsideDeclaration = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: 'x', value: dynamicNode('patient') }) },
+        {
+          name: 'envTypes',
+          value: objectNode({
+            name: 'x',
+            value: objectNode(
+              { name: 'type', value: stringNode('Patient') },
+              { name: undefined, value: dynamicNode('claim'), spread: true }
+            ),
+          }),
+        }
+      ),
+      miniAst
+    )
+    expect(hiddenInsideDeclaration?.env).toEqual({ x: {} })
+
+    const hiddenByPrefixSpread = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: 'x', value: dynamicNode('observation') }) },
+        {
+          name: 'envTypes',
+          value: objectNode(
+            { name: undefined, value: dynamicNode('aliases'), spread: true },
+            { name: 'x', value: patientType }
+          ),
+        }
+      ),
+      miniAst
+    )
+    expect(hiddenByPrefixSpread?.env).toEqual({ x: {} })
+  })
+
+  it('checks only the final value of a fully static vars object', () => {
+    const vars = objectNode({ name: 'v', value: stringNode('%overwritten') }, { name: 'v', value: stringNode('true') })
+    expect(optionScopes(objectNode({ name: 'vars', value: vars }), miniAst)?.expressions).toEqual([
+      { node: stringNode('true'), name: 'v', expression: 'true' },
+    ])
+  })
+
+  it('checks vars in the same normalized Object.entries order as runtime', () => {
+    const vars = objectNode({ name: 'x', value: stringNode('%`2`') }, { name: '2', value: stringNode('true') })
+    expect(optionScopes(objectNode({ name: 'vars', value: vars }), miniAst)?.expressions).toEqual([
+      { node: stringNode('true'), name: '2', expression: 'true' },
+      { node: stringNode('%`2`'), name: 'x', expression: '%`2`' },
+    ])
+    expect(r4.evaluate('%x', {}, { vars: { x: '%`2`', '2': 'true' } })).toEqual([true])
+  })
+
+  it('uses normalized Object.entries precedence for type declarations', () => {
+    const observationType = objectNode({ name: 'type', value: stringNode('Observation') })
+    const patientType = objectNode({ name: 'type', value: stringNode('Patient') })
+    const scopes = optionScopes(
+      objectNode(
+        { name: 'env', value: objectNode({ name: '2', value: dynamicNode('observation') }) },
+        {
+          name: 'envTypes',
+          value: objectNode({ name: '%2', value: observationType }, { name: '2', value: patientType }),
+        }
+      ),
+      miniAst
+    )
+    expect(scopes?.env).toEqual({ 2: { types: ['Observation'], single: true } })
+
+    const observation = { resourceType: 'Observation' as const, status: 'final' as const }
+    expect(
+      r4.evaluate(
+        '%`2`.status',
+        {},
+        {
+          strict: true,
+          env: { 2: observation },
+          envTypes: { '%2': { type: 'Observation' }, 2: { type: 'Patient' } },
+        }
+      )
+    ).toEqual(['final'])
+
+    const aliases = { x: { type: 'Condition' as const }, '%x': { type: 'Observation' as const } }
+    expect(
+      r4.evaluate(
+        '%x.status',
+        {},
+        {
+          strict: true,
+          env: { x: observation },
+          envTypes: { ...aliases, x: { type: 'Patient' } },
+        }
+      )
+    ).toEqual(['final'])
+  })
+
+  it('identifies static and unread nodes in every supported expression container', () => {
+    const dynamic = dynamicNode('dynamic')
+    expect(expressionCandidates(dynamic, 'expression', miniAst)).toEqual([{ node: dynamic }])
+    const literal = stringNode('ok')
+    expect(expressionCandidates(literal, 'expression', miniAst)).toEqual([{ node: literal, expression: 'ok' }])
+
+    const columns = objectNode(
+      { name: 'literal', value: stringNode('Patient.name') },
+      { name: 'dynamic', value: dynamic },
+      { name: 'nested', value: objectNode({ name: 'path', value: dynamic }, { name: 'test', value: stringNode('ok') }) }
+    )
+    expect(expressionCandidates(columns, 'columns', miniAst)).toEqual([
+      { node: expect.objectContaining({ kind: 'string' }), expression: 'Patient.name' },
+      { node: dynamic },
+      { node: dynamic },
+      { node: expect.objectContaining({ kind: 'string' }), expression: 'ok' },
+    ])
+    expect(expressionCandidates(dynamic, 'columns', miniAst)).toEqual([])
+
+    const vars = objectNode({ name: 'vars', value: objectNode({ name: 'a', value: dynamic }) })
+    expect(expressionCandidates(vars, 'dto-vars', miniAst)).toEqual([{ node: dynamic }])
+    const dynamicVars = objectNode({ name: 'vars', value: dynamic })
+    expect(expressionCandidates(dynamicVars, 'dto-vars', miniAst)).toEqual([{ node: dynamic }])
+
+    expect(expressionCandidates(dynamic, 'constraints', miniAst)).toEqual([{ node: dynamic }])
+    const constraints = arrayNode(
+      dynamic,
+      objectNode({ name: 'expression', value: dynamic }),
+      objectNode({ name: 'expression', value: stringNode('ok') })
+    )
+    expect(expressionCandidates(constraints, 'constraints', miniAst)).toEqual([
+      { node: dynamic },
+      { node: dynamic },
+      { node: expect.objectContaining({ kind: 'string' }), expression: 'ok' },
+    ])
+  })
+})
+
+function eslintPositions(code: string, typescript: boolean): [number, number][] {
+  const messages = linter.verify(code, {
+    plugins: { fhirpath: eslintPlugin },
+    rules: { 'fhirpath/no-invalid-expressions': 'error' },
+    // TypeScript sources carry type annotations, which the default parser cannot
+    // read — the same TypeScript parser the repo lints with supplies them.
+    languageOptions: typescript
+      ? { parser: tseslint.parser as Linter.Parser, ecmaVersion: 2022, sourceType: 'module' }
+      : { ecmaVersion: 2022, sourceType: 'module' },
+  })
+  for (const message of messages) {
+    // Only rule reports count; a parse error would silently zero the corpus entry.
+    expect(message.ruleId).toBe('fhirpath/no-invalid-expressions')
+  }
+  return messages.map(message => [message.line, message.column + 1])
+}
+
+describe('CLI and ESLint walkers stay in lockstep', () => {
+  for (const entry of corpus) {
+    it(entry.name, () => {
+      const sites = findExpressionSites(entry.code, 'sample.ts')
+      const cli = sites.map((site): [number, number] => [site.line, site.column])
+      expect(cli).toHaveLength(entry.expected)
+      expect(eslintPositions(entry.code, entry.typescript === true)).toEqual(cli)
+    })
+  }
+})
+
+/**
+ * The two walkers must also agree on each site's *context*, not only on where the
+ * sites are: the DTO root and the column vocabulary decide which findings survive
+ * `analyzeSite`, so a walker that reads the root differently reports different
+ * diagnostics from identical source. Positions alone would not catch that — both
+ * report a syntax error with or without a root — so this compares the diagnostics
+ * themselves over valid-syntax expressions whose errors are root-dependent.
+ */
+describe('the walkers agree on a site’s context', () => {
+  const cases: { name: string; code: string; expected: string[] }[] = [
+    {
+      name: 'a column path resolves against the class fhirType',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Row extends r4.defineView('Condition') {",
+        "  code = this.column('clinicalStatus.codingg.first().code')",
+        '}',
+      ].join('\n'),
+      expected: ["unknown-element: Element 'codingg' is not defined on FHIR.CodeableConcept — did you mean 'coding'?"],
+    },
+    {
+      name: 'an engine imported from the project fixes the root',
+      code: [
+        "import { fp } from './portal.dto'",
+        "class Row extends fp.defineDto('Condition') {",
+        "  code = this.column('clinicalStatus.codingg.first().code')",
+        '}',
+      ].join('\n'),
+      expected: ["unknown-element: Element 'codingg' is not defined on FHIR.CodeableConcept — did you mean 'coding'?"],
+    },
+    {
+      name: 'a %var on a DTO site is never judged',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Row extends r4.defineView('Condition') {",
+        "  label = this.column('%whatever.label')",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'project vars see env, row values, and only earlier vars',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.project(rows, { value: '%later' }, {",
+        '  env: { external },',
+        '  vars: {',
+        "    first: '%external.combine(%rowIndex)',",
+        "    second: '%first',",
+        "    premature: '%later',",
+        "    later: '%second.combine(%rowTotal)',",
+        '  },',
+        '})',
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %later'],
+    },
+    {
+      name: "analyzeExpression's inputType option fixes the root",
+      code: [
+        "import { analyzeExpression } from 'fhirpath-ts/analyzer'",
+        "analyzeExpression('name.givenn', { model: r4Model, inputType: 'Patient' })",
+        "analyzeExpression('name.givenn', { inputType: 'Patient', ...overrides })",
+      ].join('\n'),
+      expected: ["unknown-element: Element 'givenn' is not defined on FHIR.HumanName — did you mean 'given'?"],
+    },
+    {
+      name: "new CompiledExpression's second argument fixes the root",
+      code: [
+        "import { CompiledExpression } from 'fhirpath-ts'",
+        "new CompiledExpression('name.givenn', 'Patient')",
+      ].join('\n'),
+      expected: ["unknown-element: Element 'givenn' is not defined on FHIR.HumanName — did you mean 'given'?"],
+    },
+    {
+      name: 'ordinary call vars see env and only earlier vars',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%later', patient, {",
+        '  env: { external },',
+        '  vars: {',
+        "    first: '%external',",
+        "    second: '%first',",
+        "    premature: '%later',",
+        "    later: '%second',",
+        '  },',
+        '})',
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %later'],
+    },
+    {
+      name: 'a call into a column the same file declares resolves, and carries its type',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends r4.defineView('CodeableConcept') {",
+        "  displayText = this.column('text', { type: 'string' })",
+        '}',
+        "class Row extends r4.defineView('Condition') {",
+        "  len = this.column('code.displayText().length()')",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a near-miss of a column the same file declares is still a typo',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends r4.defineView('CodeableConcept') {",
+        "  displayText = this.column('text', { type: 'string' })",
+        '}',
+        "class Row extends r4.defineView('Condition') {",
+        "  name = this.column('code.displayTxt()')",
+        '}',
+      ].join('\n'),
+      expected: ["unknown-function: Unrecognized function 'displayTxt' — did you mean 'displayText'?"],
+    },
+    {
+      name: 'a root followed through a same-file base class',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Base extends r4.defineView('Observation') {",
+        "  at = this.column('issued')",
+        '}',
+        'class Sub extends Base {',
+        "  kg = this.column('valuee.ofType(Quantity).value')",
+        '}',
+      ].join('\n'),
+      expected: ["unknown-element: Element 'valuee' is not defined on FHIR.Observation — did you mean 'value'?"],
+    },
+    {
+      name: 'a column called on a focus that can never hold its own fhirType',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends r4.defineView('CodeableConcept') {",
+        "  displayText = this.column('text', { type: 'string' })",
+        '}',
+        "class Row extends r4.defineView('Condition') {",
+        "  name = this.column('subject.reference.displayText()')",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: displayText() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'a column whose cardinality is dynamic still declares what it is written against',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends r4.defineView('CodeableConcept') {",
+        "  displays = this.column('coding.display', { collection: dynamic })",
+        '}',
+        "class Row extends r4.defineView('Condition') {",
+        "  name = this.column('subject.reference.displays()')",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: displays() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'a column whose own root comes from a base class declared below it',
+      // Sub's fhirType is only known once Base is read, so the walkers must
+      // decide the file's column vocabulary after the whole file, not during it.
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        'class Sub extends Base {',
+        "  displayText = this.column('text', { type: 'string' })",
+        '}',
+        "class Base extends r4.defineView('CodeableConcept') {",
+        "  conceptId = this.column('id')",
+        '}',
+        "class Row extends r4.defineView('Condition') {",
+        "  name = this.column('subject.reference.displayText()')",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: displayText() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'one field name declared against two roots resolves by the focus',
+      // Both `label`s can register on one engine, scoped by the type each was
+      // written for, and `code` is a CodeableConcept. Keeping the last one seen
+      // would report this valid call.
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class ConceptRow extends r4.defineView('CodeableConcept') {",
+        "  label = this.column('text', { type: 'string' })",
+        '}',
+        "class CodingRow extends r4.defineView('Coding') {",
+        "  label = this.column('display', { type: 'string' })",
+        '}',
+        "class ProblemRow extends r4.defineView('Condition') {",
+        "  name = this.column('code.label()')",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      // Two `label`s the focus cannot tell apart: the call keeps only what they
+      // agree on, which about the result is nothing.
+      name: 'one field name declared with two result types claims neither',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Text extends r4.defineView('CodeableConcept') {",
+        "  label = this.column('text', { type: 'string' })",
+        '}',
+        "class Count extends r4.defineView('CodeableConcept') {",
+        "  label = this.column('coding.count()', { type: 'integer' })",
+        '}',
+        "class ProblemRow extends r4.defineView('Condition') {",
+        "  n = this.column('code.label().length()')",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a field name declared against two roots is checked against the one the focus fits',
+      // The precision an overload set buys: the two `label`s disagree about
+      // everything, and each call still gets the result of the column its own
+      // focus reaches.
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class ConceptRow extends r4.defineView('CodeableConcept') {",
+        "  label = this.column('coding.count()', { type: 'integer' })",
+        '}',
+        "class CodingRow extends r4.defineView('Coding') {",
+        "  label = this.column('display', { type: 'string' })",
+        '}',
+        "class ProblemRow extends r4.defineView('Condition') {",
+        "  chars = this.column('code.coding.label().length()')",
+        "  counted = this.column('code.label().length()')",
+        '}',
+      ].join('\n'),
+      expected: ['operand-type: length() expects a String input, found FHIR.integer'],
+    },
+    {
+      name: 'a field name shared with a rootless declaration keeps no claim at all',
+      // The rootless `label` answers every call, so the pair claims nothing
+      // wherever both are in play — the Integer result of the one whose root is
+      // known cannot be pinned on this call.
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        'function keyedRow(fhirType: string) { class KeyedRow extends r4.defineView(fhirType) {} return KeyedRow }',
+        "class Loose extends keyedRow('CodeableConcept') {",
+        "  label = this.column('coding.first().display', { type: 'string' })",
+        '}',
+        "class Concept extends r4.defineView('CodeableConcept') {",
+        "  label = this.column('coding.count()', { type: 'integer' })",
+        '}',
+        "class ProblemRow extends r4.defineView('Condition') {",
+        "  n = this.column('code.label().length()')",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'declarations that disagree on the result still declare the input they share',
+      // A focus none of them accepts is reported against all of them at once.
+      // Both `label`s are written against a CodeableConcept, so a call on a
+      // string focus is wrong whichever one it meant — dropping the signature
+      // of a name declared twice would miss it.
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Text extends r4.defineView('CodeableConcept') {",
+        "  label = this.column('text', { type: 'string' })",
+        '}',
+        "class Count extends r4.defineView('CodeableConcept') {",
+        "  label = this.column('coding.count()', { type: 'integer' })",
+        '}',
+        "class ProblemRow extends r4.defineView('Condition') {",
+        "  name = this.column('subject.reference.label()')",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: label() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'agreeing declarations of one field name keep their claims',
+      // Same name, same root, same result — nothing is in doubt, so the wrong
+      // focus is still reported.
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class A extends r4.defineView('CodeableConcept') {",
+        "  label = this.column('text', { type: 'string' })",
+        '}',
+        "class B extends r4.defineView('CodeableConcept') {",
+        "  label = this.column('coding.first().display', { type: 'string' })",
+        '}',
+        "class ProblemRow extends r4.defineView('Condition') {",
+        "  name = this.column('subject.reference.label()')",
+        '}',
+      ].join('\n'),
+      expected: ['input-type: label() expects FHIR.CodeableConcept as input, found FHIR.string'],
+    },
+    {
+      name: 'a column on a root-generic factory declares no input, so calls stay unchecked',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends keyedRow('CodeableConcept') {",
+        "  displayText = this.column('text', { type: 'string' })",
+        '}',
+        "class Row extends r4.defineView('Condition') {",
+        "  name = this.column('subject.reference.displayText()')",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'no statically-known root keeps syntax findings only',
+      code: [
+        "import { column } from 'fhirpath-ts'",
+        "class Row extends badgedRow('DiagnosticReport') {",
+        "  code = this.column('clinicalStatus.codingg.first()')",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a computed env key opens the scope, so an unresolved variable is not judged',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%hidden.exists()', patient, { env: { [name]: value } })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a computed string-literal env key declares its name like a plain one',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%knownn.exists()', patient, { env: { ['known']: value } })",
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %knownn'],
+    },
+    {
+      name: 'a getter-backed env key is visible to both walkers',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%known.exists()', patient, { env: { get known() { return value } } })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a spread in env opens the scope',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%maybe.exists()', patient, { env: { ...shared } })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a non-literal options argument opens the scope',
+      code: ["import { r4 } from 'fhirpath-ts/r4'", "r4.evaluate('%maybe.exists()', patient, options)"].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a computed vars entry makes every var body uncheckable',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%late.exists()', patient, {",
+        "  vars: { early: '%typo.exists()', [dynamicName]: '%early.exists()', after: '%maybe.exists()' },",
+        '})',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a spread in vars makes every var body uncheckable',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%late.exists()', patient, { vars: { early: '%typo.exists()', ...shared, after: '%maybe.exists()' } })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'an options spread does not leave a stale type claim',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%x.status', patient, {",
+        "  env: { x: observation }, envTypes: { x: { type: 'Patient' } }, ...unknownOptions,",
+        '})',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a spread inside one type declaration does not leave a stale claim',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%x.status', patient, {",
+        "  env: { x: observation }, envTypes: { x: { type: 'Patient', ...unknownClaim } },",
+        '})',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a declaration spread before a known alias leaves no stale claim',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "const aliases = { x: { type: 'Condition' }, '%x': { type: 'Observation' } }",
+        "r4.evaluate('%x.status', patient, {",
+        "  env: { x: observation }, envTypes: { ...aliases, x: { type: 'Patient' } },",
+        '})',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'dynamic varTypes do not hide errors inside var bodies',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%v', patient, { vars: { v: '%typo' }, varTypes: { [name]: { type: 'string' } } })",
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %typo'],
+    },
+    {
+      name: 'a dynamic column claim does not leak a stale result type',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "class Concept extends r4.defineView('CodeableConcept') {",
+        "  label = this.column('coding.count()', { ...unknownClaim, type: 'integer', collection: false })",
+        '}',
+        "class Row extends r4.defineView('Condition') {",
+        "  size = this.column('code.label().length()')",
+        '}',
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: 'a vars spread does not analyze an overwritten expression',
+      code: [
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "r4.evaluate('%bad', patient, { vars: { bad: '%typo', ...{ bad: 'true' } } })",
+      ].join('\n'),
+      expected: [],
+    },
+  ]
+
+  for (const entry of cases) {
+    it(entry.name, () => {
+      const fromSites = findExpressionSites(entry.code, 'sample.ts').flatMap(site =>
+        analyzeSite(site, { model: r4Model })
+          // The rule can only report errors (ESLint severity is per-rule), so
+          // comparing its output to anything else would fail on a warning-level
+          // finding — a corpus entry provoking `regex-backtracking`, say — that
+          // both walkers agree on.
+          .filter(diagnostic => diagnostic.severity === 'error')
+          .map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`)
+      )
+      expect(fromSites).toEqual(entry.expected)
+      expect(eslintMessages(entry.code)).toEqual(entry.expected)
+    })
+  }
+})
+
+/**
+ * The rule's reports, stripped of position, in the same shape as an analyzer
+ * diagnostic. Error severity only, which is all the rule can produce — see the
+ * filter on the sites side.
+ */
+function eslintMessages(code: string): string[] {
+  return linter
+    .verify(code, {
+      plugins: { fhirpath: eslintPlugin },
+      rules: { 'fhirpath/no-invalid-expressions': 'error' },
+      languageOptions: { parser: tseslint.parser as Linter.Parser, ecmaVersion: 2022, sourceType: 'module' },
+    })
+    .map(message => message.message.replace(/^\[([^\]]+)] /, '$1: '))
+}

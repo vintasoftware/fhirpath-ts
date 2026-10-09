@@ -1,7 +1,122 @@
 import { FhirPathTypeError } from '../errors.ts'
+import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
+import type { AstNode } from '../parser/ast.ts'
 import { type TerminologyProvider, terminologyServiceValue } from '../terminology/provider.ts'
-import { SYSTEM_STRING, type TypedValue, toCollection } from '../values/typed-value.ts'
+import { SYSTEM_STRING, toCollection, type TypedValue } from '../values/typed-value.ts'
+
+/**
+ * The runtime side of a native host-supplied function: arity and implementation.
+ * The API layer's CustomFunction (api/compile.ts) adds the optional analyzer
+ * signature; this module only needs what evaluation uses.
+ */
+export interface HostNativeFunction {
+  /** Inclusive argument count range, checked before invocation. Defaults: 0 to unlimited. */
+  minArity?: number
+  maxArity?: number
+  /**
+   * Model type names the call's focus must be able to hold, spelled as the
+   * caller wrote them. Either a local name or a canonical one works, because
+   * `unsatisfiedInput` (values/type-compat.ts) canonicalizes the names it
+   * compares. Leave this out to accept any focus, which is what every function
+   * that does not declare `signature.input.types` does.
+   */
+  inputTypes?: readonly string[]
+  /**
+   * The implementation. `input` is the unwrapped input collection; each
+   * argument is eagerly evaluated against `$this` — the enclosing context
+   * item, like built-in value arguments — and arrives as an unwrapped
+   * collection. Return a plain value, an array of plain values, or undefined
+   * for empty — the engine converts back to its typed representation.
+   */
+  fn: (input: unknown[], ...args: unknown[][]) => unknown
+}
+
+/**
+ * The runtime side of an expression-defined function (CustomFunction's
+ * `expression` form, pre-parsed by the API layer). Zero arguments; the body
+ * evaluates as if spliced at the call site, with the call's input as focus.
+ */
+export interface HostExpressionFunction {
+  ast: AstNode
+  /** See HostNativeFunction.inputTypes. Same meaning, checked the same way. */
+  inputTypes?: readonly string[]
+  /**
+   * Environment variables the body reads that the caller does not supply, laid
+   * over the caller's env for the length of the call and gone again after it
+   * (see `withEnvOverlay`). This is how a DTO's `env` reaches its own column
+   * bodies without being published to every expression the engine evaluates.
+   * Already in collection form, since the same overlay serves every call.
+   */
+  env?: ReadonlyMap<string, TypedValue[]>
+  /**
+   * Host functions the body calls, laid over the caller's the same way as `env`.
+   * A DTO column carries its defining engine's functions here, so a caller's
+   * function of the same name cannot change what the column's type describes.
+   */
+  functions?: ReadonlyMap<string, HostFunction>
+  /**
+   * Apply the criteria rule to the body's result, so the function always returns
+   * exactly one Boolean. That rule is `criteriaBoolean`: §4.5 singleton
+   * evaluation, with an empty result read as false. It is what makes a DTO
+   * criteria column mean the same thing whether it is projected or called from
+   * an expression.
+   */
+  criteria?: boolean
+}
+
+/** One host-supplied function, in either form. */
+export type HostSingleFunction = HostNativeFunction | HostExpressionFunction
+
+/**
+ * Several functions registered under one name, told apart by the focus each was
+ * written for. A call runs the first whose `inputTypes` the focus satisfies (see
+ * `resolveHostCall`), so two DTOs may both declare a `displayText` column as
+ * long as a CodeableConcept can never be a Coding. Every member must declare
+ * `inputTypes` for that to mean anything, which is what `withDtos` (api/dto.ts)
+ * checks before it builds one.
+ */
+export interface HostOverloadedFunction {
+  overloads: readonly HostSingleFunction[]
+}
+
+export type HostFunction = HostSingleFunction | HostOverloadedFunction
+
+/**
+ * A pluggable regular-expression engine for matches()/matchesFull()/
+ * replaceMatches(). The default is the built-in RegExp, which backtracks and
+ * cannot be timed out synchronously — hosts evaluating untrusted expressions
+ * can supply a linear-time engine (e.g. an RE2 binding) here instead.
+ */
+export interface RegexEngine {
+  /**
+   * Compile `pattern` with `flags` (a subset of 's' and 'g'; matchesFull
+   * wraps the pattern in `^(?:...)$` before compiling). Throw on invalid
+   * patterns — the engine converts that to the spec's type error.
+   */
+  compile(
+    pattern: string,
+    flags: string
+  ): {
+    test(subject: string): boolean
+    /**
+     * Replace every match (the 'g' flag is passed for replaceMatches).
+     * `substitution` uses String.prototype.replace syntax (`$1`, `$<name>`, `$&`,
+     * `$$`); the engine has already rewritten PCRE-style `${name}` references.
+     */
+    replace(subject: string, substitution: string): string
+  }
+}
+
+/**
+ * An HTML sanitizer that htmlChecks() consults after the FHIR narrative rules
+ * pass. The FHIR rules do not make a narrative safe to render as HTML, so hosts
+ * that render narrative should supply one (see README, Narrative checking).
+ */
+export interface NarrativeSanitizer {
+  /** True when the sanitizer would keep `xhtml` unchanged. */
+  accepts(xhtml: string): boolean
+}
 
 /** `$this` / `$index` / `$total` bindings; iteration functions push one frame per element. */
 export interface Frame {
@@ -12,6 +127,8 @@ export interface Frame {
 }
 
 export interface EvaluationContext {
+  terminology: TerminologyProvider | undefined
+  asyncCache: Map<string, unknown> | undefined
   /** The original input node: `%context`. */
   root: TypedValue[]
   /** Environment variables by name (without the `%`). Values are collections. */
@@ -25,20 +142,26 @@ export interface EvaluationContext {
    */
   trace: (name: string, values: TypedValue[]) => void
   /**
-   * Variables from defineVariable(). The map is local to one expression chain:
-   * dots thread it along, while operator operands, function arguments, and
-   * iteration frames evaluate against a copy (see forkVariables).
+   * Variables from defineVariable(), seeded with the call's `vars` bindings.
+   * The map is local to one expression chain: dots thread it along, while
+   * operator operands, function arguments, and iteration frames evaluate
+   * against a copy (see forkVariables).
    */
   variables: Map<string, TypedValue[]>
-  frame: Frame
-  /** Terminology service behind memberOf()/subsumes()/%terminologies; consulted via evaluateAsync(). */
-  terminology: TerminologyProvider | undefined
+  /** Host-supplied functions by name; never contains a built-in name (createContext rejects overrides). */
+  functions: ReadonlyMap<string, HostFunction>
   /**
-   * Resolved async-provider results, present only under evaluateAsync(). Shared
-   * across the replay passes of one evaluation (see engine/async.ts); its absence
-   * is how requestAsync() knows to fail with the use-evaluateAsync message.
+   * Names of expression-defined functions currently on the call stack. One
+   * shared Set per evaluation (context copies keep the reference), so a
+   * definition that reaches itself — directly or through another definition —
+   * fails as recursion instead of overflowing the stack.
    */
-  asyncCache: Map<string, unknown> | undefined
+  activeExpressionFunctions: Set<string>
+  /** Regex engine for the matches() family; undefined means the built-in RegExp. */
+  regex: RegexEngine | undefined
+  /** Sanitizer htmlChecks() also requires to accept the narrative; undefined means none. */
+  narrativeSanitizer: NarrativeSanitizer | undefined
+  frame: Frame
 }
 
 const BUILTIN_CONSTANTS: ReadonlyMap<string, string> = new Map([
@@ -47,14 +170,69 @@ const BUILTIN_CONSTANTS: ReadonlyMap<string, string> = new Map([
   ['loinc', 'http://loinc.org'],
 ])
 
+/**
+ * Environment variables every evaluation defines. The static analyzer resolves
+ * and protects exactly these names, so keep this list next to the code that
+ * seeds them (createContext) — a builtin added here is known there for free.
+ */
+export const BUILTIN_ENV_VARIABLE_NAMES: ReadonlySet<string> = new Set([
+  ...BUILTIN_CONSTANTS.keys(),
+  'context',
+  'resource',
+  'rootResource',
+])
+
+/** The canonical key used for environment and variable maps. */
+export function bareEnvironmentName(name: string): string {
+  return name.startsWith('%') ? name.slice(1) : name
+}
+
+/**
+ * Env records accept variable names with or without the leading `%`
+ * (`{ '%loinc': … }` or `{ loinc: … }`). Normalize to bare names — the form the
+ * context binds — so code that merges or overrides env records treats both
+ * spellings as one namespace. Later entries win on the same bare name.
+ */
+export function normalizeEnvKeys<T>(env: Readonly<Record<string, T>> | undefined): Record<string, T> {
+  const normalized: Record<string, T> = {}
+  for (const [name, value] of Object.entries(env ?? {})) {
+    normalized[bareEnvironmentName(name)] = value
+  }
+  return normalized
+}
+
+/**
+ * An env record as the collections a context binds: names normalized, values
+ * wrapped. The one conversion from the host's env shape into the engine's, used
+ * both to seed a context and to build a function's own overlay.
+ */
+export function envCollections(env: Record<string, unknown> | undefined): Map<string, TypedValue[]> {
+  const collections = new Map<string, TypedValue[]>()
+  for (const [name, value] of Object.entries(normalizeEnvKeys(env))) {
+    collections.set(name, toCollection(value))
+  }
+  return collections
+}
+
+/** Merge two env-shaped records per name: both key spellings normalize first, and `override` wins. */
+export function mergeEnvKeys<T>(
+  base: Record<string, T> | undefined,
+  override: Record<string, T> | undefined
+): Record<string, T> {
+  return { ...normalizeEnvKeys(base), ...normalizeEnvKeys(override) }
+}
+
 export function createContext(options: {
   root: TypedValue[]
   env?: Record<string, unknown> | undefined
   model?: ModelProvider | undefined
-  now?: Date | undefined
-  trace?: ((name: string, values: TypedValue[]) => void) | undefined
   terminology?: TerminologyProvider | undefined
   asyncCache?: Map<string, unknown> | undefined
+  now?: Date | undefined
+  trace?: ((name: string, values: TypedValue[]) => void) | undefined
+  functions?: Record<string, HostFunction> | undefined
+  regex?: RegexEngine | undefined
+  narrativeSanitizer?: NarrativeSanitizer | undefined
 }): EvaluationContext {
   const env = new Map<string, TypedValue[]>()
   for (const [name, url] of BUILTIN_CONSTANTS) {
@@ -64,23 +242,56 @@ export function createContext(options: {
   // FHIR-defined variables; contained-resource re-rooting is a later refinement.
   env.set('resource', options.root)
   env.set('rootResource', options.root)
-  if (options.terminology) {
+  for (const [name, value] of envCollections(options.env)) {
+    env.set(name, value)
+  }
+  if (options.terminology !== undefined) {
+    if (env.has('terminologies'))
+      throw new FhirPathTypeError('Cannot override %terminologies when a terminology provider is configured')
     env.set('terminologies', [terminologyServiceValue])
   }
-  for (const [name, value] of Object.entries(options.env ?? {})) {
-    env.set(name.startsWith('%') ? name.slice(1) : name, toCollection(value))
+  const hostFunctions = new Map<string, HostFunction>()
+  for (const [name, fn] of Object.entries(options.functions ?? {})) {
+    // Overriding a built-in would silently change spec behavior — fail loudly.
+    if (builtinFunctions.has(name)) {
+      throw new FhirPathTypeError(`Cannot override the built-in function '${name}'`)
+    }
+    hostFunctions.set(name, fn)
   }
   return {
     root: options.root,
+    terminology: options.terminology,
+    asyncCache: options.asyncCache,
     env,
     model: options.model,
     now: options.now ?? new Date(),
     trace: options.trace ?? (() => {}),
     variables: new Map(),
+    functions: hostFunctions,
+    activeExpressionFunctions: new Set(),
+    regex: options.regex,
+    narrativeSanitizer: options.narrativeSanitizer,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
-    terminology: options.terminology,
-    asyncCache: options.asyncCache,
   }
+}
+
+/**
+ * Adds environment values for one expression function body. Existing variables
+ * still take priority because variable lookup happens before environment lookup.
+ */
+export function withEnvOverlay(
+  context: EvaluationContext,
+  overlay: ReadonlyMap<string, TypedValue[]>
+): EvaluationContext {
+  return { ...context, env: new Map([...context.env, ...overlay]) }
+}
+
+/** Adds host functions for one expression function body, over the caller's (see `HostExpressionFunction.functions`). */
+export function withFunctionOverlay(
+  context: EvaluationContext,
+  overlay: ReadonlyMap<string, HostFunction>
+): EvaluationContext {
+  return { ...context, functions: new Map([...context.functions, ...overlay]) }
 }
 
 /** A context whose defineVariable() scope is detached from the parent chain. */

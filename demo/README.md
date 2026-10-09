@@ -1,17 +1,39 @@
-# fhirpath.ts playground
+# fhirpath-ts playground
 
-An interactive, client-only demo of [fhirpath-ts](../). Type a FHIRPath
-expression, watch the spec §11 analyzer flag mistakes **before** the expression
-runs, and see it evaluate against a synthetic FHIR resource — all in the browser,
-with no server and no network calls.
+The playground is a client-only demonstration of the engine, TypeScript
+inference, and the [specification §11 analyzer](https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation).
+It runs entirely in the browser.
+No FHIR data is sent to a server.
+Type inference computes safe TypeScript types; the analyzer reports expression errors.
+Literal host values infer automatically; `envTypes` and `varTypes` handle ambiguous values.
 
-The library is consumed straight from source (`../src`) through Vite aliases, so
-the imports in `src/engine.ts` read exactly like real package usage:
+Try the [live playground](https://vintasoftware.github.io/fhirpath-ts/).
+
+Use it to explore:
+
+- evaluation against editable R4 resources;
+- input and result types inferred for literal paths, operators, functions, and variables;
+- parser, type, cardinality, and unknown-element diagnostics;
+- `test`, `filter`, `checkConstraints`, and `project` behavior;
+- Bundle navigation and reference resolution;
+- exact decimal, date, time, Quantity, and UCUM behavior;
+- fixed clocks and `trace()` output;
+- DTO-style application projections shown in the samples.
+
+The repository README keeps its recipes short and points here for interactive
+examples.
+
+## Package imports
+
+The demo imports the library from `../src` through Vite aliases. Its application
+code uses the same package entry points as a consumer:
 
 ```ts
 import { compile } from 'fhirpath-ts'
 import { r4Model } from 'fhirpath-ts/r4'
 import { analyzeExpression } from 'fhirpath-ts/analyzer'
+
+const names = compile('Patient.name.given')
 ```
 
 ## Develop
@@ -19,29 +41,60 @@ import { analyzeExpression } from 'fhirpath-ts/analyzer'
 ```bash
 cd demo
 npm install
-npm run dev      # http://localhost:5173
+npm run dev
 ```
+
+The development server starts at `http://localhost:5173` by default.
 
 ## Build
 
 ```bash
-npm run build    # static site in demo/dist
-npm run preview  # serve the built output locally
+npm run build
+npm run preview
 ```
 
-## Deploy to Cloudflare Pages
+The static output is written to `demo/dist`.
 
-The output is fully static — no Worker, no Hono needed, because the engine is
-zero-dependency and synchronous.
+## Monaco declarations
 
-**From the dashboard:** create a Pages project pointed at this repo with
+The editor checks sample code against declarations generated from the library's
+public API. `scripts/generate-dts.mjs` writes the declaration bundle to
+`src/monaco/*.d.ts` before development and production builds.
+
+Run the declaration step by itself after changing the public API:
+
+```bash
+npm run generate:dts
+```
+
+The generated files are ignored by Git.
+
+## Deployment
+
+The output is a static site. It does not require a Worker or an application
+server. Vite uses relative asset paths, so the same build works at the
+`/fhirpath-ts/` GitHub project path and at other deployment paths.
+
+### GitHub Pages
+
+The [Pages workflow](../.github/workflows/pages.yml) builds `demo/`, uploads
+`demo/dist`, and deploys it after each push to `main`. It can also be run
+manually from the Actions tab.
+
+Before the first deployment, select **GitHub Actions** as the source under
+**Settings → Pages → Build and deployment**. No branch containing generated
+assets is required.
+
+### Cloudflare Pages
+
+Cloudflare Pages can use:
 
 - Build command: `cd demo && npm install && npm run build`
 - Build output directory: `demo/dist`
 
-**From the CLI** (with [Wrangler](https://developers.cloudflare.com/workers/wrangler/)):
+The existing CLI deployment command targets Cloudflare Pages:
 
 ```bash
 npm run build
-npm run deploy   # wrangler pages deploy dist --project-name fhirpath-ts-demo
+npm run deploy
 ```

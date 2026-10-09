@@ -4,8 +4,7 @@ import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { isTerminologyService, type TerminologyProvider } from '../terminology/provider.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
-import { Decimal } from '../values/decimal.ts'
-import { SYSTEM_DECIMAL, SYSTEM_STRING, systemTypeOf, type TypedValue, toCollection } from '../values/typed-value.ts'
+import { SYSTEM_STRING, systemTypeOf, toCollection, type TypedValue } from '../values/typed-value.ts'
 import { argAt, describeArity, registerFunction } from './registry.ts'
 
 type EvaluateNode = (node: AstNode, context: EvaluationContext, input: TypedValue[]) => TypedValue[]
@@ -19,7 +18,7 @@ registerFunction('memberOf', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const item = singleton(input)
+    const item = input.length === 1 ? input[0] : undefined
     if (item === undefined) {
       return []
     }
@@ -78,9 +77,8 @@ registerFunction('subsumedBy', {
 /**
  * The Boolean Coding|CodeableConcept form: true when any same-system coding pair
  * satisfies `accepts` on the provider's CodeSystem/$subsumes outcome. Codings in
- * different systems (or without one) cannot subsume each other, so those pairs
- * are skipped — sides with no comparable pair yield false. A side with no coding
- * at all yields empty, mirroring memberOf's cannot-determine rule.
+ * different systems, or with an unknown service outcome, remain indeterminate.
+ * A matching pair establishes true; otherwise an indeterminate pair yields empty.
  */
 function codingSubsumes(
   context: EvaluationContext,
@@ -90,8 +88,9 @@ function codingSubsumes(
   evaluateNode: EvaluateNode,
   accepts: (outcome: unknown) => boolean
 ): TypedValue[] {
-  const item = singleton(input)
-  const other = singleton(evaluateNode(argAt(args, 0), context, input))
+  const argument = evaluateNode(argAt(args, 0), context, input)
+  const item = input.length === 1 ? input[0] : undefined
+  const other = argument.length === 1 ? argument[0] : undefined
   if (item === undefined || other === undefined) {
     return []
   }
@@ -100,18 +99,27 @@ function codingSubsumes(
   if (inputCodings.length === 0 || argCodings.length === 0) {
     return []
   }
+  let unknown = false
   for (const a of inputCodings) {
     for (const b of argCodings) {
-      if (typeof a.system !== 'string' || a.system !== b.system) {
+      if (
+        typeof a.system !== 'string' ||
+        a.system !== b.system ||
+        typeof a.code !== 'string' ||
+        typeof b.code !== 'string'
+      ) {
+        unknown = true
         continue
       }
       const outcome = callProvider(context, `${name}()`, 'subsumes', [a.system, a, b])
       if (accepts(outcome)) {
         return wrapBoolean(true)
       }
+      if (outcome !== 'equivalent' && outcome !== 'subsumes' && outcome !== 'subsumed-by' && outcome !== 'not-subsumed')
+        unknown = true
     }
   }
-  return wrapBoolean(false)
+  return unknown ? [] : wrapBoolean(false)
 }
 
 /** The `%terminologies.subsumes(system, coded1, coded2 [, params])` form: returns the outcome code. */
@@ -177,78 +185,6 @@ registerServiceFunction('validateVS', 2)
 registerServiceFunction('validateCS', 2)
 registerServiceFunction('translate', 2)
 
-/**
- * weight(): the ordinal value of each input coded element. The itemWeight
- * extension (or its R4 predecessor ordinalValue) answers synchronously; without
- * one, a Coding's CodeSystem is asked for its itemWeight property via the
- * provider's $lookup. Questionnaire answerOption weights (which need the
- * source Questionnaire, not just the answer) are out of scope.
- */
-const WEIGHT_EXTENSION_URLS = [
-  'http://hl7.org/fhir/StructureDefinition/itemWeight',
-  'http://hl7.org/fhir/StructureDefinition/ordinalValue',
-]
-
-registerFunction('weight', {
-  minArity: 0,
-  maxArity: 0,
-  evaluate: (context, input) => {
-    const result: TypedValue[] = []
-    for (const item of input) {
-      const weight = weightOf(context, item)
-      if (weight !== undefined) {
-        result.push({ type: SYSTEM_DECIMAL, value: weight })
-      }
-    }
-    return result
-  },
-})
-
-function weightOf(context: EvaluationContext, item: TypedValue): Decimal | undefined {
-  if (!isObject(item.value)) {
-    throw new FhirPathTypeError('weight() expects Coding or CodeableConcept inputs')
-  }
-  // The element itself, then (for a CodeableConcept) each of its codings.
-  const element = item.value as CodedElement
-  const carriers = [element, ...codingsOf(element).filter(c => c !== element)]
-  for (const carrier of carriers) {
-    const extension = weightExtensionValue(carrier)
-    if (extension !== undefined) {
-      return toDecimal(extension)
-    }
-  }
-  for (const coding of codingsOf(item.value)) {
-    if (typeof coding.system !== 'string' || typeof coding.code !== 'string') {
-      continue
-    }
-    const { system, code } = coding
-    const response = callProvider(context, 'weight()', 'lookup', [{ system, code }, 'property=itemWeight'])
-    const property = lookupProperty(response, 'itemWeight')
-    if (property !== undefined) {
-      return toDecimal(property)
-    }
-  }
-  return undefined
-}
-
-function weightExtensionValue(carrier: CodedElement): unknown {
-  const extensions = Array.isArray(carrier.extension) ? carrier.extension : []
-  for (const extension of extensions) {
-    if (!isObject(extension)) {
-      continue
-    }
-    const { url, valueDecimal } = extension as { url?: unknown; valueDecimal?: unknown }
-    if (typeof url === 'string' && WEIGHT_EXTENSION_URLS.includes(url)) {
-      return valueDecimal
-    }
-  }
-  return undefined
-}
-
-function toDecimal(value: unknown): Decimal | undefined {
-  return typeof value === 'number' ? Decimal.fromNumber(value) : undefined
-}
-
 // ---- shared helpers ----
 
 type ProviderArgs<K extends keyof TerminologyProvider> = Parameters<NonNullable<TerminologyProvider[K]>>
@@ -260,7 +196,7 @@ type ProviderArgs<K extends keyof TerminologyProvider> = Parameters<NonNullable<
  * and cache keys cannot drift per call site. The two configuration failures
  * are named: no provider at all, or a provider without this operation.
  */
-function callProvider<K extends keyof TerminologyProvider>(
+export function callProvider<K extends keyof TerminologyProvider>(
   context: EvaluationContext,
   what: string,
   method: K,
@@ -327,7 +263,10 @@ function parameterValue(parameters: unknown, name: string): unknown {
 }
 
 /** A $lookup property part value, e.g. the itemWeight ordinal. */
-function lookupProperty(parameters: unknown, code: string): unknown {
+export function lookupProperty(parameters: unknown, code: string): unknown {
+  if (!isObject(parameters) || (parameters as { resourceType?: unknown }).resourceType !== 'Parameters') {
+    throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem')
+  }
   for (const parameter of parameterList(parameters)) {
     if (parameter.name !== 'property' || !Array.isArray(parameter.part)) {
       continue

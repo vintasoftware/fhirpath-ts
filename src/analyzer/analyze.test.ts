@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
+
 import { r4Model } from '../r4/index.ts'
-import { type AnalyzerDiagnostic, analyzeExpression } from './analyze.ts'
+import { analyzeExpression, analyzeExpressionDetailed, type AnalyzerDiagnostic, analyzeSite } from './analyze.ts'
+import { SOURCE_VARIABLE_DEFAULTS } from './source-options.ts'
 
 const options = { model: r4Model, inputType: 'Patient' }
 
 function codes(expression: string, analyzeOptions: Parameters<typeof analyzeExpression>[1] = options): string[] {
   return analyzeExpression(expression, analyzeOptions).map(diagnostic => diagnostic.code)
+}
+
+function messages(expression: string, analyzeOptions: Parameters<typeof analyzeExpression>[1] = options): string[] {
+  return analyzeExpression(expression, analyzeOptions).map(diagnostic => diagnostic.message)
 }
 
 describe('clean expressions produce no diagnostics', () => {
@@ -30,6 +36,9 @@ describe('clean expressions produce no diagnostics', () => {
     ['{} + 1'],
     ['{} and true'],
     ['{} = 1'],
+    // System.Quantity's components navigate, like the runtime's raw {value, unit} read.
+    ["(1.5 'kg').value + 1"],
+    ["(1.5 'kg').unit.length()"],
   ])('%s', expression => {
     expect(analyzeExpression(expression, options)).toEqual([])
   })
@@ -38,10 +47,42 @@ describe('clean expressions produce no diagnostics', () => {
 describe('spec §11 rules', () => {
   it('flags unknown elements, including choice-key misuse', () => {
     expect(codes('Patient.nope')).toEqual(['unknown-element'])
+    expect(codes("(1 'kg').nope")).toEqual(['unknown-element'])
     expect(codes('Observation.valueQuantity.unit', { model: r4Model, inputType: 'Observation' })).toEqual([
       'unknown-element',
     ])
     expect(codes('Patient.name.gven')).toEqual(['unknown-element'])
+    expect(codes('Patient.name.active')).toEqual(['unknown-element'])
+  })
+
+  it('suggests the closest name for a mistyped element', () => {
+    expect(messages('Patient.name.gven')).toEqual([
+      "Element 'gven' is not defined on FHIR.HumanName — did you mean 'given'?",
+    ])
+    expect(messages('Patient.name.active')).toEqual(["Element 'active' is not defined on FHIR.HumanName"])
+    expect(messages('Patient.nome')).toEqual(["Element 'nome' is not defined on FHIR.Patient — did you mean 'name'?"])
+    // No suggestion when nothing is a plausible typo, and the choice hint wins over it.
+    expect(messages('Patient.nope')).toEqual(["Element 'nope' is not defined on FHIR.Patient"])
+    expect(messages('Observation.valueQuantity', { model: r4Model, inputType: 'Observation' })).toEqual([
+      "Element 'valueQuantity' is not defined on FHIR.Observation; choice elements use their stem name",
+    ])
+  })
+
+  it('suggests the closest name for a mistyped function', () => {
+    expect(messages('Patient.name.given.lengthx()')).toEqual([
+      "Unrecognized function 'lengthx' — did you mean 'length'?",
+    ])
+    expect(messages('Patient.name.frobnicate()')).toEqual(["Unrecognized function 'frobnicate'"])
+  })
+
+  it('spells out how to fix a singleton misuse', () => {
+    expect(messages('Patient.name.given.substring(1)')).toEqual([
+      'substring() expects a single item as input, but this is a collection (spec §11) — narrow it to one item with first(), last(), or single()',
+    ])
+  })
+
+  it('names both types in an incompatible equality', () => {
+    expect(messages('Patient.gender = 5')).toEqual(['String and Numeric operands can never be equal (spec §11)'])
   })
 
   it('flags unknown functions and wrong arity', () => {
@@ -108,14 +149,111 @@ describe('spec §11 rules', () => {
 
   it('unknown regions mute checks until narrowed, as the spec prescribes', () => {
     expect(codes('Patient.children().nope')).toEqual([])
-    expect(codes('%var.anything.goes')).toEqual([])
-    expect(codes('Patient.descendants().ofType(HumanName).given.first().length()')).toEqual([])
+    expect(codes("children().defineVariable('var').select(%var.anything.goes)")).toEqual([])
+    expect(codes('Patient.descendants().ofType(HumanName).given.single().length()')).toEqual([])
   })
 
   it('without a model, only structural checks run', () => {
     expect(codes('whatever.path', {})).toEqual([])
     expect(codes('whatever.frobnicate()', {})).toEqual(['unknown-function'])
     expect(codes("1 = 'one'", {})).toEqual(['equality-incompatible'])
+  })
+})
+
+describe('collection ordering', () => {
+  it.each(['first()', 'last()', 'tail()', 'skip(1)', 'take(1)'])(
+    'rejects %s on the unordered children() result',
+    operation => {
+      expect(codes(`Patient.children().${operation}`)).toEqual(['order-dependent'])
+    }
+  )
+
+  it('treats indexing as order-dependent', () => {
+    expect(codes('Patient.children()[0]')).toEqual(['order-dependent'])
+  })
+
+  it('marks every unordered tree traversal result', () => {
+    expect(codes('Patient.descendants().first()')).toEqual(['order-dependent'])
+    expect(codes('Patient.repeat(name).last()')).toEqual(['order-dependent'])
+  })
+
+  it.each([
+    'Patient.children().where($this.exists()).skip(1)',
+    'Patient.children().ofType(HumanName).given.first()',
+    'Patient.children().select($this).take(1)',
+    "Patient.children().extension('url').first()",
+    '(Patient.children() | Patient.name).last()',
+  ])('preserves unordered state through %s', expression => {
+    expect(codes(expression)).toEqual(['order-dependent'])
+  })
+
+  it('lets sort() and singleton narrowing establish a usable order', () => {
+    expect(codes('Patient.children().sort().skip(1)')).toEqual([])
+    expect(codes('Patient.children().single().first()')).toEqual([])
+    // Aggregates yield at most one item, so their results need no input order.
+    expect(codes('Patient.children().min().first()')).toEqual([])
+  })
+
+  it('unions alternative branches: unordered only when every branch is', () => {
+    expect(codes('iif(true, Patient.children(), Patient.descendants()).first()')).toEqual(['order-dependent'])
+    expect(codes('iif(true, Patient.children(), Patient.name).first()')).toEqual([])
+    expect(codes('iif(true, {}, {}).first()')).toEqual([])
+  })
+
+  it('lets custom functions require an ordered input', () => {
+    const functions = {
+      pick: { minArity: 0, maxArity: 0, signature: { input: { ordered: true } } },
+    }
+    expect(codes('Patient.children().pick()', { model: r4Model, functions })).toEqual(['order-dependent'])
+    expect(codes('Patient.name.pick()', { model: r4Model, inputType: 'Patient', functions })).toEqual([])
+  })
+
+  it('keeps the ordered requirement when every overload requires it', () => {
+    const overload = (ordered: boolean) => ({
+      pick: {
+        overloads: [
+          { minArity: 0, maxArity: 0, signature: { input: { ordered: true } } },
+          { minArity: 1, maxArity: 1, signature: ordered ? { input: { ordered: true } } : {} },
+        ],
+      },
+    })
+    expect(codes('Patient.children().pick()', { model: r4Model, functions: overload(true) })).toEqual([
+      'order-dependent',
+    ])
+    // One overload without the requirement widens it away, like the type merge.
+    expect(codes('Patient.children().pick()', { model: r4Model, functions: overload(false) })).toEqual([])
+  })
+
+  it('honors declared variable ordering', () => {
+    const variables = { rows: { types: ['HumanName'], single: false, ordered: false } }
+    expect(codes('%rows.skip(1)', { model: r4Model, variables })).toEqual(['order-dependent'])
+    expect(codes('%rows.sort().skip(1)', { model: r4Model, variables })).toEqual([])
+  })
+
+  it('does not reject unknown ordering and honors custom ordering declarations', () => {
+    const custom = (ordered?: boolean) => ({
+      model: r4Model,
+      functions: {
+        names: {
+          minArity: 0,
+          maxArity: 0,
+          signature: { result: { types: ['HumanName'], single: false, ...(ordered !== undefined && { ordered }) } },
+        },
+      },
+    })
+
+    expect(codes('names().skip(1)', custom())).toEqual([])
+    expect(codes('names().skip(1)', custom(true))).toEqual([])
+    expect(codes('names().skip(1)', custom(false))).toEqual(['order-dependent'])
+  })
+
+  it('propagates ordering inferred from expression-defined functions', () => {
+    expect(
+      codes('Patient.names().skip(1)', {
+        model: r4Model,
+        functions: { names: { expression: 'children()' } },
+      })
+    ).toEqual(['order-dependent'])
   })
 })
 
@@ -177,7 +315,7 @@ describe('analyzer edge branches', () => {
   })
 
   it('conversion signature results flow onward', () => {
-    expect(codes("'5'.toLong() > %x")).toEqual([])
+    expect(codes("'5'.toLong() > 4")).toEqual([])
     expect(codes("'2014'.toDate() < today()")).toEqual([])
     expect(codes("'2014'.toDateTime().monthOf()")).toEqual([])
     expect(codes("'10:00'.toTime().hourOf()")).toEqual([])
@@ -216,7 +354,7 @@ describe('coverage completion', () => {
     expect(codes('1.is(exists().x)')).toEqual(['unknown-type'])
     expect(codes('1.ofType(a.exists())')).toEqual(['unknown-type'])
     expect(codes('1 is Nope.Thing')).toEqual(['unknown-type'])
-    expect(codes('%v is Patient')).toEqual([])
+    expect(codes("defineVariable('v').select(%v is Patient)")).toEqual([])
   })
 
   it('contains demands a single right operand', () => {
@@ -231,5 +369,427 @@ describe('coverage completion', () => {
 
   it('boolean comparisons are flagged', () => {
     expect(codes('true < false')).toEqual(['operand-type'])
+  })
+})
+
+describe('type-name roots on non-resource inputs', () => {
+  const datatype = { model: r4Model, inputType: 'CodeableConcept' }
+
+  it('flags a root naming the datatype input, which the runtime navigates to empty', () => {
+    const diagnostics = analyzeExpression('CodeableConcept.text', datatype)
+    expect(diagnostics.map(d => [d.severity, d.code])).toEqual([['error', 'datatype-root']])
+    expect(diagnostics[0]?.message).toBe(
+      "'CodeableConcept' is not a resource type, and a type-name root matches only a resource's resourceType, so this always evaluates to empty — navigate from the input with a relative path"
+    )
+  })
+
+  it('flags a root naming a non-resource supertype of the input', () => {
+    expect(codes('Element.id', datatype)).toEqual(['datatype-root'])
+  })
+
+  it('keeps checking the rest of the path after the flagged root', () => {
+    expect(codes('CodeableConcept.nope', datatype).sort()).toEqual(['datatype-root', 'unknown-element'])
+  })
+
+  it('relative paths on datatype inputs stay diagnostic-free', () => {
+    // CodeableConceptDTO's displayText column (dogfood) — the recommended style.
+    expect(codes('(text | coding.display.first() | coding.first().code).first()', datatype)).toEqual([])
+  })
+
+  it('resource-name roots on resource inputs stay accepted, including supertypes', () => {
+    expect(codes('Patient.name.given', options)).toEqual([])
+    expect(codes('Resource.id', options)).toEqual([])
+    expect(codes('DomainResource.contained.count()', options)).toEqual([])
+  })
+
+  it('a datatype name mid-chain still self-matches, like the runtime', () => {
+    // After model navigation items carry their model types, so the runtime's
+    // type-name match succeeds there — only the raw root input lacks one.
+    expect(codes('code.CodeableConcept.text', { model: r4Model, inputType: 'Observation' })).toEqual([])
+  })
+
+  it('%context on a datatype input is the same raw value, so it flags too', () => {
+    expect(codes('%context.CodeableConcept.text', datatype)).toEqual(['datatype-root'])
+  })
+})
+
+describe('type narrowing (ofType/as)', () => {
+  it('ofType() narrows to the named type so checks resume', () => {
+    expect(codes('Patient.deceased.ofType(boolean).not()')).toEqual([])
+    expect(codes('Patient.deceased.ofType(dateTime).yearOf()')).toEqual([])
+    expect(codes('Patient.deceased.ofType(boolean).nope')).toEqual(['unknown-element'])
+  })
+
+  it('narrowing an unknown region resumes checking without claiming a cardinality', () => {
+    expect(codes('Patient.children().ofType(HumanName).nope')).toEqual(['unknown-element'])
+    // Cardinality after children() is unknown, so no singleton diagnostic either way.
+    expect(codes('Patient.children().ofType(HumanName).use.single().length()')).toEqual([])
+  })
+
+  it('the as operator and function intersect with the known candidates', () => {
+    expect(codes('(Patient.deceased as dateTime).yearOf()')).toEqual([])
+    expect(codes('Patient.deceased.as(dateTime).yearOf()')).toEqual([])
+    expect(codes('(Patient.deceased as dateTime).nope')).toEqual(['unknown-element'])
+  })
+
+  it('an impossible narrowing warns that the result is always empty', () => {
+    const diagnostics = analyzeExpression('Patient.name.first().ofType(Quantity)', options)
+    expect(diagnostics.map(d => [d.severity, d.code])).toEqual([['warning', 'always-empty']])
+    expect(codes('(Patient.birthDate as Quantity)')).toEqual(['always-empty'])
+  })
+})
+
+describe('lambda result typing', () => {
+  it('select() returns the projection type', () => {
+    expect(codes('Patient.name.select(given.first()).substring(1)')).toEqual(['singleton-required'])
+    expect(codes('Patient.name.first().select(family).substring(1)')).toEqual([])
+    expect(codes('Patient.name.select(nope)')).toEqual(['unknown-element'])
+  })
+
+  it('iif() returns the union of its branch types', () => {
+    expect(codes("iif(Patient.active, 'yes', 'no').length()")).toEqual([])
+    expect(codes("iif(Patient.active, 'yes', 'no') + 1")).toEqual(['operand-type'])
+    // Mixed-kind branches mute kind checks, exactly like a mixed union.
+    expect(codes("iif(Patient.active, 1, 'no') + 1")).toEqual([])
+    // A missing else-branch contributes empty, which any operand accepts.
+    expect(codes('iif(Patient.active, 1) + 1')).toEqual([])
+  })
+
+  it('iif() checks its criterion for cardinality and Boolean-ness', () => {
+    expect(codes('iif(Patient.name.given, 1, 2)')).toEqual(['singleton-required'])
+    expect(codes("iif('nope', 1, 2)")).toEqual(['operand-type'])
+    expect(codes('iif({} | true, 1, 2)')).toEqual([])
+  })
+
+  it('coalesce() returns the union of its arguments', () => {
+    expect(codes("coalesce(Patient.name.family.first(), 'unknown').length()")).toEqual([])
+  })
+
+  it('as() keeps a FHIR primitive that casts to the System type', () => {
+    expect(codes('Patient.gender.as(System.String).length()')).toEqual([])
+    expect(codes('(Patient.deceased as System.Boolean).not()')).toEqual([])
+    expect(analyzeExpressionDetailed('Patient.active as System.Boolean', options).result.types).toEqual([
+      'FHIR.boolean',
+    ])
+  })
+
+  it('aggregate() returns the aggregator result or its initializer for empty input', () => {
+    expect(codes('Patient.name.aggregate($this.given.first()).length()')).toEqual([])
+    expect(codes('Patient.name.aggregate($this.given.first()) + 1')).toEqual(['operand-type'])
+    expect(codes('Patient.name.aggregate($this.given.first(), 0) + 1')).toEqual([])
+    expect(analyzeExpressionDetailed('Patient.name.aggregate($this.given.first(), 0)', options).result).toEqual({
+      types: ['FHIR.string', 'System.Integer'],
+      single: true,
+      ordered: true,
+    })
+  })
+
+  it('sort() keys accept a top-level descending minus on any type', () => {
+    expect(codes('Patient.name.sort(-family, given.first()).first().use')).toEqual([])
+    expect(codes('Patient.name.sort(-nope)')).toEqual(['unknown-element'])
+  })
+})
+
+describe('variable tracking', () => {
+  it('flags undefined environment variables like the runtime does', () => {
+    expect(codes('%nope.value')).toEqual(['unknown-variable'])
+  })
+
+  it('resolves built-in variables with their types', () => {
+    expect(codes('%resource.name.given')).toEqual([])
+    expect(codes('%resource.nope')).toEqual(['unknown-element'])
+    expect(codes("%ucum = 'http://unitsofmeasure.org' and %sct.length() > 0 and %loinc.exists()")).toEqual([])
+    expect(codes('%`vs-administrative-gender`.length() > 0')).toEqual([])
+    expect(codes('%`ext-patient-birthTime`.length() > 0')).toEqual([])
+  })
+
+  it('defineVariable() bindings carry the analyzed state of their value', () => {
+    expect(codes("Patient.name.first().defineVariable('n').select(%n.family.substring(1))")).toEqual([])
+    expect(codes("defineVariable('given', Patient.name.first().given).select(%given.substring(1))")).toEqual([
+      'singleton-required',
+    ])
+    expect(codes("defineVariable('x', name.first()).select(%x.nope)")).toEqual(['unknown-element'])
+  })
+
+  it('flags redefinition and overriding environment variables', () => {
+    expect(codes("defineVariable('v').defineVariable('v')")).toEqual(['variable-redefined'])
+    expect(codes("defineVariable('context', 'oops')")).toEqual(['variable-override'])
+  })
+
+  it('scopes variables to their chain, like the runtime', () => {
+    // A variable defined in one union operand is not visible in the other.
+    expect(codes("(defineVariable('n1').active | %n1)")).toEqual(['unknown-variable'])
+    // A variable defined inside a function argument does not leak out.
+    expect(codes("select(defineVariable('inner').active).where(%inner)")).toEqual(['unknown-variable'])
+    // Dynamic names cannot be tracked: nothing is registered, and undefined-variable
+    // errors are muted for the rest of that chain (the dynamic name may have bound one).
+    expect(codes('defineVariable(name.family.first()).count() > 0')).toEqual([])
+    expect(codes('defineVariable(name.family.first()).select(%whatever)')).toEqual([])
+    // The muting is scoped: a sibling operand still gets the error.
+    expect(codes('defineVariable(name.family.first()).active | %whatever')).toEqual(['unknown-variable'])
+  })
+})
+
+describe('warnings and details', () => {
+  it('a collection passed where a singleton argument is expected is a warning', () => {
+    const diagnostics = analyzeExpression('Patient.name.first().family.startsWith(Patient.name.given)', options)
+    expect(diagnostics.map(d => [d.severity, d.code])).toEqual([['warning', 'argument-singleton']])
+  })
+
+  it('quantity arithmetic yields quantities', () => {
+    expect(codes("(4.0 'g' / 2.0 'm') = 2 'g/m'")).toEqual([])
+    expect(codes("(2 'mg' * 3) = 6 'mg'")).toEqual([])
+    expect(codes('(4.0 / 2.0) = 2.0')).toEqual([])
+  })
+
+  it('reports the element paths an expression touches', () => {
+    const { elementDependencies } = analyzeExpressionDetailed('Patient.name.where(use = %v1).given.first()', {
+      model: r4Model,
+      inputType: 'Patient',
+    })
+    expect(elementDependencies).toEqual(['Patient.name', 'HumanName.use', 'HumanName.given'])
+  })
+
+  it('System.Quantity components are not model-element dependencies', () => {
+    expect(analyzeExpressionDetailed("(1 'kg').value + 1", options).elementDependencies).toEqual([])
+  })
+
+  it('detailed analysis carries the diagnostics too', () => {
+    const details = analyzeExpressionDetailed('Patient.nope', options)
+    expect(details.diagnostics.map(d => d.code)).toEqual(['unknown-element'])
+    expect(analyzeExpressionDetailed('1 +').diagnostics.map(d => d.code)).toEqual(['syntax'])
+    expect(analyzeExpressionDetailed('1 +').elementDependencies).toEqual([])
+  })
+})
+
+describe('resolve() reference-target typing', () => {
+  it('yields the declared target types, so checks resume past resolve()', () => {
+    // Patient.generalPractitioner targets Organization | Practitioner | PractitionerRole.
+    expect(codes('Patient.generalPractitioner.resolve().name')).toEqual([])
+    expect(codes('Patient.generalPractitioner.resolve().nope')).toEqual(['unknown-element'])
+    // Observation.subject is single, so the resolved resource is too.
+    expect(
+      codes('Observation.subject.resolve().id.length() > 0', { model: r4Model, inputType: 'Observation' })
+    ).toEqual([])
+  })
+
+  it('targets survive the state algebra: selection, filters, projections, unions, indexing', () => {
+    expect(codes('Patient.generalPractitioner.first().resolve().nope')).toEqual(['unknown-element'])
+    expect(codes('Patient.generalPractitioner[0].resolve().nope')).toEqual(['unknown-element'])
+    expect(codes('Patient.generalPractitioner.where(reference.exists()).resolve().nope')).toEqual(['unknown-element'])
+    expect(codes('Patient.generalPractitioner.select($this).resolve().nope')).toEqual(['unknown-element'])
+    expect(codes('(Patient.generalPractitioner | Patient.managingOrganization).resolve().nope')).toEqual([
+      'unknown-element',
+    ])
+    expect(codes('Patient.generalPractitioner.union(Patient.managingOrganization).resolve().nope')).toEqual([
+      'unknown-element',
+    ])
+    expect(codes('iif(true, Patient.generalPractitioner, Patient.managingOrganization).resolve().nope')).toEqual([
+      'unknown-element',
+    ])
+    // A union with a non-reference side has no common target set: muted, not wrong.
+    expect(codes('(Patient.generalPractitioner | Patient.name).resolve().anything')).toEqual([])
+  })
+
+  it('an unconstrained or non-reference input stays an unknown region', () => {
+    // Reference.reference is a plain string; resolve() on strings is unconstrained.
+    expect(codes('Patient.generalPractitioner.reference.resolve().anything')).toEqual([])
+    // Bundle.entry.resource is any resource: no targets, still muted.
+    expect(codes('Bundle.entry.resource.resolve().anything', { model: r4Model, inputType: 'Bundle' })).toEqual([])
+  })
+})
+
+describe('analyzeSite', () => {
+  const options = { model: r4Model }
+
+  it('analyzes an ordinary site as written', () => {
+    expect(analyzeSite({ expression: 'Patient.namee' }, options).map(d => d.code)).toEqual(['unknown-element'])
+    expect(analyzeSite({ expression: 'Patient.name' }, options)).toEqual([])
+  })
+
+  it('analyzes an ordinary site against the root it declares', () => {
+    // fhirpath("…", 'MedicationRequest'): a relative expression becomes checkable.
+    const rooted = { expression: "(statuss in ('draft')).not()", inputType: 'MedicationRequest' }
+    expect(analyzeSite(rooted, options).map(d => d.code)).toEqual(['unknown-element'])
+    expect(analyzeSite({ ...rooted, expression: "(status in ('draft')).not()" }, options)).toEqual([])
+    // Declaring where an expression runs says nothing about the data bound to it,
+    // so engine env is left alone.
+    expect(
+      analyzeSite({ expression: 'code.coding.exists(system = %loinc)', inputType: 'Observation' }, options)
+    ).toEqual([])
+    // Without the root, the same expression is muted rather than mis-checked.
+    expect(analyzeSite({ expression: "(statuss in ('draft')).not()" }, options)).toEqual([])
+  })
+
+  it('reports unknown variables when a caller supplied the complete variable context', () => {
+    const site = { expression: '%known = %misspelled', inputType: 'Patient' }
+    expect(analyzeSite(site, { ...options, variables: { known: {} } }).map(d => d.code)).toEqual(['unknown-variable'])
+  })
+
+  it('merges inline site variables with the caller-supplied ones', () => {
+    expect(
+      analyzeSite(
+        { expression: '%inline = %loaded', variables: { inline: {} } },
+        { ...options, variables: { loaded: {} } }
+      )
+    ).toEqual([])
+    // Inline site variables are not a complete engine context: with a declared
+    // root and no loaded engine variables, an unknown name stays inconclusive.
+    expect(
+      analyzeSite(
+        { expression: '%inline = %possibleEngineDefault', inputType: 'Patient', variables: { inline: {} } },
+        options
+      )
+    ).toEqual([])
+  })
+
+  it('preserves engine-default var order when per-call vars replace a declaration', () => {
+    const sourceVariables = {
+      values: ['a'],
+      declarations: { a: { types: ['Patient'], single: true } },
+    }
+    const sourceOptions = { ...options, [SOURCE_VARIABLE_DEFAULTS]: sourceVariables }
+    const site = {
+      expression: '%a.status',
+      variablePlan: {
+        values: ['b', 'a'],
+        declarations: { a: { types: ['Observation'], single: true } },
+        inheritsDeclarations: false,
+        before: 'b',
+      },
+    }
+
+    // Overriding a default value does not move its insertion position. Runtime
+    // therefore evaluates a before b, using the per-call varTypes declaration.
+    expect(analyzeSite(site, sourceOptions)).toEqual([])
+    const inherited = {
+      ...site,
+      variablePlan: { ...site.variablePlan, inheritsDeclarations: true, declarations: {} },
+    }
+    expect(analyzeSite(inherited, sourceOptions).map(diagnostic => diagnostic.code)).toEqual(['unknown-element'])
+  })
+
+  it('treats unresolved variables at an open-scope site as unchecked, not unknown', () => {
+    const site = { expression: '%known = %maybe', openVariables: true as const }
+    // Without reportUnchecked (the ESLint rule) the gap stays quiet.
+    expect(analyzeSite(site, { ...options, variables: { known: {} } })).toEqual([])
+    const warned = analyzeSite(site, { ...options, variables: { known: {} }, reportUnchecked: true })
+    expect(warned.map(d => [d.severity, d.code])).toEqual([['warning', 'unchecked-variable']])
+    expect(warned[0]?.message).toContain('%maybe')
+  })
+
+  it('can report navigation hidden behind an explicitly untyped variable', () => {
+    expect(
+      analyzeExpression('%plans.activityz.detail', {
+        model: r4Model,
+        variables: { plans: {} },
+        reportUnchecked: true,
+      }).map(diagnostic => diagnostic.code)
+    ).toEqual(['unchecked-navigation'])
+    // Off by default: consumers that do not opt in keep getting no warnings.
+    expect(analyzeExpression('%plans.activityz.detail', { model: r4Model, variables: { plans: {} } })).toEqual([])
+  })
+
+  it('can report navigation from an input of unknown type', () => {
+    const warned = analyzeExpression('clinicalStatuz.coding.exists() and $this.subject.exists()', {
+      model: r4Model,
+      reportUnchecked: true,
+    })
+    expect(warned.map(diagnostic => [diagnostic.severity, diagnostic.code, diagnostic.name])).toEqual([
+      ['warning', 'unchecked-navigation', 'clinicalStatuz'],
+      ['warning', 'unchecked-navigation', 'subject'],
+    ])
+    // A type-name root or a declared input type makes the path checkable.
+    expect(analyzeExpression('Condition.clinicalStatus', { model: r4Model, reportUnchecked: true })).toEqual([])
+    expect(
+      analyzeExpression('clinicalStatus', { model: r4Model, inputType: 'Condition', reportUnchecked: true })
+    ).toEqual([])
+    expect(analyzeExpression('clinicalStatuz', { model: r4Model })).toEqual([])
+  })
+
+  it('analyzes a DTO column against its fhirType', () => {
+    expect(
+      analyzeSite({ expression: 'clinicalStatus.coding.first().code', inputType: 'Condition', dto: true }, options)
+    ).toEqual([])
+    expect(
+      analyzeSite({ expression: 'clinicalStatus.codingg.first()', inputType: 'Condition', dto: true }, options).map(
+        d => d.code
+      )
+    ).toEqual(['unknown-element'])
+  })
+
+  it('leaves a DTO column vars and functions unjudged', () => {
+    // %badge is declared by the DTO, a base class, or the projecting call, and
+    // displayText() by whichever DTO the engine registers — neither is visible here.
+    expect(analyzeSite({ expression: '%badge.label', inputType: 'DiagnosticReport', dto: true }, options)).toEqual([])
+    expect(analyzeSite({ expression: 'code.displayText()', inputType: 'Condition', dto: true }, options)).toEqual([])
+    // The same expressions outside a DTO site keep their findings.
+    expect(analyzeSite({ expression: '%badge.label' }, options).map(d => d.code)).toEqual(['unknown-variable'])
+  })
+
+  it('resolves calls into the columns the site file declares', () => {
+    const functions = {
+      displayText: { minArity: 0, maxArity: 0, signature: { result: { types: ['string'], single: true } } },
+    }
+    const site = { inputType: 'Observation', dto: true as const, functions }
+    // The call resolves, and its declared result type carries downstream.
+    expect(analyzeSite({ ...site, expression: 'code.displayText()' }, options)).toEqual([])
+    expect(analyzeSite({ ...site, expression: 'code.displayText().length()' }, options)).toEqual([])
+    expect(analyzeSite({ ...site, expression: 'code.displayText() + 1' }, options).map(d => d.code)).toEqual([
+      'operand-type',
+    ])
+    // A near-miss of a declared column is a typo worth reporting…
+    expect(analyzeSite({ ...site, expression: 'code.displayTxt()' }, options).map(d => d.message)).toEqual([
+      "Unrecognized function 'displayTxt' — did you mean 'displayText'?",
+    ])
+    // …while an unrelated unresolved name is most likely a DTO in another module.
+    expect(analyzeSite({ ...site, expression: 'code.reportBadge()' }, options)).toEqual([])
+    // An ordinary site sees the file's columns too, so a valid call is not a finding.
+    expect(analyzeSite({ expression: 'Observation.code.displayText()', functions }, options)).toEqual([])
+  })
+
+  it('reports only syntax findings for a DTO column with no known root', () => {
+    expect(analyzeSite({ expression: 'code.coding.first().display', dto: true }, options)).toEqual([])
+    expect(analyzeSite({ expression: 'code.text', dto: true }, options)).toEqual([])
+    expect(analyzeSite({ expression: 'code.text(', dto: true }, options).map(d => d.code)).toEqual(['syntax'])
+  })
+
+  it('reads a lowercase root name as an element, as the runtime does', () => {
+    // `code` and `id` also name FHIR primitive types, but only an uppercase
+    // identifier names a type at runtime.
+    expect(analyzeSite({ expression: 'code.coding.first().display' }, options)).toEqual([])
+    expect(analyzeSite({ expression: 'id.length() > 0' }, options)).toEqual([])
+    expect(analyzeSite({ expression: 'Observation.code.codingg' }, options).map(d => d.code)).toEqual([
+      'unknown-element',
+    ])
+  })
+
+  it('reads the rest of a path from a resource root that is not the input', () => {
+    // At runtime the path is empty. The rest of it still reads the named
+    // resource, as type-level inference does, so its result and typos agree.
+    const status = analyzeExpressionDetailed('Encounter.status', { model: r4Model, inputType: 'Patient' })
+    expect(status.diagnostics.map(d => [d.code, d.name])).toEqual([['unknown-element', 'Encounter']])
+    expect(status.result.types).toEqual(['FHIR.code'])
+    expect(
+      analyzeExpression('Encounter.statuz', { model: r4Model, inputType: 'Patient' }).map(d => [d.code, d.name])
+    ).toEqual([
+      ['unknown-element', 'Encounter'],
+      ['unknown-element', 'statuz'],
+    ])
+  })
+
+  it('checks a site typed by its input argument like an unrooted call', () => {
+    const site = { expression: 'code.codingg.where(system = %nope)', inputFromArgument: true as const }
+    // The call runs the expression, so its variables are still checked.
+    expect(analyzeSite({ ...site, inputType: 'Observation' }, options).map(d => d.code)).toEqual([
+      'unknown-element',
+      'unknown-variable',
+    ])
+    // A declared root runs elsewhere, so its variables are not judged here.
+    expect(analyzeSite({ expression: site.expression, inputType: 'Observation' }, options).map(d => d.code)).toEqual([
+      'unknown-element',
+    ])
+    // A resourceType the model does not know is not a FHIR resource.
+    expect(analyzeSite({ ...site, expression: 'payload', inputType: 'MyThing' }, options)).toEqual([])
   })
 })

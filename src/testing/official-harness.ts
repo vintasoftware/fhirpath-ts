@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs'
-import { SKIP_MANIFEST, type SkipEntry } from '../../test-data/official/skip-manifest.ts'
+
+import {
+  PHASE_OVERRIDES,
+  type PhaseName,
+  SKIP_MANIFEST,
+  type SkipEntry,
+} from '../../test-data/official/skip-manifest.ts'
 import { CompiledExpression } from '../api/compile.ts'
-import { FhirPathError } from '../errors.ts'
+import { FhirPathError, FhirPathRuntimeError, FhirPathSyntaxError, FhirPathTypeError } from '../errors.ts'
 import { valueToString } from '../functions/conversion.ts'
 import { r4Model } from '../r4/index.ts'
 import { Temporal } from '../values/datetime.ts'
@@ -22,6 +28,8 @@ export interface OfficialTest {
   invalid?: string
   predicate?: boolean
   mode?: string
+  /** Suite marker: valid to evaluate but not statically checkable; the analyzer conformance test skips it. */
+  skipStaticCheck?: boolean
   outputs: OfficialOutput[]
 }
 
@@ -49,8 +57,20 @@ function loadFixture(suite: SuiteName, inputfile: string): unknown {
   return fixtureCache.get(key)
 }
 
-export function findSkipReason(suite: SuiteName, group: OfficialGroup, test: OfficialTest): string | undefined {
-  return SKIP_MANIFEST.find(entry => skipMatches(entry, suite, group, test))?.reason
+export function findSkipReason(
+  suite: SuiteName,
+  group: OfficialGroup,
+  test: OfficialTest,
+  manifest: SkipEntry[] = SKIP_MANIFEST
+): string | undefined {
+  return manifest.find(entry => skipMatches(entry, suite, group, test))?.reason
+}
+
+/** The fixture's resourceType, for seeding the analyzer's input type. */
+export function fixtureResourceType(suite: SuiteName, inputfile: string): string | undefined {
+  const fixture = loadFixture(suite, inputfile)
+  const resourceType = (fixture as { resourceType?: unknown }).resourceType
+  return typeof resourceType === 'string' ? resourceType : undefined
 }
 
 function skipMatches(entry: SkipEntry, suite: SuiteName, group: OfficialGroup, test: OfficialTest): boolean {
@@ -62,40 +82,98 @@ function skipMatches(entry: SkipEntry, suite: SuiteName, group: OfficialGroup, t
   )
 }
 
-/** True when some suite case matches the entry — the hygiene test uses this. */
-export function skipEntryMatchesSomething(entry: SkipEntry, suites: Record<SuiteName, OfficialGroup[]>): boolean {
-  return suites[entry.suite].some(group => group.tests.some(test => skipMatches(entry, entry.suite, group, test)))
+/** Every suite case a manifest entry matches — the hygiene tests derive existence and per-case checks from this. */
+export function casesMatching(
+  entry: SkipEntry,
+  suites: Record<SuiteName, OfficialGroup[]>
+): { group: OfficialGroup; test: OfficialTest }[] {
+  const matches: { group: OfficialGroup; test: OfficialTest }[] = []
+  for (const group of suites[entry.suite]) {
+    for (const test of group.tests) {
+      if (skipMatches(entry, entry.suite, group, test)) {
+        matches.push({ group, test })
+      }
+    }
+  }
+  return matches
 }
 
-/** Run one official case; resolves to undefined on pass, a failure message otherwise. */
-export async function runOfficialTest(suite: SuiteName, test: OfficialTest): Promise<string | undefined> {
+/**
+ * The error classes an `invalid` phase tag admits. `semantic` maps to the type
+ * error our dynamic evaluator raises where a checker would have; `execution`
+ * admits type errors too because some argument checks only happen once values
+ * flow (e.g. a non-String subject reaching startsWith()).
+ */
+const PHASE_ERROR_CLASSES: Record<PhaseName, (error: FhirPathError) => boolean> = {
+  syntax: error => error instanceof FhirPathSyntaxError,
+  semantic: error => error instanceof FhirPathTypeError,
+  execution: error => error instanceof FhirPathRuntimeError || error instanceof FhirPathTypeError,
+}
+
+function expectedPhase(suite: SuiteName, groupName: string, test: OfficialTest): PhaseName | undefined {
+  const override = PHASE_OVERRIDES.find(
+    entry => entry.suite === suite && entry.group === groupName && entry.test === test.name
+  )
+  if (override !== undefined) {
+    return override.throws
+  }
+  return test.invalid !== undefined && test.invalid in PHASE_ERROR_CLASSES ? (test.invalid as PhaseName) : undefined
+}
+
+/** Run one official case; returns undefined on pass, a failure message otherwise. */
+export function runOfficialTest(suite: SuiteName, test: OfficialTest, groupName = ''): string | undefined {
   const input = test.inputfile === undefined ? undefined : loadFixture(suite, test.inputfile)
+  const options = {
+    model: r4Model,
+    ...((test.invalid === 'semantic' || test.mode === 'strict') && { strict: true }),
+  }
   if (test.invalid !== undefined) {
+    const phase = expectedPhase(suite, groupName, test)
     try {
       const compiled = new CompiledExpression(test.expression)
-      compiled.evaluateTyped(input, { model: r4Model })
+      compiled.evaluateTyped(input, options)
       return `expected an error (invalid="${test.invalid}") but evaluation succeeded`
     } catch (error) {
-      // The suite's syntax/semantic/execution split is looser than ours; any engine error passes.
-      return error instanceof FhirPathError ? undefined : `unexpected error kind: ${String(error)}`
+      if (!(error instanceof FhirPathError)) {
+        return `unexpected error kind: ${String(error)}`
+      }
+      // The suite's phase tag pins the error class; PHASE_OVERRIDES documents divergences.
+      if (phase !== undefined && !PHASE_ERROR_CLASSES[phase](error)) {
+        return `expected a ${phase}-phase error (invalid="${test.invalid}"), got ${error.name}: ${error.message}`
+      }
+      return undefined
     }
   }
   let results: TypedValue[]
   try {
-    const compiled = new CompiledExpression(test.expression)
-    // tx-mode tests exercise %terminologies against recorded tx.fhir.org
-    // responses (re-record with `pnpm record:tx`); everything else runs the
-    // plain sync path.
-    results =
-      test.mode === 'tx'
-        ? await compiled.evaluateTypedAsync(input, { model: r4Model, terminology: recordedTerminology })
-        : compiled.evaluateTyped(input, { model: r4Model })
+    results = new CompiledExpression(test.expression).evaluateTyped(input, options)
   } catch (error) {
     return `evaluation failed: ${(error as Error).message}`
   }
-  if (test.predicate) {
-    results = [{ type: SYSTEM_BOOLEAN, value: results.length > 0 }]
+  return compareResults(results, test)
+}
+
+/** Run a terminology case with the recorded provider, otherwise use the sync harness. */
+export async function runOfficialTestAsync(
+  suite: SuiteName,
+  test: OfficialTest,
+  groupName = ''
+): Promise<string | undefined> {
+  if (test.mode !== 'tx') return runOfficialTest(suite, test, groupName)
+  const input = test.inputfile === undefined ? undefined : loadFixture(suite, test.inputfile)
+  try {
+    const results = await new CompiledExpression(test.expression).evaluateTypedAsync(input, {
+      model: r4Model,
+      terminology: recordedTerminology,
+    })
+    return compareResults(results, test)
+  } catch (error) {
+    return `evaluation failed: ${(error as Error).message}`
   }
+}
+
+function compareResults(values: TypedValue[], test: OfficialTest): string | undefined {
+  const results = test.predicate ? [{ type: SYSTEM_BOOLEAN, value: values.length > 0 }] : values
   if (results.length !== test.outputs.length) {
     return `expected ${test.outputs.length} results, got ${results.length}: ${render(results)}`
   }

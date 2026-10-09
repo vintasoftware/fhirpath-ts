@@ -84,9 +84,12 @@ export const TABS: Tab[] = [
     examples: [
       { expr: 'Observation.valueQuantity', note: 'Choice-key misuse — use Observation.value instead.' },
       { expr: 'Observation.bodySite.given', note: 'given is not an element of CodeableConcept.' },
-      { expr: 'Observation.identifier.value.substring(0, 4)', note: 'substring needs a single string, not a collection.' },
+      {
+        expr: 'Observation.identifier.value.substring(0, 4)',
+        note: 'substring needs a single string, not a collection.',
+      },
       { expr: 'Observation.status.lengthx()', note: 'No such function.' },
-      { expr: "Observation.status = 5", note: 'A string and an integer can never be equal.' },
+      { expr: 'Observation.status = 5', note: 'A string and an integer can never be equal.' },
     ],
   },
 ]

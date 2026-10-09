@@ -1,9 +1,12 @@
 /**
  * Exact corpus cases this engine intentionally diverges on, grouped by the
  * behavior family. Every entry names the fhirpath.js/fhirpath-py behavior we
- * do not inherit and the evidence for our reading. Keys are `${file}||${expression}`.
- * The harness fails when an entry stops matching the corpus (stale) or when an
- * unlisted case fails (regression).
+ * do not inherit and the evidence for our reading. Keys are `${file}||${expression}`,
+ * `${file}@${model}||${expression}` to match only cases run with that model
+ * (`none` for model-free cases), or `${file}#${desc}||${expression}` to match one
+ * of several cases with the same expression. The harness fails when an entry shields no case,
+ * when a shielded case starts passing (stale), or when an unlisted case fails
+ * (regression).
  */
 export interface QuirkFamily {
   name: string
@@ -46,7 +49,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       '5.5_conversion.yaml||Functions.collWithNullsAndTrue[0].toLong()',
       '5.5_conversion.yaml||Functions.collWithNullsAndTrue[0].toQuantity()',
       '5.5_conversion.yaml||Functions.iif(collWithNullsAndTrue[1], collWithNullsAndTrue[0], collWithNullsAndTrue[2]).id',
-      "5.6_string_manipulation.yaml||Functions.str.empty.join(',')",
       '5.7_math.yaml||Math.arrWithNullsAndVals[0].abs()',
       '5.7_math.yaml||Math.arrWithNullsAndVals[0].ceiling()',
       '5.7_math.yaml||Math.arrWithNullsAndVals[0].exp()',
@@ -62,7 +64,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       '5.8_tree_navigation.yaml||Patient.children() = (Patient.birthDate | Patient.address | Patient.name | Patient.communication)',
       '5.8_tree_navigation.yaml||communication.children()[1] = communication.preferred',
       '6.1_equality.yaml||Bundle.entry[1].resource.name.given[0] = Bundle.entry[2].resource.name.given[0]',
-      '6.3_types.yaml||Questionnaire.children().select(code as Element).count() = 2',
       '6.4_collection.yaml||Patient.name.given contains Patient.name.given[3]',
       '6.4_collection.yaml||Patient.name.given[3] in Patient.name.given',
       '7_aggregate.yaml||Functions.collWithNull1.avg()',
@@ -80,13 +81,19 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       "extensions.yaml||Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime') .valueDateTime.toDateTime() = @1974-12-25T14:35:45-05:00",
       "extensions.yaml||Patient.communication.preferred.extension('test').exists()",
       'extensions.yaml||Patient.name.given',
-      'hasValue.yaml||Patient.birthDate.hasValue()',
+      'hasValue.yaml@none||Patient.birthDate.hasValue()',
       'simple.yaml||Patient.name.exists(given)',
       'simple.yaml||Patient.name.given.ofType(System.String)',
       'simple.yaml||Patient.name.given.ofType(string)',
       'simple.yaml||Patient.name.given.ofType(string)[0]',
       'simple.yaml||Patient.name.given.select($this.length) = Patient.name.given.select(length)',
     ],
+  },
+  {
+    name: 'nested-extension-equality',
+    evidence:
+      "fhirpath.js's own equality still recurses into each primitive's raw _field extension wrapper when comparing a containing complex object, even with { model: r4Model } — it only strips extensions when comparing a bare primitive directly (see Bundle.entry[1].resource.name.given[0] = ... above, model-free-field-convention). Spec §6.1.1 excludes extensions from a value's identity at every nesting depth, so this engine's = now matches its own ~ (which already ignored id/extension metadata) and ignores them however deep the comparison goes.",
+    keys: ['6.1_equality.yaml||Bundle.entry[1] != Bundle.entry[2]'],
   },
   {
     name: 'year-month-definite-conversions',
@@ -257,16 +264,20 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     ],
   },
   {
-    name: 'timezone-normalization',
-    evidence:
-      'fhirpath.js rewrites arithmetic results into the local timezone; \u00a76.6.7 arithmetic changes components, never the offset.',
-    keys: ['6.6_math.yaml||@2018-02-18T12:23:45-05:00 + 2 years'],
-  },
-  {
     name: 'leap-second-arithmetic',
     evidence:
       'fhirpath.js clamps :60 to :59 while adding; this engine accepts second 60 (FHIR time regex) and adds through it.',
     keys: ['6.6_math.yaml||@T23:59:60 + 1 minute = @T00:00:59'],
+  },
+  {
+    name: 'time-units-on-dates',
+    evidence:
+      'fhirpath.js converts hours to days when adding them to a Date. The FHIRPath 3.0.0 Date/Time Arithmetic table allows only years, months, weeks, and days for a Date and makes an unsupported unit for the type an error; N1 lists the same Date units.',
+    keys: [
+      '6.6_math.yaml||@2016-01 + 1 hour',
+      '6.6_math.yaml||@2016-01-01 + 24 hours',
+      '6.6_math.yaml||@2016-01-01 + 47 hours',
+    ],
   },
   {
     name: 'plural-unit-rendering',
@@ -363,6 +374,22 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       "factory.yaml||%factory.withProperty(%factory.integer(134, %factory.Extension( 'someExt1', 'someString')), 'id', 'someId').where(extension.value = 'someString').id = 'someId'",
     ],
   },
+  {
+    name: 'empty-operand-error',
+    evidence:
+      'Cases disabled upstream that expect an error for an empty operand. Spec \u00a76.6 returns empty when either operand is empty, and the same file expects [] for n1 + n4.',
+    keys: [
+      '6.6_math.yaml#** Error adding missing numbers||n1 + n4',
+      '6.6_math.yaml||MathTestData.n1 div MathTestData.n4',
+      '6.6_math.yaml||MathTestData.n1 mod MathTestData.n4',
+    ],
+  },
+  {
+    name: 'too-many-values-singletons',
+    evidence:
+      'A case disabled upstream that expects a too-many-values error, but a and h are single integers (1 and 2) in the test data, so a <= h is true; the same file expects [true].',
+    keys: ['6.2_comparision.yaml#less than equal, with too many values||a <= h'],
+  },
 ]
 
 /** Models the engine does not ship yet; cases are skipped with this reason. */
@@ -371,3 +398,10 @@ export const SKIPPED_MODELS: Readonly<Record<string, string>> = {
   stu3: 'STU3 model is out of scope',
   dstu2: 'DSTU2 model is out of scope',
 }
+
+/**
+ * Corpus files that copy official-suite cases. `official.test.ts` runs those
+ * cases directly, with the suite's modes and skips, so cases disabled upstream
+ * in these files stay skipped here.
+ */
+export const OFFICIAL_SUITE_COPIES: readonly string[] = ['fhir-r4.yaml', 'fhir-r5.yaml']

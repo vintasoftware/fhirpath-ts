@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
 import '../functions/install.ts'
+
+import { describe, expect, it } from 'vitest'
+
 import { functions } from '../functions/registry.ts'
 import { FUNCTION_SIGNATURES } from './signatures.ts'
 
@@ -11,9 +13,7 @@ const INTENTIONALLY_UNSIGNED = [
   'slice',
   'elementDefinition',
   'checkModifiers',
-  // Dual-form (Coding.subsumes → Boolean, %terminologies.subsumes → code), so its result stays unknown.
   'subsumes',
-  // The %terminologies API returns resource-shaped values the analyzer cannot type.
   'expand',
   'lookup',
   'validateVS',
@@ -38,6 +38,17 @@ describe('analyzer signature table', () => {
       name => !functions.has(name) || FUNCTION_SIGNATURES[name] !== undefined
     )
     expect(pointless).toEqual([])
+  })
+
+  it('no builtin declares input types', () => {
+    // `input.types` exists for a function written for one type, such as a DTO's
+    // column. Spec functions accept many types, so a built-in that named
+    // types here would report valid expressions. official-conformance.test.ts
+    // would catch it, but long after the fact.
+    const typed = Object.entries(FUNCTION_SIGNATURES)
+      .filter(([, signature]) => signature.input?.types !== undefined)
+      .map(([name]) => name)
+    expect(typed).toEqual([])
   })
 
   it('no signature declares more argument specs than the runtime accepts', () => {

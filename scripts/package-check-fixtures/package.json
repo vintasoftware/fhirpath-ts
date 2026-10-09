@@ -1,0 +1,5 @@
+{
+  "name": "fhirpath-ts-package-check",
+  "private": true,
+  "type": "module"
+}

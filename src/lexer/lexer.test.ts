@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { FhirPathSyntaxError } from '../errors.ts'
 import { tokenize } from './lexer.ts'
 import type { Token, TokenKind } from './tokens.ts'
@@ -116,6 +117,16 @@ describe('string literals', () => {
 
   it.each([["'\\p'"], ["'\\q'"], ["'\\0'"]])('rejects unknown escape %s', source => {
     expect(() => tokenize(source)).toThrow('Invalid escape sequence')
+  })
+
+  it.each([
+    ["'\\uD83D'", 'high surrogate without a low surrogate'],
+    ["'\\uD83Dx'", 'high surrogate without a low surrogate'],
+    ["'\\uD83D\\u0041'", 'high surrogate without a low surrogate'],
+    ["'\\uDD25'", 'low surrogate without a high surrogate'],
+    ['`\\uDD25`', 'low surrogate without a high surrogate'],
+  ])('rejects the unpaired surrogate escape %s', (source, message) => {
+    expect(() => tokenize(source)).toThrow(message)
   })
 
   it('rejects a unicode escape with fewer than 4 hex digits', () => {
@@ -259,26 +270,14 @@ describe('special variables', () => {
 })
 
 describe('operators and punctuation', () => {
-  it.each([
-    ['='],
-    ['~'],
-    ['<'],
-    ['>'],
-    ['+'],
-    ['-'],
-    ['*'],
-    ['/'],
-    ['|'],
-    ['&'],
-    ['!='],
-    ['!~'],
-    ['<='],
-    ['>='],
-  ])('lexes operator %s', source => {
-    const token = single(source)
-    expect(token.kind).toBe('operator')
-    expect(token.value).toBe(source)
-  })
+  it.each([['='], ['~'], ['<'], ['>'], ['+'], ['-'], ['*'], ['/'], ['|'], ['&'], ['!='], ['!~'], ['<='], ['>=']])(
+    'lexes operator %s',
+    source => {
+      const token = single(source)
+      expect(token.kind).toBe('operator')
+      expect(token.value).toBe(source)
+    }
+  )
 
   it.each([['('], [')'], ['['], [']'], ['{'], ['}'], ['.'], [','], ['%']])('lexes punctuation %s', source => {
     const token = single(source)

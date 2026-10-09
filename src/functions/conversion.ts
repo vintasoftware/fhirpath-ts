@@ -3,6 +3,7 @@ import { CALENDAR_DURATION_UNITS } from '../lexer/tokens.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
+import { LONG_MAX, LONG_MIN } from '../values/numeric.ts'
 import { coerceQuantity, convertQuantity } from '../values/quantity.ts'
 import {
   type QuantityValue,
@@ -121,10 +122,13 @@ conversionPair('Long', item => {
       return { type: SYSTEM_LONG, value: BigInt(item.value as number) }
     case SYSTEM_BOOLEAN:
       return { type: SYSTEM_LONG, value: item.value === true ? 1n : 0n }
-    case SYSTEM_STRING:
-      return /^[+-]?\d+$/.test(item.value as string)
-        ? { type: SYSTEM_LONG, value: BigInt(item.value as string) }
-        : undefined
+    case SYSTEM_STRING: {
+      if (!/^[+-]?\d+$/.test(item.value as string)) {
+        return undefined
+      }
+      const value = BigInt(item.value as string)
+      return value >= LONG_MIN && value <= LONG_MAX ? { type: SYSTEM_LONG, value } : undefined
+    }
     default:
       return undefined
   }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import type { EvaluateOptions } from '../api/compile.ts'
 import { evaluate } from '../api/evaluate.ts'
 import { FhirPathTypeError } from '../errors.ts'
@@ -22,16 +23,17 @@ describe('model navigation branches', () => {
     expect(evaluate('Observation.value.hasValue()', resource, options)).toEqual([false])
   })
 
-  it('unknown elements navigate to empty; choice-key misuse is the runtime error', () => {
+  it('unknown elements and choice-key misuse navigate to empty', () => {
     const resource = { resourceType: 'Patient', unknownKey: 'x' }
     // Typos are the static analyzer's job (spec §11); runtime navigation is lenient.
+    // See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
     expect(evaluate('unknownKey', resource, options)).toEqual([])
     expect(evaluate('resourceType', resource, options)).toEqual(['Patient'])
-    // The one shape the official suites pin as a runtime semantic error.
-    const observation = { resourceType: 'Observation', status: 'final', valueQuantity: { value: 1 } }
-    expect(() => evaluate('Observation.valueQuantity.exists()', observation, options)).toThrow(
-      'choice elements use their stem name'
+    expect(evaluate('Patient.name.active', { resourceType: 'Patient', name: [{ given: ['Ada'] }] }, options)).toEqual(
+      []
     )
+    const observation = { resourceType: 'Observation', status: 'final', valueQuantity: { value: 1 } }
+    expect(evaluate('Observation.valueQuantity.exists()', observation, options)).toEqual([false])
     // Types the model does not define read like raw JSON.
     const custom = { resourceType: 'CustomResource', anything: 'works' }
     expect(evaluate('anything', custom, options)).toEqual(['works'])
@@ -57,6 +59,15 @@ describe('model navigation branches', () => {
       name: [{ _given: [{ extension: [{ url: 'http://x', valueString: 'y' }] }] }],
     }
     expect(evaluate('Patient.name.given.extension.url', resource, options)).toEqual(['http://x'])
+  })
+
+  it('comparing a valueless primitive is comparing with empty', () => {
+    const resource = {
+      resourceType: 'Patient',
+      name: [{ given: [null, 'James'], _given: [{ extension: [{ url: 'http://x', valueCode: 'masked' }] }, null] }],
+    }
+    expect(evaluate("Patient.name.given.first() < 'x'", resource, options)).toEqual([])
+    expect(evaluate("Patient.name.given.last() < 'x'", resource, options)).toEqual([true])
   })
 
   it('a collection element holding a single JSON value still yields one item', () => {
@@ -257,8 +268,14 @@ describe('final branch sweep', () => {
     expect(evaluate('@T10:30:14.559.highBoundary().toString()')).toEqual(['10:30:14.559'])
   })
 
-  it('integer sums that overflow the Integer range are empty', () => {
-    expect(evaluate('(2147483647 | 1).sum()')).toEqual([])
+  it('integer sums past the Integer range widen to Long', () => {
+    expect(evaluate('(2147483647 | 1).sum()')).toEqual([2147483648n])
+    expect(evaluate('(2147483647 + 1).type().name')).toEqual(['Long'])
+  })
+
+  it('whole results past the Long range widen to Decimal, keeping the value exact', () => {
+    expect(evaluate('(2147483647 * 2147483647 * 2147483647).type().name')).toEqual(['Decimal'])
+    expect(evaluate('2147483647 * 2147483647 * 2147483647 = 9903520300447984150353281023.0')).toEqual([true])
   })
 
   it('type arguments with call segments are rejected', () => {
@@ -286,13 +303,16 @@ describe('phase-11 branch sweep', () => {
     expect(evaluate('Patient.name', resource, options)).toEqual([])
   })
 
-  it('math edges: overflow and domain errors are empty', () => {
-    expect(evaluate('10000000000.5.floor()')).toEqual([])
-    expect(evaluate('10000000000.5.ceiling()')).toEqual([])
-    expect(evaluate('10000000000.5.truncate()')).toEqual([])
+  it('math edges: whole results past the Integer range widen to Long', () => {
+    expect(evaluate('10000000000.5.floor()')).toEqual([10000000000n])
+    expect(evaluate('10000000000.5.ceiling()')).toEqual([10000000001n])
+    expect(evaluate('10000000000.5.truncate()')).toEqual([10000000000n])
+    expect(evaluate('2.power(31)')).toEqual([2147483648n])
+  })
+
+  it('math edges: domain errors are empty', () => {
     expect(evaluate('(-1).log(2)')).toEqual([])
     expect(evaluate('2.log(1)')).toEqual([])
-    expect(evaluate('2.power(31)')).toEqual([])
   })
 
   it('boundary precision above the type maximum is empty', () => {
@@ -345,7 +365,7 @@ describe('final coverage sweep', () => {
     const { analyzeExpression } = await import('../analyzer/analyze.ts')
     expect(analyzeExpression("subsumedBy('x')", { model: r4Model, inputType: 'Patient' })).toEqual([])
     expect(analyzeExpression('1 as System.Integer', { model: r4Model })).toEqual([])
-    expect(analyzeExpression('%v | 1', { model: r4Model })).toEqual([])
+    expect(analyzeExpression('%resource | 1', { model: r4Model })).toEqual([])
     expect(analyzeExpression('(4 / 2) = 2.0', { model: r4Model })).toEqual([])
   })
 

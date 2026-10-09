@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { evaluate } from '../api/evaluate.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 
@@ -32,6 +33,15 @@ describe('string functions', () => {
     ["'hi'.matchesFull('hi')", [true]],
     ["'hihi'.matchesFull('hi')", [false]],
     ["'abc123def'.replaceMatches('\\\\d+', '|')", ['abc|def']],
+    // Spec §5.6.10 example: PCRE-style named group references.
+    [
+      "'11/30/1972'.replaceMatches('\\\\b(?<month>\\\\d{1,2})/(?<day>\\\\d{1,2})/(?<year>\\\\d{2,4})\\\\b', '${day}-${month}-${year}')",
+      ['30-11-1972'],
+    ],
+    ["'ab'.replaceMatches('(a)(b)', '${2}${1}0')", ['ba0']],
+    ["'ab'.replaceMatches('(a)', '[${0}]')", ['[a]b']],
+    ["'ab'.replaceMatches('(a)(b)', '$2$1')", ['ba']],
+    ["'ab'.replaceMatches('(?<x>a)', '$${x}')", ['${x}b']],
     ["'abcdefg'.length()", [7]],
     ["''.length()", [0]],
     ["'ab'.toChars()", ['a', 'b']],
@@ -40,7 +50,7 @@ describe('string functions', () => {
     ["'a'.split(',')", ['a']],
     ["('a' | 'b' | 'c').join(',')", ['a,b,c']],
     ["('a' | 'b').join()", ['ab']],
-    ["{}.join(',')", ['']],
+    ["{}.join(',')", []],
     ["'abc'.encode('base64')", ['YWJj']],
     ["'YWJj'.decode('base64')", ['abc']],
     ["'ab?'.encode('urlbase64')", ['YWI_']],
@@ -55,6 +65,39 @@ describe('string functions', () => {
     ['{}.upper()', []],
     ["'abc'.indexOf({})", []],
   ])('%s -> %j', (expression, expected) => {
+    expect(evaluate(expression)).toEqual(expected)
+  })
+
+  // Characters are Unicode scalar values, so a surrogate pair counts as one.
+  it.each([
+    ["'a🔥b'.length()", [3]],
+    ["'a\\uD83D\\uDD25b'.length()", [3]],
+    ["'e\\u0301'.length()", [2]],
+    ["'a🔥b'.indexOf('b')", [2]],
+    ["'a🔥b'.indexOf('🔥')", [1]],
+    ["'a🔥b'.indexOf('x')", [-1]],
+    ["'a🔥b🔥c'.lastIndexOf('🔥')", [3]],
+    ["'a🔥b'.lastIndexOf('')", [3]],
+    ["'a🔥b'.substring(1, 1)", ['🔥']],
+    ["'a🔥b'.substring(2)", ['b']],
+    ["'a🔥b'.substring(3)", []],
+    ["'a🔥b'.toChars()", ['a', '🔥', 'b']],
+    ["'a🔥c'.replace('', 'x')", ['xax🔥xcx']],
+    // Indexing selects from the collection; a string is one item.
+    ["'a🔥b'[0]", ['a🔥b']],
+  ])('counts characters as scalar values: %s -> %j', (expression, expected) => {
+    expect(evaluate(expression)).toEqual(expected)
+  })
+
+  it.each([
+    ["'&#65;&#x42;&#X43;'.unescape('html')", ['ABC']],
+    ["'caf&#233; &#128512;'.unescape('html')", ['café 😀']],
+    ["'&#39;&lt;&gt;&quot;&amp;'.unescape('html')", ['\'<>"&']],
+    // One pass: a decoded ampersand does not start another reference.
+    ["'&amp;#65;&amp;lt;'.unescape('html')", ['&#65;&lt;']],
+    // References to no scalar value and unknown names stay as written.
+    ["'&#xD800;&#1114112;&nbsp;&#;'.unescape('html')", ['&#xD800;&#1114112;&nbsp;&#;']],
+  ])('decodes HTML character references: %s -> %j', (expression, expected) => {
     expect(evaluate(expression)).toEqual(expected)
   })
 
@@ -127,9 +170,17 @@ describe('conversions', () => {
 
     ['1.toLong()', [1n]],
     ["'9223372036854775807'.toLong()", [9223372036854775807n]],
+    ["'-9223372036854775808'.toLong()", [-9223372036854775808n]],
     ['true.toLong()', [1n]],
     ['1.5.toLong()', []],
     ["'12'.convertsToLong()", [true]],
+    // One past the signed 64-bit range in either direction: neither convertible nor
+    // silently truncated.
+    ["'9223372036854775808'.toLong()", []],
+    ["'9223372036854775808'.convertsToLong()", [false]],
+    ["'-9223372036854775809'.toLong()", []],
+    ["'99999999999999999999999999999'.toLong()", []],
+    ["'99999999999999999999999999999'.convertsToLong()", [false]],
 
     ['1.toDecimal()', [1]],
     ['1.5.toDecimal()', [1.5]],
@@ -265,5 +316,37 @@ describe('sort', () => {
     }
     expect(evaluate('part.sort(a, b).b', input)).toEqual([9, 1, 2])
     expect(evaluate('part.sort(a, -b).b', input)).toEqual([9, 2, 1])
+  })
+})
+
+describe('pluggable regex engine (EvaluateOptions.regex)', () => {
+  // A stub engine that recognizes exactly one pattern, to prove the hook is used.
+  const stub = {
+    compile(pattern: string, flags: string) {
+      if (pattern.includes('[')) {
+        throw new Error('unsupported')
+      }
+      return {
+        test: (subject: string) => subject === `${pattern}:${flags}`,
+        replace: (subject: string, substitution: string) => `${subject}|${substitution}|${flags}`,
+      }
+    },
+  }
+
+  it('routes matches/matchesFull/replaceMatches through the supplied engine', () => {
+    expect(evaluate("'abc:s'.matches('abc')", undefined, { regex: stub })).toEqual([true])
+    expect(evaluate("'abc'.matches('abc')", undefined, { regex: stub })).toEqual([false])
+    expect(evaluate("'^(?:abc)$:s'.matchesFull('abc')", undefined, { regex: stub })).toEqual([true])
+    expect(evaluate("'x'.replaceMatches('abc', 'y')", undefined, { regex: stub })).toEqual(['x|y|gs'])
+    expect(evaluate("'x'.replaceMatches('abc', '${n}${1}')", undefined, { regex: stub })).toEqual(['x|$<n>$01|gs'])
+  })
+
+  it('compile failures surface as the spec invalid-regex type error', () => {
+    expect(() => evaluate("'a'.matches('[')", undefined, { regex: stub })).toThrow(FhirPathTypeError)
+    expect(() => evaluate("'a'.matches('[')", undefined, { regex: stub })).toThrow('invalid regular expression')
+  })
+
+  it('without the option, the built-in RegExp still runs', () => {
+    expect(evaluate("'abc'.matches('a.c')")).toEqual([true])
   })
 })

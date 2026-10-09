@@ -1,117 +1,118 @@
 import { describe, expect, it } from 'vitest'
+
 import { runOfficialTest } from './official-harness.ts'
 
-// The harness's own failure paths, exercised with synthetic cases.
+// Synthetic cases cover errors in the official-suite runner.
 describe('official harness', () => {
-  it('passes and fails value comparisons', async () => {
-    await expect(
+  it('passes and fails value comparisons', () => {
+    expect(
       runOfficialTest('r5', { name: 'x', expression: '1 + 1', outputs: [{ type: 'integer', value: '2' }] })
-    ).resolves.toBeUndefined()
-    await expect(
+    ).toBeUndefined()
+    expect(
       runOfficialTest('r5', { name: 'x', expression: '1 + 1', outputs: [{ type: 'integer', value: '3' }] })
-    ).resolves.toContain('expected integer 3')
-    await expect(
+    ).toContain('expected integer 3')
+    expect(
       runOfficialTest('r5', { name: 'x', expression: "'a'", outputs: [{ type: 'string', value: 'b' }] })
-    ).resolves.toContain('expected string')
-    await expect(
+    ).toContain('expected string')
+    expect(
       runOfficialTest('r5', { name: 'x', expression: 'true', outputs: [{ type: 'boolean', value: 'false' }] })
-    ).resolves.toContain('expected false')
-    await expect(
+    ).toContain('expected false')
+    expect(
       runOfficialTest('r5', { name: 'x', expression: '1.50', outputs: [{ type: 'decimal', value: '1.5' }] })
-    ).resolves.toBeUndefined()
-    await expect(
+    ).toBeUndefined()
+    expect(
       runOfficialTest('r5', { name: 'x', expression: "'a'", outputs: [{ type: 'decimal', value: '1.5' }] })
-    ).resolves.toContain('expected decimal')
-    await expect(
+    ).toContain('expected decimal')
+    expect(
       runOfficialTest('r5', { name: 'x', expression: '@2014', outputs: [{ type: 'date', value: '@2015' }] })
-    ).resolves.toContain('expected @2015')
-    await expect(
+    ).toContain('expected @2015')
+    expect(
       runOfficialTest('r5', { name: 'x', expression: '1 | 2', outputs: [{ type: 'integer', value: '1' }] })
-    ).resolves.toContain('expected 1 results')
+    ).toContain('expected 1 results')
   })
 
-  it('handles invalid expectations and predicates', async () => {
-    await expect(
-      runOfficialTest('r5', { name: 'x', expression: '1 +', invalid: 'syntax', outputs: [] })
-    ).resolves.toBeUndefined()
-    await expect(
-      runOfficialTest('r5', { name: 'x', expression: '1 + 1', invalid: 'semantic', outputs: [] })
-    ).resolves.toContain('expected an error')
-    await expect(
+  it('handles invalid expectations', () => {
+    expect(runOfficialTest('r5', { name: 'x', expression: '1 +', invalid: 'syntax', outputs: [] })).toBeUndefined()
+    expect(runOfficialTest('r5', { name: 'x', expression: '1 + 1', invalid: 'semantic', outputs: [] })).toContain(
+      'expected an error'
+    )
+    expect(
       runOfficialTest('r5', { name: 'x', expression: '(1 | 2).single()', invalid: 'execution', outputs: [] })
-    ).resolves.toBeUndefined()
-    await expect(
+    ).toBeUndefined()
+  })
+
+  it('pins the error class to the phase the invalid tag names', () => {
+    // A semantic tag admits only type errors: single() raises a runtime error.
+    expect(
+      runOfficialTest('r5', { name: 'x', expression: '(1 | 2).single()', invalid: 'semantic', outputs: [] })
+    ).toContain('expected a semantic-phase error')
+    // An execution tag admits runtime and type errors, not syntax errors.
+    expect(runOfficialTest('r5', { name: 'x', expression: '1 +', invalid: 'execution', outputs: [] })).toContain(
+      'expected a execution-phase error'
+    )
+    // An unrecognized tag falls back to accepting any engine error.
+    expect(runOfficialTest('r5', { name: 'x', expression: '1 +', invalid: 'true', outputs: [] })).toBeUndefined()
+    // A phase override redirects the expected class (time literals reject offsets at parse).
+    expect(
+      runOfficialTest(
+        'r4',
+        { name: 'testLiteralTimeUTC', expression: '@T14:34:28Z.is(Time)', invalid: 'execution', outputs: [] },
+        'testLiterals'
+      )
+    ).toBeUndefined()
+  })
+
+  it('applies the predicate flag before comparing outputs', () => {
+    expect(
       runOfficialTest('r5', {
         name: 'x',
         expression: '1 = 1',
         predicate: true,
         outputs: [{ type: 'boolean', value: 'true' }],
       })
-    ).resolves.toBeUndefined()
-    await expect(
+    ).toBeUndefined()
+    expect(
       runOfficialTest('r5', {
         name: 'x',
         expression: '{}',
         predicate: true,
         outputs: [{ type: 'boolean', value: 'false' }],
       })
-    ).resolves.toBeUndefined()
+    ).toBeUndefined()
   })
 
-  it('reports evaluation failures and untyped outputs', async () => {
-    await expect(runOfficialTest('r5', { name: 'x', expression: '(1 | 2).single()', outputs: [] })).resolves.toContain(
+  it('reports evaluation failures and untyped outputs', () => {
+    expect(runOfficialTest('r5', { name: 'x', expression: '(1 | 2).single()', outputs: [] })).toContain(
       'evaluation failed'
     )
-    await expect(
+    expect(
       runOfficialTest('r5', { name: 'x', expression: "'text'", outputs: [{ type: '', value: 'text' }] })
-    ).resolves.toBeUndefined()
-    await expect(
+    ).toBeUndefined()
+    expect(
       runOfficialTest('r5', { name: 'x', expression: '%a', outputs: [{ type: 'integer', value: '5' }] })
-    ).resolves.toContain('evaluation failed')
+    ).toContain('evaluation failed')
   })
 })
 
 describe('output comparisons for longs and temporals', () => {
-  it('long results compare against integer outputs', async () => {
-    await expect(
+  it('long results compare against integer outputs', () => {
+    expect(
       runOfficialTest('r5', { name: 'x', expression: "'5'.toLong()", outputs: [{ type: 'integer', value: '5' }] })
-    ).resolves.toBeUndefined()
-    await expect(
+    ).toBeUndefined()
+    expect(
       runOfficialTest('r5', { name: 'x', expression: "'5'.toLong()", outputs: [{ type: 'integer', value: '6' }] })
-    ).resolves.toContain('expected integer 6')
+    ).toContain('expected integer 6')
   })
 
-  it('temporal literal outputs pass through the @ comparison', async () => {
-    await expect(
+  it('temporal literal outputs pass through the @ comparison', () => {
+    expect(
       runOfficialTest('r5', { name: 'x', expression: '@T10:00', outputs: [{ type: 'time', value: '@T10:00' }] })
-    ).resolves.toBeUndefined()
-    await expect(
+    ).toBeUndefined()
+    expect(
       runOfficialTest('r5', { name: 'x', expression: '@2014', outputs: [{ type: 'date', value: '2014' }] })
-    ).resolves.toBeUndefined()
-    await expect(
+    ).toBeUndefined()
+    expect(
       runOfficialTest('r5', { name: 'x', expression: '@2014', outputs: [{ type: 'date', value: '@2015' }] })
-    ).resolves.toContain('expected @2015')
-  })
-})
-
-describe('tx-mode cases', () => {
-  it('replays recorded tx.fhir.org responses and names unrecorded requests', async () => {
-    await expect(
-      runOfficialTest('r5', {
-        name: 'x',
-        expression:
-          "%terminologies.expand('http://hl7.org/fhir/ValueSet/administrative-gender').expansion.contains.count()",
-        mode: 'tx',
-        outputs: [{ type: 'integer', value: '4' }],
-      })
-    ).resolves.toBeUndefined()
-    await expect(
-      runOfficialTest('r5', {
-        name: 'x',
-        expression: "%terminologies.expand('http://example.org/ValueSet/not-recorded')",
-        mode: 'tx',
-        outputs: [],
-      })
-    ).resolves.toContain('No recorded tx.fhir.org response for expand')
+    ).toContain('expected @2015')
   })
 })

@@ -6,6 +6,8 @@ const isIdentifierStart = (ch: string): boolean => (ch >= 'A' && ch <= 'Z') || (
 const isIdentifierPart = (ch: string): boolean => isIdentifierStart(ch) || isDigit(ch)
 const isWhitespace = (ch: string): boolean => ch === ' ' || ch === '\t' || ch === '\r' || ch === '\n' || ch === '\f'
 const isHexDigit = (ch: string): boolean => isDigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')
+const isHighSurrogate = (unit: number): boolean => unit >= 0xd800 && unit <= 0xdbff
+const isLowSurrogate = (unit: number): boolean => unit >= 0xdc00 && unit <= 0xdfff
 
 const ESCAPES: Readonly<Record<string, string>> = {
   "'": "'",
@@ -162,17 +164,33 @@ class Lexer {
       throw new FhirPathSyntaxError('Unterminated escape sequence', this.spanFrom(start))
     }
     if (ch === 'u') {
-      this.advance()
-      let code = ''
-      for (let i = 0; i < 4; i++) {
-        const hex = this.source[this.pos]
-        if (hex === undefined || !isHexDigit(hex)) {
-          throw new FhirPathSyntaxError('Unicode escape must be \\u followed by 4 hex digits', this.spanFrom(start))
-        }
-        code += hex
-        this.advance()
+      const unit = this.readUnicodeEscapeUnit(start)
+      if (isLowSurrogate(unit)) {
+        throw new FhirPathSyntaxError(
+          'Unicode escape is a low surrogate without a high surrogate',
+          this.spanFrom(start)
+        )
       }
-      return String.fromCharCode(Number.parseInt(code, 16))
+      if (!isHighSurrogate(unit)) {
+        return String.fromCharCode(unit)
+      }
+      // A surrogate escape must pair with the next one to form a character.
+      const pairStart = this.pos
+      if (this.source[pairStart] !== '\\' || this.source[pairStart + 1] !== 'u') {
+        throw new FhirPathSyntaxError(
+          'Unicode escape is a high surrogate without a low surrogate',
+          this.spanFrom(start)
+        )
+      }
+      this.advance()
+      const low = this.readUnicodeEscapeUnit(pairStart)
+      if (!isLowSurrogate(low)) {
+        throw new FhirPathSyntaxError(
+          'Unicode escape is a high surrogate without a low surrogate',
+          this.spanFrom(start)
+        )
+      }
+      return String.fromCharCode(unit, low)
     }
     const resolved = ESCAPES[ch]
     if (resolved === undefined) {
@@ -180,6 +198,21 @@ class Lexer {
     }
     this.advance()
     return resolved
+  }
+
+  /** Reads `uXXXX` at the current position and returns the UTF-16 code unit. */
+  private readUnicodeEscapeUnit(start: number): number {
+    this.advance()
+    let code = ''
+    for (let i = 0; i < 4; i++) {
+      const hex = this.source[this.pos]
+      if (hex === undefined || !isHexDigit(hex)) {
+        throw new FhirPathSyntaxError('Unicode escape must be \\u followed by 4 hex digits', this.spanFrom(start))
+      }
+      code += hex
+      this.advance()
+    }
+    return Number.parseInt(code, 16)
   }
 
   private readDateTimeLiteral(start: number): Token {

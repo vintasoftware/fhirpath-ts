@@ -54,8 +54,7 @@ function numericArithmetic(operator: ArithmeticOperator, a: TypedValue, b: Typed
   if (result === undefined) {
     return []
   }
-  const wrapped = wrapNumeric(result, kind)
-  return wrapped === undefined ? [] : [wrapped]
+  return [wrapNumeric(result, kind)]
 }
 
 function temporalArithmetic(operator: ArithmeticOperator, a: TypedValue, b: TypedValue): TypedValue[] {
@@ -210,8 +209,7 @@ function unaryOperator(sign: 1 | -1) {
       if (sign === 1) {
         return [item]
       }
-      const wrapped = wrapNumeric(numeric.value.negate(), numeric.kind)
-      return wrapped === undefined ? [] : [wrapped]
+      return [wrapNumeric(numeric.value.negate(), numeric.kind)]
     }
     if (item.type === SYSTEM_QUANTITY) {
       const quantity = item.value as QuantityValue

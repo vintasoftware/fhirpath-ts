@@ -3,15 +3,25 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Client-only playground for fhirpath-ts, deployable to Cloudflare Pages.",
+  "description": "Client-only playground for fhirpath-ts, deployable to GitHub Pages or Cloudflare Pages.",
   "scripts": {
+    "generate:dts": "node scripts/generate-dts.mjs",
+    "predev": "node scripts/generate-dts.mjs",
     "dev": "vite",
+    "pretest": "node scripts/generate-dts.mjs",
+    "test": "node --test scripts/playground-samples.test.mjs",
+    "typecheck": "tsc --noEmit -p .",
+    "prebuild": "node scripts/generate-dts.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "wrangler pages deploy dist --project-name fhirpath-ts-demo"
   },
   "devDependencies": {
+    "dts-bundle-generator": "^9.5.1",
     "typescript": "^5.9.3",
     "vite": "^8.0.3"
+  },
+  "dependencies": {
+    "monaco-editor": "^0.54.0"
   }
 }
