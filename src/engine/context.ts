@@ -287,9 +287,14 @@ export function forkVariables(context: EvaluationContext): EvaluationContext {
   return { ...context, variables: new Map(context.variables) }
 }
 
+/** The value bound to `%name`, or undefined when nothing binds it. */
+export function lookupEnvironmentVariable(context: EvaluationContext, name: string): TypedValue[] | undefined {
+  return context.variables.get(name) ?? context.env.get(name)
+}
+
 /** Resolve `%name`; referencing an undefined environment variable is an error (spec §9). */
 export function resolveEnvironmentVariable(context: EvaluationContext, name: string): TypedValue[] {
-  const value = context.variables.get(name) ?? context.env.get(name)
+  const value = lookupEnvironmentVariable(context, name)
   if (value !== undefined) {
     return value
   }

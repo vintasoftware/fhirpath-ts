@@ -15,7 +15,9 @@ export function isFhirPrimitiveType(typeName: string): boolean {
  * Undefined when the model does not know the element.
  */
 export function readModelProperty(model: ModelProvider, item: TypedValue, name: string): TypedValue[] | undefined {
-  return readProperty(model, item, name)?.map(child => childValue(child, item, name))
+  const children = readProperty(model, item, name)
+  children?.forEach(child => childValue(child, item, name))
+  return children
 }
 
 function readProperty(model: ModelProvider, item: TypedValue, name: string): TypedValue[] | undefined {

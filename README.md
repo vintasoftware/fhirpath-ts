@@ -253,7 +253,9 @@ results reused through `vars`. Raw results from `evaluate()` carry no such conte
 ValueSet and CodeSystem weight lookups are deferred, including contained
 terminology resources. When a score needs one of these lookups or a missing
 questionnaire item, `weight()` throws so a partial score is not reported as complete.
-See the [SDC FHIRPath supplements](https://build.fhir.org/ig/HL7/sdc/en/expressions.html#fhirpath-supplements).
+It also throws without a model, which it needs to recognize answers and Codings.
+A Coding without a `system` names no CodeSystem, so an unweighted one gives
+empty. See the [SDC FHIRPath supplements](https://build.fhir.org/ig/HL7/sdc/en/expressions.html#fhirpath-supplements).
 
 ### Walk nested structures
 

@@ -113,7 +113,7 @@ describe('resolve() element scope', () => {
       'one',
       'two',
     ])
-    expect(Object.keys(references[0]!)).toEqual(['type', 'value'])
+    expect(references[0]).toStrictEqual({ type: 'FHIR.Reference', value: sharedReference })
   })
 
   it('uses the originating environment resource instead of the evaluation root', () => {

@@ -156,16 +156,28 @@ describe('SDC weight()', () => {
     expect(evaluate('item.answer.item.answer.value.weight()', qr, options)).toEqual([2.5])
   })
 
-  it('returns empty for empty, ineligible, unanswered and unweighted non-coded values', () => {
+  it('returns empty for empty, ineligible, unanswered and unweighted values without a CodeSystem', () => {
     expect(evaluate('{}.weight()', response, options)).toEqual([])
     expect(evaluate('1.weight()', response, options)).toEqual([])
     expect(evaluate('weight()', {}, options)).toEqual([])
-    const q = { resourceType: 'Questionnaire', item: [{ linkId: 'q', answerOption: [{ valueString: 'a' }] }] }
-    const qr = { resourceType: 'QuestionnaireResponse', item: [{ linkId: 'q', answer: [{}, { valueString: 'a' }] }] }
+    const q = {
+      resourceType: 'Questionnaire',
+      item: [{ linkId: 'q', answerOption: [{ valueString: 'a' }, { valueCoding: { code: 'b' } }] }],
+    }
+    const qr = {
+      resourceType: 'QuestionnaireResponse',
+      item: [{ linkId: 'q', answer: [{}, { valueString: 'a' }, { valueCoding: { code: 'b' } }] }],
+    }
     expect(evaluate('item.answer.weight()', qr, { model: r4Model, env: { questionnaire: q } })).toEqual([])
+    expect(
+      evaluate('code.coding.weight()', { resourceType: 'Observation', code: { coding: [{ code: 'a' }] } }, options)
+    ).toEqual([])
   })
 
-  it('reports unavailable questionnaires, items, ValueSets and CodeSystems', () => {
+  it('reports a missing model, questionnaires, items, ValueSets and CodeSystems', () => {
+    expect(() => evaluate('item.item.answer.valueCoding.weight()', response, { env: { questionnaire } })).toThrow(
+      'needs a model'
+    )
     expect(() => evaluate('item.item.answer.weight()', response, { model: r4Model })).toThrow('%questionnaire')
     expect(() =>
       evaluate('item.item.answer.weight()', response, { model: r4Model, env: { questionnaire: response } })
