@@ -5,6 +5,11 @@ import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { r4Model } from '../r4/index.ts'
 
 describe('duration() and difference()', () => {
+  it('gives 0, not -0, for less than one period backwards', () => {
+    const [result] = evaluate("@2020-02-15.duration(@2020-02-01, 'month')")
+    expect(Object.is(result, 0)).toBe(true)
+  })
+
   it.each([
     // Spec examples.
     ["@2025-01-02.duration(@2025-01-07, 'week')", [0]],

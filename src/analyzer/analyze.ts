@@ -1,17 +1,18 @@
 import '../functions/install.ts'
 
 import { bareEnvironmentName, BUILTIN_ENV_VARIABLE_NAMES, normalizeEnvKeys } from '../engine/context.ts'
-import { acceptingElementType, resolveInstanceType } from '../engine/instance-selector.ts'
+import { acceptingElementType, resolveInstanceType, selectorElement } from '../engine/instance-selector.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { compileDateFormat } from '../functions/date-format.ts'
-import { intervalPrecisionMessage, intervalPrecisions } from '../functions/date-intervals.ts'
+import { intervalKindsMessage, intervalPrecisionMessage, intervalPrecisions } from '../functions/date-intervals.ts'
 import { describeArity, functions } from '../functions/registry.ts'
-import { invalidRegexFlagMessage } from '../functions/string.ts'
+import { invalidRegexFlagMessage, unsupportedConversionMessage } from '../functions/string.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
 import type { TemporalKind } from '../values/datetime.ts'
+import { integerLiteral } from '../values/numeric.ts'
 import {
   canonicalFocusType,
   commonValueKind,
@@ -386,6 +387,8 @@ class Analyzer {
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
   private readonly declaredVariables: ReadonlyMap<string, AnalyzerVariableState>
   private readonly activeExpressionFunctions = new Set<string>()
+  /** Inside repeatedItems()'s exploratory walks, which read an unknown element as empty, as the runtime does. */
+  private exploringRepeat = 0
   private readonly reportUnchecked: boolean
 
   constructor(options: AnalyzeOptions | RuntimeAnalyzeOptions | undefined, root: AnalyzerRoot | undefined) {
@@ -432,7 +435,9 @@ class Analyzer {
       case 'string':
         return singleState(['System.String'])
       case 'number':
-        return singleState([node.isLong ? 'System.Long' : node.isDecimal ? 'System.Decimal' : 'System.Integer'])
+        return singleState([
+          node.isLong ? 'System.Long' : node.isDecimal ? 'System.Decimal' : integerLiteral(node.text).type,
+        ])
       case 'date':
         return singleState(['System.Date'])
       case 'dateTime':
@@ -652,6 +657,9 @@ class Analyzer {
           node.name
         )
       }
+      if (this.exploringRepeat > 0) {
+        return { types: [], single: true, ordered: true }
+      }
       // A resource type name that is not the input's still names the type the
       // rest of the path reads, as type-level inference reads it. The runtime
       // result is empty either way.
@@ -774,6 +782,7 @@ class Analyzer {
     this.checkRegexPattern(node)
     this.checkIntervalPrecision(node, input, argStates)
     this.checkDateFormat(node, input)
+    this.checkStringConversion(node)
     // ofType(X) filters and as(X) casts: both narrow to the named type,
     // intersected with the known candidates.
     if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
@@ -1016,7 +1025,11 @@ class Analyzer {
         const body =
           spec === 'sort-key' && argument.kind === 'unary' && argument.operator === '-' ? argument.operand : argument
         // $this is one item of the input — same candidates and reference targets.
-        const itemState = withSingle(input, true)
+        // repeat() and repeatAll() also run the projection on its own results.
+        const itemState = withSingle(
+          REPEATING_FUNCTIONS.has(node.name) ? this.repeatedItems(body, input, scope) : input,
+          true
+        )
         this.frames.push(itemState)
         const state = this.walk(body, itemState, forkScope(scope))
         this.frames.pop()
@@ -1057,6 +1070,38 @@ class Analyzer {
   }
 
   /**
+   * The items a repeat() or repeatAll() projection runs on: the input, then each
+   * round's results. The projection is walked against the types seen so far until
+   * no new type appears, discarding those walks' diagnostics, so the caller's walk
+   * accepts an element any round's items have.
+   */
+  private repeatedItems(body: AstNode, input: StaticState, scope: VariableScope): StaticState {
+    let items = input
+    for (let round = 0; round < MAX_REPEAT_ROUNDS && items.types !== undefined; round++) {
+      const known = items.types
+      const diagnosticCount = this.diagnostics.length
+      const itemState = withSingle(items, true)
+      this.frames.push(itemState)
+      this.exploringRepeat++
+      let produced: StaticState
+      try {
+        produced = this.walk(body, itemState, forkScope(scope))
+      } finally {
+        this.exploringRepeat--
+        this.frames.pop()
+        this.diagnostics.length = diagnosticCount
+      }
+      const next = unionStates([items, produced])
+      if (next.types !== undefined && next.types.every(type => known.includes(type))) {
+        return items
+      }
+      // Types the projection cannot name (children()) leave $this unknown.
+      items = next
+    }
+    return items
+  }
+
+  /**
    * The matches() family compiles its pattern with the backtracking JS RegExp,
    * which cannot be timed out — flag exponential-shaped literal patterns. A
    * literal flags argument must use only the flags the runtime accepts.
@@ -1091,8 +1136,7 @@ class Analyzer {
     input: StaticState,
     argStates: (StaticState | undefined)[]
   ): void {
-    const precision = node.args[1]
-    if ((node.name !== 'duration' && node.name !== 'difference') || precision?.kind !== 'string') {
+    if (node.name !== 'duration' && node.name !== 'difference') {
       return
     }
     const startKind = temporalKindOf(input.types)
@@ -1101,8 +1145,22 @@ class Analyzer {
       startKind !== undefined && endKind !== undefined
         ? intervalPrecisions(startKind, endKind)
         : intervalPrecisions('dateTime', 'dateTime')
-    if (allowed !== undefined && !allowed.precisions.includes(precision.value)) {
+    if (allowed === undefined) {
+      this.report('operand-type', intervalKindsMessage(node.name), node.args[0]?.span ?? node.span)
+      return
+    }
+    const precision = node.args[1]
+    if (precision?.kind === 'string' && !allowed.precisions.includes(precision.value)) {
       this.report('invalid-argument', intervalPrecisionMessage(node.name, precision.value, allowed), precision.span)
+    }
+  }
+
+  /** A literal encode()/decode() format or escape()/unescape() target must be one the function supports. */
+  private checkStringConversion(node: AstNode & { kind: 'call' }): void {
+    const choice = node.args[0]
+    const message = choice?.kind === 'string' ? unsupportedConversionMessage(node.name, choice.value) : undefined
+    if (choice !== undefined && message !== undefined) {
+      this.report('invalid-argument', message, choice.span)
     }
   }
 
@@ -1360,7 +1418,7 @@ class Analyzer {
       if (type === undefined || this.model === undefined) {
         continue
       }
-      const info = this.model.getElement(type, element.name)
+      const info = selectorElement(this.model, type, element.name)
       if (info === undefined) {
         this.report(
           'unknown-element',
@@ -1484,6 +1542,15 @@ function temporalKindOf(types: readonly string[] | undefined): TemporalKind | un
   const [kind] = kinds
   return kinds.size === 1 ? kind : undefined
 }
+
+/** Functions that run their projection on its own results until it produces nothing new. */
+const REPEATING_FUNCTIONS: ReadonlySet<string> = new Set(['repeat', 'repeatAll'])
+
+/**
+ * The most rounds repeatedItems() widens the projection's input. Each round adds a
+ * type or stops, and FHIR's nested elements (item.item, answer.item) settle in two.
+ */
+const MAX_REPEAT_ROUNDS = 8
 
 /** Functions whose first argument is a regular expression pattern, with the position of their flags argument. */
 const REGEX_FLAGS_ARGUMENT: ReadonlyMap<string, number> = new Map([

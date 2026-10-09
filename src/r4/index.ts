@@ -36,7 +36,8 @@ function findElement(typeName: string, element: string): GeneratedElement | unde
     if (!definition) {
       return undefined
     }
-    const found: GeneratedElement | undefined = definition.e[element]
+    // Own keys only, so `Patient.constructor` is an unknown element, not Object's.
+    const found: GeneratedElement | undefined = Object.hasOwn(definition.e, element) ? definition.e[element] : undefined
     if (found) {
       return found
     }

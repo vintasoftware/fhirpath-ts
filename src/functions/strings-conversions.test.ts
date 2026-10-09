@@ -109,6 +109,8 @@ describe('string functions', () => {
   it.each([
     ["'&#65;&#x42;&#X43;'.unescape('html')", ['ABC']],
     ["'caf&#233; &#128512;'.unescape('html')", ['café 😀']],
+    // Only the named references escape('html') writes; not Object.prototype's names.
+    ["'&constructor;'.unescape('html')", ['&constructor;']],
     ["'&#39;&lt;&gt;&quot;&amp;'.unescape('html')", ['\'<>"&']],
     // One pass: a decoded ampersand does not start another reference.
     ["'&amp;#65;&amp;lt;'.unescape('html')", ['&#65;&lt;']],

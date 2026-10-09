@@ -104,6 +104,9 @@ describe('instance selectors: specification examples', () => {
     expect(r4.evaluate("code { value: 'final' } is code", patient)).toEqual([true])
     expect(r4.evaluate("code { value: 'final' } = 'final'", patient)).toEqual([true])
     expect(r4.evaluate('date { value: @2020-01-02 } < @2021-01-01', patient)).toEqual([true])
+    // The R4 model declares these two values as System.String; they read as integers.
+    expect(r4.evaluate('unsignedInt { value: 0 }', patient)).toEqual([0])
+    expect(r4.evaluate('positiveInt { value: 5 } is positiveInt', patient)).toEqual([true])
   })
 
   it('fills a repeating element from several items', () => {
@@ -261,6 +264,14 @@ describe('instance selectors: errors', () => {
       FhirPathTypeError,
     ],
     ["Coding { cod: 'a' }", "Element 'cod' is not defined on Coding", FhirPathTypeError],
+    // Names on Object.prototype are not elements either.
+    ["Coding { constructor: 'a' }", "Element 'constructor' is not defined on Coding", FhirPathTypeError],
+    ["Coding { __proto__: 'a' }", "Element '__proto__' is not defined on Coding", FhirPathTypeError],
+    [
+      "positiveInt { value: 'a' }",
+      "Element 'value' of positiveInt expects System.Integer, found System.String",
+      FhirPathTypeError,
+    ],
     ['Coding { code: 1 }', "Element 'code' of Coding expects code, found System.Integer", FhirPathTypeError],
     [
       'Coding { code: Patient.name.given }',

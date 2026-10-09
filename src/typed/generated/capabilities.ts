@@ -1588,9 +1588,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.decode': {
-    expression: "'abc'.decode('x')",
+    expression: "'616263'.decode('hex')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.decode('x')).count()",
+    composition: "('616263'.decode('hex')).count()",
     analyzer: {
       types: ['System.String'],
       single: true,
@@ -1658,9 +1658,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.encode': {
-    expression: "'abc'.encode('x')",
+    expression: "'616263'.encode('hex')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.encode('x')).count()",
+    composition: "('616263'.encode('hex')).count()",
     analyzer: {
       types: ['System.String'],
       single: true,
@@ -1678,9 +1678,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.escape': {
-    expression: "'abc'.escape('x')",
+    expression: "'abc'.escape('html')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.escape('x')).count()",
+    composition: "('abc'.escape('html')).count()",
     analyzer: {
       types: ['System.String'],
       single: true,
@@ -2438,9 +2438,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.unescape': {
-    expression: "'abc'.unescape('x')",
+    expression: "'abc'.unescape('html')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.unescape('x')).count()",
+    composition: "('abc'.unescape('html')).count()",
     analyzer: {
       types: ['System.String'],
       single: true,

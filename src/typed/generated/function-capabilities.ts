@@ -423,7 +423,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.decode': {
     source: {
-      expression: "'abc'.decode('x')",
+      expression: "'616263'.decode('hex')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'string[]',
@@ -434,7 +434,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.decode('x')).count()",
+    composition: "('616263'.decode('hex')).count()",
   },
   'builtin.defineVariable': {
     source: {
@@ -528,7 +528,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.encode': {
     source: {
-      expression: "'abc'.encode('x')",
+      expression: "'616263'.encode('hex')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'string[]',
@@ -539,7 +539,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.encode('x')).count()",
+    composition: "('616263'.encode('hex')).count()",
   },
   'builtin.endsWith': {
     source: {
@@ -558,7 +558,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.escape': {
     source: {
-      expression: "'abc'.escape('x')",
+      expression: "'abc'.escape('html')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'string[]',
@@ -569,7 +569,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.escape('x')).count()",
+    composition: "('abc'.escape('html')).count()",
   },
   'builtin.exclude': {
     source: {
@@ -1698,7 +1698,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.unescape': {
     source: {
-      expression: "'abc'.unescape('x')",
+      expression: "'abc'.unescape('html')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'string[]',
@@ -1709,7 +1709,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: "('abc'.unescape('x')).count()",
+    composition: "('abc'.unescape('html')).count()",
   },
   'builtin.union': {
     source: {

@@ -105,12 +105,17 @@ export function intervalPrecisions(
 function checkedPrecision(name: string, start: Temporal, end: Temporal, precision: string): IntervalPrecision {
   const allowed = intervalPrecisions(start.kind, end.kind)
   if (allowed === undefined) {
-    throw new FhirPathTypeError(`${name}() cannot measure between a Time and a Date or DateTime`)
+    throw new FhirPathTypeError(intervalKindsMessage(name))
   }
   if (!allowed.precisions.includes(precision)) {
     throw new FhirPathRuntimeError(intervalPrecisionMessage(name, precision, allowed))
   }
   return precision as IntervalPrecision
+}
+
+/** Time values measure only against Time values. */
+export function intervalKindsMessage(name: string): string {
+  return `${name}() cannot measure between a Time and a Date or DateTime`
 }
 
 export function intervalPrecisionMessage(
@@ -174,7 +179,8 @@ function dayNumber(value: IntervalPoint): number {
 
 intervalFunction('duration', (start, end, precision) => {
   if (end.instant < start.instant) {
-    return -wholePeriods(end, start, precision)
+    // `0 -` rather than unary minus, which turns no whole period into -0.
+    return 0 - wholePeriods(end, start, precision)
   }
   return wholePeriods(start, end, precision)
 })

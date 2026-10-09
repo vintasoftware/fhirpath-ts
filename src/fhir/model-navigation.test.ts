@@ -28,6 +28,9 @@ describe('model navigation branches', () => {
     // Typos are the static analyzer's job (spec §11); runtime navigation is lenient.
     // See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
     expect(evaluate('unknownKey', resource, options)).toEqual([])
+    // Names on Object.prototype are not elements of any type.
+    expect(evaluate('constructor', resource, options)).toEqual([])
+    expect(evaluate('Patient.toString', resource, options)).toEqual([])
     expect(evaluate('resourceType', resource, options)).toEqual(['Patient'])
     expect(evaluate('Patient.name.active', { resourceType: 'Patient', name: [{ given: ['Ada'] }] }, options)).toEqual(
       []

@@ -36,6 +36,9 @@ function stringArgument(
 }
 
 const str = (value: string): TypedValue[] => [{ type: SYSTEM_STRING, value }]
+
+/** Conversions of a string by format or target name. */
+type StringConversion = Readonly<Record<string, (value: string) => string>>
 const int = (value: number): TypedValue[] => [{ type: SYSTEM_INTEGER, value }]
 
 /** Register a function over a singleton String input; empty input propagates. */
@@ -339,42 +342,22 @@ function decodeHex(name: string, value: string): string {
   return new TextDecoder().decode(bytes)
 }
 
-stringFunction('encode', { min: 1, max: 1 }, (value, [format]) => {
-  switch (format) {
-    case undefined:
-      return []
-    case 'base64':
-      return str(encodeBase64(value))
-    case 'urlbase64':
-      return str(encodeBase64(value).replace(/\+/g, '-').replace(/\//g, '_'))
-    case 'hex':
-      return str(encodeHex(value))
-    case 'ascii':
-      // Lossy: each character (Unicode scalar value) above code 127 becomes one '?'.
-      return str(
-        characters(value)
-          .map(ch => ((ch.codePointAt(0) as number) > 127 ? '?' : ch))
-          .join('')
-      )
-    default:
-      throw new FhirPathTypeError(`encode() does not support the format '${format}'`)
-  }
-})
+const ENCODINGS: StringConversion = {
+  base64: value => encodeBase64(value),
+  urlbase64: value => encodeBase64(value).replace(/\+/g, '-').replace(/\//g, '_'),
+  hex: value => encodeHex(value),
+  // Lossy: each character (Unicode scalar value) above code 127 becomes one '?'.
+  ascii: value =>
+    characters(value)
+      .map(ch => ((ch.codePointAt(0) as number) > 127 ? '?' : ch))
+      .join(''),
+}
 
-stringFunction('decode', { min: 1, max: 1 }, (value, [format]) => {
-  switch (format) {
-    case undefined:
-      return []
-    case 'base64':
-      return str(decodeBase64('decode', value))
-    case 'urlbase64':
-      return str(decodeBase64('decode', value.replace(/-/g, '+').replace(/_/g, '/')))
-    case 'hex':
-      return str(decodeHex('decode', value))
-    default:
-      throw new FhirPathTypeError(`decode() does not support the format '${format}'`)
-  }
-})
+const DECODINGS: StringConversion = {
+  base64: value => decodeBase64('decode', value),
+  urlbase64: value => decodeBase64('decode', value.replace(/-/g, '+').replace(/_/g, '/')),
+  hex: value => decodeHex('decode', value),
+}
 
 const HTML_ESCAPES: Readonly<Record<string, string>> = {
   '&': '&amp;',
@@ -473,7 +456,8 @@ function unescapeHtml(value: string): string {
     /&(?:([a-z]+)|#([0-9]+)|#[xX]([0-9a-fA-F]+));/g,
     (reference, name?: string, decimal?: string, hex?: string) => {
       if (name !== undefined) {
-        return HTML_NAMED_REFERENCES[name] ?? reference
+        // Own keys only: `&constructor;` must not reach Object.prototype.
+        return Object.hasOwn(HTML_NAMED_REFERENCES, name) ? (HTML_NAMED_REFERENCES[name] as string) : reference
       }
       const code = decimal !== undefined ? Number.parseInt(decimal, 10) : Number.parseInt(hex as string, 16)
       const isScalarValue = code <= 0x10ffff && (code < 0xd800 || code > 0xdfff)
@@ -482,28 +466,44 @@ function unescapeHtml(value: string): string {
   )
 }
 
-stringFunction('escape', { min: 1, max: 1 }, (value, [target]) => {
-  switch (target) {
-    case undefined:
-      return []
-    case 'html':
-      return str(value.replace(/[&<>"']/g, ch => HTML_ESCAPES[ch] as string))
-    case 'json':
-      return str(escapeJson(value))
-    default:
-      throw new FhirPathTypeError(`escape() does not support the target '${target}'`)
-  }
-})
+const ESCAPE_TARGETS: StringConversion = {
+  html: value => value.replace(/[&<>"']/g, ch => HTML_ESCAPES[ch] as string),
+  json: value => escapeJson(value),
+}
 
-stringFunction('unescape', { min: 1, max: 1 }, (value, [target]) => {
-  switch (target) {
-    case undefined:
+const UNESCAPE_TARGETS: StringConversion = {
+  html: value => unescapeHtml(value),
+  json: value => unescapeJson(value),
+}
+
+/** encode() and decode() take a format, and escape() and unescape() a target, from these tables. */
+const STRING_CONVERSIONS: ReadonlyMap<string, { argument: string; table: StringConversion }> = new Map([
+  ['encode', { argument: 'format', table: ENCODINGS }],
+  ['decode', { argument: 'format', table: DECODINGS }],
+  ['escape', { argument: 'target', table: ESCAPE_TARGETS }],
+  ['unescape', { argument: 'target', table: UNESCAPE_TARGETS }],
+])
+
+/**
+ * The error for a format or target `name` does not support, or undefined. The
+ * analyzer reports a literal with the same message the runtime throws.
+ */
+export function unsupportedConversionMessage(name: string, choice: string): string | undefined {
+  const conversion = STRING_CONVERSIONS.get(name)
+  return conversion === undefined || Object.hasOwn(conversion.table, choice)
+    ? undefined
+    : `${name}() does not support the ${conversion.argument} '${choice}'`
+}
+
+for (const [name, { table }] of STRING_CONVERSIONS) {
+  stringFunction(name, { min: 1, max: 1 }, (value, [choice]) => {
+    if (choice === undefined) {
       return []
-    case 'html':
-      return str(unescapeHtml(value))
-    case 'json':
-      return str(unescapeJson(value))
-    default:
-      throw new FhirPathTypeError(`unescape() does not support the target '${target}'`)
-  }
-})
+    }
+    const message = unsupportedConversionMessage(name, choice)
+    if (message !== undefined) {
+      throw new FhirPathTypeError(message)
+    }
+    return str((table[choice] as (value: string) => string)(value))
+  })
+}

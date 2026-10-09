@@ -181,6 +181,20 @@ describe('FHIRPath 3.0.0 literal arguments', () => {
     expect(codes("Patient.children().duration(today(), 'hour')")).toEqual([])
     expect(codes("Patient.children().duration(today(), 'fortnight')")).toEqual(['invalid-argument'])
     expect(codes("Patient.birthDate.duration(Patient.active, 'year')")).toEqual(['operand-type'])
+    expect(messages("@T10:00.duration(@2025-01-01, 'hour')", {})).toEqual([
+      'duration() cannot measure between a Time and a Date or DateTime',
+    ])
+    // Without a literal precision the operand kinds are still checked.
+    expect(
+      codes('Patient.birthDate.difference(@T10:00, %precision)', { ...options, variables: { precision: {} } })
+    ).toEqual(['operand-type'])
+  })
+
+  it('checks literal encode()/decode() formats and escape()/unescape() targets', () => {
+    expect(codes("'a'.encode('ascii')", {})).toEqual([])
+    expect(messages("'a'.decode('ascii')", {})).toEqual(["decode() does not support the format 'ascii'"])
+    expect(messages("'a'.unescape('xml')", {})).toEqual(["unescape() does not support the target 'xml'"])
+    expect(codes("'a'.encode('constructor')", {})).toEqual(['invalid-argument'])
   })
 
   it('checks literal date formats when the input can be a String', () => {
@@ -191,6 +205,32 @@ describe('FHIRPath 3.0.0 literal arguments', () => {
     ])
     // A Date input ignores the format.
     expect(codes("Patient.birthDate.toDate('MM-dd')")).toEqual([])
+  })
+})
+
+describe('repeat() and repeatAll() projections', () => {
+  const response = { model: r4Model, inputType: 'QuestionnaireResponse' }
+
+  it.each(['repeat', 'repeatAll'])('%s() reads the projection against every round of items', name => {
+    // Later rounds run on items, which have answer; the response itself does not.
+    expect(codes(`${name}(item | answer.item).linkId`, response)).toEqual([])
+    expect(codes(`${name}(item | bogus).linkId`, response)).toEqual(['unknown-element'])
+    expect(codes(`${name}(answer)`, response)).toEqual(['unknown-element'])
+  })
+})
+
+describe('literal types', () => {
+  it('widens an integer literal past 32 bits as the runtime does', () => {
+    expect(analyzeExpressionDetailed('2147483647', {}).result.types).toEqual(['System.Integer'])
+    expect(analyzeExpressionDetailed('2147483648', {}).result.types).toEqual(['System.Long'])
+    expect(analyzeExpressionDetailed('9223372036854775808', {}).result.types).toEqual(['System.Decimal'])
+    expect(codes('integer { value: 2147483648 }')).toEqual(['operand-type'])
+  })
+
+  it('reads names on Object.prototype as unknown elements', () => {
+    expect(codes('Patient.constructor')).toEqual(['unknown-element'])
+    expect(codes("Coding { toString: 'a' }")).toEqual(['unknown-element'])
+    expect(codes('unsignedInt { value: 1 }')).toEqual([])
   })
 })
 

@@ -79,6 +79,12 @@ function functionExpression(name: string, signature: FunctionSignature): string 
       return `'abc'.${name}('x', 'i')`
     case 'replaceMatches':
       return "'abc'.replaceMatches('x', 'y', 'i')"
+    case 'encode':
+    case 'decode':
+      return `'616263'.${name}('hex')`
+    case 'escape':
+    case 'unescape':
+      return `'abc'.${name}('html')`
     default:
       break
   }

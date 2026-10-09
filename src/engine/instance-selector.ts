@@ -52,6 +52,21 @@ function isFhirPrimitive(type: string): boolean {
   return type.startsWith('FHIR.') && FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(type)] !== undefined
 }
 
+/**
+ * The definition of a selector element. A primitive's `value` takes the System
+ * type the runtime reads that primitive as: the R4 model declares
+ * `unsignedInt.value` and `positiveInt.value` as System.String, though their
+ * values are integers.
+ */
+export function selectorElement(model: ModelProvider, type: string, name: string): ElementInfo | undefined {
+  const info = model.getElement(type, name)
+  const system =
+    info !== undefined && name === 'value' && isFhirPrimitive(type)
+      ? FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(type)]
+      : undefined
+  return system === undefined || info === undefined ? info : { ...info, types: [system] }
+}
+
 /** The FHIR primitive named after each System type: a System.String fills a `string` choice. */
 const PRIMITIVE_FOR_SYSTEM: Readonly<Record<string, string>> = {
   'System.Boolean': 'boolean',
@@ -180,7 +195,7 @@ export function evaluateInstanceSelector(
   }
   const typeName = typeLocalName(resolved.type)
   const elements = node.elements.map(element => {
-    const info = model?.getElement(resolved.type, element.name)
+    const info = model === undefined ? undefined : selectorElement(model, resolved.type, element.name)
     if (model !== undefined && info === undefined) {
       throw new FhirPathTypeError(`Element '${element.name}' is not defined on ${typeName}`)
     }
