@@ -250,9 +250,10 @@ in `%questionnaire`, supplied through `env` or `vars`. For example,
 Repeated answers retain their own item context, including across `evaluateTyped()`
 results reused through `vars`. Raw results from `evaluate()` carry no such context.
 
-ValueSet and CodeSystem weight lookups are deferred, including contained
-terminology resources. When a score needs one of these lookups or a missing
-questionnaire item, `weight()` throws so a partial score is not reported as complete.
+`evaluateAsync()` can look up a Coding's CodeSystem weight through
+`options.terminology.lookup`. ValueSet and contained terminology lookups remain
+deferred. An unavailable lookup or missing questionnaire item raises an error;
+a completed lookup with no weight returns empty.
 See the [SDC FHIRPath supplements](https://build.fhir.org/ig/HL7/sdc/en/expressions.html#fhirpath-supplements).
 
 ### Walk nested structures
@@ -398,7 +399,8 @@ are easy to break during maintenance.
 
 ## Gaps and deferred features
 
-The package currently ships only an R4 model. The engine is synchronous. Tagged
+The package currently ships only an R4 model. Evaluation is synchronous by default;
+`evaluateAsync()` awaits host-provided terminology services. Tagged
 templates remain untyped because TypeScript does not preserve their literal type
 ([TypeScript #33304](https://github.com/microsoft/TypeScript/issues/33304)); use
 `fhirpath('...')` or `compile('...')` for inference in strings.
@@ -408,11 +410,10 @@ These features are deferred and fail with a clear error today:
 
 | Feature | What it needs |
 | --- | --- |
-| `memberOf()`, `subsumes()`, `subsumedBy()`, `%terminologies` | An async `TerminologyProvider` |
-| External `resolve()` | The same async evaluation path |
+| External `resolve()` | A reference resolver |
 | `conformsTo()` beyond base StructureDefinitions | Profile-aware validation |
 | `slice()`, `elementDefinition()`, `checkModifiers()` | Profile definitions in the model |
-| `weight()` via ValueSets or CodeSystems | Terminology weight lookup |
+| `weight()` via ValueSets or contained CodeSystems | Additional terminology weight lookup |
 | `%factory` | Demand for the current R5 draft API |
 | CDA mode | A CDA `ModelProvider` |
 | Full UCUM | A full UCUM implementation behind the current interface |

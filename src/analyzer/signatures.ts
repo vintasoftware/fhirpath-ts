@@ -284,6 +284,10 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   htmlChecks: { result: BOOLEAN },
   comparable: { input: { kind: 'Quantity', singleton: true }, args: ['Quantity'], result: BOOLEAN },
   conformsTo: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
+  memberOf: { args: ['String'], result: BOOLEAN },
+  // subsumes is deliberately absent: it is dual-form (Coding.subsumes(coded) → Boolean,
+  // %terminologies.subsumes(system, c1, c2) → code), so its result stays unknown.
+  subsumedBy: { args: ['any'], result: BOOLEAN },
 
   length: { input: { kind: 'String', singleton: true }, result: INTEGER },
   indexOf: { ...STRING_FN, result: INTEGER },

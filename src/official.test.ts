@@ -6,6 +6,7 @@ import {
   findSkipReason,
   loadOfficialSuite,
   runOfficialTest,
+  runOfficialTestAsync,
   type SuiteName,
 } from './testing/official-harness.ts'
 
@@ -25,8 +26,8 @@ for (const suite of ['r4', 'r5'] as const) {
             it.skip(`${title} [${skipReason}]`, () => {})
             return
           }
-          it(title, () => {
-            const failure = runOfficialTest(suite, test, group.name)
+          it(title, async () => {
+            const failure = await runOfficialTestAsync(suite, test, group.name)
             expect(failure, failure).toBeUndefined()
           })
         })

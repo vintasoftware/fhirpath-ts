@@ -1917,6 +1917,16 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     },
     runtime: false,
   },
+  'builtin.memberOf': {
+    expression: "Patient.name.memberOf('x')",
+    degradation: 'Patient.name.unknownFn()',
+    composition: "(Patient.name.memberOf('x')).count()",
+    analyzer: {
+      types: ['System.Boolean'],
+      single: true,
+    },
+    runtime: false,
+  },
   'builtin.millisecondOf': {
     expression: '@2020-01-01.millisecondOf()',
     degradation: 'Patient.name.unknownFn()',
@@ -2153,6 +2163,16 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     composition: "('abc'.substring(1, 1)).count()",
     analyzer: {
       types: ['System.String'],
+      single: true,
+    },
+    runtime: false,
+  },
+  'builtin.subsumedBy': {
+    expression: "Patient.name.subsumedBy('x')",
+    degradation: 'Patient.name.unknownFn()',
+    composition: "(Patient.name.subsumedBy('x')).count()",
+    analyzer: {
+      types: ['System.Boolean'],
       single: true,
     },
     runtime: false,

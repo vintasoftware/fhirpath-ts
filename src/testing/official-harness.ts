@@ -14,6 +14,7 @@ import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
 import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, SYSTEM_LONG, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
 import { testDataPath } from './test-data.ts'
+import { recordedTerminology } from './tx-fixtures.ts'
 
 export interface OfficialOutput {
   type: string
@@ -149,9 +150,30 @@ export function runOfficialTest(suite: SuiteName, test: OfficialTest, groupName 
   } catch (error) {
     return `evaluation failed: ${(error as Error).message}`
   }
-  if (test.predicate) {
-    results = [{ type: SYSTEM_BOOLEAN, value: results.length > 0 }]
+  return compareResults(results, test)
+}
+
+/** Run a terminology case with the recorded provider, otherwise use the sync harness. */
+export async function runOfficialTestAsync(
+  suite: SuiteName,
+  test: OfficialTest,
+  groupName = ''
+): Promise<string | undefined> {
+  if (test.mode !== 'tx') return runOfficialTest(suite, test, groupName)
+  const input = test.inputfile === undefined ? undefined : loadFixture(suite, test.inputfile)
+  try {
+    const results = await new CompiledExpression(test.expression).evaluateTypedAsync(input, {
+      model: r4Model,
+      terminology: recordedTerminology,
+    })
+    return compareResults(results, test)
+  } catch (error) {
+    return `evaluation failed: ${(error as Error).message}`
   }
+}
+
+function compareResults(values: TypedValue[], test: OfficialTest): string | undefined {
+  const results = test.predicate ? [{ type: SYSTEM_BOOLEAN, value: values.length > 0 }] : values
   if (results.length !== test.outputs.length) {
     return `expected ${test.outputs.length} results, got ${results.length}: ${render(results)}`
   }

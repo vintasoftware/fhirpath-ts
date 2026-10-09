@@ -64,6 +64,7 @@ export interface CompactFunctionRules {
   matches: readonly ['fixed', 'System.Boolean']
   matchesFull: readonly ['fixed', 'System.Boolean']
   max: readonly ['unknown']
+  memberOf: readonly ['fixed', 'System.Boolean']
   millisecondOf: readonly ['fixed', 'System.Integer']
   min: readonly ['unknown']
   minuteOf: readonly ['fixed', 'System.Integer']
@@ -88,6 +89,7 @@ export interface CompactFunctionRules {
   startsWith: readonly ['fixed', 'System.Boolean']
   subsetOf: readonly ['fixed', 'System.Boolean']
   substring: readonly ['fixed', 'System.String']
+  subsumedBy: readonly ['fixed', 'System.Boolean']
   sum: readonly ['unknown']
   supersetOf: readonly ['fixed', 'System.Boolean']
   tail: readonly ['input']
@@ -155,6 +157,8 @@ export type CompactFastFunctionName =
   | 'htmlChecks'
   | 'comparable'
   | 'conformsTo'
+  | 'memberOf'
+  | 'subsumedBy'
   | 'length'
   | 'indexOf'
   | 'lastIndexOf'

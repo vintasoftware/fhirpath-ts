@@ -145,7 +145,9 @@ describe('SDC weight()', () => {
       resourceType: 'QuestionnaireResponse',
       item: [{ linkId: 'first', answer: [{ valueCoding: coding('yes', 'urn:other') }] }],
     }
-    expect(() => evaluate('item.answer.value.weight()', otherSystem, options)).toThrow('CodeSystem')
+    expect(() => evaluate('item.answer.value.weight()', otherSystem, options)).toThrow(
+      /terminology provider|CodeSystem/
+    )
   })
 
   it('handles nested items under answers', () => {
@@ -182,7 +184,7 @@ describe('SDC weight()', () => {
     ).toThrow('answerValueSet')
     expect(() =>
       evaluate('code.coding.weight()', { resourceType: 'Observation', code: { coding: [coding('a')] } }, options)
-    ).toThrow('CodeSystem')
+    ).toThrow(/terminology provider|CodeSystem/)
     expect(() => evaluate('gender.weight()', { resourceType: 'Patient', gender: 'male' }, options)).toThrow(
       'CodeSystem'
     )

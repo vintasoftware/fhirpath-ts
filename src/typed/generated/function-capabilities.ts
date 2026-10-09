@@ -946,6 +946,21 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     degradation: 'Patient.name.unknownFn()',
     composition: '(2.max()).count()',
   },
+  'builtin.memberOf': {
+    source: {
+      expression: "Patient.name.memberOf('x')",
+      corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
+    },
+    expectedType: 'boolean[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: {
+      types: ['System.Boolean'],
+      single: true,
+    },
+    degradation: 'Patient.name.unknownFn()',
+    composition: "(Patient.name.memberOf('x')).count()",
+  },
   'builtin.millisecondOf': {
     source: {
       expression: '@2020-01-01.millisecondOf()',
@@ -1305,6 +1320,21 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     },
     degradation: 'Patient.name.unknownFn()',
     composition: "('abc'.substring(1, 1)).count()",
+  },
+  'builtin.subsumedBy': {
+    source: {
+      expression: "Patient.name.subsumedBy('x')",
+      corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
+    },
+    expectedType: 'boolean[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: {
+      types: ['System.Boolean'],
+      single: true,
+    },
+    degradation: 'Patient.name.unknownFn()',
+    composition: "(Patient.name.subsumedBy('x')).count()",
   },
   'builtin.sum': {
     source: {

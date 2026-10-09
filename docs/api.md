@@ -34,6 +34,43 @@ const fp = new FhirPathEngine({
 })
 ```
 
+### Asynchronous terminology
+
+The free `evaluateAsync(expression, input, options)` returns a Promise of plain
+values. `compile()` also exposes `evaluateAsync()` and `evaluateTypedAsync()`;
+the latter retains FHIR types and element ancestry. Engine and bound-expression
+methods remain synchronous. Pass the model and context explicitly when using
+the asynchronous entry points, for example `options.model: r4Model`.
+
+Supply `options.terminology`, a `TerminologyProvider`, for `memberOf()`,
+`subsumes()`, `subsumedBy()`, CodeSystem weight lookup, and `%terminologies`.
+Its optional async methods are `expand`, `lookup`, `validateVS`, `validateCS`,
+`subsumes`, and `translate`. They accept plain FHIR JSON and the API's optional
+URL-encoded parameter string. Return FHIR resources for resource operations and
+the outcome code for `subsumes`. Return `undefined` when the service cannot
+answer; `weight()` reports unavailable lookups as errors to prevent partial totals.
+A supplied empty, plural, or wrongly typed service argument returns empty
+without calling the provider. Omit the trailing parameter string or pass `''`
+when no additional parameters are needed.
+A missing method or provider raises an error. Synchronous evaluation that needs
+a provider directs the caller to `evaluateAsync()`.
+
+The evaluator caches service answers per evaluation and replays the expression
+when an answer arrives. Each distinct request calls its provider once. The
+clock stays fixed and only the successful pass emits `trace()` output. Host
+functions may run again on replay: keep them deterministic and free of side
+effects, and keep input and environment values unchanged until evaluation ends.
+Work before a service call can repeat, so cost grows with the number of distinct
+requests and the expression's work. Provider rejections propagate to the caller.
+
+The `memberOf()` and Boolean subsumption functions return empty for non-singleton
+inputs. Unknown service outcomes remain empty. For different code systems,
+`subsumes()` returns empty and `subsumedBy()` raises an error when no matching
+Coding pair establishes the relationship. A configured provider
+reserves `%terminologies`; applications must not replace it through `env` or
+`vars`. Static analysis accepts an explicit variable declaration for this host
+service, while strict runtime evaluation supplies that declaration automatically.
+
 ### Strict evaluation
 
 Evaluation is lenient by default: invalid model members navigate to an empty

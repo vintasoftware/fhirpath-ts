@@ -50,6 +50,11 @@ describe('reference-derived type-inference inventory', () => {
   it('records signed built-ins absent from the runnable reference corpus', () => {
     expect(INFERENCE_CORPUS_AUDIT.signedFunctions).toBe(Object.keys(FUNCTION_SIGNATURES).length)
     // The vendored suites predate weight(); src/fhir/weight.test.ts covers it.
-    expect(INFERENCE_CORPUS_AUDIT.missingSignedFunctions).toEqual(['convertsToLong', 'weight'])
+    expect(INFERENCE_CORPUS_AUDIT.missingSignedFunctions).toEqual([
+      'convertsToLong',
+      'memberOf',
+      'subsumedBy',
+      'weight',
+    ])
   })
 })

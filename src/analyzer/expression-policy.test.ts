@@ -48,6 +48,18 @@ const objectNode = (...properties: { name: string | undefined; value: MiniNode; 
  */
 const corpus: { name: string; code: string; expected: number; typescript?: true }[] = [
   {
+    name: 'asynchronous evaluation',
+    code: [
+      "import { evaluateAsync } from 'fhirpath-ts'",
+      "import * as api from 'fhirpath-ts'",
+      "import other from 'other-library'",
+      "evaluateAsync('x..1', input, { vars: { score: 'x..2' } })",
+      "api.evaluateAsync('x..3', input)",
+      "other.evaluateAsync('x..4')",
+    ].join('\n'),
+    expected: 3,
+  },
+  {
     name: 'expression-first calls and the tag',
     code: [
       'const a = fhirpath`x..1`',
