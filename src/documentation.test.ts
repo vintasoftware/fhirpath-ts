@@ -67,6 +67,9 @@ const documentation: readonly DocumentExpectation[] = [
       valid('Bundle.entry.resource.ofType(Observation).subject.resolve().name.family'),
       valid('Questionnaire.repeat(item).linkId'),
       valid("Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })"),
+      valid(
+        "Observation { status: 'final', code: CodeableConcept { text: 'BP' }, component: BackboneElement { code: CodeableConcept { text: 'Systolic' }, value: 120 'mm[Hg]' } }"
+      ),
       valid('birthDate <= today()', "Patient.name.trace('names').given"),
       valid('Patient.name.where(family.empty()).pathname()'),
       valid('Patient.name.given'),
