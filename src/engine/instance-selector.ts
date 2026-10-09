@@ -210,8 +210,8 @@ function numberLiteral(
   isLong: boolean,
   sign: string
 ): { type: string; json: unknown } {
-  const type = isLong ? SYSTEM_LONG : isDecimal ? SYSTEM_DECIMAL : integerLiteral(text).type
   const signed = `${sign === '-' ? '-' : ''}${text}`
+  const type = isLong ? SYSTEM_LONG : isDecimal ? SYSTEM_DECIMAL : integerLiteral(signed).type
   return { type, json: type === SYSTEM_LONG ? BigInt(signed) : Number(signed) }
 }
 

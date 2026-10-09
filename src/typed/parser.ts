@@ -1796,9 +1796,19 @@ type ApplyResultRule<Rule, Input extends InferenceState, Args extends InferenceS
             ? [Input[1]] extends [never]
               ? CopyEnvironment<UnknownState, Input>
               : CopyEnvironment<[Input[1], never], Input>
-            : Rule extends readonly ['unknown']
-              ? CopyEnvironment<UnknownState, Input>
-              : CopyEnvironment<OpaqueState, Input>
+            : Rule extends readonly ['number-or-quantity', infer Type extends string]
+              ? CopyEnvironment<NumberOrQuantityState<Input, Type>, Input>
+              : Rule extends readonly ['unknown']
+                ? CopyEnvironment<UnknownState, Input>
+                : CopyEnvironment<OpaqueState, Input>
+
+// The analyzer's `number-or-quantity` rule: a number gives Type, a Quantity a
+// Quantity, and any other input either one.
+type NumberOrQuantityState<Input extends InferenceState, Type extends string> = [Input[0]] extends [NumericType]
+  ? [Type, never]
+  : [Input[0]] extends [QuantityType]
+    ? ['System.Quantity', never]
+    : [Type | 'System.Quantity', never]
 
 type ArgumentState<Args extends InferenceState[], Index extends number> = Args[Index] extends InferenceState
   ? Args[Index]

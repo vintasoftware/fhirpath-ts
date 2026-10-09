@@ -1350,10 +1350,12 @@ export type BuiltinMatchesFullDegradation = Assert<
 export type BuiltinMatchesFullComposition = Assert<
   Equal<FhirpathResultIn<"('abc'.matchesFull('x', 'i')).count()", 'opaque'>, number[]>
 >
-export type BuiltinMaxFastSlowParity = Assert<FastSlowInferenceParity<'2.max()', 'opaque'>>
-export type BuiltinMaxPositive = Assert<Equal<FhirpathResultIn<'2.max()', 'opaque'>, unknown[]>>
+export type BuiltinMaxFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.max()', 'opaque'>>
+export type BuiltinMaxPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.max()', 'opaque'>, R4TypeOf['HumanName'][]>
+>
 export type BuiltinMaxDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
-export type BuiltinMaxComposition = Assert<Equal<FhirpathResultIn<'(2.max()).count()', 'opaque'>, number[]>>
+export type BuiltinMaxComposition = Assert<Equal<FhirpathResultIn<'(Patient.name.max()).count()', 'opaque'>, number[]>>
 export type BuiltinMillisecondOfFastSlowParity = Assert<
   FastSlowInferenceParity<'@2020-01-01.millisecondOf()', 'opaque'>
 >
@@ -1366,10 +1368,12 @@ export type BuiltinMillisecondOfDegradation = Assert<
 export type BuiltinMillisecondOfComposition = Assert<
   Equal<FhirpathResultIn<'(@2020-01-01.millisecondOf()).count()', 'opaque'>, number[]>
 >
-export type BuiltinMinFastSlowParity = Assert<FastSlowInferenceParity<'2.min()', 'opaque'>>
-export type BuiltinMinPositive = Assert<Equal<FhirpathResultIn<'2.min()', 'opaque'>, unknown[]>>
+export type BuiltinMinFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.min()', 'opaque'>>
+export type BuiltinMinPositive = Assert<
+  Equal<FhirpathResultIn<'Patient.name.min()', 'opaque'>, R4TypeOf['HumanName'][]>
+>
 export type BuiltinMinDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
-export type BuiltinMinComposition = Assert<Equal<FhirpathResultIn<'(2.min()).count()', 'opaque'>, number[]>>
+export type BuiltinMinComposition = Assert<Equal<FhirpathResultIn<'(Patient.name.min()).count()', 'opaque'>, number[]>>
 export type BuiltinMinuteOfFastSlowParity = Assert<FastSlowInferenceParity<'@2020-01-01.minuteOf()', 'opaque'>>
 export type BuiltinMinuteOfPositive = Assert<Equal<FhirpathResultIn<'@2020-01-01.minuteOf()', 'opaque'>, number[]>>
 export type BuiltinMinuteOfDegradation = Assert<
@@ -1411,7 +1415,7 @@ export type BuiltinPathnameComposition = Assert<
   Equal<FhirpathResultIn<'(Patient.name.pathname(true)).count()', 'opaque'>, number[]>
 >
 export type BuiltinPowerFastSlowParity = Assert<FastSlowInferenceParity<'2.power(1)', 'opaque'>>
-export type BuiltinPowerPositive = Assert<Equal<FhirpathResultIn<'2.power(1)', 'opaque'>, unknown[]>>
+export type BuiltinPowerPositive = Assert<Equal<FhirpathResultIn<'2.power(1)', 'opaque'>, number[]>>
 export type BuiltinPowerDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
 export type BuiltinPowerComposition = Assert<Equal<FhirpathResultIn<'(2.power(1)).count()', 'opaque'>, number[]>>
 export type BuiltinPrecisionFastSlowParity = Assert<

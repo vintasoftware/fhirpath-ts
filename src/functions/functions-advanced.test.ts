@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { evaluate } from '../api/evaluate.ts'
-import { FhirPathTypeError } from '../errors.ts'
+import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 
 describe('math functions', () => {
   it.each([
@@ -45,9 +45,35 @@ describe('math functions', () => {
     expect(() => evaluate('1.5.round(-1)')).toThrow(FhirPathTypeError)
   })
 
-  it('power keeps integers integral', () => {
-    expect(evaluate('2.power(3) is Integer')).toEqual([true])
+  it('power always returns a Decimal', () => {
+    // FHIRPath 3.0.0 "power"; rh testPower6.
+    expect(evaluate('2.power(3) is Decimal')).toEqual([true])
+    expect(evaluate('2.power(3) = 8')).toEqual([true])
+    expect(evaluate('2L.power(3) = 8')).toEqual([true])
     expect(evaluate('2.power(-1)')).toEqual([0.5])
+    expect(evaluate('(-1).power(0.5)')).toEqual([])
+    expect(evaluate('2.power({})')).toEqual([])
+  })
+
+  it('ceiling, floor, round, and truncate keep a Quantity unit', () => {
+    // rh testCeiling6, testFloor6, testRound6, testTruncate4.
+    expect(evaluate("(1.5 'mg').ceiling() = 2 'mg'")).toEqual([true])
+    expect(evaluate("(1.5 'mg').floor() = 1 'mg'")).toEqual([true])
+    expect(evaluate("(3.145 'mg').round(2) = 3.15 'mg'")).toEqual([true])
+    expect(evaluate("1.56 'cm'.truncate() = 1 'cm'")).toEqual([true])
+    expect(evaluate('(-1.5 days).floor()')).toEqual([{ value: -2, unit: 'days' }])
+    expect(evaluate("(1.5 'mg').ceiling().is(Quantity)")).toEqual([true])
+  })
+
+  it('log signals an error for an input or base of zero or less', () => {
+    // FHIRPath 3.0.0 "log"; rh testLogZeroInput, testLogZeroBase, testLogNegativeBase.
+    expect(() => evaluate('0.log(10)')).toThrow(FhirPathRuntimeError)
+    expect(() => evaluate('(-1).log(10)')).toThrow(FhirPathRuntimeError)
+    expect(() => evaluate('10.log(0)')).toThrow(FhirPathRuntimeError)
+    expect(() => evaluate('10.log(-2)')).toThrow(FhirPathRuntimeError)
+    expect(evaluate('0.log({})')).toEqual([])
+    expect(evaluate('100L.log(10) = 2.0')).toEqual([true])
+    expect(evaluate('2.log(1)')).toEqual([])
   })
 })
 
@@ -160,9 +186,48 @@ describe('aggregate and convenience aggregates', () => {
     expect(evaluate("('a' | 'b').aggregate($total + $index.toString(), '')")).toEqual(['01'])
   })
 
-  it('rejects non-numeric input for sum/min/max/avg', () => {
+  it('rejects input types an aggregate does not accept', () => {
     expect(() => evaluate("('a' | 'b').sum()")).toThrow(FhirPathTypeError)
-    expect(() => evaluate("('a' | 'b').min()")).toThrow(FhirPathTypeError)
+    expect(() => evaluate("('a' | 'b').avg()")).toThrow(FhirPathTypeError)
+    expect(() => evaluate('(true | false).min()')).toThrow(FhirPathTypeError)
+  })
+
+  it('rejects mixed item types', () => {
+    // FHIRPath 3.0.0 "Aggregates"; rh testSum5, testMin10, testMax10.
+    expect(() => evaluate('(1 | 2.0).sum()')).toThrow(
+      'sum() expects items of one type, found System.Integer and System.Decimal'
+    )
+    expect(() => evaluate('(1 | 2.0).min()')).toThrow(FhirPathTypeError)
+    expect(() => evaluate('(1 | 2.0).max()')).toThrow(FhirPathTypeError)
+    expect(() => evaluate('(1 | 2.0).avg()')).toThrow(FhirPathTypeError)
+    expect(() => evaluate('(1 | 2L).sum()')).toThrow(FhirPathTypeError)
+    expect(() => evaluate("(1 | 2 'mg').sum()")).toThrow(FhirPathTypeError)
+    expect(() => evaluate("(@2012 | 'a').min()")).toThrow(FhirPathTypeError)
+  })
+
+  it('sums overflow to empty', () => {
+    expect(evaluate('(2147483647 | 1).sum()')).toEqual([])
+    expect(evaluate('(9223372036854775807L | 1L).sum()')).toEqual([])
+    expect(evaluate('(2147483646 | 1).sum()')).toEqual([2147483647])
+  })
+
+  it.each([
+    // FHIRPath 3.0.0 "min" and "max" examples; rh testMin5-8, testMax5-8.
+    ['(@2012-12-31 | @2013-01-01 | @2012-01-01).min()', ['2012-01-01']],
+    ['(@2012-12-31 | @2013-01-01 | @2012-01-01).max()', ['2013-01-01']],
+    ['(@2012-12-31T10:00:00Z | @2012-12-31T09:00:00Z).min()', ['2012-12-31T09:00:00Z']],
+    ['(@T10:00 | @T09:00).max()', ['10:00']],
+    ["('b' | 'a' | 'c').min()", ['a']],
+    ["('b' | 'a' | 'c').max()", ['c']],
+    ['(2L | 4L | 8L | 6L).min()', [2n]],
+    ['(2 | 4 | 8 | 6).max()', [8]],
+    ["(1 'm' | 50 'cm').min()", [{ value: 50, unit: 'cm' }]],
+    ["(1 'm' | 50 'cm').max()", [{ value: 1, unit: 'm' }]],
+    // Items with no order give empty, as < does.
+    ['(@2012 | @2012-06-01).min()', []],
+    ["(1 'm' | 1 'g').max()", []],
+  ])('%s', (expression, expected) => {
+    expect(evaluate(expression)).toEqual(expected)
   })
 })
 

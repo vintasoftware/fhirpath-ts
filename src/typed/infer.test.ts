@@ -312,6 +312,17 @@ describe('fixed-return string, boolean, and numeric functions (batch 2)', () => 
     const root = compile('Patient.name.count().sqrt()').evaluate(patient, options)
     expectTypeOf(root).toEqualTypeOf<number[]>()
     expect(root).toEqual([1.4142135623730951])
+
+    const power = compile('Patient.name.count().power(2)').evaluate(patient, options)
+    expectTypeOf(power).toEqualTypeOf<number[]>()
+    expect(power).toEqual([4])
+
+    const quantity = compile("(1.5 'mg').ceiling()").evaluate(patient, options)
+    expectTypeOf(quantity).toEqualTypeOf<FhirpathResult<"1 'mg'">>()
+    expect(quantity).toEqual([{ value: 2, unit: 'mg' }])
+
+    const earliest = compile('Patient.name.given.min()').evaluate(patient, options)
+    expectTypeOf(earliest).toEqualTypeOf<string[]>()
   })
 
   it('identity functions keep the input type', () => {
@@ -581,9 +592,7 @@ describe('degradation to unknown[]', () => {
   })
 
   it('constructs outside the subset degrade instead of erroring', () => {
-    // power's result depends on its input (integer^integer vs decimal), and abs
-    // is input-dependent too. Both have explicit unknown analyzer rules.
-    expectTypeOf<FhirpathResult<'Patient.name.count().power(2)'>>().toEqualTypeOf<unknown[]>()
+    // abs keeps its input's type, so it has an explicit unknown analyzer rule.
     expectTypeOf<FhirpathResult<'Patient.name.count().abs()'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.descendants()'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.name.unknownFn()'>>().toEqualTypeOf<unknown[]>()

@@ -19,7 +19,7 @@ import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
 import type { TemporalKind } from '../values/datetime.ts'
-import { integerLiteral } from '../values/numeric.ts'
+import { integerLiteral, negativeIntegerLiteral } from '../values/numeric.ts'
 import {
   canonicalFocusType,
   commonValueKind,
@@ -473,6 +473,10 @@ class Analyzer {
       case 'call':
         return this.walkCall(node, input, scope)
       case 'unary': {
+        const literal = negativeIntegerLiteral(node.operator, node.operand)
+        if (literal !== undefined) {
+          return singleState([literal.type])
+        }
         const operand = this.walk(node.operand, input, scope)
         this.requireKind(operand, 'Numeric', node.operand.span, `unary '${node.operator}' expects a single number`)
         return operand

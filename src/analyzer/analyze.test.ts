@@ -229,6 +229,33 @@ describe('literal types', () => {
     expect(codes('integer { value: 2147483648 }')).toEqual(['operand-type'])
   })
 
+  it('reads a minus sign before an integer literal as one negative literal', () => {
+    expect(analyzeExpressionDetailed('-2147483648', {}).result.types).toEqual(['System.Integer'])
+    expect(analyzeExpressionDetailed('-2147483649', {}).result.types).toEqual(['System.Long'])
+    expect(codes('integer { value: -2147483648 }')).toEqual([])
+  })
+})
+
+describe('math and aggregate result types', () => {
+  const typesOf = (expression: string) => analyzeExpressionDetailed(expression, options).result.types
+
+  it('types the rounding functions and avg() by their input kind', () => {
+    expect(typesOf('1.5.ceiling()')).toEqual(['System.Integer'])
+    expect(typesOf("(1.5 'mg').ceiling()")).toEqual(['System.Quantity'])
+    expect(typesOf("(1.5 'mg').round(1)")).toEqual(['System.Quantity'])
+    expect(typesOf('1.5.round(1)')).toEqual(['System.Decimal'])
+    expect(typesOf("(1 'mg' | 2 'mg').avg()")).toEqual(['System.Quantity'])
+    expect(typesOf('(1 | 2).avg()')).toEqual(['System.Decimal'])
+    expect(typesOf('Observation.value.ceiling()')).toEqual(['System.Integer', 'System.Quantity'])
+  })
+
+  it('types power() as Decimal and min()/max() as the input item', () => {
+    expect(typesOf('2.power(3)')).toEqual(['System.Decimal'])
+    expect(typesOf('Patient.name.given.min()')).toEqual(['FHIR.string'])
+    expect(typesOf('(@2012 | @2013).max()')).toEqual(['System.Date'])
+    expect(codes("('b' | 'a').min()")).toEqual([])
+  })
+
   it('reads names on Object.prototype as unknown elements', () => {
     expect(codes('Patient.constructor')).toEqual(['unknown-element'])
     expect(codes("Coding { toString: 'a' }")).toEqual(['unknown-element'])

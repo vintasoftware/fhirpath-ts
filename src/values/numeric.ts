@@ -39,34 +39,49 @@ export function widerKind(a: NumericKind, b: NumericKind): NumericKind {
 }
 
 /**
- * Wrap a numeric result as the narrowest type that represents it exactly.
- * Integer is 32-bit and Long is 64-bit, so their arithmetic can produce a whole
- * number too large for the type. When that happens, widen to the next integer
- * type that holds the value (Integer → Long → Decimal), but never below the
- * operands' own kind. This keeps the value exact rather than dropping it (empty)
- * or wrapping it around the way some engines do. Decimal results pass through
- * unchanged.
+ * Wrap a numeric result as a value of `kind`. Integer is 32-bit and Long is
+ * 64-bit; a whole result outside its kind's range overflows, and an overflow is
+ * empty (spec "Math" operators), so this returns undefined. Decimal results
+ * pass through unchanged.
  */
-export function wrapNumeric(value: Decimal, kind: NumericKind): TypedValue {
+export function wrapNumeric(value: Decimal, kind: NumericKind): TypedValue | undefined {
   if (kind === 'Decimal') {
     return { type: SYSTEM_DECIMAL, value }
   }
-  const whole = value.trimTrailingZeros()
-  const big = BigInt(whole.toString())
-  if (kind === 'Integer' && big >= INTEGER_MIN && big <= INTEGER_MAX) {
-    return { type: SYSTEM_INTEGER, value: Number(big) }
+  const big = BigInt(value.trimTrailingZeros().toString())
+  if (kind === 'Integer') {
+    return big >= INTEGER_MIN && big <= INTEGER_MAX ? { type: SYSTEM_INTEGER, value: Number(big) } : undefined
   }
-  if (big >= LONG_MIN && big <= LONG_MAX) {
-    return { type: SYSTEM_LONG, value: big }
-  }
-  return { type: SYSTEM_DECIMAL, value: whole }
+  return big >= LONG_MIN && big <= LONG_MAX ? { type: SYSTEM_LONG, value: big } : undefined
+}
+
+/** A numeric result as a collection: empty when the computation failed or overflows its kind. */
+export function numericResult(value: Decimal | undefined, kind: NumericKind): TypedValue[] {
+  const wrapped = value === undefined ? undefined : wrapNumeric(value, kind)
+  return wrapped === undefined ? [] : [wrapped]
 }
 
 /**
  * An integer literal's value. The grammar's NUMBER rule has no digit limit, so a
- * literal widens as arithmetic results do: Integer within 32 bits, then Long,
- * then Decimal. Evaluation and the analyzer both type literals here.
+ * literal takes the narrowest type that holds it: Integer within 32 bits, then
+ * Long, then Decimal. Evaluation and the analyzer both type literals here.
  */
 export function integerLiteral(text: string): TypedValue {
-  return wrapNumeric(Decimal.fromString(text) as Decimal, 'Integer')
+  const whole = Decimal.fromString(text) as Decimal
+  return wrapNumeric(whole, 'Integer') ?? wrapNumeric(whole, 'Long') ?? { type: SYSTEM_DECIMAL, value: whole }
+}
+
+/**
+ * The value of unary minus applied directly to an integer literal, read as one
+ * negative literal, so `-2147483648` is the Integer minimum rather than the
+ * negated Long `2147483648`. Undefined for any other operand.
+ */
+export function negativeIntegerLiteral(
+  operator: string,
+  operand: { kind: string; text?: string; isDecimal?: boolean; isLong?: boolean }
+): TypedValue | undefined {
+  if (operator !== '-' || operand.kind !== 'number' || operand.isDecimal === true || operand.isLong === true) {
+    return undefined
+  }
+  return integerLiteral(`-${operand.text as string}`)
 }

@@ -6,7 +6,7 @@ import type { AstNode } from '../parser/ast.ts'
 import { criteriaBoolean, singleton, wrapBoolean } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
-import { integerLiteral } from '../values/numeric.ts'
+import { integerLiteral, negativeIntegerLiteral } from '../values/numeric.ts'
 import {
   SYSTEM_BOOLEAN,
   SYSTEM_DATE,
@@ -132,8 +132,12 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
       // Each function argument evaluates in its own defineVariable() scope.
       return lookupFunction(node.name, node.args.length).evaluate(context, input, node.args, evaluateArgument)
     }
-    case 'unary':
-      return evaluateUnary(context, node.operator, evaluateNode(node.operand, context, input))
+    case 'unary': {
+      const literal = negativeIntegerLiteral(node.operator, node.operand)
+      return literal !== undefined
+        ? [literal]
+        : evaluateUnary(context, node.operator, evaluateNode(node.operand, context, input))
+    }
     case 'binary':
       // Operator operands are separate chains; variables defined in one are not
       // visible in the other (locked by the official defineVariable tests).

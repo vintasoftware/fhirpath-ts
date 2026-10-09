@@ -1,4 +1,4 @@
-import type { ValueKind } from '../values/type-compat.ts'
+import { commonValueKind, type ValueKind } from '../values/type-compat.ts'
 
 export interface StaticStateLike {
   types: string[] | undefined
@@ -76,6 +76,9 @@ export type ResultRule =
   | { kind: 'union'; sources: readonly ('input' | number)[]; single: boolean | 'all'; sequential?: true }
   | { kind: 'arguments-union' }
   | { kind: 'reference-targets' }
+  // One item: `number` for a numeric input, System.Quantity for a Quantity
+  // input, and either when the input kind is unknown (`ceiling()`, `avg()`).
+  | { kind: 'number-or-quantity'; number: string }
   // An unknown result keeps the input's ordering unless the rule declares one.
   | { kind: 'unknown'; ordered?: boolean }
 
@@ -94,6 +97,8 @@ const DATE = { kind: 'fixed', types: ['System.Date'], single: true } as const sa
 const DATETIME = { kind: 'fixed', types: ['System.DateTime'], single: true } as const satisfies ResultRule
 const TIME = { kind: 'fixed', types: ['System.Time'], single: true } as const satisfies ResultRule
 const QUANTITY = { kind: 'fixed', types: ['System.Quantity'], single: true } as const satisfies ResultRule
+const INTEGER_OR_QUANTITY = { kind: 'number-or-quantity', number: 'System.Integer' } as const satisfies ResultRule
+const DECIMAL_OR_QUANTITY = { kind: 'number-or-quantity', number: 'System.Decimal' } as const satisfies ResultRule
 const UNKNOWN = { kind: 'unknown' } as const satisfies ResultRule
 // An unknown type that is at most one item at runtime (aggregates, singleton-input
 // conversions), so its order is defined even when the input's is not.
@@ -139,6 +144,13 @@ export function applyResultRule(
       return unionStates([...args])
     case 'reference-targets':
       return { types: input.targets, single: input.single, ordered: input.ordered }
+    case 'number-or-quantity': {
+      const kind = commonValueKind(input.types)
+      if (kind === 'Numeric') {
+        return singleState([rule.number])
+      }
+      return singleState(kind === 'Quantity' ? ['System.Quantity'] : [rule.number, 'System.Quantity'])
+    }
     case 'unknown':
       return { types: undefined, single: undefined, ordered: rule.ordered ?? input.ordered }
   }
@@ -324,22 +336,25 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   unescape: STRING_FN,
 
   abs: { input: { singleton: true }, result: UNKNOWN_ITEM },
-  ceiling: { input: { kind: 'Numeric', singleton: true }, result: INTEGER },
-  floor: { input: { kind: 'Numeric', singleton: true }, result: INTEGER },
-  truncate: { input: { kind: 'Numeric', singleton: true }, result: INTEGER },
-  round: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: DECIMAL },
+  // A Quantity keeps its unit and gets the rounded value.
+  ceiling: { input: { kind: 'Numeric', singleton: true }, result: INTEGER_OR_QUANTITY },
+  floor: { input: { kind: 'Numeric', singleton: true }, result: INTEGER_OR_QUANTITY },
+  truncate: { input: { kind: 'Numeric', singleton: true }, result: INTEGER_OR_QUANTITY },
+  round: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: DECIMAL_OR_QUANTITY },
   exp: MATH_FN,
   ln: MATH_FN,
   sqrt: MATH_FN,
   log: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: DECIMAL },
-  power: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: UNKNOWN_ITEM },
+  power: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: DECIMAL },
   // Each iteration replaces the accumulator with the aggregator result. An
   // empty input returns init, when supplied, so both arguments can contribute.
   aggregate: { args: ['expression', 'any'], result: { kind: 'union', sources: [0, 1], single: 'all' } },
   sum: { input: { kind: 'Numeric' }, result: UNKNOWN_ITEM },
-  min: { input: { kind: 'Numeric' }, result: UNKNOWN_ITEM },
-  max: { input: { kind: 'Numeric' }, result: UNKNOWN_ITEM },
-  avg: { input: { kind: 'Numeric' }, result: DECIMAL },
+  // min() and max() return one of the input items, which may also be a date,
+  // time, or string, so the kind check is left to the runtime.
+  min: { result: ITEM },
+  max: { result: ITEM },
+  avg: { input: { kind: 'Numeric' }, result: DECIMAL_OR_QUANTITY },
   sort: { args: ['sort-key'], result: { kind: 'input', ordered: true } },
 
   toBoolean: { input: { singleton: true }, result: BOOLEAN },
