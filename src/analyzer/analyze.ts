@@ -6,7 +6,6 @@ import {
   literalValue,
   missingRequiredElements,
   patternedType,
-  requiredCodeMessage,
   resolveInstanceType,
   selectorElement,
   valuePatternMessage,
@@ -1439,8 +1438,8 @@ class Analyzer {
    * it needs at most one input item. With a model, each element must exist on
    * the type, take the value's type (`acceptingElementType`, as the runtime
    * decides), and repeat when the value is a collection. A literal value must
-   * match its primitive's pattern and a required binding's codes, and a
-   * required element the selector leaves out is a warning. `elementTypes` are
+   * match its primitive's pattern, and a required element the selector leaves
+   * out is a warning. `elementTypes` are
    * the declared types of the element this selector is the value of, which
    * lets `BackboneElement { ... }` build a backbone element.
    */
@@ -1501,10 +1500,7 @@ class Analyzer {
       }
       const primitive = patternedType(type, element.name, elementType)
       const message =
-        (primitive === undefined
-          ? undefined
-          : valuePatternMessage(model, primitive, literal.json, element.name, owner)) ??
-        requiredCodeMessage(info, literal.json, element.name, owner)
+        primitive === undefined ? undefined : valuePatternMessage(model, primitive, literal.json, element.name, owner)
       if (message !== undefined) {
         this.report('invalid-value', message, element.value.span)
       }

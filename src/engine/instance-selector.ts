@@ -219,28 +219,6 @@ export function valuePatternMessage(
     : `Element '${element}' of ${owner} does not match the ${typeLocalName(primitive)} pattern ${pattern}`
 }
 
-/** How many codes a message lists before it gives only their number. */
-const LISTED_CODES = 10
-
-/**
- * Why a value written to a `code` element breaks the element's required
- * binding (ElementInfo.requiredCodes), or undefined. The message lists the
- * allowed codes, never the value, which may be patient data.
- */
-export function requiredCodeMessage(
-  info: ElementInfo,
-  value: unknown,
-  element: string,
-  owner: string
-): string | undefined {
-  const codes = info.requiredCodes
-  if (codes === undefined || typeof value !== 'string' || codes.includes(value)) {
-    return undefined
-  }
-  const allowed = codes.length <= LISTED_CODES ? `: ${codes.join(' | ')}` : ` (${codes.length} codes)`
-  return `Element '${element}' of ${owner} takes a code of its required binding${allowed}`
-}
-
 /**
  * The required elements (ElementInfo.isRequired) of `type` that a selector
  * listing `listed` leaves out. The spec lets a selector build a partial value,
@@ -430,8 +408,7 @@ function writeElementValues(
     const entry = jsonEntry(item, elementType)
     const primitive = patternedType(selector.type, name, elementType)
     const message =
-      (primitive === undefined ? undefined : valuePatternMessage(model, primitive, entry.value, name, typeName)) ??
-      requiredCodeMessage(info, entry.value, name, typeName)
+      primitive === undefined ? undefined : valuePatternMessage(model, primitive, entry.value, name, typeName)
     if (message !== undefined) {
       throw new FhirPathRuntimeError(message)
     }

@@ -329,29 +329,6 @@ describe('instance selectors: errors', () => {
   it('checks names before it reads the focus', () => {
     expect(() => r4.evaluate("Coding { cod: 'a' }", undefined)).toThrow("Element 'cod' is not defined on Coding")
   })
-
-  it('checks every written code against its required binding', () => {
-    const genderMessage =
-      "Element 'gender' of Patient takes a code of its required binding: female | male | other | unknown"
-    expect(() => r4.evaluate("Patient { gender: 'x' }", patient)).toThrow(new FhirPathRuntimeError(genderMessage))
-    expect(r4.evaluate("Patient { gender: 'other' }.gender", patient)).toEqual(['other'])
-    // A code read from data or built with a primitive selector is checked as well.
-    const invalid = { resourceType: 'Patient', gender: 'unspecified' }
-    expect(() => r4.evaluate('Patient { gender: %resource.gender }', invalid)).toThrow(genderMessage)
-    expect(() => r4.evaluate("Patient { gender: code { value: 'x' } }", patient)).toThrow(genderMessage)
-    // An inherited element keeps its binding: Age derives from Quantity.
-    expect(() => r4.evaluate("Age { value: 1, comparator: '=' }", patient)).toThrow(
-      "Element 'comparator' of Age takes a code of its required binding: < | <= | > | >="
-    )
-    // Each item of a repeating element is checked; a long code list gives its size.
-    expect(() => r4.evaluate("SearchParameter { base: 'Patient' | 'x' }", patient)).toThrow(
-      "Element 'base' of SearchParameter takes a code of its required binding (148 codes)"
-    )
-    // Metadata alone writes no code.
-    expect(r4.evaluate("Patient { gender: code { id: 'g' } }", patient)).toEqual([
-      { resourceType: 'Patient', _gender: { id: 'g' } },
-    ])
-  })
 })
 
 describe('instance selectors: backbone elements', () => {

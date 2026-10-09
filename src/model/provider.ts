@@ -13,11 +13,6 @@ export interface ElementInfo {
   referenceTargets?: string[]
   /** True when the element's minimum cardinality is at least 1. Instance selectors warn when one is missing. */
   isRequired?: boolean
-  /**
-   * The codes a `code` element's required binding allows. Instance selectors
-   * reject any other code they write. Absent for elements without one.
-   */
-  requiredCodes?: readonly string[]
 }
 
 /**

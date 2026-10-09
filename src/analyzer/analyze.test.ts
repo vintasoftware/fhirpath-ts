@@ -961,33 +961,6 @@ describe('instance selectors', () => {
     expect(analyzeExpression(expression, options)).toEqual([])
   })
 
-  it('reports a code outside a required binding', () => {
-    expect(messages("Patient { gender: 'x' }")).toEqual([
-      "Element 'gender' of Patient takes a code of its required binding: female | male | other | unknown",
-    ])
-    expect(codes("Quantity { value: 1, comparator: '=' }")).toEqual(['invalid-value'])
-    // An inherited element keeps its binding: Age derives from Quantity.
-    expect(codes("Age { value: 1, comparator: '=' }")).toEqual(['invalid-value'])
-    // The message lists up to ten codes, here a backbone element's too.
-    expect(messages("Bundle { type: 'x' }")).toEqual([
-      "Element 'type' of Bundle takes a code of its required binding: batch | batch-response | collection | document | history | message | searchset | transaction | transaction-response",
-    ])
-    expect(
-      messages("Subscription { status: 'active', reason: 'r', criteria: 'c', channel: BackboneElement { type: 'x' } }")
-    ).toEqual([
-      "Element 'type' of Subscription.channel takes a code of its required binding: email | message | rest-hook | sms | websocket",
-    ])
-    // A long code list gives its size.
-    expect(messages("SearchParameter { base: 'x' }").filter(message => message.includes('binding'))).toEqual([
-      "Element 'base' of SearchParameter takes a code of its required binding (148 codes)",
-    ])
-    expect(codes("Patient { gender: 'female' }")).toEqual([])
-    expect(codes("Quantity { value: 1, comparator: '<=' }")).toEqual([])
-    // A navigated value is checked when the runtime writes it; a code without a required binding takes any code.
-    expect(codes('Patient { gender: name.given.first() }')).toEqual([])
-    expect(codes("Coding { code: 'anything' }")).toEqual([])
-  })
-
   it('warns for a required element the selector leaves out', () => {
     expect(analyzeExpression("Observation { status: 'final' }", options)).toEqual([
       {
@@ -1028,9 +1001,9 @@ describe('instance selectors', () => {
         "Questionnaire { status: 'draft', item: BackboneElement { linkId: 'a', type: 'group', item: FHIR.BackboneElement { linkId: 'b', type: 'display' } } }"
       )
     ).toEqual([])
-    expect(codes("Questionnaire { status: 'draft', item: BackboneElement { linkId: 'a', type: 'x' } }")).toEqual([
-      'invalid-value',
-    ])
+    expect(
+      codes("Questionnaire { status: 'draft', item: BackboneElement { linkId: 'a', type: 'group', text: 1 } }")
+    ).toEqual(['operand-type'])
     // Elsewhere BackboneElement is the abstract type.
     expect(codes("BackboneElement { linkId: 'a' }")).toEqual(['unknown-element'])
     expect(

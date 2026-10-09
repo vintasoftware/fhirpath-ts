@@ -3,15 +3,12 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { compile } from '../api/compile.ts'
 import { fhirpath } from '../api/tagged.ts'
 import type {
-  CodeableConcept,
-  Coding,
   HumanName,
   Identifier,
   MedicationRequest,
   Observation,
   Patient,
   PatientContact,
-  Period,
   Quantity,
   SystemQuantity,
 } from '../r4/generated/type-maps.ts'
@@ -619,34 +616,14 @@ describe('degradation to unknown[]', () => {
 })
 
 describe('instance selectors', () => {
-  it('type the built value as its interface when the type has no required elements', () => {
-    // The runtime checks required-binding codes, so a navigated code keeps its union.
-    expectTypeOf<FhirpathResult<"Coding { system: 'http://loinc.org', code: '8480-6' }">>().toEqualTypeOf<Coding[]>()
-    expectTypeOf<FhirpathResult<"FHIR.Coding { code: 'a' }">>().toEqualTypeOf<Coding[]>()
-    expectTypeOf<FhirpathResult<"Patient { gender: 'female' }">>().toEqualTypeOf<Patient[]>()
-    expectTypeOf<FhirpathResult<"Patient { gender: 'female' }.gender">>().toEqualTypeOf<
-      ('male' | 'female' | 'other' | 'unknown')[]
-    >()
-    expectTypeOf<FhirpathResult<"Quantity { value: 1, comparator: '<' }.comparator">>().toEqualTypeOf<
-      ('<' | '<=' | '>=' | '>')[]
-    >()
-    expectTypeOf<FhirpathResult<'Period {:}'>>().toEqualTypeOf<Period[]>()
-    expectTypeOf<FhirpathResult<"code { value: 'final' }">>().toEqualTypeOf<string[]>()
-    expectTypeOf<FhirpathResult<"CodeableConcept { coding: Coding { code: 'a' } }">>().toEqualTypeOf<
-      CodeableConcept[]
-    >()
-  })
-
-  it('type the built value as unknown when it may lack a required element', () => {
-    // Observation requires status and code, which a selector may leave out.
-    expectTypeOf<FhirpathResult<"Observation { status: 'final' }">>().toEqualTypeOf<unknown[]>()
-    // A nested selector of such a type makes the outer value partial too.
-    expectTypeOf<FhirpathResult<"Coding { extension: Extension { value: 'x' } }">>().toEqualTypeOf<unknown[]>()
-    // BackboneElement builds the backbone element it is the value of.
-    expectTypeOf<FhirpathResult<'Observation.component.select(BackboneElement {:})'>>().toEqualTypeOf<unknown[]>()
-    expectTypeOf<FhirpathResult<"Patient { contact: BackboneElement { gender: 'female' } }">>().toEqualTypeOf<
-      unknown[]
-    >()
+  it('type the built value as unknown', () => {
+    // The generated interfaces promise required-binding codes, which a built
+    // value need not hold: Patient { gender: 'x' } is a Patient with gender 'x'.
+    expectTypeOf<FhirpathResult<"Coding { system: 'http://loinc.org', code: '8480-6' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient { gender: 'x' }.gender">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Quantity { value: 1, comparator: 'x' }.comparator">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Period {:}'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"code { value: 'final' }">>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<"Foo { a: 'b' }">>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<"Coding { code: 'a'">>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Period {}'>>().toEqualTypeOf<unknown[]>()
@@ -665,7 +642,7 @@ describe('instance selectors', () => {
       resourceType: 'Patient',
       gender: 'male',
     })
-    expectTypeOf(coding).toEqualTypeOf<Coding[]>()
+    expectTypeOf(coding).toEqualTypeOf<unknown[]>()
     expect(coding).toEqual([{ system: 'http://x', code: 'male' }])
   })
 })

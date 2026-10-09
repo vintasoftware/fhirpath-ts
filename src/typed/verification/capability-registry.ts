@@ -909,8 +909,8 @@ export const INFERENCE_CAPABILITIES = {
       corpusGap:
         "the inventory's sources (official suites, fhirpath.js and fhirpath-py YAML) have no instance selectors",
     },
-    // Coding has no required elements, and the runtime checks required-binding codes.
-    expectedType: 'Coding[]',
+    // A built value need not hold the codes its interface promises, so it stays unknown.
+    expectedType: 'unknown[]',
     compositionType: 'boolean[]',
     runtime: true,
     analyzer: { types: ['FHIR.Coding'], single: true },
