@@ -50,12 +50,13 @@ describe('reference-derived type-inference inventory', () => {
   it('has runnable cases for every signed built-in except the documented gaps', () => {
     expect(INFERENCE_CORPUS_AUDIT.signedFunctions).toBe(Object.keys(FUNCTION_SIGNATURES).length)
     // The convertsToLong() cases are skipped. No reference suite tests the FHIRPath
-    // 3.0.0 functions difference(), duration(), and repeatAll() yet; the generated
-    // function capabilities cover their result rules.
+    // 3.0.0 functions difference(), duration(), pathname(), and repeatAll() yet;
+    // their own unit tests and the generated function capabilities cover them.
     expect(INFERENCE_CORPUS_AUDIT.missingSignedFunctions).toEqual([
       'convertsToLong',
       'difference',
       'duration',
+      'pathname',
       'repeatAll',
     ])
   })

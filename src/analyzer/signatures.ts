@@ -276,6 +276,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   // not() takes anything a Boolean test accepts (0/1, single items), so no kind pin.
   not: { input: { singleton: true }, result: BOOLEAN },
   trace: { args: ['String', 'expression'], result: SAME },
+  // One path per input item that has one, so the count is at most the input's.
+  pathname: { args: ['Boolean'], result: { kind: 'fixed', types: ['System.String'] } },
   children: { result: UNORDERED },
   descendants: { result: UNORDERED },
   // A reference resolves to its declared target types (Reference.targetProfile,

@@ -34,6 +34,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     names (`MMM`, `MMMM`); the time zone name code `z` is not. A format the
     conversion cannot use is an error
     ([#114](https://github.com/vintasoftware/fhirpath-ts/issues/114)).
+  - `pathname([short])` returns the path of each input item inside the input
+    resource, such as `Observation.component[0].code[0].coding[0]`. Computed
+    values have no path. Navigation records where items come from only when an
+    evaluation can call `pathname()`
+    ([#115](https://github.com/vintasoftware/fhirpath-ts/issues/115)).
   - `combine(other, preserveOrder)` and `encode('ascii')`
     ([#117](https://github.com/vintasoftware/fhirpath-ts/issues/117)).
 - `engine.compile(expression, type)` declares the type a relative expression

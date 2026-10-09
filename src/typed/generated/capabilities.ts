@@ -2007,6 +2007,16 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     },
     runtime: false,
   },
+  'builtin.pathname': {
+    expression: 'Patient.name.pathname(true)',
+    degradation: 'Patient.name.unknownFn()',
+    composition: '(Patient.name.pathname(true)).count()',
+    analyzer: {
+      types: ['System.String'],
+      single: undefined,
+    },
+    runtime: false,
+  },
   'builtin.power': {
     expression: '2.power(1)',
     degradation: 'Patient.name.unknownFn()',

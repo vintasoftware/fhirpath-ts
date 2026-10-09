@@ -264,7 +264,10 @@ export function projectRows(
   compile: Compiler
 ): Record<string, unknown>[] {
   const planned = Object.entries(columns).map(([name, column]) => [name, planColumn(name, column, compile)] as const)
-  const makeContext = contextFactory(options)
+  const makeContext = contextFactory(
+    options,
+    planned.map(([, column]) => column.ast)
+  )
   const subjects = toSubjects(input)
   return subjects.map((subject, index) => {
     const root = toCollection(subject.value)

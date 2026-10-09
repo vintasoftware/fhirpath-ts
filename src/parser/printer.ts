@@ -25,7 +25,7 @@ function bindingPowerOf(node: AstNode): number {
 
 const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
 
-function printIdentifier(name: string): string {
+export function printIdentifier(name: string): string {
   if (PLAIN_IDENTIFIER.test(name) && !KEYWORDS.has(name)) {
     return name
   }
