@@ -284,11 +284,26 @@ one value per item. Unknown element names, values of the wrong type, and
 several items for an element that does not repeat throw, and the static checkers
 report them. Each primitive value must also match its FHIR type's pattern: a
 `code` without leading spaces, a non-empty `string`, a `positiveInt` above zero,
-a `dateTime` with seconds and a time zone when it has a time. The static
-checkers report a literal that does not. Type inference gives the result
-`unknown[]`: the runtime does not yet check the codes of required bindings that
-the generated interfaces list
-([#133](https://github.com/vintasoftware/fhirpath-ts/issues/133)).
+a `dateTime` with seconds and a time zone when it has a time. A `code` with a
+required binding must be one of its codes, so `Patient { gender: 'x' }` throws.
+The static checkers report a literal that breaks either rule.
+
+Backbone elements have no type name, so `BackboneElement { ... }` written as
+the value of one builds it:
+
+```ts
+r4.evaluate(
+  "Observation { status: 'final', code: CodeableConcept { text: 'BP' }, component: BackboneElement { code: CodeableConcept { text: 'Systolic' }, value: 120 'mm[Hg]' } }",
+  patient,
+)
+```
+
+A selector may leave out an element FHIR requires, such as `Observation {:}`
+without `status` and `code`; the static checkers warn (`missing-element`) and
+the runtime builds the partial value. Type inference gives a selector its
+type's interface, as `Coding[]` for the first example, when that type requires
+no element and every selector nested in it does the same. Any other selector
+infers `unknown[]`.
 
 ### Deterministic tests and debugging
 
@@ -458,7 +473,6 @@ Parts of FHIRPath 3.0.0 that do not work yet:
 | Behavior | Issue |
 | --- | --- |
 | `min()` and `max()` on Date, DateTime, Time, and String | [#128](https://github.com/vintasoftware/fhirpath-ts/issues/128) |
-| Instance selectors for backbone elements, `BackboneElement { ... }` | [#132](https://github.com/vintasoftware/fhirpath-ts/issues/132) |
 | `power()` returning a Decimal, `ceiling()`/`floor()`/`round()`/`truncate()` on a Quantity, `log()` errors, empty on overflow, and same-type `sum()`/`min()`/`max()` | [#134](https://github.com/vintasoftware/fhirpath-ts/issues/134) |
 
 `union()`, `|`, and `combine()` keep the order of their sources, where 3.0.0

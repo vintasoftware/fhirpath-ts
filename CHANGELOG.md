@@ -46,11 +46,23 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     checkers, and each primitive value against its FHIR type's pattern (a
     literal one statically). `ModelProvider.valuePattern()` supplies the
     patterns. A choice element takes the key of its value's type, so
-    `Observation { value: 5 'mg' }` sets `valueQuantity`. Type inference gives
-    a selector `unknown[]`, since the runtime does not check the required-binding
-    codes the generated interfaces list
-    ([#116](https://github.com/vintasoftware/fhirpath-ts/issues/116),
-    [#133](https://github.com/vintasoftware/fhirpath-ts/issues/133)).
+    `Observation { value: 5 'mg' }` sets `valueQuantity`
+    ([#116](https://github.com/vintasoftware/fhirpath-ts/issues/116)).
+  - `BackboneElement { ... }` (or `Element { ... }`) written as the value of a
+    backbone element builds it, as in
+    `Observation { component: BackboneElement { code: CodeableConcept { text: 'x' } } }`
+    ([#132](https://github.com/vintasoftware/fhirpath-ts/issues/132)).
+  - A selector rejects a `code` outside its element's required binding, such as
+    `Patient { gender: 'x' }`, and the static checkers report a literal one
+    (`invalid-value`). `ElementInfo.requiredCodes` supplies the codes. Type
+    inference gives a selector its type's interface when the type requires no
+    element and every selector nested in it does the same, such as `Coding[]`;
+    other selectors infer `unknown[]`
+    ([#133](https://github.com/vintasoftware/fhirpath-ts/issues/133)).
+  - The static checkers warn (`missing-element`) for a required element a
+    selector leaves out; the runtime builds the partial value, as the spec
+    allows. `ElementInfo.isRequired` marks those elements
+    ([#124](https://github.com/vintasoftware/fhirpath-ts/issues/124)).
   - `combine(other, preserveOrder)` and `encode('ascii')`. `combine()` keeps
     its sources' order with or without `preserveOrder`, as `union()` does
     ([#117](https://github.com/vintasoftware/fhirpath-ts/issues/117)).

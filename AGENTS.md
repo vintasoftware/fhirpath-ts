@@ -88,11 +88,16 @@ Infer literal `env` values before applying `envTypes`; explicit declarations
 remain the override for widened values and Reference targets.
 
 `Tokenize` collapses each instance selector, `Type { ... }`, into one `selector`
-token, typed `unknown[]`, so the rest of the expression stays typed. Do not type
-it as the named interface: the interfaces list the codes of required bindings,
-and the runtime does not check those in a built value (#133). Keep selector
-detection in the tokenizer: a `ParseOperand` branch for a name before `{` cost
-about 4k API surface instantiations even for expressions without selectors.
+token, so the rest of the expression stays typed. The token infers as the named
+interface only when the type is in the generated `R4OptionalTypes` (no required
+element besides `resourceType`) and so is every selector nested in it; anything
+else is `unknown[]`. Both conditions are load-bearing: the runtime checks the
+codes of required bindings, which the interfaces list, but builds a value
+without its required elements (#124), which the interfaces require.
+`BackboneElement` and `Element` stay out of `R4OptionalTypes` because they
+build the backbone element they are the value of. Keep selector detection in
+the tokenizer: a `ParseOperand` branch for a name before `{` cost about 4k API
+surface instantiations even for expressions without selectors.
 
 An engine method infers `Expr` from its expression argument only. A parameter
 typed from `Expr` is an inference site too: `FhirpathInput` reads a literal
@@ -241,9 +246,15 @@ registered function call has a focus but no row.
 
 `resolveInstanceType` and `acceptingElementType` in
 `src/engine/instance-selector.ts` decide the built type and which element type
-takes a value (and so a choice element's JSON key). The evaluator and the
-analyzer both call them, so a static diagnostic and a runtime error always
-describe the same rule.
+takes a value (and so a choice element's JSON key). `valuePatternMessage`,
+`requiredCodeMessage`, and `missingRequiredElements` decide which values and
+omissions to report. The evaluator and the analyzer both call them, so a static
+diagnostic and a runtime error always describe the same rule.
+
+`BackboneElement { ... }` builds a backbone element only when it is written
+directly as an element's value: both walkers pass that element's declared types
+to `resolveInstanceType`. A missing required element is a warning, never a
+runtime error, because the spec lets a selector build a partial value.
 
 ## Element ancestry
 

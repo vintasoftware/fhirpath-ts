@@ -14,6 +14,8 @@ const SAMPLE: Record<string, GeneratedType> = {
       value: { t: ['boolean', 'dateTime'], c: 1 },
       owner: { t: ['Reference'], r: ['Patient', 'Organization'] },
       links: { t: ['Reference'], a: 1, r: ['Thing'] },
+      status: { t: ['code'], m: 1, k: 3 },
+      kind: { t: ['code'], a: 1, c: 1, m: 1, k: 12, r: ['Thing'] },
     },
   },
   'Thing.part': { b: 'BackboneElement', e: { code: { t: ['System.String'] } } },

@@ -9,6 +9,7 @@ import { type DtoInput, type DtoOptions, FhirPathEngine, type FhirTypeName, type
 import type {
   Appointment,
   Bundle,
+  Coding,
   Condition,
   DiagnosticReport,
   Extension,
@@ -341,8 +342,27 @@ describe('README usage recipes', () => {
       "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
       patient
     )
-    expectTypeOf(codings).toEqualTypeOf<unknown[]>()
+    expectTypeOf(codings).toEqualTypeOf<Coding[]>()
     expect(codings).toEqual([{ system: 'http://hl7.org/fhir/administrative-gender', code: 'female' }])
+    // Observation requires elements, so its selector infers unknown[].
+    const observations = r4.evaluate(
+      "Observation { status: 'final', code: CodeableConcept { text: 'BP' }, component: BackboneElement { code: CodeableConcept { text: 'Systolic' }, value: 120 'mm[Hg]' } }",
+      patient
+    )
+    expectTypeOf(observations).toEqualTypeOf<unknown[]>()
+    expect(observations).toEqual([
+      {
+        resourceType: 'Observation',
+        status: 'final',
+        code: { text: 'BP' },
+        component: [
+          {
+            code: { text: 'Systolic' },
+            valueQuantity: { value: 120, unit: 'mm[Hg]', system: 'http://unitsofmeasure.org', code: 'mm[Hg]' },
+          },
+        ],
+      },
+    ])
   })
 
   it('deterministic tests and debugging', () => {
