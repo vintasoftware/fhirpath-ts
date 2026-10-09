@@ -128,9 +128,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   another package or to the default library, such as
   `page.evaluate('document.title')`.
 - A backslash that starts no escape in a string literal or delimited
-  identifier is dropped, as FHIRPath 3.0.0 says: `'\\p'` is `'p'` and
-  `'\\u005'` is `'u005'`. These were syntax errors. A literal that ends in
-  `\\'` with no later quote, such as `'\\'`, ends there
+  identifier is dropped, as FHIRPath 3.0.0 says: `'\p'` is `'p'` and
+  `'\u005'` is `'u005'`. These were syntax errors. A literal that ends in
+  `\'` with no later quote, such as `'\'`, ends there
   ([#129](https://github.com/vintasoftware/fhirpath-ts/issues/129)).
 
 ### Fixed
