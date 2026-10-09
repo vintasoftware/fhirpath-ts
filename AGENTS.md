@@ -88,10 +88,11 @@ Infer literal `env` values before applying `envTypes`; explicit declarations
 remain the override for widened values and Reference targets.
 
 `Tokenize` collapses each instance selector, `Type { ... }`, into one `selector`
-token that `LiteralState` types; the element values are skipped, since the
-result does not depend on them. Keep selector detection in the tokenizer: a
-`ParseOperand` branch for a name before `{` cost about 4k API surface
-instantiations even for expressions without selectors.
+token, typed `unknown[]`, so the rest of the expression stays typed. Do not type
+it as the named interface: the interfaces list the codes of required bindings,
+and the runtime does not check those in a built value (#133). Keep selector
+detection in the tokenizer: a `ParseOperand` branch for a name before `{` cost
+about 4k API surface instantiations even for expressions without selectors.
 
 An engine method infers `Expr` from its expression argument only. A parameter
 typed from `Expr` is an inference site too: `FhirpathInput` reads a literal

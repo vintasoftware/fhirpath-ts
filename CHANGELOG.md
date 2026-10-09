@@ -48,9 +48,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     literal one statically). `ModelProvider.valuePattern()` supplies the
     patterns. A choice element takes the key of its value's type, so
     `Observation { value: 5 'mg' }` sets `valueQuantity`. Type inference gives
-    the named type when it has no required elements other than `resourceType`,
-    as `Coding` and `Patient`, and `unknown[]` otherwise
-    ([#116](https://github.com/vintasoftware/fhirpath-ts/issues/116)).
+    a selector `unknown[]`, since the runtime does not check the required-binding
+    codes the generated interfaces list
+    ([#116](https://github.com/vintasoftware/fhirpath-ts/issues/116),
+    [#133](https://github.com/vintasoftware/fhirpath-ts/issues/133)).
   - `combine(other, preserveOrder)` and `encode('ascii')`. `combine()` keeps
     its sources' order with or without `preserveOrder`, as `union()` does
     ([#117](https://github.com/vintasoftware/fhirpath-ts/issues/117)).

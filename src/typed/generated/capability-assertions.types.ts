@@ -795,7 +795,7 @@ export type SelectorComplexPositive = Assert<
       "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
       'opaque'
     >,
-    R4TypeOf['Coding'][]
+    unknown[]
   >
 >
 export type SelectorComplexDegradation = Assert<
@@ -810,23 +810,11 @@ export type SelectorComplexDegradation = Assert<
 export type SelectorComplexComposition = Assert<
   Equal<
     FhirpathResultIn<
-      "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).code",
+      "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).exists()",
       'opaque'
     >,
-    string[]
+    boolean[]
   >
->
-export type SelectorRequiredElementsFastSlowParity = Assert<
-  FastSlowInferenceParity<"Observation { status: 'final' }", 'opaque'>
->
-export type SelectorRequiredElementsPositive = Assert<
-  Equal<FhirpathResultIn<"Observation { status: 'final' }", 'opaque'>, unknown[]>
->
-export type SelectorRequiredElementsDegradation = Assert<
-  Equal<FhirpathResultIn<"Observation { status: 'final' }.nope", 'opaque'>, unknown[]>
->
-export type SelectorRequiredElementsComposition = Assert<
-  Equal<FhirpathResultIn<"Observation { status: 'final' }.exists()", 'opaque'>, boolean[]>
 >
 export type BuiltinAbsFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.first().abs()', 'opaque'>>
 export type BuiltinAbsPositive = Assert<Equal<FhirpathResultIn<'Patient.name.first().abs()', 'opaque'>, unknown[]>>

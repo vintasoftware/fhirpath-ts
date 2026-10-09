@@ -266,9 +266,10 @@ several items for an element that does not repeat throw, and the static checkers
 report them. Each primitive value must also match its FHIR type's pattern: a
 `code` without leading spaces, a non-empty `string`, a `positiveInt` above zero,
 a `dateTime` with seconds and a time zone when it has a time. The static
-checkers report a literal that does not. The result above is typed `Coding[]`. A type with required
-elements, such as `Observation`, is typed `unknown[]`, because the selector may
-leave them out.
+checkers report a literal that does not. Type inference gives the result
+`unknown[]`: the runtime does not yet check the codes of required bindings that
+the generated interfaces list
+([#133](https://github.com/vintasoftware/fhirpath-ts/issues/133)).
 
 ### Deterministic tests and debugging
 

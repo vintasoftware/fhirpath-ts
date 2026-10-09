@@ -106,9 +106,10 @@ type Tokenize<Source extends string> = Source extends `${string}{${string}:${str
 /**
  * Replace each instance selector, `Type { name: value, ... }` or `Type {:}`,
  * with one selector token, as the runtime parser reads a type name before
- * `{`. The element values are not inferred: the result type does not depend
- * on them, and each value runs in its own variable scope, so none of its
- * bindings leave the selector.
+ * `{`. The token is typed `unknown[]`: the generated interfaces promise the
+ * code sets of required bindings, which the runtime does not check in a built
+ * value. The element values are not inferred, and each runs in its own
+ * variable scope, so none of its bindings leave the selector.
  */
 type CollapseInstanceSelectors<Tokens extends TypeTokens, Out extends TypeTokens = []> = Tokens extends [
   infer Token extends TypeToken,
@@ -2302,22 +2303,7 @@ type LiteralState<Token extends LiteralToken> = Token[0] extends 'string'
       ? ['System.DateTime', never]
       : Token[0] extends 'time'
         ? ['System.Time', never]
-        : Token[0] extends 'selector'
-          ? InstanceState<Token[1]>
-          : UnknownState
-
-/**
- * The value an instance selector builds. The generated interfaces require
- * every element with minimum cardinality 1, and the selector sets only
- * `resourceType` by itself, so a type is inferred only when that is all it
- * requires (`Coding`, `Period`, `Patient`). Other types and primitives stay
- * unknown.
- */
-type InstanceState<Type extends string> = Type extends keyof R4TypeOf
-  ? (Type extends keyof R4Resources ? { resourceType: Type } : Record<never, never>) extends R4TypeOf[Type]
-    ? [Type, never]
-    : UnknownState
-  : UnknownState
+        : UnknownState
 
 type IndexResult<Stack extends Values, Index extends InferenceState> = Stack extends [
   ...infer Before extends Values,

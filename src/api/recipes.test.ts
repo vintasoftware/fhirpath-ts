@@ -9,7 +9,6 @@ import { type DtoInput, type DtoOptions, FhirPathEngine, type FhirTypeName, type
 import type {
   Appointment,
   Bundle,
-  Coding,
   Condition,
   DiagnosticReport,
   Extension,
@@ -342,7 +341,7 @@ describe('README usage recipes', () => {
       "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
       patient
     )
-    expectTypeOf(codings).toEqualTypeOf<Coding[]>()
+    expectTypeOf(codings).toEqualTypeOf<unknown[]>()
     expect(codings).toEqual([{ system: 'http://hl7.org/fhir/administrative-gender', code: 'female' }])
   })
 

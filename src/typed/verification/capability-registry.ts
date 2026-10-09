@@ -906,26 +906,17 @@ export const INFERENCE_CAPABILITIES = {
   'selector.complex': {
     source: {
       expression: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
-      corpusGap: 'instance selectors (FHIRPath 3.0.0) have no reference cases yet',
+      corpusGap:
+        "the inventory's sources (official suites, fhirpath.js and fhirpath-py YAML) have no instance selectors",
     },
-    expectedType: "R4TypeOf['Coding'][]",
-    compositionType: 'string[]',
-    runtime: true,
-    analyzer: { types: ['FHIR.Coding'], single: true },
-    degradation: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).nope",
-    composition: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).code",
-  },
-  'selector.required-elements': {
-    source: {
-      expression: "Observation { status: 'final' }",
-      corpusGap: 'instance selectors (FHIRPath 3.0.0) have no reference cases yet',
-    },
+    // A built value need not hold the codes its interface promises, so it stays unknown.
     expectedType: 'unknown[]',
     compositionType: 'boolean[]',
     runtime: true,
-    analyzer: { types: ['FHIR.Observation'], single: true },
-    degradation: "Observation { status: 'final' }.nope",
-    composition: "Observation { status: 'final' }.exists()",
+    analyzer: { types: ['FHIR.Coding'], single: true },
+    degradation: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).nope",
+    composition:
+      "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).exists()",
   },
   ...BUILTIN_FUNCTION_CAPABILITIES,
 } as const satisfies Record<string, CapabilityEntry>

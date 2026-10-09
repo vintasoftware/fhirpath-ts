@@ -38,9 +38,9 @@ names.evaluate(patient) // string[]; input must be a Patient
 ```
 
 The parser covers literals, operators and precedence, paths, built-in functions,
-lambda scope, variables, generated Reference targets, declared host context, and
-instance selectors. A construct remains `unknown[]` when its result cannot be
-expressed safely.
+lambda scope, variables, generated Reference targets, and declared host context.
+A construct remains `unknown[]` when its result cannot be expressed safely, as an
+instance selector does: the expression around it stays typed.
 
 Malformed, dynamically widened, and deliberately opaque expressions also become
 `unknown[]`, not TypeScript errors. Use the analyzer to report expression errors.

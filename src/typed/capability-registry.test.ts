@@ -253,10 +253,6 @@ function runManualCapability(id: string, expression: string): string | undefined
       input: { resourceType: 'Patient', gender: 'female' },
       expected: [{ system: 'http://hl7.org/fhir/administrative-gender', code: 'female' }],
     },
-    'selector.required-elements': {
-      input: patient,
-      expected: [{ resourceType: 'Observation', status: 'final' }],
-    },
   }
   const fixture = cases[id]
   if (fixture === undefined) return `missing manual runtime fixture for ${id}`
