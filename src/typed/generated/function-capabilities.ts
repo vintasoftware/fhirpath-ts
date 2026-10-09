@@ -1681,6 +1681,21 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     degradation: 'Patient.name.unknownFn()',
     composition: "('abc'.upper()).count()",
   },
+  'builtin.weight': {
+    source: {
+      expression: 'Patient.name.weight()',
+      corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
+    },
+    expectedType: 'number[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: {
+      types: ['System.Decimal'],
+      single: false,
+    },
+    degradation: 'Patient.name.unknownFn()',
+    composition: '(Patient.name.weight()).count()',
+  },
   'builtin.where': {
     source: {
       expression: 'Patient.name.where($this)',

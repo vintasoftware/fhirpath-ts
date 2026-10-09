@@ -113,6 +113,7 @@ export interface CompactFunctionRules {
   unescape: readonly ['fixed', 'System.String']
   union: readonly ['union', 'input' | 0]
   upper: readonly ['fixed', 'System.String']
+  weight: readonly ['fixed', 'System.Decimal']
   where: readonly ['input']
   yearOf: readonly ['fixed', 'System.Integer']
 }
@@ -149,6 +150,7 @@ export type CompactFastFunctionName =
   | 'exclude'
   | 'not'
   | 'trace'
+  | 'weight'
   | 'hasValue'
   | 'htmlChecks'
   | 'comparable'

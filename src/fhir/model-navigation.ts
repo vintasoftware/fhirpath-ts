@@ -2,6 +2,7 @@ import type { ModelProvider } from '../model/provider.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, toTypedValue, type TypedValue } from '../values/typed-value.ts'
+import { childValue } from './element-origin.ts'
 
 export function isFhirPrimitiveType(typeName: string): boolean {
   return FHIR_PRIMITIVE_TO_SYSTEM[typeName] !== undefined
@@ -14,6 +15,10 @@ export function isFhirPrimitiveType(typeName: string): boolean {
  * Undefined when the model does not know the element.
  */
 export function readModelProperty(model: ModelProvider, item: TypedValue, name: string): TypedValue[] | undefined {
+  return readProperty(model, item, name)?.map(child => childValue(child, item, name))
+}
+
+function readProperty(model: ModelProvider, item: TypedValue, name: string): TypedValue[] | undefined {
   const metadata = readPrimitiveMetadata(item, name)
   if (metadata !== undefined) {
     return metadata

@@ -1,3 +1,4 @@
+import { childValue } from '../fhir/element-origin.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
 import { rootTypeMatches } from '../values/type-compat.ts'
 import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
@@ -55,7 +56,9 @@ export function getProperty(item: TypedValue, name: string): TypedValue[] {
     return []
   }
   if (Array.isArray(child)) {
-    return child.filter(element => element !== null && element !== undefined).map(element => toTypedValue(element))
+    return child
+      .filter(element => element !== null && element !== undefined)
+      .map(element => childValue(toTypedValue(element), item, name))
   }
-  return [toTypedValue(child)]
+  return [childValue(toTypedValue(child), item, name)]
 }

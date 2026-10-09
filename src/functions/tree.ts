@@ -1,4 +1,5 @@
 import { pairEquals } from '../engine/operators/equality.ts'
+import { childValue } from '../fhir/element-origin.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, toTypedValue, type TypedValue } from '../values/typed-value.ts'
@@ -34,11 +35,11 @@ export function childrenOf(item: TypedValue, model?: ModelProvider): TypedValue[
     if (Array.isArray(child)) {
       for (const element of child) {
         if (element !== null && element !== undefined) {
-          result.push(toTypedValue(element))
+          result.push(childValue(toTypedValue(element), item, key))
         }
       }
     } else {
-      result.push(toTypedValue(child))
+      result.push(childValue(toTypedValue(child), item, key))
     }
   }
   return result
@@ -51,10 +52,14 @@ function primitiveMetadataChildren(item: TypedValue): TypedValue[] {
   }
   const result: TypedValue[] = []
   if (metadata.id !== undefined && metadata.id !== null) {
-    result.push({ type: 'System.String', value: metadata.id })
+    result.push(childValue({ type: 'System.String', value: metadata.id }, item, 'id'))
   }
   if (Array.isArray(metadata.extension)) {
-    result.push(...metadata.extension.map(extension => ({ type: 'FHIR.Extension', value: extension })))
+    result.push(
+      ...metadata.extension.map(extension =>
+        childValue({ type: 'FHIR.Extension', value: extension }, item, 'extension')
+      )
+    )
   }
   return result
 }

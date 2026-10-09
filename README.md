@@ -229,7 +229,9 @@ warnings. See [Static checking](docs/static-checking.md).
 ### Follow references in a Bundle
 
 `resolve()` follows contained references and references to another entry of the
-Bundle the expression runs on.
+Bundle the expression runs on. Fragment references in an entry resolve within
+that resource; references from a contained resource can reach its siblings and
+container.
 
 ```ts
 r4.evaluate(
@@ -237,6 +239,21 @@ r4.evaluate(
   searchset,
 )
 ```
+
+### Score questionnaire answers
+
+With the R4 model, the SDC supplement `weight()` reads `itemWeight` and R4
+`ordinalValue` extensions from answers and their values. If no embedded weight
+exists, it matches the answer to an `answerOption` on the corresponding item
+in `%questionnaire`, supplied through `env` or `vars`. For example,
+`item.answer.value.weight().sum()` totals the weights of those answers.
+Repeated answers retain their own item context, including across `evaluateTyped()`
+results reused through `vars`. Raw results from `evaluate()` carry no such context.
+
+ValueSet and CodeSystem weight lookups are deferred, including contained
+terminology resources. When a score needs one of these lookups or a missing
+questionnaire item, `weight()` throws so a partial score is not reported as complete.
+See the [SDC FHIRPath supplements](https://build.fhir.org/ig/HL7/sdc/en/expressions.html#fhirpath-supplements).
 
 ### Walk nested structures
 
@@ -395,7 +412,7 @@ These features are deferred and fail with a clear error today:
 | External `resolve()` | The same async evaluation path |
 | `conformsTo()` beyond base StructureDefinitions | Profile-aware validation |
 | `slice()`, `elementDefinition()`, `checkModifiers()` | Profile definitions in the model |
-| `weight()` | Code-system `itemWeight` lookups |
+| `weight()` via ValueSets or CodeSystems | Terminology weight lookup |
 | `%factory` | Demand for the current R5 draft API |
 | CDA mode | A CDA `ModelProvider` |
 | Full UCUM | A full UCUM implementation behind the current interface |
