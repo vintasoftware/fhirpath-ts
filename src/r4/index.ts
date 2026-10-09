@@ -1,5 +1,6 @@
 import { FhirPathEngine } from '../api/engine.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
+import { R4_CODE_SETS } from './generated/code-sets.ts'
 import { R4_PRIMITIVE_PATTERNS } from './generated/primitive-patterns.ts'
 import { R4_RESOURCES_COMPACT } from './generated/resources-data.ts'
 import { R4_DATA_TYPES_COMPACT } from './generated/types-data.ts'
@@ -47,6 +48,18 @@ function findElement(typeName: string, element: string): GeneratedElement | unde
   return undefined
 }
 
+const CODE_SETS = new Map<number, readonly string[]>()
+
+/** A required binding's codes, split once per code set. */
+function codeSet(index: number): readonly string[] {
+  let codes = CODE_SETS.get(index)
+  if (codes === undefined) {
+    codes = (R4_CODE_SETS[index] ?? '').split('|')
+    CODE_SETS.set(index, codes)
+  }
+  return codes
+}
+
 /** The generated R4 model: type resolution, element lookup, and the type hierarchy. */
 export const r4Model: ModelProvider = {
   namespace: NAMESPACE,
@@ -65,6 +78,8 @@ export const r4Model: ModelProvider = {
       isCollection: found.a === 1,
       isChoice: found.c === 1,
       ...(found.r !== undefined && { referenceTargets: found.r }),
+      ...(found.m === 1 && { isRequired: true }),
+      ...(found.k !== undefined && { requiredCodes: codeSet(found.k) }),
     }
   },
 

@@ -43,6 +43,25 @@ describe('r4Model element lookup', () => {
     expect(r4Model.getElement('FHIR.Nope', 'x')).toBeUndefined()
   })
 
+  it('marks required elements, choice elements included', () => {
+    expect(r4Model.getElement('FHIR.Observation', 'code')?.isRequired).toBe(true)
+    expect(r4Model.getElement('FHIR.Observation', 'subject')?.isRequired).toBeUndefined()
+    expect(r4Model.getElement('FHIR.MedicationRequest', 'medication')?.isRequired).toBe(true)
+    expect(r4Model.getElement('FHIR.Observation.component', 'code')?.isRequired).toBe(true)
+  })
+
+  it('gives the codes of a required code binding, inherited ones included', () => {
+    expect(r4Model.getElement('FHIR.Patient', 'gender')?.requiredCodes).toEqual(['female', 'male', 'other', 'unknown'])
+    expect(r4Model.getElement('FHIR.Age', 'comparator')?.requiredCodes).toEqual(['<', '<=', '>', '>='])
+    // An extensible binding, or none, admits any code.
+    expect(r4Model.getElement('FHIR.Coding', 'code')?.requiredCodes).toBeUndefined()
+    expect(r4Model.getElement('FHIR.Observation', 'category')?.requiredCodes).toBeUndefined()
+    // Elements sharing a value set share one code list.
+    expect(r4Model.getElement('FHIR.Questionnaire', 'status')?.requiredCodes).toBe(
+      r4Model.getElement('FHIR.ValueSet', 'status')?.requiredCodes
+    )
+  })
+
   it('resolves choice elements by stem name', () => {
     const value = r4Model.getElement('FHIR.Observation', 'value')
     expect(value?.isCollection).toBe(false)
