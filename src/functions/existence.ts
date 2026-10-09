@@ -1,4 +1,4 @@
-import { DistinctItems, distinctItems } from '../engine/operators/equality.ts'
+import { distinctItems, EqualityIndex } from '../engine/operators/equality.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import { booleanSingleton, wrapBoolean } from '../values/collection.ts'
 import { SYSTEM_BOOLEAN, SYSTEM_INTEGER, systemTypeOf } from '../values/typed-value.ts'
@@ -82,7 +82,7 @@ registerFunction('subsetOf', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const other = evaluateNode(argAt(args, 0), context, input)
-    const others = new DistinctItems(other)
+    const others = new EqualityIndex(other)
     return wrapBoolean(input.every(item => others.has(item)))
   },
 })
@@ -92,7 +92,7 @@ registerFunction('supersetOf', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const other = evaluateNode(argAt(args, 0), context, input)
-    const inputs = new DistinctItems(input)
+    const inputs = new EqualityIndex(input)
     return wrapBoolean(other.every(item => inputs.has(item)))
   },
 })

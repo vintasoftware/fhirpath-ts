@@ -1,4 +1,4 @@
-import { DistinctItems } from '../engine/operators/equality.ts'
+import { EqualityIndex } from '../engine/operators/equality.ts'
 import { isKnownTypeName, itemMatchesType } from '../engine/type-matching.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
 import { booleanSingleton, singleton, wrapBoolean } from '../values/collection.ts'
@@ -45,7 +45,7 @@ registerFunction('repeat', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const expression = argAt(args, 0)
-    const collected = new DistinctItems()
+    const collected = new EqualityIndex()
     // The same value counts as seen even where `=` is not true, as for valueless items.
     const seenValues = new Set<unknown>()
     let current = input

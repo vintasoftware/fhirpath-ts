@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { evaluate } from '../api/evaluate.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { r4Model } from '../r4/index.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { MAX_REPEAT_ITEMS } from './filtering.ts'
 
@@ -115,6 +116,21 @@ describe('filtering and projection', () => {
   it('repeat reaches its limit quickly on temporal values', () => {
     expect(() => evaluate('@2016-01-01.repeat($this + 1 day)')).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
     expect(() => evaluate("@T00:00:00.000.repeat($this + 1 'ms')")).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
+  })
+
+  it('membership functions agree with in when = is not transitive', () => {
+    // The untyped %u deep-equals the FHIR Quantity, which equals 1000 'g' by
+    // conversion; %u itself does not. Membership must still find the Quantity.
+    const quantity = { value: 1, unit: 'kg', system: 'http://unitsofmeasure.org', code: 'kg' }
+    const observation = { resourceType: 'Observation', valueQuantity: quantity }
+    const options = { model: r4Model, env: { u: { ...quantity } } }
+    const others = '%u.combine(Observation.value)'
+    const run = (expression: string): unknown[] => evaluate(expression, observation, options)
+    expect(run(`(1000 'g') in (${others})`)).toEqual([true])
+    expect(run(`(1000 'g').subsetOf(${others})`)).toEqual([true])
+    expect(run(`(${others}).supersetOf(1000 'g')`)).toEqual([true])
+    expect(run(`(1000 'g').exclude(${others})`)).toEqual([])
+    expect(run(`(1000 'g').intersect(${others}).count()`)).toEqual([1])
   })
 
   it('distinct() keeps two values exactly when = is not true for them', () => {

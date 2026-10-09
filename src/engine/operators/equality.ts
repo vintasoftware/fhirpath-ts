@@ -56,53 +56,66 @@ export function pairEquals(a: TypedValue, b: TypedValue): boolean | undefined {
 }
 
 /**
- * Items kept distinct by `=` (`pairEquals`), in insertion order. Most items
- * answer through `equalityKey` in constant time; the rest are compared one by one.
+ * Items indexed for `=` (`pairEquals`) lookups, in insertion order. `=` is not
+ * transitive (an untyped object deep-equals a FHIR Quantity that equals another
+ * by unit conversion), so a lookup index keeps every item; only deduplication
+ * drops one, through `add`. Most items answer through `equalityKey` in constant
+ * time; an object without a key is compared one by one, against objects only.
  */
-export class DistinctItems {
+export class EqualityIndex {
   readonly items: TypedValue[] = []
   private readonly keys = new Set<string>()
-  private readonly unkeyed: TypedValue[] = []
+  /** Every item with an object value, keyed or not. */
+  private readonly objects: TypedValue[] = []
+  /** Items with an object value and no key. */
+  private readonly unkeyedObjects: TypedValue[] = []
 
   constructor(items: Iterable<TypedValue> = []) {
     for (const item of items) {
-      this.add(item)
+      this.insert(item)
     }
   }
 
-  /** True when an item equal to this one is present. */
+  /** True when an item `=` to this one is present. */
   has(item: TypedValue): boolean {
     return this.find(item, equalityKey(item))
   }
 
-  /** Adds the item unless an equal one is present; true when added. */
+  /** Inserts the item unless an item `=` to it is present; true when inserted. */
   add(item: TypedValue): boolean {
     const key = equalityKey(item)
     if (this.find(item, key)) {
       return false
     }
-    this.insert(item, key)
+    this.store(item, key)
     return true
   }
 
-  /** Adds the item without looking for an equal one. */
-  push(item: TypedValue): void {
-    this.insert(item, equalityKey(item))
+  /** Inserts the item without looking for an equal one. */
+  insert(item: TypedValue): void {
+    this.store(item, equalityKey(item))
   }
 
   private find(item: TypedValue, key: string | undefined): boolean {
+    // pairEquals compares an object with a primitive as unequal, so only objects need a scan.
     if (key === undefined) {
-      return this.items.some(existing => pairEquals(existing, item) === true)
+      return isComplex(item) && this.objects.some(existing => pairEquals(existing, item) === true)
     }
-    // A keyed item can still equal an unkeyed one: an untyped object deep-equals a FHIR Quantity.
-    return this.keys.has(key) || this.unkeyed.some(existing => pairEquals(existing, item) === true)
+    return (
+      this.keys.has(key) ||
+      (isComplex(item) && this.unkeyedObjects.some(existing => pairEquals(existing, item) === true))
+    )
   }
 
-  private insert(item: TypedValue, key: string | undefined): void {
-    if (key === undefined) {
-      this.unkeyed.push(item)
-    } else {
+  private store(item: TypedValue, key: string | undefined): void {
+    if (key !== undefined) {
       this.keys.add(key)
+    }
+    if (isComplex(item)) {
+      this.objects.push(item)
+      if (key === undefined) {
+        this.unkeyedObjects.push(item)
+      }
     }
     this.items.push(item)
   }
@@ -110,7 +123,11 @@ export class DistinctItems {
 
 /** Duplicate elimination with `=` semantics: `distinct()`, `|`, `union()`, and `intersect()`. */
 export function distinctItems(input: Iterable<TypedValue>): TypedValue[] {
-  return new DistinctItems(input).items
+  const distinct = new EqualityIndex()
+  for (const item of input) {
+    distinct.add(item)
+  }
+  return distinct.items
 }
 
 /**

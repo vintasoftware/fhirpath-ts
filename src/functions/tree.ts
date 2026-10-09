@@ -1,4 +1,4 @@
-import { DistinctItems } from '../engine/operators/equality.ts'
+import { EqualityIndex } from '../engine/operators/equality.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
@@ -78,7 +78,7 @@ registerFunction('descendants', {
     // An item is a duplicate when its value is one seen in a prior round, or it
     // is `=` to a prior item. The index updates only between rounds, preserving
     // the batch semantics.
-    const collected = new DistinctItems()
+    const collected = new EqualityIndex()
     const seenValues = new Set<unknown>()
     const isDuplicate = (item: TypedValue): boolean => seenValues.has(item.value) || collected.has(item)
     let current = input.flatMap(item => childrenOf(item, context.model))
@@ -86,7 +86,7 @@ registerFunction('descendants', {
       const fresh = current.filter(item => !isDuplicate(item))
       for (const item of fresh) {
         seenValues.add(item.value)
-        collected.push(item)
+        collected.insert(item)
       }
       current = fresh.flatMap(item => childrenOf(item, context.model))
     }

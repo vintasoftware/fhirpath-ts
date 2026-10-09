@@ -1,5 +1,5 @@
 import type { EvaluationContext } from '../engine/context.ts'
-import { DistinctItems, distinctItems } from '../engine/operators/equality.ts'
+import { distinctItems, EqualityIndex } from '../engine/operators/equality.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { singleton } from '../values/collection.ts'
@@ -73,7 +73,7 @@ registerFunction('intersect', {
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const other = evaluateNode(argAt(args, 0), context, input)
-    const others = new DistinctItems(other)
+    const others = new EqualityIndex(other)
     return distinctItems(input).filter(item => others.has(item))
   },
 })
@@ -84,7 +84,7 @@ registerFunction('exclude', {
   evaluate: (context, input, args, evaluateNode) => {
     const other = evaluateNode(argAt(args, 0), context, input)
     // Keeps duplicates and order, unlike intersect().
-    const others = new DistinctItems(other)
+    const others = new EqualityIndex(other)
     return input.filter(item => !others.has(item))
   },
 })
