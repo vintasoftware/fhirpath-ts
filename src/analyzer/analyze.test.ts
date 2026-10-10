@@ -615,6 +615,14 @@ describe('lambda result typing', () => {
     expect(codes('Patient.name.sort(given)')).toEqual(['singleton-required'])
     expect(codes('Patient.name.sort(given desc)')).toEqual(['singleton-required'])
   })
+
+  it('reports $index inside a sort() key, where the runtime hides it', () => {
+    expect(codes('(3 | 1 | 2).sort($index)')).toEqual(['unknown-variable'])
+    expect(codes('Patient.name.select(given.sort($index))')).toEqual(['unknown-variable'])
+    // A where() inside the key binds its own $index.
+    expect(codes('Patient.name.sort(given.where($index = 0).first() desc)')).toEqual([])
+    expect(codes('Patient.name.select($index)')).toEqual([])
+  })
 })
 
 describe('variable tracking', () => {

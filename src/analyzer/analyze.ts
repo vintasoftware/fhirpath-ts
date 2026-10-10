@@ -392,6 +392,8 @@ class Analyzer {
   private readonly root: AnalyzerRoot
   private readonly runtime: boolean
   private readonly frames: StaticState[] = []
+  /** Depths of `frames` entries pushed for a sort() key, where `$index` is undefined. */
+  private readonly sortKeyFrames = new Set<number>()
   /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
   private readonly declaredVariables: ReadonlyMap<string, AnalyzerVariableState>
@@ -458,7 +460,7 @@ class Analyzer {
       case 'external':
         return this.walkExternal(node, scope)
       case 'special':
-        return this.walkSpecial(node.name)
+        return this.walkSpecial(node)
       case 'identifier':
         return this.walkIdentifier(node, input)
       case 'dot':
@@ -534,11 +536,16 @@ class Analyzer {
     return UNKNOWN
   }
 
-  private walkSpecial(name: 'this' | 'index' | 'total'): StaticState {
-    if (name === 'this') {
+  private walkSpecial(node: AstNode & { kind: 'special' }): StaticState {
+    if (node.name === 'this') {
       return this.frames.at(-1) ?? this.rootState()
     }
-    return name === 'index' ? singleState(['System.Integer']) : UNKNOWN
+    if (node.name === 'index' && this.sortKeyFrames.has(this.frames.length)) {
+      // The runtime hides $index in a sort key: sorting does not visit items in order.
+      this.report('unknown-variable', '$index is undefined inside sort() keys', node.span)
+      return UNKNOWN
+    }
+    return node.name === 'index' ? singleState(['System.Integer']) : UNKNOWN
   }
 
   /**
@@ -1040,7 +1047,11 @@ class Analyzer {
           true
         )
         this.frames.push(itemState)
+        if (spec === 'sort-key') {
+          this.sortKeyFrames.add(this.frames.length)
+        }
         const state = this.walk(body, itemState, forkScope(scope))
+        this.sortKeyFrames.delete(this.frames.length)
         this.frames.pop()
         argStates.push(state)
         if (spec === 'sort-key') {
