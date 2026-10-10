@@ -50,7 +50,7 @@ const documentation: readonly DocumentExpectation[] = [
         'Patient.name.family',
         'birthDate <= today()',
         "Observation.code.coding.exists(system = %loinc and code = '8480-6')",
-        'Observation.sort(-(effective.ofType(dateTime) | issued).first())'
+        'Observation.sort((effective.ofType(dateTime) | issued).first() desc)'
       ),
       valid('contact.all(name.exists() or telecom.exists())'),
       valid(
@@ -67,6 +67,9 @@ const documentation: readonly DocumentExpectation[] = [
       valid('Bundle.entry.resource.ofType(Observation).subject.resolve().name.family'),
       valid('Questionnaire.repeat(item).linkId'),
       valid("Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })"),
+      valid(
+        "Observation { status: 'final', code: CodeableConcept { text: 'BP' }, component: BackboneElement { code: CodeableConcept { text: 'Systolic' }, value: 120 'mm[Hg]' } }"
+      ),
       valid('birthDate <= today()', "Patient.name.trace('names').given"),
       valid('Patient.name.where(family.empty()).pathname()'),
       valid('Patient.name.given'),

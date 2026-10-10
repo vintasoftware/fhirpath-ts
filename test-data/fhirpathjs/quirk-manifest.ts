@@ -170,21 +170,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     ],
   },
   {
-    name: 'lenient-unicode-escapes',
-    evidence:
-      "fhirpath.js turns the malformed escape \\u12 into the text u12. The grammar's UNICODE lexer rule requires exactly four hex digits, so it is a syntax error here.",
-    keys: [
-      "4.1_literals.yaml||'\\u12'",
-      "4.1_literals.yaml||'\\u123'",
-      "4.1_literals.yaml||'\\u12G4'",
-      "4.1_literals.yaml||'\\uZZZZ'",
-      '4.1_literals.yaml||`bad\\u123`',
-      '4.1_literals.yaml||`bad\\u12G4`',
-      '4.1_literals.yaml||`bad\\u12`',
-      '4.1_literals.yaml||`bad\\uZZZZ`',
-    ],
-  },
-  {
     name: 'equivalence-rounding',
     evidence:
       'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec "~ (Equivalent)" says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding.',
@@ -196,17 +181,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       '6.1_equality.yaml||1.100 ~ 1.101',
       "6.1_equality.yaml||4 'g' !~ 4040 'mg'",
       '6.1_equality.yaml||Ops.complex ~ Ops.complexsimilar',
-    ],
-  },
-  {
-    name: 'math-functions-on-quantities',
-    evidence:
-      "1.1 'kg'.ceiling() works in fhirpath.js, as FHIRPath 3.0.0 allows (\"Math\": ceiling() takes a Quantity); this engine does not yet (#134).",
-    keys: [
-      "5.7_math.yaml||(-1.56 's').truncate() = -1 's'",
-      "5.7_math.yaml||1.1 'kg'.ceiling() = 2 'kg'",
-      "5.7_math.yaml||2.315 's'.round(2) = 2.32 's'",
-      "5.7_math.yaml||2.5 's'.floor() = 2 's'",
     ],
   },
   {
@@ -239,9 +213,9 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'comparable-edge-behaviors',
     evidence:
-      'fhirpath.js errors on year operands of comparable() and returns false for empty input; comparability is dimension-based here and empty input propagates.',
+      'FHIRPath 3.0.0 comparable(): true "indicates that a result from equality or comparison functions will succeed", so it is true here exactly when = and < give an answer, and 1 year = 1 second is empty. fhirpath.js decides by dimension, errors on some year operands, and returns false for empty input; the spec says empty.',
     keys: [
-      "6.2_comparision.yaml||1 year.comparable(1 's')",
+      '6.2_comparision.yaml||1 year.comparable(1 second)',
       '6.2_comparision.yaml||Observation.value.comparable(1 year)',
       '6.2_comparision.yaml||i.comparable(2 years)',
     ],

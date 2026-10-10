@@ -14,6 +14,9 @@ function bindingPowerOf(node: AstNode): number {
       return BindingPower.Indexer
     case 'unary':
       return BindingPower.Unary
+    case 'number':
+      // A signed literal reads back as one only where a unary minus could stand.
+      return node.text.startsWith('-') ? BindingPower.Unary : ATOMIC
     case 'typeOp':
       return BindingPower.TypeOps
     case 'binary':
@@ -90,9 +93,17 @@ function printInner(node: AstNode): string {
     case 'indexer':
       return `${print(node.target, BindingPower.Indexer)}[${print(node.index, 0)}]`
     case 'call':
-      return `${printIdentifier(node.name)}(${node.args.map(arg => print(arg, 0)).join(', ')})`
+      return `${printIdentifier(node.name)}(${node.args
+        .map((arg, index) => {
+          const direction = node.directions?.[index]
+          return direction === undefined ? print(arg, 0) : `${print(arg, 0)} ${direction}`
+        })
+        .join(', ')})`
     case 'unary':
-      return `${node.operator}${print(node.operand, BindingPower.Unary)}`
+      // `-1` parses as one literal, so negating a number literal needs `-(1)`.
+      return node.operator === '-' && node.operand.kind === 'number'
+        ? `-(${printInner(node.operand)})`
+        : `${node.operator}${print(node.operand, BindingPower.Unary)}`
     case 'typeOp':
       return `${print(node.operand, BindingPower.TypeOps)} ${node.operator} ${node.type.parts.map(printIdentifier).join('.')}`
     case 'binary': {

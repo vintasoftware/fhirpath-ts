@@ -229,6 +229,42 @@ describe('literal types', () => {
     expect(codes('integer { value: 2147483648 }')).toEqual(['operand-type'])
   })
 
+  it('reads a minus sign before an integer literal as one negative literal', () => {
+    expect(analyzeExpressionDetailed('-2147483648', {}).result.types).toEqual(['System.Integer'])
+    expect(analyzeExpressionDetailed('-2147483649', {}).result.types).toEqual(['System.Long'])
+    expect(codes('integer { value: -2147483648 }')).toEqual([])
+    expect(analyzeExpressionDetailed('-(2147483648)', {}).result.types).toEqual(['System.Long'])
+  })
+})
+
+describe('math and aggregate result types', () => {
+  const typesOf = (expression: string) => analyzeExpressionDetailed(expression, options).result.types
+
+  it('types the rounding functions and avg() by their input kind', () => {
+    expect(typesOf('1.5.ceiling()')).toEqual(['System.Integer'])
+    expect(typesOf("(1.5 'mg').ceiling()")).toEqual(['System.Quantity'])
+    expect(typesOf("(1.5 'mg').round(1)")).toEqual(['System.Quantity'])
+    expect(typesOf('1.5.round(1)')).toEqual(['System.Decimal'])
+    expect(typesOf("(1 'mg' | 2 'mg').avg()")).toEqual(['System.Quantity'])
+    expect(typesOf('(1 | 2).avg()')).toEqual(['System.Decimal'])
+    expect(typesOf('Observation.value.ceiling()')).toEqual(['System.Integer', 'System.Quantity'])
+  })
+
+  it('types power() as Decimal and min()/max() as the input item', () => {
+    expect(typesOf('2.power(3)')).toEqual(['System.Decimal'])
+    expect(typesOf('Patient.name.given.min()')).toEqual(['FHIR.string'])
+    expect(typesOf('(@2012 | @2013).max()')).toEqual(['System.Date'])
+    expect(codes("('b' | 'a').min()")).toEqual([])
+  })
+
+  it('rejects min() and max() on items the comparison operators cannot order', () => {
+    expect(codes('true.min()')).toEqual(['operand-type'])
+    expect(codes('Patient.active.max()')).toEqual(['operand-type'])
+    expect(codes('Patient.name.max()')).toEqual(['operand-type'])
+    expect(codes('Patient.birthDate.min()')).toEqual([])
+    expect(codes("(1 'mg' | 2 'mg').max()")).toEqual([])
+  })
+
   it('reads names on Object.prototype as unknown elements', () => {
     expect(codes('Patient.constructor')).toEqual(['unknown-element'])
     expect(codes("Coding { toString: 'a' }")).toEqual(['unknown-element'])
@@ -571,6 +607,22 @@ describe('lambda result typing', () => {
     expect(codes('Patient.name.sort(-family, given.first()).first().use')).toEqual([])
     expect(codes('Patient.name.sort(-nope)')).toEqual(['unknown-element'])
   })
+
+  it('sort() keys take asc and desc and must be single', () => {
+    expect(codes('Patient.name.sort(family desc, given.first() asc).first().use')).toEqual([])
+    expect(codes('Patient.name.sort(nope desc)')).toEqual(['unknown-element'])
+    expect(codes('Patient.name.sort(-family desc)')).toEqual(['operand-type'])
+    expect(codes('Patient.name.sort(given)')).toEqual(['singleton-required'])
+    expect(codes('Patient.name.sort(given desc)')).toEqual(['singleton-required'])
+  })
+
+  it('reports $index inside a sort() key, where the runtime hides it', () => {
+    expect(codes('(3 | 1 | 2).sort($index)')).toEqual(['unknown-variable'])
+    expect(codes('Patient.name.select(given.sort($index))')).toEqual(['unknown-variable'])
+    // A where() inside the key binds its own $index.
+    expect(codes('Patient.name.sort(given.where($index = 0).first() desc)')).toEqual([])
+    expect(codes('Patient.name.select($index)')).toEqual([])
+  })
 })
 
 describe('variable tracking', () => {
@@ -883,11 +935,19 @@ describe('instance selectors', () => {
       "Element 'value' of unsignedInt does not match the unsignedInt pattern [0]|([1-9][0-9]*)",
     ])
     expect(codes("Coding { code: ' final' }")).toEqual(['invalid-value'])
-    expect(codes('Observation { effective: @2020-01-01T10:00 }')).toEqual(['invalid-value'])
-    expect(codes("Observation { effective: @2020-01-01T10:00:00Z, status: 'final' }")).toEqual([])
+    expect(
+      codes("Observation { effective: @2020-01-01T10:00, status: 'final', code: CodeableConcept { text: 'bp' } }")
+    ).toEqual(['invalid-value'])
+    expect(
+      codes("Observation { effective: @2020-01-01T10:00:00Z, status: 'final', code: CodeableConcept { text: 'bp' } }")
+    ).toEqual([])
     // A time needs seconds; booleans, signed numbers, and decimals have patterns too.
-    expect(codes("Observation { value: @T10:00, status: 'final' }")).toEqual(['invalid-value'])
-    expect(codes("Observation { value: @T10:00:00, status: 'final' }")).toEqual([])
+    expect(codes("Observation { value: @T10:00, status: 'final', code: CodeableConcept { text: 'bp' } }")).toEqual([
+      'invalid-value',
+    ])
+    expect(codes("Observation { value: @T10:00:00, status: 'final', code: CodeableConcept { text: 'bp' } }")).toEqual(
+      []
+    )
     expect(codes('Patient { active: true }')).toEqual([])
     expect(codes('integer { value: -5 }')).toEqual([])
     expect(codes('decimal { value: -1.50 }')).toEqual([])
@@ -901,13 +961,65 @@ describe('instance selectors', () => {
     ['Patient.select(Coding { system: %resource.id, code: gender })'],
     ["Identifier { type: CodeableConcept { coding: Coding { code: 'MR' } }, period: Period { start: @2001-05-06 } }"],
     ["CodeableConcept { coding: Coding { code: 'a' } | Coding { code: 'b' } }"],
-    ["Observation { value: 5 'mg', status: 'final' }"],
+    ["Observation { value: 5 'mg', status: 'final', code: CodeableConcept { text: 'bp' } }"],
     ["Extension { url: 'u', value: name.first() }"],
     ["Quantity { value: 2, unit: 'mg' }"],
     ["code { value: 'final' }"],
     ['HumanName { given: name.given }'],
   ])('accepts %s', expression => {
     expect(analyzeExpression(expression, options)).toEqual([])
+  })
+
+  it('warns for a required element the selector leaves out', () => {
+    expect(analyzeExpression("Observation { status: 'final' }", options)).toEqual([
+      {
+        severity: 'warning',
+        code: 'missing-element',
+        name: 'code',
+        message: "Observation requires element 'code', which the instance selector leaves out",
+        span: { start: 0, end: 11, line: 1, column: 1 },
+      },
+    ])
+    expect(codes('Observation {:}')).toEqual(['missing-element', 'missing-element'])
+    expect(codes("Extension { value: 'x' }")).toEqual(['missing-element'])
+    // A listed element counts even when its value may be empty at runtime.
+    expect(codes("Extension { url: name.given.first(), value: 'x' }")).toEqual([])
+    // A required choice element is listed by its stem.
+    expect(codes("MedicationRequest { status: 'active', intent: 'order', subject: Reference {:} }")).toEqual([
+      'missing-element',
+    ])
+  })
+
+  it('builds backbone elements with BackboneElement { ... }', () => {
+    const component = "Observation { status: 'final', code: CodeableConcept {:}, component: BackboneElement { %s } }"
+    expect(codes(component.replace('%s', "code: CodeableConcept { text: 'x' }, value: 120 'mm[Hg]'"))).toEqual([])
+    expect(
+      analyzeExpressionDetailed(
+        component.replace('%s', "code: CodeableConcept { text: 'x' }").concat('.component'),
+        options
+      ).result.types
+    ).toEqual(['FHIR.Observation.component'])
+    expect(messages(component.replace('%s', "notAField: 'x'"))).toEqual([
+      "Element 'notAField' is not defined on FHIR.Observation.component",
+      "Observation.component requires element 'code', which the instance selector leaves out",
+    ])
+    expect(codes(component.replace('%s', "code: 'x'"))).toEqual(['operand-type'])
+    // Nested backbone elements, including one typed by a content reference.
+    expect(
+      codes(
+        "Questionnaire { status: 'draft', item: BackboneElement { linkId: 'a', type: 'group', item: FHIR.BackboneElement { linkId: 'b', type: 'display' } } }"
+      )
+    ).toEqual([])
+    expect(
+      codes("Questionnaire { status: 'draft', item: BackboneElement { linkId: 'a', type: 'group', text: 1 } }")
+    ).toEqual(['operand-type'])
+    // Elsewhere BackboneElement is the abstract type.
+    expect(codes("BackboneElement { linkId: 'a' }")).toEqual(['unknown-element'])
+    expect(
+      codes(
+        "Observation { status: 'final', code: CodeableConcept {:}, component: (BackboneElement { code: CodeableConcept {:} }).first() }"
+      )
+    ).toEqual(['unknown-element', 'operand-type'])
   })
 
   it('types the result as one value of the named type', () => {

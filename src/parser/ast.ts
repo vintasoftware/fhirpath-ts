@@ -115,10 +115,18 @@ export interface IndexerNode extends BaseNode {
   index: AstNode
 }
 
+/** The `asc` or `desc` qualifier after a `sort()` key (spec "sort"). */
+export type SortDirection = 'asc' | 'desc'
+
 export interface FunctionCallNode extends BaseNode {
   kind: 'call'
   name: string
   args: AstNode[]
+  /**
+   * The qualifier written after each `sort()` key, by argument position. Set
+   * only on a `sort()` call that writes at least one.
+   */
+  directions?: (SortDirection | undefined)[]
 }
 
 export interface UnaryNode extends BaseNode {

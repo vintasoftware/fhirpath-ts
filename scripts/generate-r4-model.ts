@@ -279,8 +279,11 @@ function extract(
             ;(inferredCodes[ownerPath] ??= {})[name] = enumerated.codes
           }
         }
-        if (!isChoice && element.min !== undefined && element.min >= 1) {
-          ;(requiredElements[ownerPath] ??= new Set()).add(name)
+        if (element.min !== undefined && element.min >= 1) {
+          generated.m = 1
+          if (!isChoice) {
+            ;(requiredElements[ownerPath] ??= new Set()).add(name)
+          }
         }
       }
     }

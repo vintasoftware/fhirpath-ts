@@ -65,6 +65,7 @@ export const r4Model: ModelProvider = {
       isCollection: found.a === 1,
       isChoice: found.c === 1,
       ...(found.r !== undefined && { referenceTargets: found.r }),
+      ...(found.m === 1 && { isRequired: true }),
     }
   },
 
