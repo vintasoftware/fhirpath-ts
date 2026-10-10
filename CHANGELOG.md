@@ -158,7 +158,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 - **Breaking:** `=` on complex values compares element `id`s, since equality compares every
   child element. `~` still ignores them. Two Codings that differ only in their
   `id` are no longer `=`, so `distinct()`, `|`, `union()`, `intersect()`,
-  `exclude()`, and `repeat()` keep both
+  `exclude()`, and `repeat()` keep both. `weight()` matches a non-Coding
+  answer, such as a `valueReference`, to an answer option by `=`, so an `id`
+  that differs stops the match
   ([#131](https://github.com/vintasoftware/fhirpath-ts/issues/131)).
 - **Breaking:** math follows FHIRPath 3.0.0
   ([#134](https://github.com/vintasoftware/fhirpath-ts/issues/134)):
