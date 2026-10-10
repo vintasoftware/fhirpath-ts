@@ -44,6 +44,16 @@ describe('type-level literals', () => {
     expectTypeOf<FhirpathResult<"'\\'">>().toEqualTypeOf<unknown[]>()
   })
 
+  it('leaves an integer literal that may leave the 32-bit range unknown', () => {
+    // The runtime reads 2147483648 as a Long (bigint) and -2147483648 as an Integer.
+    expectTypeOf<FhirpathResult<'2147483647'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'2147483648'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'-2147483648'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'999999999'>>().toEqualTypeOf<number[]>()
+    expectTypeOf<FhirpathResult<'-999999999'>>().toEqualTypeOf<number[]>()
+    expectTypeOf<FhirpathResult<'2147483648.5'>>().toEqualTypeOf<number[]>()
+  })
+
   it('degrades invalid or incomplete literal syntax', () => {
     expectTypeOf<FhirpathResult<'2 items'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'@T14:30Z'>>().toEqualTypeOf<unknown[]>()

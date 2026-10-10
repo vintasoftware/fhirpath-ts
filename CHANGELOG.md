@@ -186,6 +186,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Fixed
 
+- Type inference gives an integer literal of ten or more digits, such as
+  `2147483648`, `unknown[]` instead of `number[]`. The runtime reads one
+  outside the 32-bit Integer range as a Long (`bigint`) or a Decimal.
 - Arithmetic operators, unary minus, the math functions, and `sum()`,
   `avg()`, `min()`, and `max()` give empty for a primitive that has
   extensions and no value, as the comparison operators do. Most of them threw

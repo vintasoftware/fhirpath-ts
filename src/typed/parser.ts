@@ -1140,7 +1140,13 @@ type ContinueNumber<
   [
     ...Stack,
     CopyEnvironment<
-      NumberText extends `${string}.${string}` ? ['System.Decimal', never] : ['System.Integer', never],
+      NumberText extends `${string}.${string}`
+        ? ['System.Decimal', never]
+        : // Ten or more digits may leave the 32-bit Integer range, where the
+          // runtime reads a Long or a Decimal: unknown rather than number.
+          NumberText extends `${infer _0}${infer _1}${infer _2}${infer _3}${infer _4}${infer _5}${infer _6}${infer _7}${infer _8}${infer _9}${string}`
+          ? UnknownState
+          : ['System.Integer', never],
       Context
     >,
   ],
