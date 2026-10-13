@@ -74,6 +74,11 @@ describe('strict evaluation', () => {
     expect(strict.evaluate('anything', custom)).toEqual(['works'])
   })
 
+  it('rejects an instance selector over several input items before it runs', () => {
+    expect(() => strict.evaluate("Coding { code: 'a' }", [patient, patient])).toThrow(/\[singleton-required\]/)
+    expect(strict.evaluate("Coding { code: 'a' }", patient)).toEqual([{ code: 'a' }])
+  })
+
   it('analyzes a compiled expression against its declared input type', () => {
     // The data carries no resourceType, so only the declaration types it.
     const name = { given: ['Ada'] }

@@ -13,7 +13,7 @@ function temporalInput(input: TypedValue[]): Temporal | undefined {
   return item.value
 }
 
-/** Component extractors (ballot §5.8): empty when the value's precision omits the component. */
+/** Component extractors (FHIRPath 3.0.0, "Extract Date/DateTime/Time components"): empty when the value's precision omits the component. */
 function componentFunction(name: string, extract: (value: Temporal) => number | undefined): void {
   registerFunction(name, {
     minArity: 0,

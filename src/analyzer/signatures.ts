@@ -1,4 +1,4 @@
-import type { ValueKind } from '../values/type-compat.ts'
+import { commonValueKind, type ValueKind } from '../values/type-compat.ts'
 
 export interface StaticStateLike {
   types: string[] | undefined
@@ -76,6 +76,9 @@ export type ResultRule =
   | { kind: 'union'; sources: readonly ('input' | number)[]; single: boolean | 'all'; sequential?: true }
   | { kind: 'arguments-union' }
   | { kind: 'reference-targets' }
+  // One item: `number` for a numeric input, System.Quantity for a Quantity
+  // input, and either when the input kind is unknown (`ceiling()`, `avg()`).
+  | { kind: 'number-or-quantity'; number: string }
   // An unknown result keeps the input's ordering unless the rule declares one.
   | { kind: 'unknown'; ordered?: boolean }
 
@@ -94,11 +97,13 @@ const DATE = { kind: 'fixed', types: ['System.Date'], single: true } as const sa
 const DATETIME = { kind: 'fixed', types: ['System.DateTime'], single: true } as const satisfies ResultRule
 const TIME = { kind: 'fixed', types: ['System.Time'], single: true } as const satisfies ResultRule
 const QUANTITY = { kind: 'fixed', types: ['System.Quantity'], single: true } as const satisfies ResultRule
+const INTEGER_OR_QUANTITY = { kind: 'number-or-quantity', number: 'System.Integer' } as const satisfies ResultRule
+const DECIMAL_OR_QUANTITY = { kind: 'number-or-quantity', number: 'System.Decimal' } as const satisfies ResultRule
 const UNKNOWN = { kind: 'unknown' } as const satisfies ResultRule
 // An unknown type that is at most one item at runtime (aggregates, singleton-input
 // conversions), so its order is defined even when the input's is not.
 const UNKNOWN_ITEM = { kind: 'unknown', ordered: true } as const satisfies ResultRule
-// Tree traversals return their matches in no defined order (spec §5.1).
+// Tree traversals return their matches in no defined order (spec "Tree navigation").
 const UNORDERED = { kind: 'unknown', ordered: false } as const satisfies ResultRule
 const SAME = { kind: 'input' } as const satisfies ResultRule
 const ITEM = { kind: 'input-item' } as const satisfies ResultRule
@@ -139,6 +144,13 @@ export function applyResultRule(
       return unionStates([...args])
     case 'reference-targets':
       return { types: input.targets, single: input.single, ordered: input.ordered }
+    case 'number-or-quantity': {
+      const kind = commonValueKind(input.types)
+      if (kind === 'Numeric') {
+        return singleState([rule.number])
+      }
+      return singleState(kind === 'Quantity' ? ['System.Quantity'] : [rule.number, 'System.Quantity'])
+    }
     case 'unknown':
       return { types: undefined, single: undefined, ordered: rule.ordered ?? input.ordered }
   }
@@ -248,6 +260,7 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
     result: { kind: 'argument', index: 0 },
   },
   repeat: { args: ['expression'], result: UNORDERED },
+  repeatAll: { args: ['expression'], result: UNORDERED },
   // ofType/as results narrow to the named type; the analyzer computes that with
   // the model (walkCall), so their table results are never consulted.
   ofType: { args: ['type-name'], result: UNKNOWN },
@@ -262,7 +275,12 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   intersect: { args: ['any'], result: SAME },
   exclude: { args: ['any'], result: SAME },
   union: { args: ['any'], result: { kind: 'union', sources: ['input', 0], single: false, sequential: true } },
-  combine: { args: ['any'], result: { kind: 'union', sources: ['input', 0], single: false, sequential: true } },
+  // The optional argument is `preserveOrder`. The result keeps its sources' order
+  // either way, as the runtime does (docs/conformance.md).
+  combine: {
+    args: ['any', 'Boolean'],
+    result: { kind: 'union', sources: ['input', 0], single: false, sequential: true },
+  },
   iif: {
     args: ['condition', 'expression', 'expression'],
     // The union of the branch states; a missing else-branch contributes empty.
@@ -271,6 +289,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   // not() takes anything a Boolean test accepts (0/1, single items), so no kind pin.
   not: { input: { singleton: true }, result: BOOLEAN },
   trace: { args: ['String', 'expression'], result: SAME },
+  // One path per input item that has one, so the count is at most the input's.
+  pathname: { args: ['Boolean'], result: { kind: 'fixed', types: ['System.String'] } },
   children: { result: UNORDERED },
   descendants: { result: UNORDERED },
   // A reference resolves to its declared target types (Reference.targetProfile,
@@ -282,7 +302,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   getValue: { input: { singleton: true }, result: UNKNOWN_ITEM },
   // A collection gives empty, not an error (FHIR R5 htmlChecks).
   htmlChecks: { result: BOOLEAN },
-  comparable: { input: { kind: 'Quantity', singleton: true }, args: ['Quantity'], result: BOOLEAN },
+  // A number counts as a unity Quantity; any other operand gives empty, not an error.
+  comparable: { input: { singleton: true }, args: ['any'], result: BOOLEAN },
   conformsTo: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
   memberOf: { args: ['String'], result: BOOLEAN },
   // subsumes is deliberately absent: it is dual-form (Coding.subsumes(coded) → Boolean,
@@ -299,9 +320,10 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   upper: { input: { kind: 'String', singleton: true }, result: STRING },
   lower: { input: { kind: 'String', singleton: true }, result: STRING },
   replace: { input: { kind: 'String', singleton: true }, args: ['String', 'String'], result: STRING },
-  matches: { ...STRING_FN, result: BOOLEAN },
-  matchesFull: { ...STRING_FN, result: BOOLEAN },
-  replaceMatches: { input: { kind: 'String', singleton: true }, args: ['String', 'String'], result: STRING },
+  // The optional last argument holds the regex flags.
+  matches: { ...STRING_FN, args: ['String', 'String'], result: BOOLEAN },
+  matchesFull: { ...STRING_FN, args: ['String', 'String'], result: BOOLEAN },
+  replaceMatches: { input: { kind: 'String', singleton: true }, args: ['String', 'String', 'String'], result: STRING },
   toChars: {
     input: { kind: 'String', singleton: true },
     result: { kind: 'fixed', types: ['System.String'], single: false, ordered: true },
@@ -319,22 +341,25 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   unescape: STRING_FN,
 
   abs: { input: { singleton: true }, result: UNKNOWN_ITEM },
-  ceiling: { input: { kind: 'Numeric', singleton: true }, result: INTEGER },
-  floor: { input: { kind: 'Numeric', singleton: true }, result: INTEGER },
-  truncate: { input: { kind: 'Numeric', singleton: true }, result: INTEGER },
-  round: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: DECIMAL },
+  // A Quantity keeps its unit and gets the rounded value.
+  ceiling: { input: { kind: 'Numeric', singleton: true }, result: INTEGER_OR_QUANTITY },
+  floor: { input: { kind: 'Numeric', singleton: true }, result: INTEGER_OR_QUANTITY },
+  truncate: { input: { kind: 'Numeric', singleton: true }, result: INTEGER_OR_QUANTITY },
+  round: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: DECIMAL_OR_QUANTITY },
   exp: MATH_FN,
   ln: MATH_FN,
   sqrt: MATH_FN,
   log: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: DECIMAL },
-  power: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: UNKNOWN_ITEM },
+  power: { input: { kind: 'Numeric', singleton: true }, args: ['Numeric'], result: DECIMAL },
   // Each iteration replaces the accumulator with the aggregator result. An
   // empty input returns init, when supplied, so both arguments can contribute.
   aggregate: { args: ['expression', 'any'], result: { kind: 'union', sources: [0, 1], single: 'all' } },
   sum: { input: { kind: 'Numeric' }, result: UNKNOWN_ITEM },
-  min: { input: { kind: 'Numeric' }, result: UNKNOWN_ITEM },
-  max: { input: { kind: 'Numeric' }, result: UNKNOWN_ITEM },
-  avg: { input: { kind: 'Numeric' }, result: DECIMAL },
+  // min() and max() return one of the input items, which may also be a date,
+  // time, or string, so the kind check is left to the runtime.
+  min: { result: ITEM },
+  max: { result: ITEM },
+  avg: { input: { kind: 'Numeric' }, result: DECIMAL_OR_QUANTITY },
   sort: { args: ['sort-key'], result: { kind: 'input', ordered: true } },
 
   toBoolean: { input: { singleton: true }, result: BOOLEAN },
@@ -342,8 +367,9 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   toLong: { input: { singleton: true }, result: LONG },
   toDecimal: { input: { singleton: true }, result: DECIMAL },
   toString: { input: { singleton: true }, result: STRING },
-  toDate: { input: { singleton: true }, result: DATE },
-  toDateTime: { input: { singleton: true }, result: DATETIME },
+  // The optional argument is a format for a String input (FHIRPath 3.0.0).
+  toDate: { input: { singleton: true }, args: ['String'], result: DATE },
+  toDateTime: { input: { singleton: true }, args: ['String'], result: DATETIME },
   toTime: { input: { singleton: true }, result: TIME },
   toQuantity: {
     input: { singleton: true },
@@ -355,8 +381,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   convertsToLong: { input: { singleton: true }, result: BOOLEAN },
   convertsToDecimal: { input: { singleton: true }, result: BOOLEAN },
   convertsToString: { input: { singleton: true }, result: BOOLEAN },
-  convertsToDate: { input: { singleton: true }, result: BOOLEAN },
-  convertsToDateTime: { input: { singleton: true }, result: BOOLEAN },
+  convertsToDate: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
+  convertsToDateTime: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
   convertsToTime: { input: { singleton: true }, result: BOOLEAN },
   convertsToQuantity: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
 
@@ -373,6 +399,8 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   timezoneOffsetOf: { input: { kind: 'Temporal', singleton: true }, result: DECIMAL },
   dateOf: { input: { kind: 'Temporal', singleton: true }, result: DATE },
   timeOf: { input: { kind: 'Temporal', singleton: true }, result: TIME },
+  duration: { input: { kind: 'Temporal', singleton: true }, args: ['Temporal', 'String'], result: INTEGER },
+  difference: { input: { kind: 'Temporal', singleton: true }, args: ['Temporal', 'String'], result: INTEGER },
   lowBoundary: { input: { singleton: true }, args: ['Numeric'], result: UNKNOWN_ITEM },
   highBoundary: { input: { singleton: true }, args: ['Numeric'], result: UNKNOWN_ITEM },
   precision: { input: { singleton: true }, result: INTEGER },

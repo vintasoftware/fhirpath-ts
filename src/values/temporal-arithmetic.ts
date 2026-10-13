@@ -42,7 +42,7 @@ interface Duration {
 }
 
 function resolveDuration(quantity: QuantityValue): Duration {
-  // The decimal portion of units above seconds is ignored (spec §6.6.7, official
+  // The decimal portion of units above seconds is ignored (spec "Date/Time Arithmetic", official
   // testPlusDate2: 7.7 days adds 7) — truncate before any week/day expansion.
   const value = quantity.value.toNumber()
   const wholeAmount = Math.trunc(value)
@@ -76,7 +76,7 @@ function precisionLevel(precision: TemporalPrecision): number {
 }
 
 /**
- * `temporal ± quantity` (spec §6.6.7): the duration converts down to the value's
+ * `temporal ± quantity` (spec "Date/Time Arithmetic"): the duration converts down to the value's
  * precision with truncation (`@2014 + 23 months` adds 1 year), calendar components
  * roll over, and day-of-month clamps (`@2020-01-31 + 1 month` → `@2020-02-29`).
  * Undefined when the resulting year leaves 0001–9999.

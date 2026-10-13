@@ -249,6 +249,10 @@ function runManualCapability(id: string, expression: string): string | undefined
     'precedence.membership-and': { input: undefined, expected: [true] },
     'precedence.and-or': { input: undefined, expected: [true] },
     'precedence.or-implies': { input: undefined, expected: [true] },
+    'selector.complex': {
+      input: { resourceType: 'Patient', gender: 'female' },
+      expected: [{ system: 'http://hl7.org/fhir/administrative-gender', code: 'female' }],
+    },
   }
   const fixture = cases[id]
   if (fixture === undefined) return `missing manual runtime fixture for ${id}`

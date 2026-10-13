@@ -5,7 +5,7 @@ import { SYSTEM_STRING, systemTypeOf, type TypedValue } from '../values/typed-va
 import { argAt, registerFunction } from './registry.ts'
 
 /**
- * defineVariable(name [, value]) — ballot STU. The variable joins the current
+ * defineVariable(name [, value]) (FHIRPath 3.0.0, trial use). The variable joins the current
  * expression chain's scope (see EvaluationContext.variables): later links of the
  * same dot chain see it, sibling operator operands and arguments do not.
  */

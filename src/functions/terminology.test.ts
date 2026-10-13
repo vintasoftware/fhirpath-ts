@@ -453,11 +453,43 @@ describe('weight', () => {
     expect(lookup.mock.calls.map(([coded]) => coded)).toEqual(codes.slice(0, 2))
   })
 
-  it('does not request terminology weights for a typed Quantity', async () => {
+  it('only requests terminology weights for Codings that name a system', async () => {
     const provider = stubProvider()
     const input = { ...observation, valueQuantity: { value: 1, system: 'urn:units', code: 'u' } }
     await expect(evaluateAsync('value.weight()', input, { model: r4Model, terminology: provider })).resolves.toEqual([])
     expect(evaluate('value.weight()', input, { model: r4Model })).toEqual([])
+    await expect(
+      evaluateAsync('%coding.weight()', input, {
+        model: r4Model,
+        terminology: provider,
+        env: { coding: { system: 'urn:units', code: 'u' } },
+      })
+    ).resolves.toEqual([])
+    await expect(
+      evaluateAsync(
+        'code.coding.weight()',
+        { ...observation, code: { coding: [{ code: 'a' }] } },
+        {
+          model: r4Model,
+          terminology: provider,
+        }
+      )
+    ).resolves.toEqual([])
+    expect(provider.calls).toEqual([])
+  })
+
+  it('reports a missing code before requesting a CodeSystem weight', async () => {
+    const provider = stubProvider()
+    await expect(
+      evaluateAsync(
+        'code.coding.weight()',
+        { ...observation, code: { coding: [{ system: 'urn:scores' }] } },
+        {
+          model: r4Model,
+          terminology: provider,
+        }
+      )
+    ).rejects.toThrow('needs a Coding with a code')
     expect(provider.calls).toEqual([])
   })
 
@@ -465,7 +497,11 @@ describe('weight', () => {
     const provider = stubProvider()
     const coding = { system: 'http://loinc.org', code: '29463-7' }
     await expect(
-      evaluateAsync('%x.weight()', observation, { model: r4Model, terminology: provider, env: { x: coding } })
+      evaluateAsync(
+        'code.coding.weight()',
+        { ...observation, code: { coding: [coding] } },
+        { model: r4Model, terminology: provider }
+      )
     ).resolves.toEqual([3.5])
     expect(provider.calls).toEqual([`lookup {"system":"http://loinc.org","code":"29463-7"} property=itemWeight`])
   })
@@ -474,20 +510,16 @@ describe('weight', () => {
     const provider = stubProvider()
     provider.lookup = async () => ({ resourceType: 'Parameters', parameter: [{ name: 'display', valueString: 'x' }] })
     await expect(
-      evaluateAsync('%x.weight()', observation, {
-        model: r4Model,
-        terminology: provider,
-        env: { x: { system: 'http://loinc.org', code: 'a' } },
-      })
+      evaluateAsync('code.coding.weight()', observation, { model: r4Model, terminology: provider })
     ).resolves.toEqual([])
   })
 
   it('fails unavailable and invalid CodeSystem weights instead of lowering a score', async () => {
     const provider = stubProvider()
-    const options = { model: r4Model, terminology: provider, env: { x: { system: 'urn:codes', code: 'a' } } }
+    const options = { model: r4Model, terminology: provider }
     for (const response of [undefined, { resourceType: 'OperationOutcome' }]) {
       provider.lookup = async () => response
-      await expect(evaluateAsync('%x.weight().sum()', observation, options)).rejects.toThrow(
+      await expect(evaluateAsync('code.coding.weight().sum()', observation, options)).rejects.toThrow(
         'cannot resolve the CodeSystem'
       )
     }
@@ -503,13 +535,15 @@ describe('weight', () => {
         },
       ],
     })
-    await expect(evaluateAsync('%x.weight()', observation, options)).rejects.toThrow('numeric CodeSystem itemWeight')
+    await expect(evaluateAsync('code.coding.weight()', observation, options)).rejects.toThrow(
+      'numeric CodeSystem itemWeight'
+    )
   })
 
   it('needs a provider when no extension answers', () => {
-    expect(() =>
-      evaluate('%x.weight()', observation, { model: r4Model, env: { x: { system: 's', code: 'c' } } })
-    ).toThrow('weight() needs a terminology provider (pass options.terminology)')
+    expect(() => evaluate('code.coding.weight()', observation, { model: r4Model })).toThrow(
+      'weight() needs a terminology provider (pass options.terminology)'
+    )
   })
 })
 

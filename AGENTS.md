@@ -87,6 +87,15 @@ declarations override engine defaults, matching runtime option merging.
 Infer literal `env` values before applying `envTypes`; explicit declarations
 remain the override for widened values and Reference targets.
 
+`Tokenize` collapses each instance selector, `Type { ... }`, into one `selector`
+token, typed `unknown[]`, so the rest of the expression stays typed. Do not
+type it as the named interface: the interfaces list the codes of required
+bindings and require min-1 elements, and the runtime checks neither in a built
+value. The code sets would add about 23 KB to the runtime model for a
+trial-use feature, and no peer engine checks them. Keep selector detection in
+the tokenizer: a `ParseOperand` branch for a name before `{` cost about 4k API
+surface instantiations even for expressions without selectors.
+
 An engine method infers `Expr` from its expression argument only. A parameter
 typed from `Expr` is an inference site too: `FhirpathInput` reads a literal
 `resourceType` back into `Expr`. Type such an input as its own type parameter
@@ -229,6 +238,37 @@ precedence in `dtoCallOptions` and the type-level merge in `DtoContext` equal.
 
 DTO `vars` remain projection-only. A variable is evaluated against a row; a
 registered function call has a focus but no row.
+
+## Instance selectors
+
+`resolveInstanceType` and `acceptingElementType` in
+`src/engine/instance-selector.ts` decide the built type and which element type
+takes a value (and so a choice element's JSON key). `valuePatternMessage` and
+`missingRequiredElements` decide which values and omissions to report. The
+evaluator and the analyzer both call them, so a static diagnostic and a
+runtime error always describe the same rule.
+
+`BackboneElement { ... }` builds a backbone element only when it is written
+directly as an element's value: both walkers pass that element's declared types
+to `resolveInstanceType`. A missing required element is a warning, never a
+runtime error, because the spec lets a selector build a partial value.
+
+## Element ancestry
+
+`childValue` in `src/fhir/element-origin.ts` records the parent, element name,
+and array index of each value navigation reads. `resolve()`, `weight()`, and
+`pathname()` read it through `elementOrigin` and `ancestors`.
+
+- Record it on every read: navigation, `children()`/`descendants()`,
+  `extension()`, primitive `id`/`extension`, and the resources `resolve()`
+  returns. `evaluateTyped()` results passed back through `vars` must still
+  resolve their contained references and find their questionnaire item, and
+  an evaluation cannot tell whether its results will be reused that way.
+- Keep it in the private `#origin` field. A `WeakMap` entry per child made
+  navigation 2–6× slower, and a public `TypedValue` field would change what
+  `evaluateTyped()` results deep-equal and serialize to.
+- Stamp each wrapper once, where it is built; a second stamp on the same
+  object throws.
 
 ## Criteria booleans
 

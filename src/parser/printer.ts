@@ -14,6 +14,9 @@ function bindingPowerOf(node: AstNode): number {
       return BindingPower.Indexer
     case 'unary':
       return BindingPower.Unary
+    case 'number':
+      // A signed literal reads back as one only where a unary minus could stand.
+      return node.text.startsWith('-') ? BindingPower.Unary : ATOMIC
     case 'typeOp':
       return BindingPower.TypeOps
     case 'binary':
@@ -25,7 +28,7 @@ function bindingPowerOf(node: AstNode): number {
 
 const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
 
-function printIdentifier(name: string): string {
+export function printIdentifier(name: string): string {
   if (PLAIN_IDENTIFIER.test(name) && !KEYWORDS.has(name)) {
     return name
   }
@@ -90,14 +93,30 @@ function printInner(node: AstNode): string {
     case 'indexer':
       return `${print(node.target, BindingPower.Indexer)}[${print(node.index, 0)}]`
     case 'call':
-      return `${printIdentifier(node.name)}(${node.args.map(arg => print(arg, 0)).join(', ')})`
+      return `${printIdentifier(node.name)}(${node.args
+        .map((arg, index) => {
+          const direction = node.directions?.[index]
+          return direction === undefined ? print(arg, 0) : `${print(arg, 0)} ${direction}`
+        })
+        .join(', ')})`
     case 'unary':
-      return `${node.operator}${print(node.operand, BindingPower.Unary)}`
+      // `-1` parses as one literal, so negating a number literal needs `-(1)`.
+      return node.operator === '-' && node.operand.kind === 'number'
+        ? `-(${printInner(node.operand)})`
+        : `${node.operator}${print(node.operand, BindingPower.Unary)}`
     case 'typeOp':
       return `${print(node.operand, BindingPower.TypeOps)} ${node.operator} ${node.type.parts.map(printIdentifier).join('.')}`
     case 'binary': {
       const bindingPower = INFIX_BINDING_POWER[node.operator] as number
       return `${print(node.left, bindingPower)} ${node.operator} ${print(node.right, bindingPower + 1)}`
+    }
+    case 'instance': {
+      const type = node.type.parts.map(printIdentifier).join('.')
+      if (node.elements.length === 0) {
+        return `${type} {:}`
+      }
+      const elements = node.elements.map(element => `${printIdentifier(element.name)}: ${print(element.value, 0)}`)
+      return `${type} { ${elements.join(', ')} }`
     }
     /* v8 ignore start -- exhaustive fallback, unreachable for real ASTs */
     default: {

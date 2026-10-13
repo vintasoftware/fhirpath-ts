@@ -36,5 +36,8 @@ export function walkAst(root: AstNode, visit: (node: AstNode) => void): void {
     case 'typeOp':
       walkAst(root.operand, visit)
       return
+    case 'instance':
+      for (const element of root.elements) walkAst(element.value, visit)
+      return
   }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FhirPathSyntaxError } from '../errors.ts'
+import { parse } from '../parser/parser.ts'
 import { tokenize } from './lexer.ts'
 import type { Token, TokenKind } from './tokens.ts'
 
@@ -115,23 +116,34 @@ describe('string literals', () => {
     expect(single("'café ❤'").value).toBe('café ❤')
   })
 
-  it.each([["'\\p'"], ["'\\q'"], ["'\\0'"]])('rejects unknown escape %s', source => {
-    expect(() => tokenize(source)).toThrow('Invalid escape sequence')
+  // FHIRPath 3.0.0 ("String") drops a backslash that starts no escape.
+  it.each([
+    ["'\\p'", 'p'],
+    ["'\\\\p'", '\\p'],
+    ["'\\3'", '3'],
+    ["'\\u005'", 'u005'],
+    ["'\\u12zz'", 'u12zz'],
+    ["'\\'", ''],
+    ["'a\\'", 'a'],
+    ["'a\\'b\\'", "a'b"],
+    ['`bad\\u12`', 'badu12'],
+  ])('drops the backslash of the non-escape %s', (source, expected) => {
+    expect(single(source).value).toBe(expected)
+  })
+
+  it('keeps an escaped quote when a later quote ends the literal', () => {
+    expect(tokenize("'\\'' = 'x'").map(token => token.value)).toEqual(["'", '=', 'x', ''])
   })
 
   it.each([
     ["'\\uD83D'", 'high surrogate without a low surrogate'],
     ["'\\uD83Dx'", 'high surrogate without a low surrogate'],
     ["'\\uD83D\\u0041'", 'high surrogate without a low surrogate'],
+    ["'\\uD83D\\uDE0'", 'high surrogate without a low surrogate'],
     ["'\\uDD25'", 'low surrogate without a high surrogate'],
     ['`\\uDD25`', 'low surrogate without a high surrogate'],
   ])('rejects the unpaired surrogate escape %s', (source, message) => {
     expect(() => tokenize(source)).toThrow(message)
-  })
-
-  it('rejects a unicode escape with fewer than 4 hex digits', () => {
-    expect(() => tokenize("'\\u12'")).toThrow('4 hex digits')
-    expect(() => tokenize("'\\u12zz'")).toThrow('4 hex digits')
   })
 
   it('rejects an unterminated string', () => {
@@ -236,9 +248,10 @@ describe('date, dateTime, and time literals', () => {
     expect(texts('@2014TZ')).toEqual(['@2014T', 'Z'])
   })
 
-  it('time literals have no timezone: @T10:00-05:00 fails on the stray colon', () => {
+  it('time literals have no timezone: @T10:00-05:00 leaves a stray colon', () => {
     expect(kinds('@T10:00-05')).toEqual(['time', 'operator', 'number'])
-    expect(() => tokenize('@T10:00-05:00')).toThrow("Unexpected character ':'")
+    expect(kinds('@T10:00-05:00')).toEqual(['time', 'operator', 'number', 'punct', 'number'])
+    expect(() => parse('@T10:00-05:00')).toThrow("Unexpected ':' after expression")
   })
 
   it.each([['@'], ['@20'], ['@201'], ['@T'], ['@Tabc'], ['@abcd']])('rejects malformed literal %s', source => {
@@ -279,7 +292,7 @@ describe('operators and punctuation', () => {
     }
   )
 
-  it.each([['('], [')'], ['['], [']'], ['{'], ['}'], ['.'], [','], ['%']])('lexes punctuation %s', source => {
+  it.each([['('], [')'], ['['], [']'], ['{'], ['}'], ['.'], [','], ['%'], [':']])('lexes punctuation %s', source => {
     const token = single(source)
     expect(token.kind).toBe('punct')
     expect(token.value).toBe(source)

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { evaluate } from '../api/evaluate.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { r4Model } from '../r4/index.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { MAX_REPEAT_ITEMS } from './filtering.ts'
 
@@ -112,6 +113,103 @@ describe('filtering and projection', () => {
     expect(evaluate("'a'.repeat('a' | 'b')")).toEqual(['a', 'b'])
   })
 
+  it('repeatAll keeps duplicates and walks the same tree as repeat', () => {
+    const tree = {
+      resourceType: 'Basic',
+      part: [{ name: 'a', part: [{ name: 'b' }, { name: 'c', part: [{ name: 'd' }] }] }],
+    }
+    expect(evaluate('repeatAll(part).name', tree)).toEqual(['a', 'b', 'c', 'd'])
+    // Only projected items are output, not the input (fhirpath-rs counts the 10 as well).
+    expect(evaluate('10.repeatAll(iif($this > 1, $this - 2, {}))')).toEqual([8, 6, 4, 2, 0])
+    expect(evaluate('(1 | 2).repeatAll(iif($this < 3, 3, {}))')).toEqual([3, 3])
+    expect(evaluate('{}.repeatAll($this + 1).empty()')).toEqual([true])
+  })
+
+  it('repeatAll fails once a projection never stops', () => {
+    // Spec examples of unsafe projections: each round produces a value again.
+    expect(() => evaluate("'abc'.repeatAll(replace('a', 'A'))")).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
+    expect(() => evaluate("Patient.repeatAll('item')", { resourceType: 'Patient' })).toThrow(FhirPathRuntimeError)
+    expect(() => evaluate('1.repeatAll($this | $this.combine($this))')).toThrow(FhirPathRuntimeError)
+    expect(evaluate(`0.repeatAll(iif($this < ${MAX_REPEAT_ITEMS}, $this + 1, {})).count()`)).toEqual([MAX_REPEAT_ITEMS])
+  })
+
+  it('repeat reaches its limit quickly on temporal values', () => {
+    expect(() => evaluate('@2016-01-01.repeat($this + 1 day)')).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
+    expect(() => evaluate("@T00:00:00.000.repeat($this + 1 'ms')")).toThrow(`more than ${MAX_REPEAT_ITEMS} items`)
+  })
+
+  it('membership functions agree with in when = is not transitive', () => {
+    // The untyped %u deep-equals the FHIR Quantity, which equals 1000 'g' by
+    // conversion; %u itself does not. Membership must still find the Quantity.
+    const quantity = { value: 1, unit: 'kg', system: 'http://unitsofmeasure.org', code: 'kg' }
+    const observation = { resourceType: 'Observation', valueQuantity: quantity }
+    const options = { model: r4Model, env: { u: { ...quantity } } }
+    const others = '%u.combine(Observation.value)'
+    const run = (expression: string): unknown[] => evaluate(expression, observation, options)
+    expect(run(`(1000 'g') in (${others})`)).toEqual([true])
+    expect(run(`(1000 'g').subsetOf(${others})`)).toEqual([true])
+    expect(run(`(${others}).supersetOf(1000 'g')`)).toEqual([true])
+    expect(run(`(1000 'g').exclude(${others})`)).toEqual([])
+    expect(run(`(1000 'g').intersect(${others}).count()`)).toEqual([1])
+  })
+
+  it('distinct() keeps two values exactly when = is not true for them', () => {
+    // Every kind the deduplication index keys differently: numbers and quantities
+    // by canonical unit, calendar words, opaque units, temporals at each precision
+    // and zone, strings, and booleans.
+    const values = [
+      '1',
+      '1.0',
+      '1L',
+      '2',
+      "1 '1'",
+      "1 'g'",
+      "1000 'mg'",
+      '1 day',
+      "1 'd'",
+      '24 hours',
+      "86400 's'",
+      '1 week',
+      "7 'd'",
+      '1 year',
+      '12 months',
+      "1 'a'",
+      "12 'mo'",
+      "100 '%'",
+      "1 '{tablet}'",
+      "1 '[foo]'",
+      "1 'cm'",
+      "10 'mm'",
+      "1 'g/m'",
+      "1 'mg/mm'",
+      '@2016-01-01',
+      '@2016-01-01T',
+      '@2016-01',
+      '@2016-01-01T10:00',
+      '@2016-01-01T10:00Z',
+      '@2016-01-01T12:00+02:00',
+      '@2016-01-01T10:00:00.000Z',
+      '@2016-01-01T10:00:00Z',
+      '@T10:00',
+      '@T10:00:00',
+      '@T10:00:00.000',
+      "'1'",
+      "'a'",
+      "'true'",
+      'true',
+      'false',
+    ]
+    for (const a of values) {
+      for (const b of values) {
+        const equal = evaluate(`${a} = ${b}`)[0] === true
+        expect([`${a}, ${b}`, evaluate(`(${a}).combine(${b}).distinct().count()`)]).toEqual([
+          `${a}, ${b}`,
+          [equal ? 1 : 2],
+        ])
+      }
+    }
+  })
+
   it('ofType filters by type', () => {
     expect(evaluate("(1 | 'a' | 2.5 | true).ofType(Integer)")).toEqual([1])
     expect(evaluate("(1 | 'a' | 2.5 | true).ofType(String)")).toEqual(['a'])
@@ -173,6 +271,22 @@ describe('combining', () => {
     expect(evaluate('(1 | 2).union(2 | 3)')).toEqual([1, 2, 3])
     expect(evaluate('(1 | 2).combine(2 | 3)')).toEqual([1, 2, 2, 3])
     expect(evaluate('{}.combine(1)')).toEqual([1])
+  })
+
+  it('combine() accepts preserveOrder and appends in order', () => {
+    expect(evaluate('(1 | 2 | 3).combine(2 | 3, true)')).toEqual([1, 2, 3, 2, 3])
+    expect(evaluate('(1 | 2 | 3).combine(2 | 3, false)')).toEqual([1, 2, 3, 2, 3])
+    expect(evaluate('(1 | 2).combine({}, true)')).toEqual([1, 2])
+    expect(() => evaluate('(1 | 2).combine(3, true | false)')).toThrow(FhirPathRuntimeError)
+    // Nothing converts to a Boolean implicitly, so another type is an error.
+    expect(() => evaluate('(1 | 2).combine(3, 1)')).toThrow(
+      'combine() expects a Boolean argument, found System.Integer'
+    )
+    expect(() => evaluate("(1 | 2).combine(3, 'true')")).toThrow(FhirPathTypeError)
+    const patient = { resourceType: 'Patient', active: true, name: [{ family: 'a' }] }
+    expect(evaluate('Patient.name.combine(Patient.name, Patient.active).count()', patient, { model: r4Model })).toEqual(
+      [2]
+    )
   })
 })
 

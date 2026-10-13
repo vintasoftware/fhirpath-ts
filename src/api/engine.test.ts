@@ -286,7 +286,7 @@ describe('FhirPathEngine.test', () => {
   it('evaluates criteria with invariant semantics', () => {
     expect(r4.test(patient, "name.family = 'Chalmers'")).toBe(true)
     expect(r4.test(patient, "name.family = 'Nobody'")).toBe(false)
-    // A single non-boolean item → true (spec §4.5); empty → false (the criteria convention).
+    // A single non-boolean item → true (spec "Singleton Evaluation of Collections"); empty → false (the criteria convention).
     expect(r4.test(patient, 'Patient.deceased')).toBe(false)
     expect(r4.test(patient, 'Patient.birthDate')).toBe(true)
   })

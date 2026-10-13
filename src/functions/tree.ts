@@ -1,8 +1,8 @@
-import { pairEquals } from '../engine/operators/equality.ts'
+import { EqualityIndex } from '../engine/operators/equality.ts'
 import { childValue } from '../fhir/element-origin.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
 import type { ModelProvider } from '../model/provider.ts'
-import { SYSTEM_BOOLEAN, SYSTEM_STRING, systemTypeOf, toTypedValue, type TypedValue } from '../values/typed-value.ts'
+import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
 /**
@@ -33,9 +33,9 @@ export function childrenOf(item: TypedValue, model?: ModelProvider): TypedValue[
       continue
     }
     if (Array.isArray(child)) {
-      for (const element of child) {
+      for (const [index, element] of child.entries()) {
         if (element !== null && element !== undefined) {
-          result.push(childValue(toTypedValue(element), item, key))
+          result.push(childValue(toTypedValue(element), item, key, index))
         }
       }
     } else {
@@ -56,8 +56,8 @@ function primitiveMetadataChildren(item: TypedValue): TypedValue[] {
   }
   if (Array.isArray(metadata.extension)) {
     result.push(
-      ...metadata.extension.map(extension =>
-        childValue({ type: 'FHIR.Extension', value: extension }, item, 'extension')
+      ...metadata.extension.map((extension, index) =>
+        childValue({ type: 'FHIR.Extension', value: extension }, item, 'extension', index)
       )
     )
   }
@@ -80,38 +80,21 @@ registerFunction('descendants', {
     // round (a batch filter against prior rounds only), where repeat() collapses
     // them (incremental within-round dedup). They cannot share one closure.
     //
-    // Dedup is `existing.value === item.value || pairEquals(existing, item)` against
-    // prior rounds, indexed for O(1) on the common case: `seenValues` (a Set of raw
-    // values) resolves the `===` branch, and it also covers `pairEquals` for
-    // String/Boolean, whose equality *is* `===`. The remaining classes (numeric,
-    // temporal, quantity, complex) can be pairEquals-equal without being `===`-equal,
-    // so those fall back to a scan of same-class prior items. The index updates only
-    // between rounds, preserving the batch semantics.
-    const collected: TypedValue[] = []
+    // An item is a duplicate when its value is one seen in a prior round, or it
+    // is `=` to a prior item. The index updates only between rounds, preserving
+    // the batch semantics.
+    const collected = new EqualityIndex()
     const seenValues = new Set<unknown>()
-    const fallback: TypedValue[] = []
-    const needsFallback = (item: TypedValue): boolean => {
-      const type = systemTypeOf(item)
-      return type !== SYSTEM_STRING && type !== SYSTEM_BOOLEAN
-    }
-    const isDuplicate = (item: TypedValue): boolean => {
-      if (seenValues.has(item.value)) {
-        return true
-      }
-      return needsFallback(item) && fallback.some(existing => pairEquals(existing, item) === true)
-    }
+    const isDuplicate = (item: TypedValue): boolean => seenValues.has(item.value) || collected.has(item)
     let current = input.flatMap(item => childrenOf(item, context.model))
     while (current.length > 0) {
       const fresh = current.filter(item => !isDuplicate(item))
       for (const item of fresh) {
         seenValues.add(item.value)
-        if (needsFallback(item)) {
-          fallback.push(item)
-        }
+        collected.insert(item)
       }
-      collected.push(...fresh)
       current = fresh.flatMap(item => childrenOf(item, context.model))
     }
-    return collected
+    return collected.items
   },
 })

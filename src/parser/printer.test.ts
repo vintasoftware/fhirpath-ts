@@ -21,6 +21,8 @@ describe('canonical printing', () => {
     ['{ }', '{}'],
     ['-1.abs()', '-1.abs()'],
     ['(-1).abs()', '(-1).abs()'],
+    ['-(2147483648)', '-(2147483648)'],
+    ['-2147483648 - 1', '-2147483648 - 1'],
     ['a as B | c', 'a as B | c'],
     ['(a is System.Boolean).not()', '(a is System.Boolean).not()'],
     ["4.5 'mg'", "4.5 'mg'"],
@@ -35,6 +37,12 @@ describe('canonical printing', () => {
     ['text.div', 'text.`div`'],
     ["iif(true, 'a', 'b')", "iif(true, 'a', 'b')"],
     ['name[0] | contact.name', 'name[0] | contact.name'],
+    ["Coding{system:'s',code:gender}", "Coding { system: 's', code: gender }"],
+    ['FHIR.Period { : }', 'FHIR.Period {:}'],
+    ["Narrative { div: 'x' }", "Narrative { `div`: 'x' }"],
+    ["Coding { code: 'a' }.code", "Coding { code: 'a' }.code"],
+    ['sort($this  desc,name asc,-id)', 'sort($this desc, name asc, -id)'],
+    ['sort(desc desc)', 'sort(desc desc)'],
   ])('prints %j as %j', (source, expected) => {
     expect(printExpression(parse(source))).toBe(expected)
   })
@@ -76,5 +84,9 @@ describe('print/parse round trips', () => {
     ['`PID-1`[0].`odd name`.exists()'],
     ['x as `odd type`'],
     ['x is FHIR.`odd type` or y.ofType(Quantity)'],
+    [
+      "Identifier { type: CodeableConcept { coding: Coding { code: 'MR' } | Coding {:} }, period: Period { start: @2001-05-06 } }",
+    ],
+    ["Patient.select(Coding { system: %resource.url, code: code, display: iif(display.exists(), display, 'x') })"],
   ])('round trips %j', roundTrip)
 })
