@@ -48,7 +48,7 @@ export const KEYWORDS: ReadonlySet<string> = new Set([
 
 export const SPECIAL_VARIABLES: ReadonlySet<string> = new Set(['$this', '$index', '$total'])
 
-/** Calendar duration units usable in quantity literals, e.g. `4 days` (spec §4.1.4.7). */
+/** Calendar duration units usable in quantity literals, e.g. `4 days` (spec "Time-valued Quantities"). */
 export const CALENDAR_DURATION_UNITS: ReadonlySet<string> = new Set([
   'year',
   'years',

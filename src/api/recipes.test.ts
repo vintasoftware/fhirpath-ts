@@ -105,7 +105,7 @@ describe('README usage recipes', () => {
     )
     expect(systolic).toHaveLength(3)
     const newestFirst = r4.evaluate(
-      'Observation.sort(-(effective.ofType(dateTime) | issued).first())',
+      'Observation.sort((effective.ofType(dateTime) | issued).first() desc)',
       systolic
     ) as Observation[]
     expect(newestFirst.map(o => o.effectiveDateTime ?? o.issued)).toEqual([
@@ -335,6 +335,34 @@ describe('README usage recipes', () => {
     expect(r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)).toEqual(['g1', 'q1', 'g2', 'q2'])
   })
 
+  it('build values', () => {
+    const patient: Patient = { resourceType: 'Patient', gender: 'female' }
+    const codings = r4.evaluate(
+      "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
+      patient
+    )
+    expectTypeOf(codings).toEqualTypeOf<unknown[]>()
+    expect(codings).toEqual([{ system: 'http://hl7.org/fhir/administrative-gender', code: 'female' }])
+    const observations = r4.evaluate(
+      "Observation { status: 'final', code: CodeableConcept { text: 'BP' }, component: BackboneElement { code: CodeableConcept { text: 'Systolic' }, value: 120 'mm[Hg]' } }",
+      patient
+    )
+    expectTypeOf(observations).toEqualTypeOf<unknown[]>()
+    expect(observations).toEqual([
+      {
+        resourceType: 'Observation',
+        status: 'final',
+        code: { text: 'BP' },
+        component: [
+          {
+            code: { text: 'Systolic' },
+            valueQuantity: { value: 120, unit: 'mm[Hg]', system: 'http://unitsofmeasure.org', code: 'mm[Hg]' },
+          },
+        ],
+      },
+    ])
+  })
+
   it('deterministic tests and debugging', () => {
     const patient: Patient = { resourceType: 'Patient', birthDate: '1984-11-02' }
     expect(r4.test(patient, 'birthDate <= today()', { now: new Date('2026-08-04T12:00:00Z') })).toBe(true)
@@ -346,6 +374,9 @@ describe('README usage recipes', () => {
       { trace: name => traced.push(name) }
     )
     expect(traced).toEqual(['names'])
+
+    const named: Patient = { resourceType: 'Patient', name: [{ family: 'Okoro' }, { given: ['Ada'] }] }
+    expect(r4.evaluate('Patient.name.where(family.empty()).pathname()', named)).toEqual(['Patient.name[1]'])
   })
 
   it('covers expressions used by the longer reference docs', () => {

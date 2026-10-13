@@ -146,6 +146,8 @@ function compactResultRuleType(rule: ResultRule): string {
       return "readonly ['arguments-union']"
     case 'reference-targets':
       return "readonly ['reference-targets']"
+    case 'number-or-quantity':
+      return `readonly ['number-or-quantity', ${JSON.stringify(rule.number)}]`
     case 'unknown':
       return "readonly ['unknown']"
   }

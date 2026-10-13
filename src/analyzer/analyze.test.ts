@@ -44,7 +44,7 @@ describe('clean expressions produce no diagnostics', () => {
   })
 })
 
-describe('spec §11 rules', () => {
+describe('type safety and strict evaluation rules', () => {
   it('flags unknown elements, including choice-key misuse', () => {
     expect(codes('Patient.nope')).toEqual(['unknown-element'])
     expect(codes("(1 'kg').nope")).toEqual(['unknown-element'])
@@ -77,12 +77,14 @@ describe('spec §11 rules', () => {
 
   it('spells out how to fix a singleton misuse', () => {
     expect(messages('Patient.name.given.substring(1)')).toEqual([
-      'substring() expects a single item as input, but this is a collection (spec §11) — narrow it to one item with first(), last(), or single()',
+      'substring() expects a single item as input, but this is a collection (FHIRPath strict evaluation) — narrow it to one item with first(), last(), or single()',
     ])
   })
 
   it('names both types in an incompatible equality', () => {
-    expect(messages('Patient.gender = 5')).toEqual(['String and Numeric operands can never be equal (spec §11)'])
+    expect(messages('Patient.gender = 5')).toEqual([
+      'String and Numeric operands can never be equal (FHIRPath strict evaluation)',
+    ])
   })
 
   it('flags unknown functions and wrong arity', () => {
@@ -160,6 +162,116 @@ describe('spec §11 rules', () => {
   })
 })
 
+describe('FHIRPath 3.0.0 literal arguments', () => {
+  it('checks regex flags', () => {
+    expect(codes("Patient.name.first().family.matches('a', 'im')")).toEqual([])
+    expect(codes("Patient.name.first().family.replaceMatches('a', 'b', 'g')")).toEqual(['invalid-argument'])
+    expect(messages("'a'.matchesFull('a', 'x')", {})).toEqual([
+      "matchesFull() received an invalid regex flag 'x'; the flags are 'i' and 'm'",
+    ])
+    // The backtracking check still reads the pattern next to a flags argument.
+    expect(codes("'a'.matches('(a+)+', 'i')", {})).toEqual(['regex-backtracking'])
+  })
+
+  it('checks duration() and difference() precisions against the operand types', () => {
+    expect(codes("Patient.birthDate.duration(today(), 'year')")).toEqual([])
+    expect(codes("Patient.birthDate.duration(today(), 'hour')")).toEqual(['invalid-argument'])
+    expect(codes("Patient.birthDate.duration(now(), 'hour')")).toEqual([])
+    expect(codes("@T10:00.difference(@T11:00, 'day')", {})).toEqual(['invalid-argument'])
+    expect(codes("Patient.birthDate.duration(today(), 'years')")).toEqual(['invalid-argument'])
+    // An operand of unknown type checks only the precision word.
+    expect(codes("Patient.children().duration(today(), 'hour')")).toEqual([])
+    expect(codes("Patient.children().duration(today(), 'fortnight')")).toEqual(['invalid-argument'])
+    expect(codes("Patient.birthDate.duration(Patient.active, 'year')")).toEqual(['operand-type'])
+    expect(messages("@T10:00.duration(@2025-01-01, 'hour')", {})).toEqual([
+      'duration() cannot measure between a Time and a Date or DateTime',
+    ])
+    // Without a literal precision the operand kinds are still checked.
+    expect(
+      codes('Patient.birthDate.difference(@T10:00, %precision)', { ...options, variables: { precision: {} } })
+    ).toEqual(['operand-type'])
+  })
+
+  it('checks literal encode()/decode() formats and escape()/unescape() targets', () => {
+    expect(codes("'a'.encode('ascii')", {})).toEqual([])
+    expect(messages("'a'.decode('ascii')", {})).toEqual(["decode() does not support the format 'ascii'"])
+    expect(messages("'a'.unescape('xml')", {})).toEqual(["unescape() does not support the target 'xml'"])
+    expect(codes("'a'.encode('constructor')", {})).toEqual(['invalid-argument'])
+  })
+
+  it('checks literal date formats when the input can be a String', () => {
+    expect(codes("'150124'.toDate('ddMMyy')", {})).toEqual([])
+    expect(codes("'x'.toDateTime('yyyy-MM-dd h')", {})).toEqual(['invalid-argument'])
+    expect(messages("'x'.convertsToDate('MM-dd')", {})).toEqual([
+      "convertsToDate() received an invalid format 'MM-dd': it has no year",
+    ])
+    // A Date input ignores the format.
+    expect(codes("Patient.birthDate.toDate('MM-dd')")).toEqual([])
+  })
+})
+
+describe('repeat() and repeatAll() projections', () => {
+  const response = { model: r4Model, inputType: 'QuestionnaireResponse' }
+
+  it.each(['repeat', 'repeatAll'])('%s() reads the projection against every round of items', name => {
+    // Later rounds run on items, which have answer; the response itself does not.
+    expect(codes(`${name}(item | answer.item).linkId`, response)).toEqual([])
+    expect(codes(`${name}(item | bogus).linkId`, response)).toEqual(['unknown-element'])
+    expect(codes(`${name}(answer)`, response)).toEqual(['unknown-element'])
+  })
+})
+
+describe('literal types', () => {
+  it('widens an integer literal past 32 bits as the runtime does', () => {
+    expect(analyzeExpressionDetailed('2147483647', {}).result.types).toEqual(['System.Integer'])
+    expect(analyzeExpressionDetailed('2147483648', {}).result.types).toEqual(['System.Long'])
+    expect(analyzeExpressionDetailed('9223372036854775808', {}).result.types).toEqual(['System.Decimal'])
+    expect(codes('integer { value: 2147483648 }')).toEqual(['operand-type'])
+  })
+
+  it('reads a minus sign before an integer literal as one negative literal', () => {
+    expect(analyzeExpressionDetailed('-2147483648', {}).result.types).toEqual(['System.Integer'])
+    expect(analyzeExpressionDetailed('-2147483649', {}).result.types).toEqual(['System.Long'])
+    expect(codes('integer { value: -2147483648 }')).toEqual([])
+    expect(analyzeExpressionDetailed('-(2147483648)', {}).result.types).toEqual(['System.Long'])
+  })
+})
+
+describe('math and aggregate result types', () => {
+  const typesOf = (expression: string) => analyzeExpressionDetailed(expression, options).result.types
+
+  it('types the rounding functions and avg() by their input kind', () => {
+    expect(typesOf('1.5.ceiling()')).toEqual(['System.Integer'])
+    expect(typesOf("(1.5 'mg').ceiling()")).toEqual(['System.Quantity'])
+    expect(typesOf("(1.5 'mg').round(1)")).toEqual(['System.Quantity'])
+    expect(typesOf('1.5.round(1)')).toEqual(['System.Decimal'])
+    expect(typesOf("(1 'mg' | 2 'mg').avg()")).toEqual(['System.Quantity'])
+    expect(typesOf('(1 | 2).avg()')).toEqual(['System.Decimal'])
+    expect(typesOf('Observation.value.ceiling()')).toEqual(['System.Integer', 'System.Quantity'])
+  })
+
+  it('types power() as Decimal and min()/max() as the input item', () => {
+    expect(typesOf('2.power(3)')).toEqual(['System.Decimal'])
+    expect(typesOf('Patient.name.given.min()')).toEqual(['FHIR.string'])
+    expect(typesOf('(@2012 | @2013).max()')).toEqual(['System.Date'])
+    expect(codes("('b' | 'a').min()")).toEqual([])
+  })
+
+  it('rejects min() and max() on items the comparison operators cannot order', () => {
+    expect(codes('true.min()')).toEqual(['operand-type'])
+    expect(codes('Patient.active.max()')).toEqual(['operand-type'])
+    expect(codes('Patient.name.max()')).toEqual(['operand-type'])
+    expect(codes('Patient.birthDate.min()')).toEqual([])
+    expect(codes("(1 'mg' | 2 'mg').max()")).toEqual([])
+  })
+
+  it('reads names on Object.prototype as unknown elements', () => {
+    expect(codes('Patient.constructor')).toEqual(['unknown-element'])
+    expect(codes("Coding { toString: 'a' }")).toEqual(['unknown-element'])
+    expect(codes('unsignedInt { value: 1 }')).toEqual([])
+  })
+})
+
 describe('collection ordering', () => {
   it.each(['first()', 'last()', 'tail()', 'skip(1)', 'take(1)'])(
     'rejects %s on the unordered children() result',
@@ -192,6 +304,13 @@ describe('collection ordering', () => {
     expect(codes('Patient.children().single().first()')).toEqual([])
     // Aggregates yield at most one item, so their results need no input order.
     expect(codes('Patient.children().min().first()')).toEqual([])
+  })
+
+  it('keeps the order of a combine() result with or without preserveOrder', () => {
+    expect(codes('Patient.name.combine(Patient.telecom).first()')).toEqual([])
+    expect(codes('Patient.name.combine(Patient.telecom, false).first()')).toEqual([])
+    expect(codes('Patient.children().combine(Patient.name, true).first()')).toEqual(['order-dependent'])
+    expect(codes("Patient.name.combine(Patient.telecom, 'yes')")).toEqual(['operand-type'])
   })
 
   it('unions alternative branches: unordered only when every branch is', () => {
@@ -487,6 +606,22 @@ describe('lambda result typing', () => {
   it('sort() keys accept a top-level descending minus on any type', () => {
     expect(codes('Patient.name.sort(-family, given.first()).first().use')).toEqual([])
     expect(codes('Patient.name.sort(-nope)')).toEqual(['unknown-element'])
+  })
+
+  it('sort() keys take asc and desc and must be single', () => {
+    expect(codes('Patient.name.sort(family desc, given.first() asc).first().use')).toEqual([])
+    expect(codes('Patient.name.sort(nope desc)')).toEqual(['unknown-element'])
+    expect(codes('Patient.name.sort(-family desc)')).toEqual(['operand-type'])
+    expect(codes('Patient.name.sort(given)')).toEqual(['singleton-required'])
+    expect(codes('Patient.name.sort(given desc)')).toEqual(['singleton-required'])
+  })
+
+  it('reports $index inside a sort() key, where the runtime hides it', () => {
+    expect(codes('(3 | 1 | 2).sort($index)')).toEqual(['unknown-variable'])
+    expect(codes('Patient.name.select(given.sort($index))')).toEqual(['unknown-variable'])
+    // A where() inside the key binds its own $index.
+    expect(codes('Patient.name.sort(given.where($index = 0).first() desc)')).toEqual([])
+    expect(codes('Patient.name.select($index)')).toEqual([])
   })
 })
 
@@ -791,5 +926,146 @@ describe('analyzeSite', () => {
     ])
     // A resourceType the model does not know is not a FHIR resource.
     expect(analyzeSite({ ...site, expression: 'payload', inputType: 'MyThing' }, options)).toEqual([])
+  })
+})
+
+describe('instance selectors', () => {
+  it('reports literal values that break the FHIR primitive pattern', () => {
+    expect(messages('unsignedInt { value: -1 }')).toEqual([
+      "Element 'value' of unsignedInt does not match the unsignedInt pattern [0]|([1-9][0-9]*)",
+    ])
+    expect(codes("Coding { code: ' final' }")).toEqual(['invalid-value'])
+    expect(
+      codes("Observation { effective: @2020-01-01T10:00, status: 'final', code: CodeableConcept { text: 'bp' } }")
+    ).toEqual(['invalid-value'])
+    expect(
+      codes("Observation { effective: @2020-01-01T10:00:00Z, status: 'final', code: CodeableConcept { text: 'bp' } }")
+    ).toEqual([])
+    // A time needs seconds; booleans, signed numbers, and decimals have patterns too.
+    expect(codes("Observation { value: @T10:00, status: 'final', code: CodeableConcept { text: 'bp' } }")).toEqual([
+      'invalid-value',
+    ])
+    expect(codes("Observation { value: @T10:00:00, status: 'final', code: CodeableConcept { text: 'bp' } }")).toEqual(
+      []
+    )
+    expect(codes('Patient { active: true }')).toEqual([])
+    expect(codes('integer { value: -5 }')).toEqual([])
+    expect(codes('decimal { value: -1.50 }')).toEqual([])
+    // A navigated value is checked when the runtime writes it.
+    expect(codes('Coding { code: gender }')).toEqual([])
+  })
+
+  it.each([
+    ["Coding { system: 'http://loinc.org', code: '8480-6' }"],
+    ['Period {:}'],
+    ['Patient.select(Coding { system: %resource.id, code: gender })'],
+    ["Identifier { type: CodeableConcept { coding: Coding { code: 'MR' } }, period: Period { start: @2001-05-06 } }"],
+    ["CodeableConcept { coding: Coding { code: 'a' } | Coding { code: 'b' } }"],
+    ["Observation { value: 5 'mg', status: 'final', code: CodeableConcept { text: 'bp' } }"],
+    ["Extension { url: 'u', value: name.first() }"],
+    ["Quantity { value: 2, unit: 'mg' }"],
+    ["code { value: 'final' }"],
+    ['HumanName { given: name.given }'],
+  ])('accepts %s', expression => {
+    expect(analyzeExpression(expression, options)).toEqual([])
+  })
+
+  it('warns for a required element the selector leaves out', () => {
+    expect(analyzeExpression("Observation { status: 'final' }", options)).toEqual([
+      {
+        severity: 'warning',
+        code: 'missing-element',
+        name: 'code',
+        message: "Observation requires element 'code', which the instance selector leaves out",
+        span: { start: 0, end: 11, line: 1, column: 1 },
+      },
+    ])
+    expect(codes('Observation {:}')).toEqual(['missing-element', 'missing-element'])
+    expect(codes("Extension { value: 'x' }")).toEqual(['missing-element'])
+    // A listed element counts even when its value may be empty at runtime.
+    expect(codes("Extension { url: name.given.first(), value: 'x' }")).toEqual([])
+    // A required choice element is listed by its stem.
+    expect(codes("MedicationRequest { status: 'active', intent: 'order', subject: Reference {:} }")).toEqual([
+      'missing-element',
+    ])
+  })
+
+  it('builds backbone elements with BackboneElement { ... }', () => {
+    const component = "Observation { status: 'final', code: CodeableConcept {:}, component: BackboneElement { %s } }"
+    expect(codes(component.replace('%s', "code: CodeableConcept { text: 'x' }, value: 120 'mm[Hg]'"))).toEqual([])
+    expect(
+      analyzeExpressionDetailed(
+        component.replace('%s', "code: CodeableConcept { text: 'x' }").concat('.component'),
+        options
+      ).result.types
+    ).toEqual(['FHIR.Observation.component'])
+    expect(messages(component.replace('%s', "notAField: 'x'"))).toEqual([
+      "Element 'notAField' is not defined on FHIR.Observation.component",
+      "Observation.component requires element 'code', which the instance selector leaves out",
+    ])
+    expect(codes(component.replace('%s', "code: 'x'"))).toEqual(['operand-type'])
+    // Nested backbone elements, including one typed by a content reference.
+    expect(
+      codes(
+        "Questionnaire { status: 'draft', item: BackboneElement { linkId: 'a', type: 'group', item: FHIR.BackboneElement { linkId: 'b', type: 'display' } } }"
+      )
+    ).toEqual([])
+    expect(
+      codes("Questionnaire { status: 'draft', item: BackboneElement { linkId: 'a', type: 'group', text: 1 } }")
+    ).toEqual(['operand-type'])
+    // Elsewhere BackboneElement is the abstract type.
+    expect(codes("BackboneElement { linkId: 'a' }")).toEqual(['unknown-element'])
+    expect(
+      codes(
+        "Observation { status: 'final', code: CodeableConcept {:}, component: (BackboneElement { code: CodeableConcept {:} }).first() }"
+      )
+    ).toEqual(['unknown-element', 'operand-type'])
+  })
+
+  it('types the result as one value of the named type', () => {
+    expect(analyzeExpressionDetailed("FHIR.Coding { code: 'a' }", options).result).toEqual({
+      types: ['FHIR.Coding'],
+      single: true,
+      ordered: true,
+    })
+    expect(analyzeExpressionDetailed("Coding { code: 'a' }.code", options).result.types).toEqual(['FHIR.code'])
+    expect(analyzeExpressionDetailed('name.select(HumanName {:})', options).result).toMatchObject({
+      types: ['FHIR.HumanName'],
+      single: false,
+    })
+  })
+
+  it.each([
+    ['Foo { a: 1 }', 'unknown-type', "Unknown type 'Foo'"],
+    [
+      "System.String { value: 'x' }",
+      'unknown-type',
+      "An instance selector builds a model type, but 'System.String' is a System type",
+    ],
+    ["name.Coding { code: 'a' }", 'unknown-type', "Unknown type 'name.Coding'"],
+    ["Coding { cod: 'a' }", 'unknown-element', "Element 'cod' is not defined on FHIR.Coding — did you mean 'code'?"],
+    ['Coding { code: 1 }', 'operand-type', "Element 'code' of FHIR.Coding expects code, found System.Integer"],
+    [
+      'Coding { code: name.given }',
+      'singleton-required',
+      "Element 'code' of FHIR.Coding takes one item — narrow it to one item with first(), last(), or single()",
+    ],
+  ])('reports %s', (expression, code, message) => {
+    expect(analyzeExpression(expression, options).map(d => [d.code, d.message])).toEqual([[code, message]])
+  })
+
+  it('still analyzes the values of an unknown type or element', () => {
+    expect(codes('Foo { a: name.givenn }')).toEqual(['unknown-type', 'unknown-element'])
+    expect(codes('Coding { cod: name.givenn }')).toEqual(['unknown-element', 'unknown-element'])
+  })
+
+  it('without a model, checks only that the type is not a System type', () => {
+    expect(analyzeExpression("Coding { anything: 'x' }", {})).toEqual([])
+    expect(analyzeExpressionDetailed("Coding { anything: 'x' }", {}).result).toEqual({
+      types: undefined,
+      single: true,
+      ordered: true,
+    })
+    expect(analyzeExpression('System.Integer { value: 1 }', {}).map(d => d.code)).toEqual(['unknown-type'])
   })
 })

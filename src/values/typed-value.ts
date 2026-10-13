@@ -66,16 +66,23 @@ export const FHIR_PRIMITIVE_TO_SYSTEM: Readonly<Record<string, string>> = {
  * undefined. Operators dispatch on this so FHIR-typed primitives keep working.
  */
 export function systemTypeOf(item: TypedValue): string | undefined {
-  if (item.type.startsWith('System.')) {
-    return item.type
-  }
-  return FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(item.type)]
+  return systemTypeOfName(item.type)
+}
+
+/** The System type a type name behaves as, by the same rule as systemTypeOf(). */
+export function systemTypeOfName(type: string): string | undefined {
+  return type.startsWith('System.') ? type : FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(type)]
 }
 
 /** The local part of a qualified type name: `System.Boolean` → `Boolean`. */
 export function typeLocalName(type: string): string {
   const separator = type.lastIndexOf('.')
   return separator === -1 ? type : type.slice(separator + 1)
+}
+
+/** True for a whole number in FHIRPath's 32-bit Integer range. */
+export function isInteger32(value: number): boolean {
+  return Number.isInteger(value) && value >= -2147483648 && value <= 2147483647
 }
 
 /** Wrap a raw JSON value, inferring System types where possible. */
@@ -90,7 +97,8 @@ export function toTypedValue(value: unknown): TypedValue {
     return { type: SYSTEM_LONG, value }
   }
   if (typeof value === 'number') {
-    if (Number.isSafeInteger(value)) {
+    // A whole number outside the 32-bit Integer range reads as a Decimal.
+    if (isInteger32(value)) {
       return { type: SYSTEM_INTEGER, value }
     }
     const decimal = Decimal.fromNumber(value)

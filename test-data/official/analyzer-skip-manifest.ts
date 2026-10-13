@@ -56,13 +56,13 @@ export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
     group: 'defineVariable',
     test: 'defineVariable13',
     reason:
-      "typed defineVariable() bindings surface that %n2.given may hold several items, so '+' gets a singleton diagnostic; the fixture happens to hold one given (spec §11 strictness)",
+      "typed defineVariable() bindings surface that %n2.given may hold several items, so '+' gets a singleton diagnostic; the fixture happens to hold one given (strict evaluation)",
   },
   {
     suite: 'r5',
     group: 'defineVariable',
     test: 'defineVariable14',
     reason:
-      "typed defineVariable() bindings surface that %n2.given may hold several items, so '+' gets a singleton diagnostic; the fixture happens to hold one given (spec §11 strictness)",
+      "typed defineVariable() bindings surface that %n2.given may hold several items, so '+' gets a singleton diagnostic; the fixture happens to hold one given (strict evaluation)",
   },
 ]

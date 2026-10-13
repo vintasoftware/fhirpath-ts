@@ -153,7 +153,7 @@ export const INFERENCE_CAPABILITIES = {
     compositionType: 'string[]',
     runtime: true,
     analyzer: { types: ['System.String'], single: true },
-    degradation: "'\\q'",
+    degradation: "'\\u12'",
     composition: "'\\u00E9'.upper()",
   },
   'syntax.delimited-identifier': {
@@ -902,6 +902,21 @@ export const INFERENCE_CAPABILITIES = {
       "addresss.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()",
     composition:
       "(address.first().select((text.where($this != '') | line.combine(city).combine(state.combine(postalCode).where($this != '').join(' ')).where($this != '').join(', ')).first()).where($this != '').first()).exists()",
+  },
+  'selector.complex': {
+    source: {
+      expression: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })",
+      corpusGap:
+        "the inventory's sources (official suites, fhirpath.js and fhirpath-py YAML) have no instance selectors",
+    },
+    // A built value need not hold the codes its interface promises, so it stays unknown.
+    expectedType: 'unknown[]',
+    compositionType: 'boolean[]',
+    runtime: true,
+    analyzer: { types: ['FHIR.Coding'], single: true },
+    degradation: "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).nope",
+    composition:
+      "Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender }).exists()",
   },
   ...BUILTIN_FUNCTION_CAPABILITIES,
 } as const satisfies Record<string, CapabilityEntry>

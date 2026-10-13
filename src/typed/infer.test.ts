@@ -312,6 +312,17 @@ describe('fixed-return string, boolean, and numeric functions (batch 2)', () => 
     const root = compile('Patient.name.count().sqrt()').evaluate(patient, options)
     expectTypeOf(root).toEqualTypeOf<number[]>()
     expect(root).toEqual([1.4142135623730951])
+
+    const power = compile('Patient.name.count().power(2)').evaluate(patient, options)
+    expectTypeOf(power).toEqualTypeOf<number[]>()
+    expect(power).toEqual([4])
+
+    const quantity = compile("(1.5 'mg').ceiling()").evaluate(patient, options)
+    expectTypeOf(quantity).toEqualTypeOf<FhirpathResult<"1 'mg'">>()
+    expect(quantity).toEqual([{ value: 2, unit: 'mg' }])
+
+    const earliest = compile('Patient.name.given.min()').evaluate(patient, options)
+    expectTypeOf(earliest).toEqualTypeOf<string[]>()
   })
 
   it('identity functions keep the input type', () => {
@@ -581,9 +592,7 @@ describe('degradation to unknown[]', () => {
   })
 
   it('constructs outside the subset degrade instead of erroring', () => {
-    // power's result depends on its input (integer^integer vs decimal), and abs
-    // is input-dependent too. Both have explicit unknown analyzer rules.
-    expectTypeOf<FhirpathResult<'Patient.name.count().power(2)'>>().toEqualTypeOf<unknown[]>()
+    // abs keeps its input's type, so it has an explicit unknown analyzer rule.
     expectTypeOf<FhirpathResult<'Patient.name.count().abs()'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.descendants()'>>().toEqualTypeOf<unknown[]>()
     expectTypeOf<FhirpathResult<'Patient.name.unknownFn()'>>().toEqualTypeOf<unknown[]>()
@@ -603,6 +612,38 @@ describe('degradation to unknown[]', () => {
     expect(fhirpath('Patient.name.given').evaluate(patient, options)).toEqual(['Peter', 'James', 'Jim'])
     const typed = fhirpath('Patient.name.given').evaluate(patient, options)
     expectTypeOf(typed).toEqualTypeOf<string[]>()
+  })
+})
+
+describe('instance selectors', () => {
+  it('type the built value as unknown', () => {
+    // The generated interfaces promise required-binding codes, which a built
+    // value need not hold: Patient { gender: 'x' } is a Patient with gender 'x'.
+    expectTypeOf<FhirpathResult<"Coding { system: 'http://loinc.org', code: '8480-6' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Patient { gender: 'x' }.gender">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Quantity { value: 1, comparator: 'x' }.comparator">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Period {:}'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"code { value: 'final' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Foo { a: 'b' }">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<"Coding { code: 'a'">>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Period {}'>>().toEqualTypeOf<unknown[]>()
+  })
+
+  it('keep the surrounding expression typed', () => {
+    expectTypeOf<FhirpathResult<"Coding { code: 'a' }.exists()">>().toEqualTypeOf<boolean[]>()
+    expectTypeOf<FhirpathResult<"Patient.select(Coding { system: 'http://x', code: gender }).count()">>().toEqualTypeOf<
+      number[]
+    >()
+    expectTypeOf<FhirpathResult<"Patient.name.where(Coding { code: 'a' }.exists()).given">>().toEqualTypeOf<string[]>()
+  })
+
+  it('evaluate at runtime with the inferred type', () => {
+    const coding = r4.evaluate("Patient.select(Coding { system: 'http://x', code: gender })", {
+      resourceType: 'Patient',
+      gender: 'male',
+    })
+    expectTypeOf(coding).toEqualTypeOf<unknown[]>()
+    expect(coding).toEqual([{ system: 'http://x', code: 'male' }])
   })
 })
 

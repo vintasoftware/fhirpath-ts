@@ -1,17 +1,11 @@
 import { FhirPathRuntimeError } from '../../errors.ts'
 import { SYSTEM_BOOLEAN, type TypedValue } from '../../values/typed-value.ts'
-import { pairEquals } from './equality.ts'
+import { distinctItems, pairEquals } from './equality.ts'
 import type { BinaryOperatorTable } from './index.ts'
 
-/** Merge with duplicate elimination using `=` semantics (spec §6.4.1 / `union()`). */
+/** Merge with duplicate elimination using `=` semantics (spec "| (union collections)" / `union()`). */
 export function unionCollections(left: TypedValue[], right: TypedValue[]): TypedValue[] {
-  const result: TypedValue[] = []
-  for (const item of [...left, ...right]) {
-    if (!result.some(existing => pairEquals(existing, item) === true)) {
-      result.push(item)
-    }
-  }
-  return result
+  return distinctItems([...left, ...right])
 }
 
 /** `in`: left singleton membership; empty left → empty, empty right → false. */

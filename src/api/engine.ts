@@ -460,7 +460,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    * Boolean criteria evaluation, the semantics FHIR invariants, Subscription
    * criteria, and `enableWhen` share. A single boolean returns itself, a single
    * non-boolean item returns true, and more than one item is an error, which is
-   * spec §4.5 singleton evaluation. Empty returns false, which is the criteria
+   * the spec's singleton evaluation of collections. Empty returns false, which is the criteria
    * convention layered on top of it; see `criteriaBoolean`. The input is
    * typed as for `evaluate()`.
    */

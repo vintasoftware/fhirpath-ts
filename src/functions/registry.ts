@@ -1,7 +1,8 @@
 import type { EvaluationContext } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
-import type { AstNode } from '../parser/ast.ts'
-import type { TypedValue } from '../values/typed-value.ts'
+import type { AstNode, FunctionCallNode } from '../parser/ast.ts'
+import { singleton } from '../values/collection.ts'
+import { SYSTEM_BOOLEAN, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
 
 /**
  * A FHIRPath function. Arguments arrive as unevaluated ASTs so functions with
@@ -16,7 +17,9 @@ export interface FhirPathFunction {
     context: EvaluationContext,
     input: TypedValue[],
     args: AstNode[],
-    evaluateNode: (node: AstNode, context: EvaluationContext, input: TypedValue[]) => TypedValue[]
+    evaluateNode: (node: AstNode, context: EvaluationContext, input: TypedValue[]) => TypedValue[],
+    /** The whole call, for syntax beyond the arguments such as `sort()`'s `asc`/`desc`. */
+    call: FunctionCallNode
   ): TypedValue[]
 }
 
@@ -33,6 +36,21 @@ export function argAt(args: AstNode[], index: number): AstNode {
     throw new FhirPathTypeError(`Missing required argument at position ${index}`)
   }
   return node
+}
+
+/**
+ * A Boolean argument such as `combine()`'s `preserveOrder`: one Boolean, or empty.
+ * Another type is an error, since no implicit conversion gives a Boolean.
+ */
+export function booleanArgument(name: string, value: TypedValue[]): boolean | undefined {
+  const item = singleton(value)
+  if (item === undefined) {
+    return undefined
+  }
+  if (systemTypeOf(item) !== SYSTEM_BOOLEAN) {
+    throw new FhirPathTypeError(`${name}() expects a Boolean argument, found ${item.type}`)
+  }
+  return item.value as boolean
 }
 
 /** Function table; the per-section function modules add entries (append-only). */

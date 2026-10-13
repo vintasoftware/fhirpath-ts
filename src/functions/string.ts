@@ -6,7 +6,7 @@ import { SYSTEM_INTEGER, SYSTEM_STRING, systemTypeOf, type TypedValue } from '..
 import type { NodeEvaluator } from './iteration.ts'
 import { argAt, type FhirPathFunction, registerFunction } from './registry.ts'
 
-/** Singleton String input; empty stays empty, anything else is a type error (spec §5.6). */
+/** Singleton String input; empty stays empty, anything else is a type error (spec "String Manipulation"). */
 function stringInput(name: string, input: TypedValue[]): string | undefined {
   const item = singleton(input)
   if (item === undefined) {
@@ -36,6 +36,9 @@ function stringArgument(
 }
 
 const str = (value: string): TypedValue[] => [{ type: SYSTEM_STRING, value }]
+
+/** Conversions of a string by format or target name. */
+type StringConversion = Readonly<Record<string, (value: string) => string>>
 const int = (value: number): TypedValue[] => [{ type: SYSTEM_INTEGER, value }]
 
 /** Register a function over a singleton String input; empty input propagates. */
@@ -180,24 +183,53 @@ function compilePattern(
   }
 }
 
-stringFunction('matches', { min: 1, max: 1 }, (value, [pattern], context) =>
-  // Single-line mode: `.` matches line terminators (spec §5.6.9).
-  pattern === undefined ? [] : wrapBoolean(compilePattern('matches', context, pattern, 's').test(value))
+/**
+ * The regex flags argument (FHIRPath 3.0.0): `i` ignores case and `m` makes
+ * `^` and `$` match at line breaks. The analyzer reports a literal with the same
+ * message the runtime throws.
+ */
+export function invalidRegexFlagMessage(name: string, flags: string): string | undefined {
+  const invalid = [...flags].find(flag => flag !== 'i' && flag !== 'm')
+  return invalid === undefined
+    ? undefined
+    : `${name}() received an invalid regex flag '${invalid}'; the flags are 'i' and 'm'`
+}
+
+/** `base` plus the flags argument. Single-line mode (`s`, so `.` matches line terminators) is always on. */
+function regexFlags(name: string, flags: string | undefined, base: string): string {
+  const message = flags === undefined ? undefined : invalidRegexFlagMessage(name, flags)
+  if (message !== undefined) {
+    throw new FhirPathTypeError(message)
+  }
+  return base + [...new Set(flags)].join('')
+}
+
+stringFunction('matches', { min: 1, max: 2 }, (value, [pattern, flags], context) =>
+  pattern === undefined
+    ? []
+    : wrapBoolean(compilePattern('matches', context, pattern, regexFlags('matches', flags, 's')).test(value))
 )
 
-stringFunction('matchesFull', { min: 1, max: 1 }, (value, [pattern], context) =>
-  pattern === undefined ? [] : wrapBoolean(compilePattern('matchesFull', context, `^(?:${pattern})$`, 's').test(value))
+stringFunction('matchesFull', { min: 1, max: 2 }, (value, [pattern, flags], context) =>
+  pattern === undefined
+    ? []
+    : wrapBoolean(
+        compilePattern('matchesFull', context, `^(?:${pattern})$`, regexFlags('matchesFull', flags, 's')).test(value)
+      )
 )
 
-stringFunction('replaceMatches', { min: 2, max: 2 }, (value, [pattern, substitution], context) => {
+stringFunction('replaceMatches', { min: 2, max: 3 }, (value, [pattern, substitution, flags], context) => {
   if (pattern === undefined || substitution === undefined) {
     return []
   }
+  const compiledFlags = regexFlags('replaceMatches', flags, 'gs')
   // An empty regex matches nothing meaningful; the input passes through unchanged.
   if (pattern === '') {
     return str(value)
   }
-  return str(compilePattern('replaceMatches', context, pattern, 'gs').replace(value, jsSubstitution(substitution)))
+  return str(
+    compilePattern('replaceMatches', context, pattern, compiledFlags).replace(value, jsSubstitution(substitution))
+  )
 })
 
 /**
@@ -310,35 +342,22 @@ function decodeHex(name: string, value: string): string {
   return new TextDecoder().decode(bytes)
 }
 
-stringFunction('encode', { min: 1, max: 1 }, (value, [format]) => {
-  switch (format) {
-    case undefined:
-      return []
-    case 'base64':
-      return str(encodeBase64(value))
-    case 'urlbase64':
-      return str(encodeBase64(value).replace(/\+/g, '-').replace(/\//g, '_'))
-    case 'hex':
-      return str(encodeHex(value))
-    default:
-      throw new FhirPathTypeError(`encode() does not support the format '${format}'`)
-  }
-})
+const ENCODINGS: StringConversion = {
+  base64: value => encodeBase64(value),
+  urlbase64: value => encodeBase64(value).replace(/\+/g, '-').replace(/\//g, '_'),
+  hex: value => encodeHex(value),
+  // Lossy: each character (Unicode scalar value) above code 127 becomes one '?'.
+  ascii: value =>
+    characters(value)
+      .map(ch => ((ch.codePointAt(0) as number) > 127 ? '?' : ch))
+      .join(''),
+}
 
-stringFunction('decode', { min: 1, max: 1 }, (value, [format]) => {
-  switch (format) {
-    case undefined:
-      return []
-    case 'base64':
-      return str(decodeBase64('decode', value))
-    case 'urlbase64':
-      return str(decodeBase64('decode', value.replace(/-/g, '+').replace(/_/g, '/')))
-    case 'hex':
-      return str(decodeHex('decode', value))
-    default:
-      throw new FhirPathTypeError(`decode() does not support the format '${format}'`)
-  }
-})
+const DECODINGS: StringConversion = {
+  base64: value => decodeBase64('decode', value),
+  urlbase64: value => decodeBase64('decode', value.replace(/-/g, '+').replace(/_/g, '/')),
+  hex: value => decodeHex('decode', value),
+}
 
 const HTML_ESCAPES: Readonly<Record<string, string>> = {
   '&': '&amp;',
@@ -418,15 +437,16 @@ function unescapeJson(value: string): string {
   return result
 }
 
-const HTML_NAMED_REFERENCES: Readonly<Record<string, string>> = {
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  amp: '&',
-}
+/** The named references escape('html') writes, by name: `lt` → `<`. */
+const HTML_NAMED_REFERENCES: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(HTML_ESCAPES).flatMap(([character, reference]) => {
+    const name = /^&([a-z]+);$/.exec(reference)?.[1]
+    return name === undefined ? [] : [[name, character]]
+  })
+)
 
 /**
- * Decodes the named references escape('html') writes and decimal (`&#65;`) or
+ * Decodes the named references escape('html') writes, and decimal (`&#65;`) or
  * hexadecimal (`&#x41;`) character references, in one pass so a decoded `&`
  * never starts another reference. A reference to no valid scalar value, such as
  * a surrogate, stays as written.
@@ -436,7 +456,8 @@ function unescapeHtml(value: string): string {
     /&(?:([a-z]+)|#([0-9]+)|#[xX]([0-9a-fA-F]+));/g,
     (reference, name?: string, decimal?: string, hex?: string) => {
       if (name !== undefined) {
-        return HTML_NAMED_REFERENCES[name] ?? reference
+        // Own keys only: `&constructor;` must not reach Object.prototype.
+        return Object.hasOwn(HTML_NAMED_REFERENCES, name) ? (HTML_NAMED_REFERENCES[name] as string) : reference
       }
       const code = decimal !== undefined ? Number.parseInt(decimal, 10) : Number.parseInt(hex as string, 16)
       const isScalarValue = code <= 0x10ffff && (code < 0xd800 || code > 0xdfff)
@@ -445,28 +466,44 @@ function unescapeHtml(value: string): string {
   )
 }
 
-stringFunction('escape', { min: 1, max: 1 }, (value, [target]) => {
-  switch (target) {
-    case undefined:
-      return []
-    case 'html':
-      return str(value.replace(/[&<>"']/g, ch => HTML_ESCAPES[ch] as string))
-    case 'json':
-      return str(escapeJson(value))
-    default:
-      throw new FhirPathTypeError(`escape() does not support the target '${target}'`)
-  }
-})
+const ESCAPE_TARGETS: StringConversion = {
+  html: value => value.replace(/[&<>"']/g, ch => HTML_ESCAPES[ch] as string),
+  json: value => escapeJson(value),
+}
 
-stringFunction('unescape', { min: 1, max: 1 }, (value, [target]) => {
-  switch (target) {
-    case undefined:
+const UNESCAPE_TARGETS: StringConversion = {
+  html: value => unescapeHtml(value),
+  json: value => unescapeJson(value),
+}
+
+/** encode() and decode() take a format, and escape() and unescape() a target, from these tables. */
+const STRING_CONVERSIONS: ReadonlyMap<string, { argument: string; table: StringConversion }> = new Map([
+  ['encode', { argument: 'format', table: ENCODINGS }],
+  ['decode', { argument: 'format', table: DECODINGS }],
+  ['escape', { argument: 'target', table: ESCAPE_TARGETS }],
+  ['unescape', { argument: 'target', table: UNESCAPE_TARGETS }],
+])
+
+/**
+ * The error for a format or target `name` does not support, or undefined. The
+ * analyzer reports a literal with the same message the runtime throws.
+ */
+export function unsupportedConversionMessage(name: string, choice: string): string | undefined {
+  const conversion = STRING_CONVERSIONS.get(name)
+  return conversion === undefined || Object.hasOwn(conversion.table, choice)
+    ? undefined
+    : `${name}() does not support the ${conversion.argument} '${choice}'`
+}
+
+for (const [name, { table }] of STRING_CONVERSIONS) {
+  stringFunction(name, { min: 1, max: 1 }, (value, [choice]) => {
+    if (choice === undefined) {
       return []
-    case 'html':
-      return str(unescapeHtml(value))
-    case 'json':
-      return str(unescapeJson(value))
-    default:
-      throw new FhirPathTypeError(`unescape() does not support the target '${target}'`)
-  }
-})
+    }
+    const message = unsupportedConversionMessage(name, choice)
+    if (message !== undefined) {
+      throw new FhirPathTypeError(message)
+    }
+    return str((table[choice] as (value: string) => string)(value))
+  })
+}

@@ -69,7 +69,7 @@ describe('typeLocalName', () => {
   })
 })
 
-describe('singleton evaluation (§4.5)', () => {
+describe('singleton evaluation of collections', () => {
   it('empty propagates', () => {
     expect(singleton([])).toBeUndefined()
     expect(booleanSingleton([])).toBeUndefined()

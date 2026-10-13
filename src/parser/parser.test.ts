@@ -99,6 +99,37 @@ describe('paths, calls, and indexers', () => {
     })
   })
 
+  it('reads asc and desc after a sort() key as its direction', () => {
+    expect(ast('sort($this desc, name asc, id)')).toEqual({
+      kind: 'call',
+      name: 'sort',
+      args: [
+        { kind: 'special', name: 'this' },
+        { kind: 'identifier', name: 'name' },
+        { kind: 'identifier', name: 'id' },
+      ],
+      // stripSpans goes through JSON, which writes an undefined entry as null.
+      directions: ['desc', 'asc', null],
+    })
+    expect(ast('sort(desc)')).toEqual({ kind: 'call', name: 'sort', args: [{ kind: 'identifier', name: 'desc' }] })
+    expect(ast('sort(desc desc)')).toEqual({
+      kind: 'call',
+      name: 'sort',
+      args: [{ kind: 'identifier', name: 'desc' }],
+      directions: ['desc'],
+    })
+  })
+
+  it('keeps asc and desc as names outside sort() keys', () => {
+    expect(ast('where(desc)')).toEqual({ kind: 'call', name: 'where', args: [{ kind: 'identifier', name: 'desc' }] })
+    expect(ast('sort(a.desc)')).toMatchObject({ args: [{ kind: 'dot' }] })
+    expect(ast('sort(`desc`)')).toEqual({ kind: 'call', name: 'sort', args: [{ kind: 'identifier', name: 'desc' }] })
+    expect(() => parse('where(a desc)')).toThrow(FhirPathSyntaxError)
+    expect(() => parse('sort((a desc))')).toThrow(FhirPathSyntaxError)
+    expect(() => parse('sort(a desc + 1)')).toThrow(FhirPathSyntaxError)
+    expect(() => parse('sort(a desc desc)')).toThrow(FhirPathSyntaxError)
+  })
+
   it('parses indexers over paths', () => {
     expect(ast('name[0].given')).toEqual({
       kind: 'dot',
@@ -151,7 +182,13 @@ describe('operator precedence', () => {
   })
 
   it('unary binds tighter than multiplication', () => {
-    expect(ast('-1 * 2')).toEqual(binary('*', { kind: 'unary', operator: '-', operand: n('1') }, n('2')))
+    expect(ast('-a * 2')).toEqual(binary('*', { kind: 'unary', operator: '-', operand: id('a') }, n('2')))
+  })
+
+  it('reads a minus sign directly before a number as part of the literal', () => {
+    expect(ast('-1 * 2')).toEqual(binary('*', n('-1'), n('2')))
+    expect(ast('-(1)')).toEqual({ kind: 'unary', operator: '-', operand: n('1') })
+    expect(ast('+1')).toEqual({ kind: 'unary', operator: '+', operand: n('1') })
   })
 
   it('multiplicative binds tighter than additive', () => {
@@ -245,6 +282,89 @@ describe('type specifiers', () => {
 
   it('rejects a missing type name', () => {
     expect(() => parse('a is 5')).toThrow("Expected a type name, got '5'")
+  })
+})
+
+describe('instance selectors', () => {
+  it('parses a type name followed by element selectors', () => {
+    expect(ast("Coding { system: 'http://loinc.org', code: '8480-6' }")).toEqual({
+      kind: 'instance',
+      type: { parts: ['Coding'] },
+      elements: [
+        { name: 'system', value: { kind: 'string', value: 'http://loinc.org' } },
+        { name: 'code', value: { kind: 'string', value: '8480-6' } },
+      ],
+    })
+  })
+
+  it('parses a qualified type name and `{:}` for no elements', () => {
+    expect(ast('FHIR.Period {:}')).toEqual({ kind: 'instance', type: { parts: ['FHIR', 'Period'] }, elements: [] })
+    expect(ast('Period { : }')).toEqual({ kind: 'instance', type: { parts: ['Period'] }, elements: [] })
+  })
+
+  it('takes any expression as a value, including nested selectors', () => {
+    expect(ast("CodeableConcept { coding: Coding { code: 'a' } | Coding {:}, text: name.first() }")).toEqual({
+      kind: 'instance',
+      type: { parts: ['CodeableConcept'] },
+      elements: [
+        {
+          name: 'coding',
+          value: {
+            kind: 'binary',
+            operator: '|',
+            left: {
+              kind: 'instance',
+              type: { parts: ['Coding'] },
+              elements: [{ name: 'code', value: { kind: 'string', value: 'a' } }],
+            },
+            right: { kind: 'instance', type: { parts: ['Coding'] }, elements: [] },
+          },
+        },
+        {
+          name: 'text',
+          value: {
+            kind: 'dot',
+            left: { kind: 'identifier', name: 'name' },
+            right: { kind: 'call', name: 'first', args: [] },
+          },
+        },
+      ],
+    })
+  })
+
+  it('accepts keyword and delimited element names, as after a dot', () => {
+    expect(ast("Narrative { div: 'x', `status`: 'generated' }")).toMatchObject({
+      elements: [{ name: 'div' }, { name: 'status' }],
+    })
+  })
+
+  it('is a term: it can start a path and sit inside a call', () => {
+    expect(ast("Coding { code: 'a' }.code")).toMatchObject({
+      kind: 'dot',
+      left: { kind: 'instance' },
+      right: { kind: 'identifier', name: 'code' },
+    })
+    expect(ast('Patient.select(Coding { code: gender })')).toMatchObject({
+      kind: 'dot',
+      right: { kind: 'call', name: 'select', args: [{ kind: 'instance' }] },
+    })
+  })
+
+  it('spans the type name through the closing brace', () => {
+    expect(parse("x | Coding { code: 'a' }")).toMatchObject({ right: { span: { start: 4, end: 24 } } })
+  })
+
+  it.each([
+    ['Period {}', "An instance selector without elements is written 'Period {:}'; '{}' is the empty collection"],
+    ["Coding { code 'a' }", "Expected ':', got ''a''"],
+    ["Coding { 'code': 'a' }", "Expected an element name, got ''code''"],
+    ["Coding { code: 'a', code: 'b' }", "Element 'code' is set more than once"],
+    ["Coding { code: 'a' ", "Expected '}', got 'end of expression'"],
+    ["Coding { code: 'a', }", "Expected an element name, got '}'"],
+    ['Coding {', "Expected an element name, got 'end of expression'"],
+    ["name.first() { code: 'a' }", "Unexpected '{' after expression"],
+  ])('rejects %j', (source, message) => {
+    expect(() => parse(source)).toThrow(message)
   })
 })
 

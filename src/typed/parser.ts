@@ -22,7 +22,8 @@ import type {
 type NameToken = ['name', string]
 type KeywordToken = ['keyword', string]
 type SymbolToken = ['symbol', string]
-type LiteralToken = ['string' | 'number' | 'date' | 'dateTime' | 'time', string]
+// `selector` stands for a whole instance selector (CollapseInstanceSelectors).
+type LiteralToken = ['string' | 'number' | 'date' | 'dateTime' | 'time' | 'selector', string]
 type SpecialToken = ['special', 'this' | 'index' | 'total']
 type UnsafeToken = ['unsafe']
 type TypeToken = NameToken | KeywordToken | SymbolToken | LiteralToken | SpecialToken | UnsafeToken
@@ -90,13 +91,73 @@ type IdentifierPart = Letter | Digit
 type Whitespace = ' ' | '\t' | '\r' | '\n' | '\f'
 type Keyword = 'and' | 'or' | 'xor' | 'implies' | 'div' | 'mod' | 'in' | 'contains' | 'is' | 'as' | 'true' | 'false'
 type OneCharacterSymbol =
-  '=' | '~' | '<' | '>' | '+' | '-' | '*' | '|' | '&' | '(' | ')' | '[' | ']' | '{' | '}' | '.' | ',' | '%'
+  '=' | '~' | '<' | '>' | '+' | '-' | '*' | '|' | '&' | '(' | ')' | '[' | ']' | '{' | '}' | '.' | ',' | '%' | ':'
 type SimpleEscape = "'" | '"' | '`' | '/' | '\\' | 'f' | 'n' | 'r' | 't'
 
 type Step<Steps extends unknown[]> = [...Steps, 0]
 
 /** A semantic-token and source-step bounded tokenizer matching the runtime vocabulary. */
-type Tokenize<Source extends string> = Scan<Source, [], []>
+type Tokenize<Source extends string> = Source extends `${string}{${string}:${string}`
+  ? Scan<Source, [], []> extends infer Tokens extends TypeTokens
+    ? CollapseInstanceSelectors<Tokens>
+    : ScanFailure
+  : Scan<Source, [], []>
+
+/**
+ * Replace each instance selector, `Type { name: value, ... }` or `Type {:}`,
+ * with one selector token, as the runtime parser reads a type name before
+ * `{`. The token is typed `unknown[]`: the generated interfaces promise the
+ * code sets of required bindings, which the runtime does not check in a built
+ * value. The element values are not inferred, and each runs in its own
+ * variable scope, so none of its bindings leave the selector.
+ */
+type CollapseInstanceSelectors<Tokens extends TypeTokens, Out extends TypeTokens = []> = Tokens extends [
+  infer Token extends TypeToken,
+  ...infer Rest extends TypeTokens,
+]
+  ? Token extends ['name', infer Type extends string]
+    ? Rest extends [['symbol', '{'], ...infer Body extends TypeTokens]
+      ? CollapseSelectorBody<Type, Body, Out>
+      : Type extends 'FHIR'
+        ? Rest extends [
+            ['symbol', '.'],
+            ['name', infer Local extends string],
+            ['symbol', '{'],
+            ...infer Body extends TypeTokens,
+          ]
+          ? CollapseSelectorBody<Local, Body, Out>
+          : CollapseInstanceSelectors<Rest, [...Out, Token]>
+        : CollapseInstanceSelectors<Rest, [...Out, Token]>
+    : CollapseInstanceSelectors<Rest, [...Out, Token]>
+  : Out
+
+type CollapseSelectorBody<Type extends string, Body extends TypeTokens, Out extends TypeTokens> = Body extends [
+  ['symbol', ':'],
+  ['symbol', '}'],
+  ...infer Rest extends TypeTokens,
+]
+  ? CollapseInstanceSelectors<Rest, [...Out, ['selector', Type]]>
+  : Body extends [['name' | 'keyword', string], ['symbol', ':'], ...infer Values extends TypeTokens]
+    ? AfterInstanceElements<Values, []> extends infer Rest
+      ? Rest extends TypeTokens
+        ? CollapseInstanceSelectors<Rest, [...Out, ['selector', Type]]>
+        : ScanFailure
+      : ScanFailure
+    : ScanFailure
+
+/** The tokens after the `}` that closes an instance selector; ScanFailure when it never closes. */
+type AfterInstanceElements<Tokens extends TypeTokens, Depth extends unknown[]> = Tokens extends [
+  infer Token extends TypeToken,
+  ...infer Rest extends TypeTokens,
+]
+  ? Token extends ['symbol', '{']
+    ? AfterInstanceElements<Rest, [...Depth, 0]>
+    : Token extends ['symbol', '}']
+      ? Depth extends [unknown, ...infer Outer extends unknown[]]
+        ? AfterInstanceElements<Rest, Outer>
+        : Rest
+      : AfterInstanceElements<Rest, Depth>
+  : ScanFailure
 
 type Scan<Source extends string, Tokens extends TypeTokens, Steps extends unknown[]> = Source extends ''
   ? Tokens
@@ -248,7 +309,8 @@ type ReadEscape<
               Tokens,
               Step<Steps>
             >
-          : ScanFailure
+          : // A backslash that starts no escape is dropped.
+            ReadQuoted<Source, Acc, Quote, Kind, Tokens, Step<Steps>>
       : ScanFailure
 
 type ReadUnicodeEscape<
@@ -1078,7 +1140,13 @@ type ContinueNumber<
   [
     ...Stack,
     CopyEnvironment<
-      NumberText extends `${string}.${string}` ? ['System.Decimal', never] : ['System.Integer', never],
+      NumberText extends `${string}.${string}`
+        ? ['System.Decimal', never]
+        : // Ten or more digits may leave the 32-bit Integer range, where the
+          // runtime reads a Long or a Decimal: unknown rather than number.
+          NumberText extends `${infer _0}${infer _1}${infer _2}${infer _3}${infer _4}${infer _5}${infer _6}${infer _7}${infer _8}${infer _9}${string}`
+          ? UnknownState
+          : ['System.Integer', never],
       Context
     >,
   ],
@@ -1152,7 +1220,14 @@ type ParseOperator<
               : Operator extends keyof CompactInfixParselets
                 ? PushBinary<Operator, ParseletBindingPower<Operator>, Rest, Stack, Ops, Delimiters, Context>
                 : OpaqueState
-            : OpaqueState
+            : Token extends ['name', 'asc' | 'desc']
+              ? // `asc` or `desc` ends a `sort()` key; the key's type does not reach the result.
+                Delimiters[0] extends { 0: 'call'; 5: 'sort' }
+                ? Rest extends [['symbol', ',' | ')'], ...TypeTokens]
+                  ? ParseOperator<Rest, Stack, Ops, Delimiters, Context>
+                  : OpaqueState
+                : OpaqueState
+              : OpaqueState
     : OpaqueState
 
 type StartCall<
@@ -1735,9 +1810,19 @@ type ApplyResultRule<Rule, Input extends InferenceState, Args extends InferenceS
             ? [Input[1]] extends [never]
               ? CopyEnvironment<UnknownState, Input>
               : CopyEnvironment<[Input[1], never], Input>
-            : Rule extends readonly ['unknown']
-              ? CopyEnvironment<UnknownState, Input>
-              : CopyEnvironment<OpaqueState, Input>
+            : Rule extends readonly ['number-or-quantity', infer Type extends string]
+              ? CopyEnvironment<NumberOrQuantityState<Input, Type>, Input>
+              : Rule extends readonly ['unknown']
+                ? CopyEnvironment<UnknownState, Input>
+                : CopyEnvironment<OpaqueState, Input>
+
+// The analyzer's `number-or-quantity` rule: a number gives Type, a Quantity a
+// Quantity, and any other input either one.
+type NumberOrQuantityState<Input extends InferenceState, Type extends string> = [Input[0]] extends [NumericType]
+  ? [Type, never]
+  : [Input[0]] extends [QuantityType]
+    ? ['System.Quantity', never]
+    : [Type | 'System.Quantity', never]
 
 type ArgumentState<Args extends InferenceState[], Index extends number> = Args[Index] extends InferenceState
   ? Args[Index]

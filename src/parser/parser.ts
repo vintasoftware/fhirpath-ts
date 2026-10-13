@@ -4,7 +4,7 @@
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { tokenize } from '../lexer/lexer.ts'
 import { CALENDAR_DURATION_UNITS, type Token } from '../lexer/tokens.ts'
-import type { AstNode, BinaryOperator, TypeSpecifier, UnaryOperator } from './ast.ts'
+import type { AstNode, BinaryOperator, InstanceElement, SortDirection, TypeSpecifier, UnaryOperator } from './ast.ts'
 import { INFIX_PARSELETS, type InfixParseletRecord, PREFIX_PARSELETS, type PrefixParseletRecord } from './precedence.ts'
 
 /** Keywords the grammar also accepts as element names, e.g. `'abc'.contains('b')`. */
@@ -65,6 +65,9 @@ class Parser {
     }
     switch (parselet.reducer) {
       case 'identifier':
+        if (this.startsInstanceSelector()) {
+          return this.parseInstanceSelector()
+        }
         this.advance()
         return parselet.tokenKind === 'variable'
           ? { kind: 'special', name: token.value as 'this' | 'index' | 'total', span: token.span }
@@ -107,7 +110,13 @@ class Parser {
 
   private parseUnary(token: Token, parselet: Extract<PrefixParseletRecord, { reducer: 'unary' }>): AstNode {
     this.advance()
+    const literalFollows = token.text === '-' && this.peek().kind === 'number'
     const operand = this.parseExpression(parselet.bindingPower)
+    if (literalFollows && operand.kind === 'number') {
+      // A minus sign written directly before a number is part of the literal, so
+      // `-2147483648` is the Integer minimum. `-(2147483648)` stays a negation.
+      return { ...operand, text: `-${operand.text}`, span: this.spanBetween(token.span, operand.span) }
+    }
     return {
       kind: 'unary',
       operator: token.text as UnaryOperator,
@@ -256,15 +265,113 @@ class Parser {
       throw this.error('Unexpected parentheses', this.peek())
     }
     const args: AstNode[] = []
+    const directions: (SortDirection | undefined)[] = []
     if (!(this.peek().kind === 'punct' && this.peek().text === ')')) {
-      args.push(this.parseExpression(0))
-      while (this.peek().kind === 'punct' && this.peek().text === ',') {
-        this.advance()
+      for (;;) {
         args.push(this.parseExpression(0))
+        directions.push(target.name === 'sort' ? this.sortDirection() : undefined)
+        if (!this.peekPunct(',')) {
+          break
+        }
+        this.advance()
       }
     }
     const close = this.expect(')')
-    return { kind: 'call', name: target.name, args, span: this.spanBetween(target.span, close.span) }
+    const span = this.spanBetween(target.span, close.span)
+    return directions.some(direction => direction !== undefined)
+      ? { kind: 'call', name: target.name, args, directions, span }
+      : { kind: 'call', name: target.name, args, span }
+  }
+
+  /**
+   * A `sort()` key may end with `asc` or `desc`. Both stay ordinary names
+   * everywhere else, so only a plain identifier right before `,` or `)` counts.
+   */
+  private sortDirection(): SortDirection | undefined {
+    const token = this.peek()
+    if (token.kind !== 'identifier' || (token.text !== 'asc' && token.text !== 'desc')) {
+      return undefined
+    }
+    const next = this.tokens[this.pos + 1] as Token
+    if (next.kind !== 'punct' || (next.text !== ',' && next.text !== ')')) {
+      return undefined
+    }
+    this.advance()
+    return token.text
+  }
+
+  /** A type name followed by `{` starts an instance selector, e.g. `FHIR.Coding { code: 'a' }`. */
+  private startsInstanceSelector(): boolean {
+    let offset = this.pos
+    for (;;) {
+      if (!isTypeNameToken(this.tokens[offset] as Token)) {
+        return false
+      }
+      const next = this.tokens[offset + 1] as Token
+      if (next.kind !== 'punct') {
+        return false
+      }
+      if (next.text === '{') {
+        return true
+      }
+      if (next.text !== '.') {
+        return false
+      }
+      offset += 2
+    }
+  }
+
+  /** `Type { name: value, ... }`, or `Type {:}` for an object without elements. */
+  private parseInstanceSelector(): AstNode {
+    const type = this.parseTypeSpecifier()
+    this.expect('{')
+    const elements: InstanceElement[] = []
+    if (this.peekPunct(':')) {
+      this.advance()
+    } else {
+      if (this.peekPunct('}')) {
+        throw this.error(
+          `An instance selector without elements is written '${type.parts.join('.')} {:}'; '{}' is the empty collection`,
+          this.peek()
+        )
+      }
+      for (;;) {
+        const name = this.expectElementName()
+        if (elements.some(element => element.name === name.value)) {
+          throw this.error(`Element '${name.value}' is set more than once`, name)
+        }
+        this.expect(':')
+        elements.push({ name: name.value, span: name.span, value: this.parseExpression(0) })
+        if (!this.peekPunct(',')) {
+          break
+        }
+        this.advance()
+      }
+    }
+    const close = this.expect('}')
+    return { kind: 'instance', type, elements, span: this.spanBetween(type.span, close.span) }
+  }
+
+  /** Element names follow the rule for names after '.', so `div` and `` `div` `` both work. */
+  private expectElementName(): Token {
+    const token = this.peek()
+    if (
+      token.kind === 'identifier' ||
+      token.kind === 'delimitedIdentifier' ||
+      (token.kind === 'keyword' && token.text !== 'true' && token.text !== 'false')
+    ) {
+      this.advance()
+      return token
+    }
+    throw this.error(
+      `Expected an element name, got '${token.kind === 'end' ? 'end of expression' : token.text}'`,
+      token
+    )
+  }
+
+  private peekPunct(text: string): boolean {
+    const token = this.peek()
+    return token.kind === 'punct' && token.text === text
   }
 
   private parseTypeSpecifier(): TypeSpecifier {
@@ -317,6 +424,10 @@ class Parser {
   private spanBetween(start: SourceSpan, end: SourceSpan): SourceSpan {
     return { start: start.start, end: end.end, line: start.line, column: start.column }
   }
+}
+
+function isTypeNameToken(token: Token): boolean {
+  return token.kind === 'identifier' || token.kind === 'delimitedIdentifier'
 }
 
 function prefixTokenKind(token: Token): PrefixParseletRecord['tokenKind'] | undefined {

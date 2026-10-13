@@ -1,12 +1,27 @@
 import '../functions/install.ts'
 
 import { bareEnvironmentName, BUILTIN_ENV_VARIABLE_NAMES, normalizeEnvKeys } from '../engine/context.ts'
+import {
+  acceptingElementType,
+  literalValue,
+  missingRequiredElements,
+  patternedType,
+  resolveInstanceType,
+  selectorElement,
+  valuePatternMessage,
+} from '../engine/instance-selector.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
+import { compileDateFormat } from '../functions/date-format.ts'
+import { intervalKindsMessage, intervalPrecisionMessage, intervalPrecisions } from '../functions/date-intervals.ts'
 import { describeArity, functions } from '../functions/registry.ts'
+import { sortKeys } from '../functions/sort.ts'
+import { invalidRegexFlagMessage, unsupportedConversionMessage } from '../functions/string.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import type { FhirpathTypeDeclarations } from '../typed/infer.ts'
+import type { TemporalKind } from '../values/datetime.ts'
+import { integerLiteral } from '../values/numeric.ts'
 import {
   canonicalFocusType,
   commonValueKind,
@@ -18,7 +33,7 @@ import {
   unsatisfiedInput,
   type ValueKind,
 } from '../values/type-compat.ts'
-import { FHIR_PRIMITIVE_TO_SYSTEM, typeLocalName } from '../values/typed-value.ts'
+import { FHIR_PRIMITIVE_TO_SYSTEM, systemTypeOfName, typeLocalName } from '../values/typed-value.ts'
 import {
   analyzerEnvironmentVariables,
   type AnalyzerVariable,
@@ -192,10 +207,10 @@ export interface AnalyzerRoot {
 }
 
 /**
- * Statically check one expression against the model: spec §11's strict-mode rules
+ * Statically check one expression against the model: the spec's type safety and strict evaluation rules
  * (singleton misuse, wrong operand and argument types, incomparable equality)
  * plus unknown elements, functions, arities, type names, and variables.
- * See: https://hl7.org/fhirpath/en/index.html#type-safety-and-strict-evaluation
+ * See: https://hl7.org/fhirpath/STU3/en/index.html#type-safety-and-strict-evaluation
  */
 export function analyzeExpression(expression: string, options?: AnalyzeOptions): AnalyzerDiagnostic[] {
   return analyzeExpressionDetailed(expression, options).diagnostics
@@ -377,10 +392,14 @@ class Analyzer {
   private readonly root: AnalyzerRoot
   private readonly runtime: boolean
   private readonly frames: StaticState[] = []
+  /** Depths of `frames` entries pushed for a sort() key, where `$index` is undefined. */
+  private readonly sortKeyFrames = new Set<number>()
   /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
   private readonly declaredVariables: ReadonlyMap<string, AnalyzerVariableState>
   private readonly activeExpressionFunctions = new Set<string>()
+  /** Inside repeatedItems()'s exploratory walks, which read an unknown element as empty, as the runtime does. */
+  private exploringRepeat = 0
   private readonly reportUnchecked: boolean
 
   constructor(options: AnalyzeOptions | RuntimeAnalyzeOptions | undefined, root: AnalyzerRoot | undefined) {
@@ -427,7 +446,9 @@ class Analyzer {
       case 'string':
         return singleState(['System.String'])
       case 'number':
-        return singleState([node.isLong ? 'System.Long' : node.isDecimal ? 'System.Decimal' : 'System.Integer'])
+        return singleState([
+          node.isLong ? 'System.Long' : node.isDecimal ? 'System.Decimal' : integerLiteral(node.text).type,
+        ])
       case 'date':
         return singleState(['System.Date'])
       case 'dateTime':
@@ -439,7 +460,7 @@ class Analyzer {
       case 'external':
         return this.walkExternal(node, scope)
       case 'special':
-        return this.walkSpecial(node.name)
+        return this.walkSpecial(node)
       case 'identifier':
         return this.walkIdentifier(node, input)
       case 'dot':
@@ -464,6 +485,8 @@ class Analyzer {
         return this.walkBinary(node, input, scope)
       case 'typeOp':
         return this.walkTypeOp(node, input, scope)
+      case 'instance':
+        return this.walkInstance(node, input, scope)
       /* v8 ignore start -- exhaustive fallback */
       default: {
         const unreachable: never = node
@@ -475,7 +498,7 @@ class Analyzer {
 
   /**
    * `%name`: defineVariable() bindings and built-in variables resolve with their
-   * known state; anything else is an undefined variable (spec §9), the same
+   * known state; anything else is an undefined variable (spec "Environment variables"), the same
    * check the runtime applies. Host-supplied variables must be declared to the
    * analyzer (AnalyzeOptions is the place this will grow).
    */
@@ -513,15 +536,20 @@ class Analyzer {
     return UNKNOWN
   }
 
-  private walkSpecial(name: 'this' | 'index' | 'total'): StaticState {
-    if (name === 'this') {
+  private walkSpecial(node: AstNode & { kind: 'special' }): StaticState {
+    if (node.name === 'this') {
       return this.frames.at(-1) ?? this.rootState()
     }
-    return name === 'index' ? singleState(['System.Integer']) : UNKNOWN
+    if (node.name === 'index' && this.sortKeyFrames.has(this.frames.length)) {
+      // The runtime hides $index in a sort key: sorting does not visit items in order.
+      this.report('unknown-variable', '$index is undefined inside sort() keys', node.span)
+      return UNKNOWN
+    }
+    return node.name === 'index' ? singleState(['System.Integer']) : UNKNOWN
   }
 
   /**
-   * A quantity's components (spec §4: `value` and `unit`), the one System type
+   * A quantity's components (spec "Quantity" literals: `value` and `unit`), the one System type
    * with navigable elements. The runtime reads them off the quantity's raw
    * `{ value, unit }` shape (a `toQuantity()` result, a quantity literal), so
    * the analyzer must know them too or flag working navigation.
@@ -645,6 +673,9 @@ class Analyzer {
           node.name
         )
       }
+      if (this.exploringRepeat > 0) {
+        return { types: [], single: true, ordered: true }
+      }
       // A resource type name that is not the input's still names the type the
       // rest of the path reads, as type-level inference reads it. The runtime
       // result is empty either way.
@@ -765,6 +796,10 @@ class Analyzer {
       this.registerVariable(node, input, argStates, scope)
     }
     this.checkRegexPattern(node)
+    this.checkIntervalPrecision(node, input, argStates)
+    this.checkDateFormat(node, input)
+    this.checkOrderableInput(node, input)
+    this.checkStringConversion(node)
     // ofType(X) filters and as(X) casts: both narrow to the named type,
     // intersected with the known candidates.
     if ((node.name === 'ofType' || node.name === 'as') && typeTarget !== undefined) {
@@ -971,7 +1006,7 @@ class Analyzer {
     if (signature.input.singleton && input.types !== undefined && input.single === false) {
       this.report(
         'singleton-required',
-        `${node.name}() expects a single item as input, but this is a collection (spec §11)${NARROW_HINT}`,
+        `${node.name}() expects a single item as input, but this is a collection (FHIRPath strict evaluation)${NARROW_HINT}`,
         node.span
       )
     }
@@ -999,19 +1034,29 @@ class Analyzer {
   ): { argStates: (StaticState | undefined)[]; typeTarget: string | undefined } {
     const argStates: (StaticState | undefined)[] = []
     let typeTarget: string | undefined
+    const keys = sortKeys(node)
     node.args.forEach((argument, index) => {
       const spec = signature.args?.[index] ?? signature.args?.at(-1)
       if (spec === 'expression' || spec === 'condition' || spec === 'sort-key') {
-        // A top-level unary '-' on a sort key marks descending order (any type),
-        // mirroring how sort() reads the AST; only the key itself is analyzed.
-        const body =
-          spec === 'sort-key' && argument.kind === 'unary' && argument.operator === '-' ? argument.operand : argument
+        // sort() reads a key without its direction, as the runtime does.
+        const body = spec === 'sort-key' ? (keys[index]?.expression ?? argument) : argument
         // $this is one item of the input — same candidates and reference targets.
-        const itemState = withSingle(input, true)
+        // repeat() and repeatAll() also run the projection on its own results.
+        const itemState = withSingle(
+          REPEATING_FUNCTIONS.has(node.name) ? this.repeatedItems(body, input, scope) : input,
+          true
+        )
         this.frames.push(itemState)
+        if (spec === 'sort-key') {
+          this.sortKeyFrames.add(this.frames.length)
+        }
         const state = this.walk(body, itemState, forkScope(scope))
+        this.sortKeyFrames.delete(this.frames.length)
         this.frames.pop()
         argStates.push(state)
+        if (spec === 'sort-key') {
+          this.requireSingle(state, body.span, `${node.name}() expects a single value for each key`)
+        }
         if (spec === 'condition') {
           this.requireSingle(state, argument.span, `${node.name}() expects a single Boolean criterion`)
           if (!isCollection(state)) {
@@ -1035,7 +1080,7 @@ class Analyzer {
         if (argState.types !== undefined && argState.single === false) {
           this.report(
             'argument-singleton',
-            `${node.name}() expects a single ${spec} argument, but this is a collection (spec §11)${NARROW_HINT}`,
+            `${node.name}() expects a single ${spec} argument, but this is a collection (FHIRPath strict evaluation)${NARROW_HINT}`,
             argument.span,
             'warning'
           )
@@ -1048,11 +1093,45 @@ class Analyzer {
   }
 
   /**
+   * The items a repeat() or repeatAll() projection runs on: the input, then each
+   * round's results. The projection is walked against the types seen so far until
+   * no new type appears, discarding those walks' diagnostics, so the caller's walk
+   * accepts an element any round's items have.
+   */
+  private repeatedItems(body: AstNode, input: StaticState, scope: VariableScope): StaticState {
+    let items = input
+    for (let round = 0; round < MAX_REPEAT_ROUNDS && items.types !== undefined; round++) {
+      const known = items.types
+      const diagnosticCount = this.diagnostics.length
+      const itemState = withSingle(items, true)
+      this.frames.push(itemState)
+      this.exploringRepeat++
+      let produced: StaticState
+      try {
+        produced = this.walk(body, itemState, forkScope(scope))
+      } finally {
+        this.exploringRepeat--
+        this.frames.pop()
+        this.diagnostics.length = diagnosticCount
+      }
+      const next = unionStates([items, produced])
+      if (next.types !== undefined && next.types.every(type => known.includes(type))) {
+        return items
+      }
+      // Types the projection cannot name (children()) leave $this unknown.
+      items = next
+    }
+    return items
+  }
+
+  /**
    * The matches() family compiles its pattern with the backtracking JS RegExp,
-   * which cannot be timed out — flag exponential-shaped literal patterns.
+   * which cannot be timed out — flag exponential-shaped literal patterns. A
+   * literal flags argument must use only the flags the runtime accepts.
    */
   private checkRegexPattern(node: AstNode & { kind: 'call' }): void {
-    if (!REGEX_PATTERN_FUNCTIONS.has(node.name)) {
+    const flagsIndex = REGEX_FLAGS_ARGUMENT.get(node.name)
+    if (flagsIndex === undefined) {
       return
     }
     const pattern = node.args[0]
@@ -1063,6 +1142,86 @@ class Analyzer {
         pattern.span,
         'warning'
       )
+    }
+    const flags = node.args[flagsIndex]
+    const message = flags?.kind === 'string' ? invalidRegexFlagMessage(node.name, flags.value) : undefined
+    if (flags !== undefined && message !== undefined) {
+      this.report('invalid-argument', message, flags.span)
+    }
+  }
+
+  /**
+   * A literal duration()/difference() precision must be one the operand kinds
+   * allow. With an operand of unknown kind, only the precision word is checked.
+   */
+  private checkIntervalPrecision(
+    node: AstNode & { kind: 'call' },
+    input: StaticState,
+    argStates: (StaticState | undefined)[]
+  ): void {
+    if (node.name !== 'duration' && node.name !== 'difference') {
+      return
+    }
+    const startKind = temporalKindOf(input.types)
+    const endKind = temporalKindOf(argStates[0]?.types)
+    const allowed =
+      startKind !== undefined && endKind !== undefined
+        ? intervalPrecisions(startKind, endKind)
+        : intervalPrecisions('dateTime', 'dateTime')
+    if (allowed === undefined) {
+      this.report('operand-type', intervalKindsMessage(node.name), node.args[0]?.span ?? node.span)
+      return
+    }
+    const precision = node.args[1]
+    if (precision?.kind === 'string' && !allowed.precisions.includes(precision.value)) {
+      this.report('invalid-argument', intervalPrecisionMessage(node.name, precision.value, allowed), precision.span)
+    }
+  }
+
+  /**
+   * min() and max() order their items as the comparison operators do, so a
+   * Boolean or complex input is an error, as it is at runtime.
+   */
+  private checkOrderableInput(node: AstNode & { kind: 'call' }, input: StaticState): void {
+    if (node.name !== 'min' && node.name !== 'max') {
+      return
+    }
+    const kind = commonValueKind(input.types)
+    if (kind === 'Boolean' || kind === 'Complex') {
+      this.report(
+        'operand-type',
+        `${node.name}() expects Integer, Long, Decimal, Quantity, Date, DateTime, Time, or String items, found ${input.types?.join(' | ')}`,
+        node.span
+      )
+    }
+  }
+
+  /** A literal encode()/decode() format or escape()/unescape() target must be one the function supports. */
+  private checkStringConversion(node: AstNode & { kind: 'call' }): void {
+    const choice = node.args[0]
+    const message = choice?.kind === 'string' ? unsupportedConversionMessage(node.name, choice.value) : undefined
+    if (choice !== undefined && message !== undefined) {
+      this.report('invalid-argument', message, choice.span)
+    }
+  }
+
+  /**
+   * A literal toDate()/toDateTime() format must compile. Only a String input
+   * reads the format, so other inputs are not checked.
+   */
+  private checkDateFormat(node: AstNode & { kind: 'call' }, input: StaticState): void {
+    const kind = DATE_FORMAT_FUNCTIONS.get(node.name)
+    const format = node.args[0]
+    if (kind === undefined || format?.kind !== 'string') {
+      return
+    }
+    if (input.types !== undefined && !input.types.some(type => systemTypeOfName(type) === 'System.String')) {
+      return
+    }
+    try {
+      compileDateFormat(node.name, format.value, kind)
+    } catch (error) {
+      this.report('invalid-argument', (error as Error).message, format.span)
     }
   }
 
@@ -1281,6 +1440,94 @@ class Analyzer {
     return applyTypeOperatorResultRule(node.operator, narrowed)
   }
 
+  /**
+   * An instance selector builds one value of the named type from the focus, so
+   * it needs at most one input item. With a model, each element must exist on
+   * the type, take the value's type (`acceptingElementType`, as the runtime
+   * decides), and repeat when the value is a collection. A literal value must
+   * match its primitive's pattern, and a required element the selector leaves
+   * out is a warning. `elementTypes` are
+   * the declared types of the element this selector is the value of, which
+   * lets `BackboneElement { ... }` build a backbone element.
+   */
+  private walkInstance(
+    node: AstNode & { kind: 'instance' },
+    input: StaticState,
+    scope: VariableScope,
+    elementTypes?: readonly string[]
+  ): StaticState {
+    this.requireSingle(input, node.span, 'An instance selector expects a single input item')
+    const resolved = resolveInstanceType(this.model, node.type.parts, elementTypes)
+    if ('error' in resolved) {
+      this.report('unknown-type', resolved.error, node.type.span)
+    }
+    const type = 'error' in resolved ? undefined : resolved.type
+    const owner = 'error' in resolved ? '' : resolved.name
+    const model = this.model
+    for (const element of node.elements) {
+      const info = type === undefined || model === undefined ? undefined : selectorElement(model, type, element.name)
+      // Each element value is its own chain, like an operator operand.
+      const value =
+        element.value.kind === 'instance' && info !== undefined
+          ? this.walkInstance(element.value, input, forkScope(scope), info.types)
+          : this.walk(element.value, input, forkScope(scope))
+      if (type === undefined || model === undefined) {
+        continue
+      }
+      if (info === undefined) {
+        this.report(
+          'unknown-element',
+          `Element '${element.name}' is not defined on ${type}${didYouMean(element.name, this.elementNames([type]))}`,
+          element.span,
+          'error',
+          element.name
+        )
+        continue
+      }
+      if (!info.isCollection) {
+        this.requireSingle(value, element.value.span, `Element '${element.name}' of ${type} takes one item`)
+      }
+      if (
+        value.types !== undefined &&
+        value.types.length > 0 &&
+        value.types.every(valueType => acceptingElementType(model, info.types, valueType) === undefined)
+      ) {
+        this.report(
+          'operand-type',
+          `Element '${element.name}' of ${type} expects ${info.types.join(' | ')}, found ${value.types.join(' | ')}`,
+          element.value.span
+        )
+        continue
+      }
+      // A literal value must also hold, as the runtime checks.
+      const literal = literalValue(element.value)
+      const elementType = literal === undefined ? undefined : acceptingElementType(model, info.types, literal.type)
+      if (literal === undefined || elementType === undefined) {
+        continue
+      }
+      const primitive = patternedType(type, element.name, elementType)
+      const message =
+        primitive === undefined ? undefined : valuePatternMessage(model, primitive, literal.json, element.name, owner)
+      if (message !== undefined) {
+        this.report('invalid-value', message, element.value.span)
+      }
+    }
+    if (type !== undefined && model !== undefined) {
+      const listed = new Set(node.elements.map(element => element.name))
+      for (const name of missingRequiredElements(model, type, listed)) {
+        this.report(
+          'missing-element',
+          `${owner} requires element '${name}', which the instance selector leaves out`,
+          node.type.span,
+          'warning',
+          name
+        )
+      }
+    }
+    // Without a model the built value has no type the analyzer can name.
+    return singleState(type === undefined || model === undefined ? undefined : [type])
+  }
+
   private checkArithmetic(operator: string, left: StaticState, right: StaticState, span: SourceSpan): void {
     if (isCollection(left) || isCollection(right)) {
       this.report('singleton-required', `Operator '${operator}' expects single-item operands${NARROW_HINT}`, span)
@@ -1323,7 +1570,11 @@ class Analyzer {
       return
     }
     if (leftKind !== rightKind) {
-      this.report('equality-incompatible', `${leftKind} and ${rightKind} operands can never be equal (spec §11)`, span)
+      this.report(
+        'equality-incompatible',
+        `${leftKind} and ${rightKind} operands can never be equal (FHIRPath strict evaluation)`,
+        span
+      )
     }
   }
 
@@ -1349,8 +1600,42 @@ class Analyzer {
   }
 }
 
-/** Functions whose first argument is a regular expression pattern. */
-const REGEX_PATTERN_FUNCTIONS = new Set(['matches', 'matchesFull', 'replaceMatches'])
+/** The conversions that take a format argument, with the kind they produce. */
+const DATE_FORMAT_FUNCTIONS: ReadonlyMap<string, 'date' | 'dateTime'> = new Map([
+  ['toDate', 'date'],
+  ['convertsToDate', 'date'],
+  ['toDateTime', 'dateTime'],
+  ['convertsToDateTime', 'dateTime'],
+])
+
+const TEMPORAL_KINDS: Readonly<Record<string, TemporalKind>> = {
+  'System.Date': 'date',
+  'System.DateTime': 'dateTime',
+  'System.Time': 'time',
+}
+
+/** The one temporal kind every candidate type has, if any. */
+function temporalKindOf(types: readonly string[] | undefined): TemporalKind | undefined {
+  const kinds = new Set((types ?? []).map(type => TEMPORAL_KINDS[systemTypeOfName(type) ?? '']))
+  const [kind] = kinds
+  return kinds.size === 1 ? kind : undefined
+}
+
+/** Functions that run their projection on its own results until it produces nothing new. */
+const REPEATING_FUNCTIONS: ReadonlySet<string> = new Set(['repeat', 'repeatAll'])
+
+/**
+ * The most rounds repeatedItems() widens the projection's input. Each round adds a
+ * type or stops, and FHIR's nested elements (item.item, answer.item) settle in two.
+ */
+const MAX_REPEAT_ROUNDS = 8
+
+/** Functions whose first argument is a regular expression pattern, with the position of their flags argument. */
+const REGEX_FLAGS_ARGUMENT: ReadonlyMap<string, number> = new Map([
+  ['matches', 1],
+  ['matchesFull', 1],
+  ['replaceMatches', 2],
+])
 
 /** Appended to singleton-misuse messages so the fix is spelled out, not just the rule. */
 const NARROW_HINT = ' — narrow it to one item with first(), last(), or single()'

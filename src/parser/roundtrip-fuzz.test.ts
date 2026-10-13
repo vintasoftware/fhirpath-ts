@@ -146,6 +146,17 @@ const { expression } = fc.letrec<{ expression: AstNode; invocation: AstNode }>(t
         operand,
         type: { parts, span: SPAN },
         span: SPAN,
+      })),
+    fc
+      .tuple(
+        fc.array(plainNameArb, { minLength: 1, maxLength: 2 }),
+        fc.uniqueArray(fc.tuple(nameArb, tie('expression')), { maxLength: 3, selector: ([name]) => name })
+      )
+      .map(([parts, elements]) => ({
+        kind: 'instance' as const,
+        type: { parts, span: SPAN },
+        elements: elements.map(([name, value]) => ({ name, span: SPAN, value })),
+        span: SPAN,
       }))
   ),
 }))
