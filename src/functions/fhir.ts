@@ -3,7 +3,7 @@ import { childValue } from '../fhir/element-origin.ts'
 import { extensionArraysOf } from '../fhir/extensions.ts'
 import { validateNarrative } from '../fhir/html-checks.ts'
 import { singleton, wrapBoolean } from '../values/collection.ts'
-import { calendarToUcumLoose, compareQuantities, promoteQuantity } from '../values/quantity.ts'
+import { compareQuantities, promoteQuantity } from '../values/quantity.ts'
 import { SYSTEM_QUANTITY, SYSTEM_STRING, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
 import { argAt, registerFunction } from './registry.ts'
 
@@ -100,24 +100,23 @@ registerFunction('htmlChecks', {
   },
 })
 
-/** Quantities are comparable when their units share a dimension (FHIR R5 addition). */
+/**
+ * comparable() (FHIRPath 3.0.0, trial use) is true exactly when `=` and `<` on
+ * the two quantities give an answer, so it uses the comparison they use. A
+ * number counts as a unity quantity; any other operand gives empty.
+ */
 registerFunction('comparable', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
     const left = singleton(input)
     const right = singleton(evaluateNode(argAt(args, 0), context, input))
-    if (left === undefined || right === undefined) {
+    const a = left === undefined ? undefined : promoteQuantity(left)
+    const b = right === undefined ? undefined : promoteQuantity(right)
+    if (a === undefined || b === undefined) {
       return []
     }
-    const a = promoteQuantity(left)
-    const b = promoteQuantity(right)
-    if (!(a && b)) {
-      throw new FhirPathTypeError('comparable() expects Quantity operands')
-    }
-    // Dimensions decide comparability, so calendar durations count as their
-    // loose UCUM twins: 1 year.comparable(1 second) is true.
-    return wrapBoolean(compareQuantities(calendarToUcumLoose(a), calendarToUcumLoose(b)) !== undefined)
+    return wrapBoolean(compareQuantities(a, b) !== undefined)
   },
 })
 

@@ -198,7 +198,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.comparable': {
     source: {
-      expression: "1 'mg'.comparable(1 'mg')",
+      expression: "Patient.name.first().comparable('x')",
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'boolean[]',
@@ -209,7 +209,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: "(1 'mg'.comparable(1 'mg')).count()",
+    composition: "(Patient.name.first().comparable('x')).count()",
   },
   'builtin.conformsTo': {
     source: {
@@ -963,18 +963,18 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.max': {
     source: {
-      expression: '2.max()',
+      expression: 'Patient.name.given.max()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
-    expectedType: 'unknown[]',
+    expectedType: 'string[]',
     compositionType: 'number[]',
     runtime: false,
     analyzer: {
-      types: undefined,
-      single: undefined,
+      types: ['FHIR.string'],
+      single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: '(2.max()).count()',
+    composition: '(Patient.name.given.max()).count()',
   },
   'builtin.millisecondOf': {
     source: {
@@ -993,18 +993,18 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.min': {
     source: {
-      expression: '2.min()',
+      expression: 'Patient.name.given.min()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
-    expectedType: 'unknown[]',
+    expectedType: 'string[]',
     compositionType: 'number[]',
     runtime: false,
     analyzer: {
-      types: undefined,
-      single: undefined,
+      types: ['FHIR.string'],
+      single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: '(2.min()).count()',
+    composition: '(Patient.name.given.min()).count()',
   },
   'builtin.minuteOf': {
     source: {
@@ -1101,12 +1101,12 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       expression: '2.power(1)',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
-    expectedType: 'unknown[]',
+    expectedType: 'number[]',
     compositionType: 'number[]',
     runtime: false,
     analyzer: {
-      types: undefined,
-      single: undefined,
+      types: ['System.Decimal'],
+      single: true,
     },
     degradation: 'Patient.name.unknownFn()',
     composition: '(2.power(1)).count()',

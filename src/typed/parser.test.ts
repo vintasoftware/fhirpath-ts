@@ -49,6 +49,16 @@ describe('bounded type-level tokenizer and parser', () => {
     expectTypeOf<FhirpathResult<'(Patient.name)(given)'>>().toEqualTypeOf<unknown[]>()
   })
 
+  it('reads asc and desc only at the end of a sort() key', () => {
+    expectTypeOf<FhirpathResult<'Patient.name.sort(family desc, given.first() asc).first()'>>().toEqualTypeOf<
+      HumanName[]
+    >()
+    expectTypeOf<FhirpathResult<'Patient.name.sort(desc desc)'>>().toEqualTypeOf<HumanName[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.where(family desc)'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.sort((family desc))'>>().toEqualTypeOf<unknown[]>()
+    expectTypeOf<FhirpathResult<'Patient.name.sort(family desc + 1)'>>().toEqualTypeOf<unknown[]>()
+  })
+
   it('accepts only an integer-typed index expression', () => {
     expectTypeOf<FhirpathResult<'Patient.name[0]'>>().toEqualTypeOf<HumanName[]>()
     expectTypeOf<FhirpathResult<"Patient.name['integer']">>().toEqualTypeOf<unknown[]>()

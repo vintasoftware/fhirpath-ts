@@ -105,7 +105,7 @@ describe('README usage recipes', () => {
     )
     expect(systolic).toHaveLength(3)
     const newestFirst = r4.evaluate(
-      'Observation.sort(-(effective.ofType(dateTime) | issued).first())',
+      'Observation.sort((effective.ofType(dateTime) | issued).first() desc)',
       systolic
     ) as Observation[]
     expect(newestFirst.map(o => o.effectiveDateTime ?? o.issued)).toEqual([
@@ -343,6 +343,24 @@ describe('README usage recipes', () => {
     )
     expectTypeOf(codings).toEqualTypeOf<unknown[]>()
     expect(codings).toEqual([{ system: 'http://hl7.org/fhir/administrative-gender', code: 'female' }])
+    const observations = r4.evaluate(
+      "Observation { status: 'final', code: CodeableConcept { text: 'BP' }, component: BackboneElement { code: CodeableConcept { text: 'Systolic' }, value: 120 'mm[Hg]' } }",
+      patient
+    )
+    expectTypeOf(observations).toEqualTypeOf<unknown[]>()
+    expect(observations).toEqual([
+      {
+        resourceType: 'Observation',
+        status: 'final',
+        code: { text: 'BP' },
+        component: [
+          {
+            code: { text: 'Systolic' },
+            valueQuantity: { value: 120, unit: 'mm[Hg]', system: 'http://unitsofmeasure.org', code: 'mm[Hg]' },
+          },
+        ],
+      },
+    ])
   })
 
   it('deterministic tests and debugging', () => {

@@ -85,6 +85,9 @@ function functionExpression(name: string, signature: FunctionSignature): string 
     case 'escape':
     case 'unescape':
       return `'abc'.${name}('html')`
+    case 'min':
+    case 'max':
+      return `Patient.name.given.${name}()`
     default:
       break
   }

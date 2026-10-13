@@ -44,6 +44,7 @@ fails when a skip no longer matches a suite case.
 | R5-only elements | The package currently ships an R4 model |
 | Decimal boundary and dateTime millisecond cases | Expected values conflict with the mathematical bounds; recorded as upstream test issues |
 | `testPlusDate19` in R4 | R5 changed ambiguous R4 behavior; the engine follows R5 |
+| `testSort10` | Expects an empty sort key first in descending order; FHIRPath 3.0.0 sorts it last |
 
 The manifest contains the exact case names and evidence. Entries marked
 `runtimeOnly` dispute an expected value, not a feature. The analyzer pass still
@@ -91,6 +92,11 @@ runtime appends in order either way, and the analyzer treats these results as
 ordered, so `(a | b).first()` and `a.combine(b).first()` are not
 `order-dependent` errors. Reading them as unordered would reject many common
 expressions that rely on that order.
+
+`sort()` also accepts a key written as `-key`, which sorts `key` descending, as
+`key desc` does. FHIRPath 3.0.0 describes only the `asc` and `desc`
+qualifiers; the official R4 and R5 suites use the `-key` form. With a qualifier, a leading minus is plain negation:
+`sort(-$this desc)` sorts numbers ascending.
 
 ## Property and differential tests
 

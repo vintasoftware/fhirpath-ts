@@ -8,6 +8,7 @@ import { Decimal } from '../values/decimal.ts'
 import { LONG_MAX, LONG_MIN } from '../values/numeric.ts'
 import { coerceQuantity, convertQuantity } from '../values/quantity.ts'
 import {
+  isInteger32,
   type QuantityValue,
   SYSTEM_BOOLEAN,
   SYSTEM_DATE,
@@ -145,7 +146,7 @@ conversionPair('Integer', item => {
         return undefined
       }
       const value = Number.parseInt(item.value as string, 10)
-      return Number.isSafeInteger(value) ? { type: SYSTEM_INTEGER, value } : undefined
+      return isInteger32(value) ? { type: SYSTEM_INTEGER, value } : undefined
     }
     default:
       return undefined
@@ -385,11 +386,11 @@ registerFunction('convertsToQuantity', {
   maxArity: 1,
   // Same path as toQuantity so the toX/convertsToX contract holds with a unit
   // argument too: convertible exactly when toQuantity(unit) is non-empty.
-  evaluate: (context, input, args, evaluateNode) => {
+  evaluate: (context, input, args, evaluateNode, call) => {
     const item = singleton(input)
     if (item === undefined) {
       return []
     }
-    return wrapBoolean(toQuantityImpl(context, input, args, evaluateNode).length > 0)
+    return wrapBoolean(toQuantityImpl(context, input, args, evaluateNode, call).length > 0)
   },
 })

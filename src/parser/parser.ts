@@ -4,7 +4,7 @@
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { tokenize } from '../lexer/lexer.ts'
 import { CALENDAR_DURATION_UNITS, type Token } from '../lexer/tokens.ts'
-import type { AstNode, BinaryOperator, InstanceElement, TypeSpecifier, UnaryOperator } from './ast.ts'
+import type { AstNode, BinaryOperator, InstanceElement, SortDirection, TypeSpecifier, UnaryOperator } from './ast.ts'
 import { INFIX_PARSELETS, type InfixParseletRecord, PREFIX_PARSELETS, type PrefixParseletRecord } from './precedence.ts'
 
 /** Keywords the grammar also accepts as element names, e.g. `'abc'.contains('b')`. */
@@ -110,7 +110,13 @@ class Parser {
 
   private parseUnary(token: Token, parselet: Extract<PrefixParseletRecord, { reducer: 'unary' }>): AstNode {
     this.advance()
+    const literalFollows = token.text === '-' && this.peek().kind === 'number'
     const operand = this.parseExpression(parselet.bindingPower)
+    if (literalFollows && operand.kind === 'number') {
+      // A minus sign written directly before a number is part of the literal, so
+      // `-2147483648` is the Integer minimum. `-(2147483648)` stays a negation.
+      return { ...operand, text: `-${operand.text}`, span: this.spanBetween(token.span, operand.span) }
+    }
     return {
       kind: 'unary',
       operator: token.text as UnaryOperator,
@@ -259,15 +265,39 @@ class Parser {
       throw this.error('Unexpected parentheses', this.peek())
     }
     const args: AstNode[] = []
+    const directions: (SortDirection | undefined)[] = []
     if (!(this.peek().kind === 'punct' && this.peek().text === ')')) {
-      args.push(this.parseExpression(0))
-      while (this.peek().kind === 'punct' && this.peek().text === ',') {
-        this.advance()
+      for (;;) {
         args.push(this.parseExpression(0))
+        directions.push(target.name === 'sort' ? this.sortDirection() : undefined)
+        if (!this.peekPunct(',')) {
+          break
+        }
+        this.advance()
       }
     }
     const close = this.expect(')')
-    return { kind: 'call', name: target.name, args, span: this.spanBetween(target.span, close.span) }
+    const span = this.spanBetween(target.span, close.span)
+    return directions.some(direction => direction !== undefined)
+      ? { kind: 'call', name: target.name, args, directions, span }
+      : { kind: 'call', name: target.name, args, span }
+  }
+
+  /**
+   * A `sort()` key may end with `asc` or `desc`. Both stay ordinary names
+   * everywhere else, so only a plain identifier right before `,` or `)` counts.
+   */
+  private sortDirection(): SortDirection | undefined {
+    const token = this.peek()
+    if (token.kind !== 'identifier' || (token.text !== 'asc' && token.text !== 'desc')) {
+      return undefined
+    }
+    const next = this.tokens[this.pos + 1] as Token
+    if (next.kind !== 'punct' || (next.text !== ',' && next.text !== ')')) {
+      return undefined
+    }
+    this.advance()
+    return token.text
   }
 
   /** A type name followed by `{` starts an instance selector, e.g. `FHIR.Coding { code: 'a' }`. */

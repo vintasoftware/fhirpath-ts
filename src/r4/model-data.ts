@@ -8,6 +8,8 @@ export interface GeneratedElement {
   c?: 1
   /** Resource names a Reference element may point to (targetProfile); absent when unconstrained. */
   r?: string[]
+  /** Present (1) when min cardinality is at least 1. */
+  m?: 1
 }
 
 export interface GeneratedType {
@@ -24,14 +26,14 @@ export interface GeneratedType {
  *
  * Format, one line per type:
  *
- *     Name|Base|element:type1,type2*^<Target1,Target2;element2:type
+ *     Name|Base|element:type1,type2*^!<Target1,Target2;element2:type
  *
- * `*` marks a collection (`a: 1`), `^` a choice element (`c: 1`), and `<`
- * starts the Reference target list (`r`). An empty Base segment means the type
+ * `*` marks a collection (`a: 1`), `^` a choice element (`c: 1`), `!` a
+ * required element (`m: 1`), and `<` starts the Reference target list (`r`). An empty Base segment means the type
  * has no base. Elements identical to the nearest ancestor's entry are omitted
  * by the generator; lookups walk the base chain (see index.ts).
  */
-const RESERVED_IN_COMPACT = /[|;:,*^<\n\\`$]/
+const RESERVED_IN_COMPACT = /[|;:,*^!<\n\\`$]/
 
 function assertCompactSafe(name: string): string {
   if (RESERVED_IN_COMPACT.test(name)) {
@@ -51,6 +53,9 @@ export function encodeCompactTypes(types: Record<string, GeneratedType>): string
       }
       if (info.c === 1) {
         entry += '^'
+      }
+      if (info.m === 1) {
+        entry += '!'
       }
       if (info.r !== undefined) {
         entry += `<${info.r.map(assertCompactSafe).join(',')}`
@@ -79,6 +84,10 @@ function decodeTypeLine(line: string): GeneratedType {
       if (targetsStart >= 0) {
         element.r = rest.slice(targetsStart + 1).split(',')
         rest = rest.slice(0, targetsStart)
+      }
+      if (rest.endsWith('!')) {
+        element.m = 1
+        rest = rest.slice(0, -1)
       }
       if (rest.endsWith('^')) {
         element.c = 1

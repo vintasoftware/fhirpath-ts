@@ -1,6 +1,6 @@
 import type { EvaluationContext } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
-import type { AstNode } from '../parser/ast.ts'
+import type { AstNode, FunctionCallNode } from '../parser/ast.ts'
 import { singleton } from '../values/collection.ts'
 import { SYSTEM_BOOLEAN, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
 
@@ -17,7 +17,9 @@ export interface FhirPathFunction {
     context: EvaluationContext,
     input: TypedValue[],
     args: AstNode[],
-    evaluateNode: (node: AstNode, context: EvaluationContext, input: TypedValue[]) => TypedValue[]
+    evaluateNode: (node: AstNode, context: EvaluationContext, input: TypedValue[]) => TypedValue[],
+    /** The whole call, for syntax beyond the arguments such as `sort()`'s `asc`/`desc`. */
+    call: FunctionCallNode
   ): TypedValue[]
 }
 

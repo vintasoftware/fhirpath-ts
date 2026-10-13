@@ -8,11 +8,15 @@ import {
 import { OBJECT_TYPE, systemTypeOf, type TypedValue, typeLocalName } from '../values/typed-value.ts'
 import type { EvaluationContext, HostFunction, HostSingleFunction } from './context.ts'
 
-const SYSTEM_LOCAL_NAMES_LOWER = new Set([...SYSTEM_TYPE_LOCAL_NAMES].map(name => name.toLowerCase()))
+// `Quantity` is left out: FHIR's Quantity is a complex type whose subtypes
+// (Age, Duration, ...) `as` and `ofType` return, as `is` does.
+const SYSTEM_PRIMITIVE_NAMES_LOWER = new Set(
+  [...SYSTEM_TYPE_LOCAL_NAMES].filter(name => name !== 'Quantity').map(name => name.toLowerCase())
+)
 
 /** True when an unqualified name may mean a System primitive and requires exact `as`/`ofType` matching. */
 function isSystemAmbiguousName(name: string): boolean {
-  return SYSTEM_LOCAL_NAMES_LOWER.has(name.toLowerCase())
+  return SYSTEM_PRIMITIVE_NAMES_LOWER.has(name.toLowerCase())
 }
 
 /**

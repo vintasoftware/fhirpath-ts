@@ -2296,6 +2296,179 @@
       "input": "empty-object",
       "model": "r4",
       "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > validates BackboneElement fields against the assigned target element",
+      "expression": "Observation { component: BackboneElement { code: CodeableConcept { text: 'Systolic' }, value: 120 'mm[Hg]' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "resourceType": "Observation",
+          "component": [
+            {
+              "code": {
+                "text": "Systolic"
+              },
+              "valueQuantity": {
+                "value": 120,
+                "unit": "mm[Hg]",
+                "system": "http://unitsofmeasure.org",
+                "code": "mm[Hg]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > supports FHIR.BackboneElement for assigned backbone elements",
+      "expression": "Patient { contact: FHIR.BackboneElement { name: HumanName { family: 'Doe' } } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "resourceType": "Patient",
+          "contact": [
+            {
+              "name": {
+                "family": "Doe"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > normalizes recursive BackboneElement paths when assigned",
+      "expression": "Questionnaire { item: BackboneElement { linkId: 'a', item: BackboneElement { linkId: 'b' } } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "resourceType": "Questionnaire",
+          "item": [
+            {
+              "linkId": "a",
+              "item": [
+                {
+                  "linkId": "b"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects BackboneElement fields that are invalid for the target",
+      "expression": "Observation { component: BackboneElement { notAField: 'x' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects BackboneElement child values with incompatible types",
+      "expression": "Observation { component: BackboneElement { code: 'x' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects BackboneElement child values with incompatible types",
+      "expression": "Observation { component: BackboneElement { value: 2147483648 } }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > preserves primitive types for BackboneElement choice children",
+      "expression": "CodeSystem { concept: BackboneElement { code: 'c', property: BackboneElement { code: 'p', value: code { value: 'status' } } } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "resourceType": "CodeSystem",
+          "concept": [
+            {
+              "code": "c",
+              "property": [
+                {
+                  "code": "p",
+                  "valueCode": "status"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > preserves primitive metadata for BackboneElement choice children",
+      "expression": "CodeSystem { concept: BackboneElement { code: 'c', property: BackboneElement { code: 'p', value: code { id: 'v1' } } } }",
+      "input": "empty-object",
+      "model": "r4",
+      "values": [
+        {
+          "resourceType": "CodeSystem",
+          "concept": [
+            {
+              "code": "c",
+              "property": [
+                {
+                  "code": "p",
+                  "_valueCode": {
+                    "id": "v1"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects unsafe names in assigned BackboneElement selectors",
+      "expression": "Observation { component: BackboneElement { __proto__: BackboneElement { value: 1 } } }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects unsafe names in assigned BackboneElement selectors",
+      "expression": "Observation { component: BackboneElement { constructor: 'x' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
+    },
+    {
+      "source": "HL7/fhirpath.js",
+      "file": "test/instance-selector.test.js",
+      "test": "Instance Selector / Object Creation > rejects unsafe names in assigned BackboneElement selectors",
+      "expression": "Observation { component: BackboneElement { prototype: 'x' } }",
+      "input": "empty-object",
+      "model": "r4",
+      "error": "FhirPathError"
     }
   ]
 }

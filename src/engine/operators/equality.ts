@@ -235,10 +235,10 @@ function deepEquals(a: unknown, b: unknown): boolean {
     )
   }
   if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
-    // Equality on FHIR complex values ignores element ids and primitive metadata,
-    // same as equivalence: a value's identity is its children, not its annotations.
-    const keysA = Object.keys(a).filter(isValueKey)
-    const keysB = Object.keys(b).filter(isValueKey)
+    // Equality compares every child element, `id` included (spec "= (Equals)"),
+    // but not the `_field` siblings that carry primitive extensions in JSON.
+    const keysA = Object.keys(a).filter(isElementKey)
+    const keysB = Object.keys(b).filter(isElementKey)
     return (
       keysA.length === keysB.length &&
       keysA.every(key => deepEquals((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]))
@@ -263,6 +263,7 @@ function deepEquivalent(a: unknown, b: unknown): boolean {
     )
   }
   if (typeof a === 'object' && a !== null && typeof b === 'object' && b !== null) {
+    // Equivalence also ignores element ids.
     const keysA = Object.keys(a).filter(isValueKey)
     const keysB = Object.keys(b).filter(isValueKey)
     return (
@@ -273,9 +274,14 @@ function deepEquivalent(a: unknown, b: unknown): boolean {
   return a === b
 }
 
-/** Excludes a complex value's `id` and `_field` (primitive extension) siblings from comparison. */
+/** Excludes a complex value's `_field` (primitive extension) siblings from comparison. */
+function isElementKey(key: string): boolean {
+  return !key.startsWith('_')
+}
+
+/** Excludes a complex value's `id` and `_field` siblings from comparison. */
 function isValueKey(key: string): boolean {
-  return key !== 'id' && !key.startsWith('_')
+  return key !== 'id' && isElementKey(key)
 }
 
 /** Collection `=`: empty operand → empty; different lengths → false; ordered pairwise. */

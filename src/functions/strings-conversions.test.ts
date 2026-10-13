@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { evaluate } from '../api/evaluate.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { r4Model } from '../r4/index.ts'
 
 describe('string functions', () => {
   it.each([
@@ -403,15 +404,90 @@ describe('sort', () => {
     ["('c' | 'a').sort($this)", ['a', 'c']],
     ['(1 | 2 | 3).sort(-$this)', [3, 2, 1]],
     ['{}.sort()', []],
+    // FHIRPath 3.0.0 "sort" examples
+    ['(3 | 1 | 2).sort($this)', [1, 2, 3]],
+    ['(3 | 1 | 2).sort($this desc)', [3, 2, 1]],
+    ['(3 | 1 | 2).sort($this asc)', [1, 2, 3]],
+    ["('c' | 'a' | 'b').sort($this desc)", ['c', 'b', 'a']],
+    ["('3' | '1' | '10').sort()", ['1', '10', '3']],
+    // A qualifier makes a leading minus plain negation.
+    ['(1 | 3 | 2).sort(-$this desc)', [1, 2, 3]],
+    ['(@2020 | @2022 | @2021).sort($this desc)', ['2022', '2021', '2020']],
   ])('%s -> %j', (expression, expected) => {
     expect(evaluate(expression)).toEqual(expected)
   })
 
-  it('empty keys sort last ascending and first descending', () => {
+  it('empty keys sort first ascending and last descending', () => {
     const input = { resourceType: 'Basic', part: [{ n: 'b' }, { x: 1 }, { n: 'a' }] }
+    expect(evaluate('part.sort(n)[0].n', input)).toEqual([])
     expect(evaluate('part.sort(n).n', input)).toEqual(['a', 'b'])
-    expect(evaluate('part.sort(-n).count()', input)).toEqual([3])
-    expect(evaluate('part.sort(-n)[0].n', input)).toEqual([])
+    expect(evaluate('part.sort(n desc).n', input)).toEqual(['b', 'a'])
+    expect(evaluate('part.sort(n desc)[2].n', input)).toEqual([])
+    expect(evaluate('part.sort(-n)[2].x', input)).toEqual([1])
+  })
+
+  it('reads a primitive without a value as an empty key', () => {
+    const patient = { resourceType: 'Patient', name: [{ family: 'b' }, { _family: { id: 'x' } }, { family: 'a' }] }
+    expect(evaluate('Patient.name.sort(family).family.id', patient, { model: r4Model })).toEqual(['x'])
+  })
+
+  it('sorts by family descending, then by first given name, as the spec example does', () => {
+    const patient = {
+      resourceType: 'Patient',
+      name: [
+        { family: 'Adams', given: ['Zoe'] },
+        { family: 'Brown', given: ['Bob'] },
+        { family: 'Adams', given: ['Amy'] },
+        { given: ['Nobody'] },
+      ],
+    }
+    expect(evaluate('Patient.name.sort(family desc, given.first()).given', patient)).toEqual([
+      'Bob',
+      'Amy',
+      'Zoe',
+      'Nobody',
+    ])
+    expect(evaluate('Patient.name.sort(family, given.first() desc).given', patient)).toEqual([
+      'Nobody',
+      'Zoe',
+      'Amy',
+      'Bob',
+    ])
+  })
+
+  it('orders the example patient names with empty families lowest', () => {
+    const patient = {
+      resourceType: 'Patient',
+      name: [
+        { use: 'official', family: 'Chalmers', given: ['Peter', 'James'] },
+        { use: 'usual', given: ['Jim'] },
+        { use: 'maiden', family: 'Windsor', given: ['Peter', 'James'] },
+      ],
+    }
+    expect(evaluate('Patient.name.sort(family).use', patient)).toEqual(['usual', 'official', 'maiden'])
+    expect(evaluate('Patient.name.sort(family desc, given.first() desc).use', patient)).toEqual([
+      'maiden',
+      'official',
+      'usual',
+    ])
+  })
+
+  it('keeps the input order for keys that compare as empty', () => {
+    expect(evaluate('(@2020 | @2020-01 | @2019).sort($this)')).toEqual(['2019', '2020', '2020-01'])
+    expect(evaluate('(@2020-01 | @2020 | @2019).sort($this)')).toEqual(['2019', '2020-01', '2020'])
+  })
+
+  it('rejects a key with several values and keys of incompatible types', () => {
+    const patient = { resourceType: 'Patient', name: [{ given: ['a', 'b'] }, { given: ['c'] }] }
+    expect(() => evaluate('Patient.name.sort(given)', patient)).toThrow(FhirPathRuntimeError)
+    expect(() => evaluate("(1 | 'a').sort()")).toThrow(FhirPathTypeError)
+  })
+
+  it('leaves $index undefined inside a key, also inside an outer iteration', () => {
+    expect(() => evaluate('(3 | 1 | 2).sort($index)')).toThrow('$index is undefined inside sort() keys')
+    expect(() => evaluate('(1 | 2).select((3 | 1).sort($index))')).toThrow('$index is undefined inside sort() keys')
+    expect(evaluate('(2 | 1).sort((5 | 6).where($index = 0) + $this)')).toEqual([1, 2])
+    expect(evaluate('(1 | 2).select($index).sort()')).toEqual([0, 1])
   })
 
   it('multiple keys break ties in order', () => {

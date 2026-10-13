@@ -43,6 +43,13 @@ describe('r4Model element lookup', () => {
     expect(r4Model.getElement('FHIR.Nope', 'x')).toBeUndefined()
   })
 
+  it('marks required elements, choice elements included', () => {
+    expect(r4Model.getElement('FHIR.Observation', 'code')?.isRequired).toBe(true)
+    expect(r4Model.getElement('FHIR.Observation', 'subject')?.isRequired).toBeUndefined()
+    expect(r4Model.getElement('FHIR.MedicationRequest', 'medication')?.isRequired).toBe(true)
+    expect(r4Model.getElement('FHIR.Observation.component', 'code')?.isRequired).toBe(true)
+  })
+
   it('resolves choice elements by stem name', () => {
     const value = r4Model.getElement('FHIR.Observation', 'value')
     expect(value?.isCollection).toBe(false)

@@ -80,6 +80,11 @@ export function typeLocalName(type: string): string {
   return separator === -1 ? type : type.slice(separator + 1)
 }
 
+/** True for a whole number in FHIRPath's 32-bit Integer range. */
+export function isInteger32(value: number): boolean {
+  return Number.isInteger(value) && value >= -2147483648 && value <= 2147483647
+}
+
 /** Wrap a raw JSON value, inferring System types where possible. */
 export function toTypedValue(value: unknown): TypedValue {
   if (typeof value === 'boolean') {
@@ -92,7 +97,8 @@ export function toTypedValue(value: unknown): TypedValue {
     return { type: SYSTEM_LONG, value }
   }
   if (typeof value === 'number') {
-    if (Number.isSafeInteger(value)) {
+    // A whole number outside the 32-bit Integer range reads as a Decimal.
+    if (isInteger32(value)) {
       return { type: SYSTEM_INTEGER, value }
     }
     const decimal = Decimal.fromNumber(value)

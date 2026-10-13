@@ -153,7 +153,7 @@ export const INFERENCE_CAPABILITIES = {
     compositionType: 'string[]',
     runtime: true,
     analyzer: { types: ['System.String'], single: true },
-    degradation: "'\\q'",
+    degradation: "'\\u12'",
     composition: "'\\u00E9'.upper()",
   },
   'syntax.delimited-identifier': {

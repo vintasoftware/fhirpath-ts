@@ -309,7 +309,8 @@ type ReadEscape<
               Tokens,
               Step<Steps>
             >
-          : ScanFailure
+          : // A backslash that starts no escape is dropped.
+            ReadQuoted<Source, Acc, Quote, Kind, Tokens, Step<Steps>>
       : ScanFailure
 
 type ReadUnicodeEscape<
@@ -1139,7 +1140,13 @@ type ContinueNumber<
   [
     ...Stack,
     CopyEnvironment<
-      NumberText extends `${string}.${string}` ? ['System.Decimal', never] : ['System.Integer', never],
+      NumberText extends `${string}.${string}`
+        ? ['System.Decimal', never]
+        : // Ten or more digits may leave the 32-bit Integer range, where the
+          // runtime reads a Long or a Decimal: unknown rather than number.
+          NumberText extends `${infer _0}${infer _1}${infer _2}${infer _3}${infer _4}${infer _5}${infer _6}${infer _7}${infer _8}${infer _9}${string}`
+          ? UnknownState
+          : ['System.Integer', never],
       Context
     >,
   ],
@@ -1213,7 +1220,14 @@ type ParseOperator<
               : Operator extends keyof CompactInfixParselets
                 ? PushBinary<Operator, ParseletBindingPower<Operator>, Rest, Stack, Ops, Delimiters, Context>
                 : OpaqueState
-            : OpaqueState
+            : Token extends ['name', 'asc' | 'desc']
+              ? // `asc` or `desc` ends a `sort()` key; the key's type does not reach the result.
+                Delimiters[0] extends { 0: 'call'; 5: 'sort' }
+                ? Rest extends [['symbol', ',' | ')'], ...TypeTokens]
+                  ? ParseOperator<Rest, Stack, Ops, Delimiters, Context>
+                  : OpaqueState
+                : OpaqueState
+              : OpaqueState
     : OpaqueState
 
 type StartCall<
@@ -1796,9 +1810,19 @@ type ApplyResultRule<Rule, Input extends InferenceState, Args extends InferenceS
             ? [Input[1]] extends [never]
               ? CopyEnvironment<UnknownState, Input>
               : CopyEnvironment<[Input[1], never], Input>
-            : Rule extends readonly ['unknown']
-              ? CopyEnvironment<UnknownState, Input>
-              : CopyEnvironment<OpaqueState, Input>
+            : Rule extends readonly ['number-or-quantity', infer Type extends string]
+              ? CopyEnvironment<NumberOrQuantityState<Input, Type>, Input>
+              : Rule extends readonly ['unknown']
+                ? CopyEnvironment<UnknownState, Input>
+                : CopyEnvironment<OpaqueState, Input>
+
+// The analyzer's `number-or-quantity` rule: a number gives Type, a Quantity a
+// Quantity, and any other input either one.
+type NumberOrQuantityState<Input extends InferenceState, Type extends string> = [Input[0]] extends [NumericType]
+  ? [Type, never]
+  : [Input[0]] extends [QuantityType]
+    ? ['System.Quantity', never]
+    : [Type | 'System.Quantity', never]
 
 type ArgumentState<Args extends InferenceState[], Index extends number> = Args[Index] extends InferenceState
   ? Args[Index]

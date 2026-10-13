@@ -137,9 +137,15 @@ class Lexer {
     return this.token('delimitedIdentifier', start, value)
   }
 
+  /**
+   * Reads a quoted literal. An escaped quote ends the literal when no later quote
+   * does, as the grammar's `(ESC | .)*?` rule reads it: `'\\'` is the empty string,
+   * a lone backslash followed by the closing quote.
+   */
   private readQuoted(start: number, quote: string, what: string): string {
     this.advance()
     let value = ''
+    let lastEscapedQuote: { end: number; value: string } | undefined
     while (this.pos < this.source.length) {
       const ch = this.source[this.pos] as string
       if (ch === quote) {
@@ -147,11 +153,18 @@ class Lexer {
         return value
       }
       if (ch === '\\') {
+        if (this.source[this.pos + 1] === quote) {
+          lastEscapedQuote = { end: this.pos + 2, value }
+        }
         value += this.readEscape()
       } else {
         value += ch
         this.advance()
       }
+    }
+    if (lastEscapedQuote !== undefined) {
+      this.pos = lastEscapedQuote.end
+      return lastEscapedQuote.value
     }
     throw new FhirPathSyntaxError(`Unterminated ${what}`, this.spanFrom(start))
   }
@@ -164,7 +177,11 @@ class Lexer {
       throw new FhirPathSyntaxError('Unterminated escape sequence', this.spanFrom(start))
     }
     if (ch === 'u') {
-      const unit = this.readUnicodeEscapeUnit(start)
+      const unit = this.readUnicodeEscapeUnit()
+      if (unit === undefined) {
+        // Fewer than 4 hex digits is no escape: the backslash is dropped.
+        return ''
+      }
       if (isLowSurrogate(unit)) {
         throw new FhirPathSyntaxError(
           'Unicode escape is a low surrogate without a high surrogate',
@@ -183,8 +200,8 @@ class Lexer {
         )
       }
       this.advance()
-      const low = this.readUnicodeEscapeUnit(pairStart)
-      if (!isLowSurrogate(low)) {
+      const low = this.readUnicodeEscapeUnit()
+      if (low === undefined || !isLowSurrogate(low)) {
         throw new FhirPathSyntaxError(
           'Unicode escape is a high surrogate without a low surrogate',
           this.spanFrom(start)
@@ -194,24 +211,23 @@ class Lexer {
     }
     const resolved = ESCAPES[ch]
     if (resolved === undefined) {
-      throw new FhirPathSyntaxError(`Invalid escape sequence \\${ch}`, this.spanFrom(start))
+      // A backslash that starts no escape is dropped (FHIRPath 3.0.0, "String").
+      return ''
     }
     this.advance()
     return resolved
   }
 
-  /** Reads `uXXXX` at the current position and returns the UTF-16 code unit. */
-  private readUnicodeEscapeUnit(start: number): number {
-    this.advance()
-    let code = ''
-    for (let i = 0; i < 4; i++) {
-      const hex = this.source[this.pos]
-      if (hex === undefined || !isHexDigit(hex)) {
-        throw new FhirPathSyntaxError('Unicode escape must be \\u followed by 4 hex digits', this.spanFrom(start))
-      }
-      code += hex
-      this.advance()
+  /**
+   * Reads `uXXXX` at the current position and returns the UTF-16 code unit.
+   * Without 4 hex digits it consumes nothing and returns undefined.
+   */
+  private readUnicodeEscapeUnit(): number | undefined {
+    const code = this.source.slice(this.pos + 1, this.pos + 5)
+    if (code.length !== 4 || ![...code].every(isHexDigit)) {
+      return undefined
     }
+    this.pos += 5
     return Number.parseInt(code, 16)
   }
 

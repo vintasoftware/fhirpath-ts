@@ -9,8 +9,8 @@ export interface CompactFunctionRules {
   anyFalse: readonly ['fixed', 'System.Boolean']
   anyTrue: readonly ['fixed', 'System.Boolean']
   as: readonly ['unknown']
-  avg: readonly ['fixed', 'System.Decimal']
-  ceiling: readonly ['fixed', 'System.Integer']
+  avg: readonly ['number-or-quantity', 'System.Decimal']
+  ceiling: readonly ['number-or-quantity', 'System.Integer']
   children: readonly ['unknown']
   coalesce: readonly ['arguments-union']
   combine: readonly ['union', 'input' | 0]
@@ -44,7 +44,7 @@ export interface CompactFunctionRules {
   exp: readonly ['fixed', 'System.Decimal']
   extension: readonly ['unknown']
   first: readonly ['input']
-  floor: readonly ['fixed', 'System.Integer']
+  floor: readonly ['number-or-quantity', 'System.Integer']
   getValue: readonly ['unknown']
   hasValue: readonly ['fixed', 'System.Boolean']
   highBoundary: readonly ['unknown']
@@ -65,23 +65,23 @@ export interface CompactFunctionRules {
   lower: readonly ['fixed', 'System.String']
   matches: readonly ['fixed', 'System.Boolean']
   matchesFull: readonly ['fixed', 'System.Boolean']
-  max: readonly ['unknown']
+  max: readonly ['input']
   millisecondOf: readonly ['fixed', 'System.Integer']
-  min: readonly ['unknown']
+  min: readonly ['input']
   minuteOf: readonly ['fixed', 'System.Integer']
   monthOf: readonly ['fixed', 'System.Integer']
   not: readonly ['fixed', 'System.Boolean']
   now: readonly ['fixed', 'System.DateTime']
   ofType: readonly ['unknown']
   pathname: readonly ['fixed', 'System.String']
-  power: readonly ['unknown']
+  power: readonly ['fixed', 'System.Decimal']
   precision: readonly ['fixed', 'System.Integer']
   repeat: readonly ['unknown']
   repeatAll: readonly ['unknown']
   replace: readonly ['fixed', 'System.String']
   replaceMatches: readonly ['fixed', 'System.String']
   resolve: readonly ['reference-targets']
-  round: readonly ['fixed', 'System.Decimal']
+  round: readonly ['number-or-quantity', 'System.Decimal']
   secondOf: readonly ['fixed', 'System.Integer']
   select: readonly ['argument', 0]
   single: readonly ['input']
@@ -112,7 +112,7 @@ export interface CompactFunctionRules {
   toTime: readonly ['fixed', 'System.Time']
   trace: readonly ['input']
   trim: readonly ['fixed', 'System.String']
-  truncate: readonly ['fixed', 'System.Integer']
+  truncate: readonly ['number-or-quantity', 'System.Integer']
   type: readonly ['unknown']
   unescape: readonly ['fixed', 'System.String']
   union: readonly ['union', 'input' | 0]
@@ -201,15 +201,13 @@ export type CompactFastFunctionName =
   | 'decode'
   | 'escape'
   | 'unescape'
-  | 'ceiling'
-  | 'floor'
-  | 'truncate'
-  | 'round'
   | 'exp'
   | 'ln'
   | 'sqrt'
   | 'log'
-  | 'avg'
+  | 'power'
+  | 'min'
+  | 'max'
   | 'sort'
   | 'toBoolean'
   | 'toInteger'

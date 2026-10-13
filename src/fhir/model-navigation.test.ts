@@ -141,12 +141,31 @@ describe('model navigation branches', () => {
     expect(evaluate("'Patient/p1'.resolve()")).toEqual([])
   })
 
-  it('comparable() promotes numbers to unity quantities; strings still error', () => {
+  it('comparable() promotes numbers to unity quantities; other operands are empty', () => {
     // Implicit Integer -> Quantity conversion (spec conversion table).
     expect(evaluate("1.comparable(1 'kg')")).toEqual([false])
     expect(evaluate('1.comparable(2)')).toEqual([true])
-    expect(() => evaluate("'x'.comparable(1 'kg')")).toThrow('comparable() expects Quantity operands')
+    expect(evaluate("2 '1'.comparable(3)")).toEqual([true])
+    expect(evaluate("'x'.comparable(1 'kg')")).toEqual([])
+    expect(evaluate("1 'kg'.comparable('x')")).toEqual([])
     expect(evaluate("{}.comparable(1 'kg')")).toEqual([])
+  })
+
+  // FHIRPath 3.0.0: true exactly when = and < give an answer.
+  it.each([
+    ["1 'mg'", "2 'mg'", true],
+    ["1 'm'", "20 'cm'", true],
+    ["1 '[in_i]'", "1 'cm'", true],
+    ['1 year', "1 'a'", false],
+    ['1 year', "1 's'", false],
+    ['1 year', '1 second', false],
+    ['1 year', '12 months', true],
+    ['1 week', "1 'd'", true],
+    ["1 'kg'", "1 'm'", false],
+  ])('%s.comparable(%s) agrees with = and <', (left, right, comparable) => {
+    expect(evaluate(`(${left}).comparable(${right})`)).toEqual([comparable])
+    expect(evaluate(`(${left} = ${right}).exists()`)).toEqual([comparable])
+    expect(evaluate(`(${left} < ${right}).exists()`)).toEqual([comparable])
   })
 })
 
@@ -271,14 +290,10 @@ describe('final branch sweep', () => {
     expect(evaluate('@T10:30:14.559.highBoundary().toString()')).toEqual(['10:30:14.559'])
   })
 
-  it('integer sums past the Integer range widen to Long', () => {
-    expect(evaluate('(2147483647 | 1).sum()')).toEqual([2147483648n])
-    expect(evaluate('(2147483647 + 1).type().name')).toEqual(['Long'])
-  })
-
-  it('whole results past the Long range widen to Decimal, keeping the value exact', () => {
-    expect(evaluate('(2147483647 * 2147483647 * 2147483647).type().name')).toEqual(['Decimal'])
-    expect(evaluate('2147483647 * 2147483647 * 2147483647 = 9903520300447984150353281023.0')).toEqual([true])
+  it('integer results past the Integer range are empty', () => {
+    expect(evaluate('(2147483647 | 1).sum()')).toEqual([])
+    expect(evaluate('2147483647 + 1')).toEqual([])
+    expect(evaluate('2147483647L * 2147483647L * 2147483647L')).toEqual([])
   })
 
   it('type arguments with call segments are rejected', () => {
@@ -306,15 +321,14 @@ describe('phase-11 branch sweep', () => {
     expect(evaluate('Patient.name', resource, options)).toEqual([])
   })
 
-  it('math edges: whole results past the Integer range widen to Long', () => {
-    expect(evaluate('10000000000.5.floor()')).toEqual([10000000000n])
-    expect(evaluate('10000000000.5.ceiling()')).toEqual([10000000001n])
-    expect(evaluate('10000000000.5.truncate()')).toEqual([10000000000n])
-    expect(evaluate('2.power(31)')).toEqual([2147483648n])
+  it('math edges: Integer results past the Integer range are empty', () => {
+    expect(evaluate('10000000000.5.floor()')).toEqual([])
+    expect(evaluate('10000000000.5.ceiling()')).toEqual([])
+    expect(evaluate('10000000000.5.truncate()')).toEqual([])
+    expect(evaluate('2.power(31)')).toEqual([2147483648])
   })
 
-  it('math edges: domain errors are empty', () => {
-    expect(evaluate('(-1).log(2)')).toEqual([])
+  it('math edges: a base of one has no logarithm', () => {
     expect(evaluate('2.log(1)')).toEqual([])
   })
 

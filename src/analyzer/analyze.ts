@@ -4,6 +4,7 @@ import { bareEnvironmentName, BUILTIN_ENV_VARIABLE_NAMES, normalizeEnvKeys } fro
 import {
   acceptingElementType,
   literalValue,
+  missingRequiredElements,
   patternedType,
   resolveInstanceType,
   selectorElement,
@@ -13,6 +14,7 @@ import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { compileDateFormat } from '../functions/date-format.ts'
 import { intervalKindsMessage, intervalPrecisionMessage, intervalPrecisions } from '../functions/date-intervals.ts'
 import { describeArity, functions } from '../functions/registry.ts'
+import { sortKeys } from '../functions/sort.ts'
 import { invalidRegexFlagMessage, unsupportedConversionMessage } from '../functions/string.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
@@ -390,6 +392,8 @@ class Analyzer {
   private readonly root: AnalyzerRoot
   private readonly runtime: boolean
   private readonly frames: StaticState[] = []
+  /** Depths of `frames` entries pushed for a sort() key, where `$index` is undefined. */
+  private readonly sortKeyFrames = new Set<number>()
   /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
   private readonly customFunctions: ReadonlyMap<string, readonly ResolvedDeclaration[]>
   private readonly declaredVariables: ReadonlyMap<string, AnalyzerVariableState>
@@ -456,7 +460,7 @@ class Analyzer {
       case 'external':
         return this.walkExternal(node, scope)
       case 'special':
-        return this.walkSpecial(node.name)
+        return this.walkSpecial(node)
       case 'identifier':
         return this.walkIdentifier(node, input)
       case 'dot':
@@ -532,11 +536,16 @@ class Analyzer {
     return UNKNOWN
   }
 
-  private walkSpecial(name: 'this' | 'index' | 'total'): StaticState {
-    if (name === 'this') {
+  private walkSpecial(node: AstNode & { kind: 'special' }): StaticState {
+    if (node.name === 'this') {
       return this.frames.at(-1) ?? this.rootState()
     }
-    return name === 'index' ? singleState(['System.Integer']) : UNKNOWN
+    if (node.name === 'index' && this.sortKeyFrames.has(this.frames.length)) {
+      // The runtime hides $index in a sort key: sorting does not visit items in order.
+      this.report('unknown-variable', '$index is undefined inside sort() keys', node.span)
+      return UNKNOWN
+    }
+    return node.name === 'index' ? singleState(['System.Integer']) : UNKNOWN
   }
 
   /**
@@ -789,6 +798,7 @@ class Analyzer {
     this.checkRegexPattern(node)
     this.checkIntervalPrecision(node, input, argStates)
     this.checkDateFormat(node, input)
+    this.checkOrderableInput(node, input)
     this.checkStringConversion(node)
     // ofType(X) filters and as(X) casts: both narrow to the named type,
     // intersected with the known candidates.
@@ -1024,13 +1034,12 @@ class Analyzer {
   ): { argStates: (StaticState | undefined)[]; typeTarget: string | undefined } {
     const argStates: (StaticState | undefined)[] = []
     let typeTarget: string | undefined
+    const keys = sortKeys(node)
     node.args.forEach((argument, index) => {
       const spec = signature.args?.[index] ?? signature.args?.at(-1)
       if (spec === 'expression' || spec === 'condition' || spec === 'sort-key') {
-        // A top-level unary '-' on a sort key marks descending order (any type),
-        // mirroring how sort() reads the AST; only the key itself is analyzed.
-        const body =
-          spec === 'sort-key' && argument.kind === 'unary' && argument.operator === '-' ? argument.operand : argument
+        // sort() reads a key without its direction, as the runtime does.
+        const body = spec === 'sort-key' ? (keys[index]?.expression ?? argument) : argument
         // $this is one item of the input — same candidates and reference targets.
         // repeat() and repeatAll() also run the projection on its own results.
         const itemState = withSingle(
@@ -1038,9 +1047,16 @@ class Analyzer {
           true
         )
         this.frames.push(itemState)
+        if (spec === 'sort-key') {
+          this.sortKeyFrames.add(this.frames.length)
+        }
         const state = this.walk(body, itemState, forkScope(scope))
+        this.sortKeyFrames.delete(this.frames.length)
         this.frames.pop()
         argStates.push(state)
+        if (spec === 'sort-key') {
+          this.requireSingle(state, body.span, `${node.name}() expects a single value for each key`)
+        }
         if (spec === 'condition') {
           this.requireSingle(state, argument.span, `${node.name}() expects a single Boolean criterion`)
           if (!isCollection(state)) {
@@ -1159,6 +1175,24 @@ class Analyzer {
     const precision = node.args[1]
     if (precision?.kind === 'string' && !allowed.precisions.includes(precision.value)) {
       this.report('invalid-argument', intervalPrecisionMessage(node.name, precision.value, allowed), precision.span)
+    }
+  }
+
+  /**
+   * min() and max() order their items as the comparison operators do, so a
+   * Boolean or complex input is an error, as it is at runtime.
+   */
+  private checkOrderableInput(node: AstNode & { kind: 'call' }, input: StaticState): void {
+    if (node.name !== 'min' && node.name !== 'max') {
+      return
+    }
+    const kind = commonValueKind(input.types)
+    if (kind === 'Boolean' || kind === 'Complex') {
+      this.report(
+        'operand-type',
+        `${node.name}() expects Integer, Long, Decimal, Quantity, Date, DateTime, Time, or String items, found ${input.types?.join(' | ')}`,
+        node.span
+      )
     }
   }
 
@@ -1410,22 +1444,36 @@ class Analyzer {
    * An instance selector builds one value of the named type from the focus, so
    * it needs at most one input item. With a model, each element must exist on
    * the type, take the value's type (`acceptingElementType`, as the runtime
-   * decides), and repeat when the value is a collection.
+   * decides), and repeat when the value is a collection. A literal value must
+   * match its primitive's pattern, and a required element the selector leaves
+   * out is a warning. `elementTypes` are
+   * the declared types of the element this selector is the value of, which
+   * lets `BackboneElement { ... }` build a backbone element.
    */
-  private walkInstance(node: AstNode & { kind: 'instance' }, input: StaticState, scope: VariableScope): StaticState {
+  private walkInstance(
+    node: AstNode & { kind: 'instance' },
+    input: StaticState,
+    scope: VariableScope,
+    elementTypes?: readonly string[]
+  ): StaticState {
     this.requireSingle(input, node.span, 'An instance selector expects a single input item')
-    const resolved = resolveInstanceType(this.model, node.type.parts)
+    const resolved = resolveInstanceType(this.model, node.type.parts, elementTypes)
     if ('error' in resolved) {
       this.report('unknown-type', resolved.error, node.type.span)
     }
     const type = 'error' in resolved ? undefined : resolved.type
+    const owner = 'error' in resolved ? '' : resolved.name
+    const model = this.model
     for (const element of node.elements) {
+      const info = type === undefined || model === undefined ? undefined : selectorElement(model, type, element.name)
       // Each element value is its own chain, like an operator operand.
-      const value = this.walk(element.value, input, forkScope(scope))
-      if (type === undefined || this.model === undefined) {
+      const value =
+        element.value.kind === 'instance' && info !== undefined
+          ? this.walkInstance(element.value, input, forkScope(scope), info.types)
+          : this.walk(element.value, input, forkScope(scope))
+      if (type === undefined || model === undefined) {
         continue
       }
-      const info = selectorElement(this.model, type, element.name)
       if (info === undefined) {
         this.report(
           'unknown-element',
@@ -1439,7 +1487,6 @@ class Analyzer {
       if (!info.isCollection) {
         this.requireSingle(value, element.value.span, `Element '${element.name}' of ${type} takes one item`)
       }
-      const model = this.model
       if (
         value.types !== undefined &&
         value.types.length > 0 &&
@@ -1452,20 +1499,33 @@ class Analyzer {
         )
         continue
       }
-      // A literal value must also match the FHIR primitive's pattern, as the runtime checks.
+      // A literal value must also hold, as the runtime checks.
       const literal = literalValue(element.value)
       const elementType = literal === undefined ? undefined : acceptingElementType(model, info.types, literal.type)
-      const primitive = elementType === undefined ? undefined : patternedType(type, element.name, elementType)
+      if (literal === undefined || elementType === undefined) {
+        continue
+      }
+      const primitive = patternedType(type, element.name, elementType)
       const message =
-        primitive === undefined
-          ? undefined
-          : valuePatternMessage(model, primitive, literal?.json, element.name, typeLocalName(type))
+        primitive === undefined ? undefined : valuePatternMessage(model, primitive, literal.json, element.name, owner)
       if (message !== undefined) {
         this.report('invalid-value', message, element.value.span)
       }
     }
+    if (type !== undefined && model !== undefined) {
+      const listed = new Set(node.elements.map(element => element.name))
+      for (const name of missingRequiredElements(model, type, listed)) {
+        this.report(
+          'missing-element',
+          `${owner} requires element '${name}', which the instance selector leaves out`,
+          node.type.span,
+          'warning',
+          name
+        )
+      }
+    }
     // Without a model the built value has no type the analyzer can name.
-    return singleState(type === undefined || this.model === undefined ? undefined : [type])
+    return singleState(type === undefined || model === undefined ? undefined : [type])
   }
 
   private checkArithmetic(operator: string, left: StaticState, right: StaticState, span: SourceSpan): void {

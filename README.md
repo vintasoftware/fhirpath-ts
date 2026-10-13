@@ -129,7 +129,7 @@ const systolic = r4.filter(
   { env: { loinc: 'http://loinc.org' } },
 )
 const newestFirst = r4.evaluate(
-  'Observation.sort(-(effective.ofType(dateTime) | issued).first())',
+  'Observation.sort((effective.ofType(dateTime) | issued).first() desc)',
   systolic,
 )
 ```
@@ -284,11 +284,23 @@ one value per item. Unknown element names, values of the wrong type, and
 several items for an element that does not repeat throw, and the static checkers
 report them. Each primitive value must also match its FHIR type's pattern: a
 `code` without leading spaces, a non-empty `string`, a `positiveInt` above zero,
-a `dateTime` with seconds and a time zone when it has a time. The static
-checkers report a literal that does not. Type inference gives the result
-`unknown[]`: the runtime does not yet check the codes of required bindings that
-the generated interfaces list
-([#133](https://github.com/vintasoftware/fhirpath-ts/issues/133)).
+a `dateTime` with seconds and a time zone when it has a time. The static checkers
+report a literal that breaks the pattern. A `code` is not checked against its
+required binding, so type inference gives a selector `unknown[]`.
+
+Backbone elements have no type name, so `BackboneElement { ... }` written as
+the value of one builds it:
+
+```ts
+r4.evaluate(
+  "Observation { status: 'final', code: CodeableConcept { text: 'BP' }, component: BackboneElement { code: CodeableConcept { text: 'Systolic' }, value: 120 'mm[Hg]' } }",
+  patient,
+)
+```
+
+A selector may leave out an element FHIR requires, such as `Observation {:}`
+without `status` and `code`; the static checkers warn (`missing-element`) and
+the runtime builds the partial value.
 
 ### Deterministic tests and debugging
 
@@ -452,16 +464,6 @@ These features are deferred and fail with a clear error today:
 | CDA mode | A CDA `ModelProvider` |
 | Full UCUM | A full UCUM implementation behind the current interface |
 | R5 model package | Generated R5 definitions and types |
-
-Parts of FHIRPath 3.0.0 that do not work yet:
-
-| Behavior | Issue |
-| --- | --- |
-| `sort()` with `asc`/`desc` and empty keys first; `-key` sorts descending today | [#127](https://github.com/vintasoftware/fhirpath-ts/issues/127) |
-| `min()` and `max()` on Date, DateTime, Time, and String | [#128](https://github.com/vintasoftware/fhirpath-ts/issues/128) |
-| A backslash that starts no escape, as in `'\p'`, read as the next character | [#129](https://github.com/vintasoftware/fhirpath-ts/issues/129) |
-| Instance selectors for backbone elements, `BackboneElement { ... }` | [#132](https://github.com/vintasoftware/fhirpath-ts/issues/132) |
-| `power()` returning a Decimal, `ceiling()`/`floor()`/`round()`/`truncate()` on a Quantity, `log()` errors, empty on overflow, and same-type `sum()`/`min()`/`max()` | [#134](https://github.com/vintasoftware/fhirpath-ts/issues/134) |
 
 `union()`, `|`, and `combine()` keep the order of their sources, where 3.0.0
 gives them none; see

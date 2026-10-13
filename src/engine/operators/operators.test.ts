@@ -99,7 +99,7 @@ describe('equality (=, !=)', () => {
     expect(evaluate('name = name', patient)).toEqual([true])
   })
 
-  it('ignores id and primitive extensions on nested complex values, same as bare primitives', () => {
+  it('ignores primitive extensions on nested complex values, same as bare primitives', () => {
     const patient = {
       resourceType: 'Patient',
       communication: [
@@ -120,6 +120,24 @@ describe('equality (=, !=)', () => {
     expect(evaluate('communication.first() = communication.last()', patient, options)).toEqual([true])
     expect(evaluate('communication.distinct().count()', patient, options)).toEqual([1])
     expect(evaluate('communication.isDistinct()', patient, options)).toEqual([false])
+  })
+
+  it('compares element ids, which ~ ignores (#131)', () => {
+    const data = {
+      child: [
+        { id: '1', a: 'x' },
+        { id: '2', a: 'x' },
+      ],
+      nodes: [{ child: { id: '1' } }, { child: { id: '2' } }],
+    }
+    expect(evaluate("child.where(id = '1') = child.where(id = '2')", data)).toEqual([false])
+    expect(evaluate("child.where(id = '1') ~ child.where(id = '2')", data)).toEqual([true])
+    expect(evaluate('nodes.repeat(child).count()', data)).toEqual([2])
+    expect(evaluate('child.distinct().count()', data)).toEqual([2])
+    expect(evaluate('child.isDistinct()', data)).toEqual([true])
+    expect(evaluate('(child | child).count()', data)).toEqual([2])
+    expect(evaluate("child.where(id = '1').intersect(child).count()", data)).toEqual([1])
+    expect(evaluate("child.exclude(child.where(id = '1')).id", data)).toEqual(['2'])
   })
 
   it('quantities with the same unit compare by value', () => {
@@ -220,9 +238,46 @@ describe('math', () => {
   // Kept out of the table above because its '%j' title formatter can't
   // serialize a bigint: Integer results outside the 32-bit range widen to Long
   // rather than being dropped.
-  it('integer arithmetic past the 32-bit range widens to Long', () => {
-    expect(evaluate('2147483647 + 1')).toEqual([2147483648n])
-    expect(evaluate('-2147483647 - 2')).toEqual([-2147483649n])
+  it('arithmetic past the Integer or Long range is empty', () => {
+    // FHIRPath 3.0.0 "Math" operators; rh testPlusOverflow1, testMinusUnderflow1,
+    // testPolarityNegateOverflow.
+    expect(evaluate('2147483647 + 1')).toEqual([])
+    expect(evaluate('-2147483648 - 1')).toEqual([])
+    expect(evaluate('-2147483647 - 2')).toEqual([])
+    expect(evaluate('(-(0-2147483647-1)).empty()')).toEqual([true])
+    expect(evaluate('65536 * 65536')).toEqual([])
+    expect(evaluate('-2147483648 div -1')).toEqual([])
+    expect(evaluate('9223372036854775807L + 1')).toEqual([])
+    expect(evaluate('-9223372036854775807L - 2L')).toEqual([])
+    expect(evaluate('2147483647L + 1')).toEqual([2147483648n])
+    expect(evaluate('(-2147483648).abs()')).toEqual([])
+  })
+
+  it('a minus sign before an integer literal reads as one negative literal', () => {
+    expect(evaluate('-2147483648 is Integer')).toEqual([true])
+    expect(evaluate('-2147483649 is Long')).toEqual([true])
+    expect(evaluate('(-2147483648).abs()')).toEqual([])
+    // A parenthesized literal is negated as a value: 2147483648 is a Long.
+    expect(evaluate('-(2147483648) is Long')).toEqual([true])
+    expect(evaluate('-(2147483648) - 1')).toEqual([-2147483649n])
+  })
+
+  it('reads a primitive with only extensions as empty in arithmetic and math functions', () => {
+    const patient = { resourceType: 'Patient', _multipleBirthInteger: { extension: [{ url: 'u', valueString: 'x' }] } }
+    const options = { model: r4Model }
+    for (const expression of [
+      'Patient.multipleBirth + 1',
+      '-Patient.multipleBirth',
+      'Patient.multipleBirth.abs()',
+      'Patient.multipleBirth.round()',
+      'Patient.multipleBirth.exp()',
+      '2.power(Patient.multipleBirth)',
+      'Patient.multipleBirth.sum()',
+      'Patient.multipleBirth.avg()',
+      'Patient.multipleBirth.max()',
+    ]) {
+      expect(evaluate(expression, patient, options), expression).toEqual([])
+    }
   })
 
   it('rejects string operands for non-concat operators', () => {
@@ -401,6 +456,20 @@ describe('is / as', () => {
     expect(evaluate('Patient.gender.ofType(string)', gendered, options)).toEqual([])
     expect(evaluate('Patient.gender.as(code)', gendered, options)).toEqual(['male'])
   })
+
+  it('as/ofType(Quantity) keep FHIR subtypes of Quantity such as Age', () => {
+    // testFHIRPathAsFunction26 (reason-healthcare/rh extended R5 suite).
+    const observation = {
+      resourceType: 'Observation',
+      extension: [{ url: 'u', valueAge: { value: 41, unit: 'yr', system: 'http://unitsofmeasure.org', code: 'a' } }],
+    }
+    const options = { model: r4Model }
+    expect(evaluate("Observation.extension('u').value.is(Quantity)", observation, options)).toEqual([true])
+    expect(evaluate("Observation.extension('u').value.as(Quantity).value", observation, options)).toEqual([41])
+    expect(evaluate("Observation.extension('u').value.ofType(Quantity).value", observation, options)).toEqual([41])
+    expect(evaluate("Observation.extension('u').value.as(FHIR.Quantity).value", observation, options)).toEqual([41])
+    expect(evaluate("Observation.extension('u').value.as(Duration)", observation, options)).toEqual([])
+  })
 })
 
 describe('quantity arithmetic', () => {
@@ -450,6 +519,18 @@ describe('Long arithmetic through environment values', () => {
     expect(evaluate('%a = 5', undefined, { env: { a: 5n } })).toEqual([true])
     expect(evaluate('%a < 6', undefined, { env: { a: 5n } })).toEqual([true])
     expect(evaluate('%a is Long', undefined, { env: { a: 5n } })).toEqual([true])
+  })
+})
+
+describe('untyped JSON numbers', () => {
+  it('read a whole number outside the Integer range as a Decimal, so arithmetic does not overflow', () => {
+    const data = { small: 2147483647, large: 3000000000 }
+    expect(evaluate('small.type().name', data)).toEqual(['Integer'])
+    expect(evaluate('small + 1', data)).toEqual([])
+    expect(evaluate('large.type().name', data)).toEqual(['Decimal'])
+    expect(evaluate('large + 1', data)).toEqual([3000000001])
+    expect(evaluate('large', data)).toEqual([3000000000])
+    expect(evaluate("'3000000000'.toInteger()")).toEqual([])
   })
 })
 

@@ -145,7 +145,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
   },
   'syntax.escaped-string': {
     expression: "'a\\\\b\\'\\\"\\`\\r\\n\\t\\u0065'",
-    degradation: "'\\q'",
+    degradation: "'\\u12'",
     composition: "'\\u00E9'.upper()",
     analyzer: {
       types: ['System.String'],
@@ -1429,9 +1429,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.comparable': {
-    expression: "1 'mg'.comparable(1 'mg')",
+    expression: "Patient.name.first().comparable('x')",
     degradation: 'Patient.name.unknownFn()',
-    composition: "(1 'mg'.comparable(1 'mg')).count()",
+    composition: "(Patient.name.first().comparable('x')).count()",
     analyzer: {
       types: ['System.Boolean'],
       single: true,
@@ -1939,12 +1939,12 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.max': {
-    expression: '2.max()',
+    expression: 'Patient.name.given.max()',
     degradation: 'Patient.name.unknownFn()',
-    composition: '(2.max()).count()',
+    composition: '(Patient.name.given.max()).count()',
     analyzer: {
-      types: undefined,
-      single: undefined,
+      types: ['FHIR.string'],
+      single: true,
     },
     runtime: false,
   },
@@ -1959,12 +1959,12 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.min': {
-    expression: '2.min()',
+    expression: 'Patient.name.given.min()',
     degradation: 'Patient.name.unknownFn()',
-    composition: '(2.min()).count()',
+    composition: '(Patient.name.given.min()).count()',
     analyzer: {
-      types: undefined,
-      single: undefined,
+      types: ['FHIR.string'],
+      single: true,
     },
     runtime: false,
   },
@@ -2033,8 +2033,8 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     degradation: 'Patient.name.unknownFn()',
     composition: '(2.power(1)).count()',
     analyzer: {
-      types: undefined,
-      single: undefined,
+      types: ['System.Decimal'],
+      single: true,
     },
     runtime: false,
   },

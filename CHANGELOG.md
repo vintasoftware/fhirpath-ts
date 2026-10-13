@@ -46,14 +46,26 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     checkers, and each primitive value against its FHIR type's pattern (a
     literal one statically). `ModelProvider.valuePattern()` supplies the
     patterns. A choice element takes the key of its value's type, so
-    `Observation { value: 5 'mg' }` sets `valueQuantity`. Type inference gives
-    a selector `unknown[]`, since the runtime does not check the required-binding
-    codes the generated interfaces list
-    ([#116](https://github.com/vintasoftware/fhirpath-ts/issues/116),
-    [#133](https://github.com/vintasoftware/fhirpath-ts/issues/133)).
+    `Observation { value: 5 'mg' }` sets `valueQuantity`. Type inference
+    gives a selector `unknown[]`, since the runtime does not check a built
+    value's codes against their required bindings, and the rest of the
+    expression stays typed
+    ([#116](https://github.com/vintasoftware/fhirpath-ts/issues/116)).
+  - `BackboneElement { ... }` (or `Element { ... }`) written as the value of a
+    backbone element builds it, as in
+    `Observation { component: BackboneElement { code: CodeableConcept { text: 'x' } } }`
+    ([#132](https://github.com/vintasoftware/fhirpath-ts/issues/132)).
+  - The static checkers warn (`missing-element`) for a required element a
+    selector leaves out; the runtime builds the partial value, as the spec
+    allows. `ElementInfo.isRequired` marks those elements
+    ([#124](https://github.com/vintasoftware/fhirpath-ts/issues/124)).
   - `combine(other, preserveOrder)` and `encode('ascii')`. `combine()` keeps
     its sources' order with or without `preserveOrder`, as `union()` does
     ([#117](https://github.com/vintasoftware/fhirpath-ts/issues/117)).
+  - `sort()` keys take an `asc` or `desc` qualifier, as in
+    `Patient.name.sort(family desc, given.first())`. `asc` and `desc` stay
+    ordinary element names elsewhere. The `-key` form still sorts descending
+    ([#127](https://github.com/vintasoftware/fhirpath-ts/issues/127)).
 - The SDC `weight()` scores answers locally with a model. It reads `itemWeight`
   and R4 `ordinalValue` extensions on an answer or its value, then on the
   matching `answerOption` of the answer's item in `%questionnaire`, so
@@ -74,6 +86,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
+- **Breaking:** `sort()` puts an empty key before every value, as FHIRPath
+  3.0.0 says, so it comes first ascending and last descending. It came last
+  ascending. `$index` inside a `sort()` key is an error even inside another
+  iteration function, which the analyzer reports, and the analyzer requires
+  each key to be a single value ([#127](https://github.com/vintasoftware/fhirpath-ts/issues/127)).
 - **Breaking:** the optional `typescript` peer range is `>=5.4.0 <7.0.0`
   (was `>=5.0.0`). The published declarations use `NoInfer`, which TypeScript
   5.4 added, and TypeScript 5.0 already failed to check them with
@@ -127,8 +144,69 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 - `fhirpath-check` leaves out a method call that TypeScript resolves only to
   another package or to the default library, such as
   `page.evaluate('document.title')`.
+- A backslash that starts no escape in a string literal or delimited
+  identifier is dropped, as FHIRPath 3.0.0 says: `'\p'` is `'p'` and
+  `'\u005'` is `'u005'`. These were syntax errors. A literal that ends in
+  `\'` with no later quote, such as `'\'`, ends there
+  ([#129](https://github.com/vintasoftware/fhirpath-ts/issues/129)).
+- **Breaking:** `comparable()` is true exactly when `=` and `<` on the two quantities give
+  an answer, as FHIRPath 3.0.0 defines it: `1 year.comparable(1 'a')` and
+  `1 year.comparable(1 second)` are false. An operand that is not a Quantity
+  or a number gives empty instead of an error, and the analyzer accepts
+  `1.comparable(2)`
+  ([#125](https://github.com/vintasoftware/fhirpath-ts/issues/125)).
+- **Breaking:** `=` on complex values compares element `id`s, since equality compares every
+  child element. `~` still ignores them. Two Codings that differ only in their
+  `id` are no longer `=`, so `distinct()`, `|`, `union()`, `intersect()`,
+  `exclude()`, and `repeat()` keep both. `weight()` matches a non-Coding
+  answer, such as a `valueReference`, to an answer option by `=`, so an `id`
+  that differs stops the match
+  ([#131](https://github.com/vintasoftware/fhirpath-ts/issues/131)).
+- **Breaking:** math follows FHIRPath 3.0.0
+  ([#134](https://github.com/vintasoftware/fhirpath-ts/issues/134)):
+  - Integer (32-bit) and Long (64-bit) arithmetic that overflows is empty, as
+    is negating the smallest value. `2147483647 + 1` returned the Long
+    `2147483648`; write `2147483647L + 1` for a Long result. A minus sign
+    directly before a number literal is part of the literal, so
+    `-2147483648` is an Integer; `-(2147483648)` negates the Long. `ceiling()`, `floor()`, `truncate()`, and
+    `abs()` results outside the Integer range are empty too.
+    Without a model, a whole JSON number outside the Integer range, such as
+    `3000000000`, reads as a Decimal, and `'3000000000'.toInteger()` is
+    empty.
+  - `power()` always returns a Decimal: `2.power(3)` is `8` as a Decimal.
+  - `log()` is an error for an input or a base of zero or less, which
+    returned empty or `0`.
+  - `sum()`, `min()`, `max()`, and `avg()` are an error unless every item has
+    the same type, counting a FHIR primitive as its System type and any FHIR
+    Quantity, such as `Age`, as a Quantity. `(1 | 2.0).sum()` returned `3.0`.
+  - `min()` and `max()` return the smallest or largest item itself, with its
+    type and unit: `(1 'm' | 50 'cm').max()` is `1 'm'`, which was `100 'cm'`.
+    When two items have no order, such as dates of different precision, the
+    result is empty, as `<` is.
 
 ### Fixed
+
+- Type inference gives an integer literal of ten or more digits, such as
+  `2147483648`, `unknown[]` instead of `number[]`. The runtime reads one
+  outside the 32-bit Integer range as a Long (`bigint`) or a Decimal.
+- Arithmetic operators, unary minus, the math functions, and `sum()`,
+  `avg()`, `min()`, and `max()` give empty for a primitive that has
+  extensions and no value, as the comparison operators do. Most of them threw
+  a raw `TypeError`.
+- `as(Quantity)` and `ofType(Quantity)` return FHIR subtypes of Quantity,
+  such as an `Age`, as `is(Quantity)` accepts them. They returned empty
+  ([#130](https://github.com/vintasoftware/fhirpath-ts/issues/130)).
+- `ceiling()`, `floor()`, `round()`, and `truncate()` accept a Quantity and
+  keep its unit, as FHIRPath 3.0.0 allows: `(1.5 'mg').ceiling()` is `2 'mg'`
+  ([#134](https://github.com/vintasoftware/fhirpath-ts/issues/134)). The
+  analyzer and type-level inference type these functions and `avg()` as a
+  Quantity for a Quantity input; `avg()` of quantities was typed as a Decimal.
+- `min()` and `max()` accept Date, DateTime, Time, and String items, compared
+  as the comparison operators compare
+  ([#128](https://github.com/vintasoftware/fhirpath-ts/issues/128)). The
+  analyzer and type-level inference type the result as the input item, and
+  the analyzer reports a Boolean or complex input, which the runtime
+  rejects.
 
 - The analyzer no longer reads a lowercase root identifier as a FHIR primitive
   type when the input type is unknown. `code.coding` reported `Element 'coding'

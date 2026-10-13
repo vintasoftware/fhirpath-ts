@@ -123,6 +123,12 @@ export interface Frame {
   thisValue: TypedValue[]
   index: number | undefined
   total: TypedValue[] | undefined
+  /**
+   * The function, such as `sort`, whose argument leaves `$index` undefined
+   * because it does not visit the items in order. Outer frames' `$index`
+   * stays hidden too.
+   */
+  hidesIndex?: string
 }
 
 export interface EvaluationContext {
@@ -308,10 +314,10 @@ export function resolveEnvironmentVariable(context: EvaluationContext, name: str
   throw new FhirPathTypeError(`Undefined environment variable %${name}`)
 }
 
-/** Run `body` with a frame binding `$this` (and optionally `$index` / `$total`). */
+/** Run `body` with a frame binding `$this` (and optionally `$index` / `$total`, or hiding `$index`). */
 export function withFrame<T>(
   context: EvaluationContext,
-  frame: { thisValue: TypedValue[]; index?: number; total?: TypedValue[] },
+  frame: { thisValue: TypedValue[]; index?: number; total?: TypedValue[]; hidesIndex?: string },
   body: (context: EvaluationContext) => T
 ): T {
   const child: Frame = {
@@ -319,6 +325,9 @@ export function withFrame<T>(
     thisValue: frame.thisValue,
     index: frame.index,
     total: frame.total,
+  }
+  if (frame.hidesIndex !== undefined) {
+    child.hidesIndex = frame.hidesIndex
   }
   return body({ ...context, frame: child, variables: new Map(context.variables) })
 }
