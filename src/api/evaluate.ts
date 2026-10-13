@@ -10,7 +10,7 @@ export function evaluate(expression: AnyExpression, input?: unknown, options?: E
   return compileCached(expression).evaluate(input, options)
 }
 
-/** Evaluate with host-provided asynchronous terminology services. */
+/** Evaluate with host-provided asynchronous terminology and reference services. */
 export function evaluateAsync(
   expression: AnyExpression,
   input?: unknown,

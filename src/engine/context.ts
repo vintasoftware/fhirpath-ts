@@ -1,4 +1,5 @@
 import { FhirPathTypeError } from '../errors.ts'
+import type { ReferenceResolver } from '../fhir/reference-resolver.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
@@ -134,6 +135,7 @@ export interface Frame {
 
 export interface EvaluationContext {
   terminology: TerminologyProvider | undefined
+  resolver: ReferenceResolver | undefined
   asyncCache: Map<string, unknown> | undefined
   /** The original input node: `%context`. */
   root: TypedValue[]
@@ -233,6 +235,7 @@ export function createContext(options: {
   env?: Record<string, unknown> | undefined
   model?: ModelProvider | undefined
   terminology?: TerminologyProvider | undefined
+  resolver?: ReferenceResolver | undefined
   asyncCache?: Map<string, unknown> | undefined
   now?: Date | undefined
   trace?: ((name: string, values: TypedValue[]) => void) | undefined
@@ -267,6 +270,7 @@ export function createContext(options: {
   return {
     root: options.root,
     terminology: options.terminology,
+    resolver: options.resolver,
     asyncCache: options.asyncCache,
     env,
     model: options.model,

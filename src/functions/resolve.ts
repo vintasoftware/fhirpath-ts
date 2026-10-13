@@ -1,11 +1,12 @@
+import { requestAsync } from '../engine/async.ts'
 import { ancestors, childValue, elementOrigin } from '../fhir/element-origin.ts'
 import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
 /**
- * Resolve within the originating resource and its enclosing Bundle. A resolved
- * resource records where it sits (`contained[i]` or `entry[i].resource`), so
- * `pathname()` and later `resolve()` calls see its place.
+ * Try the originating resource and Bundle before the host's external resolver.
+ * Local results retain their position for pathname() and subsequent resolve()
+ * calls; external results start a new resource scope.
  */
 registerFunction('resolve', {
   minArity: 0,
@@ -16,7 +17,16 @@ registerFunction('resolve', {
       const reference = typeof item.value === 'string' ? item.value : record(item.value)?.['reference']
       if (typeof reference !== 'string') continue
       const resolved = resolveLocal(reference, item, context.root[0])
-      if (resolved !== undefined) result.push(resolved)
+      if (resolved !== undefined) {
+        result.push(resolved)
+        continue
+      }
+      const resolver = context.resolver
+      if (resolver === undefined || reference.startsWith('#')) continue
+      const external = requestAsync(context, 'resolve() of external references', `resolve|${reference}`, () =>
+        resolver(reference)
+      )
+      if (typeof record(external)?.['resourceType'] === 'string') result.push(toTypedValue(external))
     }
     return result
   },

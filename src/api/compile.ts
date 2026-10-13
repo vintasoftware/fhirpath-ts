@@ -15,6 +15,7 @@ import {
 } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathTypeError } from '../errors.ts'
+import type { ReferenceResolver } from '../fhir/reference-resolver.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
@@ -97,6 +98,8 @@ export interface EvaluateOptions {
   model?: ModelProvider
   /** Async terminology operations used by evaluateAsync() and evaluateTypedAsync(). */
   terminology?: TerminologyProvider
+  /** Async fallback for references absent from the local resource or Bundle. Fragment misses stay local. */
+  resolver?: ReferenceResolver
   /** Clock for `now()`, `today()`, and `timeOfDay()`. Defaults to the current time. */
   now?: Date
   /**
@@ -326,6 +329,7 @@ export function contextFactory(
       env: extraEnv === undefined ? env : { ...env, ...extraEnv },
       model: options?.model,
       terminology: options?.terminology,
+      resolver: options?.resolver,
       asyncCache,
       now: options?.now,
       trace: options?.trace,
