@@ -2,6 +2,7 @@ import { FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
+import { type TerminologyProvider, terminologyServiceValue } from '../terminology/provider.ts'
 import { SYSTEM_STRING, toCollection, type TypedValue } from '../values/typed-value.ts'
 
 /**
@@ -132,6 +133,8 @@ export interface Frame {
 }
 
 export interface EvaluationContext {
+  terminology: TerminologyProvider | undefined
+  asyncCache: Map<string, unknown> | undefined
   /** The original input node: `%context`. */
   root: TypedValue[]
   /** Environment variables by name (without the `%`). Values are collections. */
@@ -229,6 +232,8 @@ export function createContext(options: {
   root: TypedValue[]
   env?: Record<string, unknown> | undefined
   model?: ModelProvider | undefined
+  terminology?: TerminologyProvider | undefined
+  asyncCache?: Map<string, unknown> | undefined
   now?: Date | undefined
   trace?: ((name: string, values: TypedValue[]) => void) | undefined
   functions?: Record<string, HostFunction> | undefined
@@ -246,6 +251,11 @@ export function createContext(options: {
   for (const [name, value] of envCollections(options.env)) {
     env.set(name, value)
   }
+  if (options.terminology !== undefined) {
+    if (env.has('terminologies'))
+      throw new FhirPathTypeError('Cannot override %terminologies when a terminology provider is configured')
+    env.set('terminologies', [terminologyServiceValue])
+  }
   const hostFunctions = new Map<string, HostFunction>()
   for (const [name, fn] of Object.entries(options.functions ?? {})) {
     // Overriding a built-in would silently change spec behavior — fail loudly.
@@ -256,6 +266,8 @@ export function createContext(options: {
   }
   return {
     root: options.root,
+    terminology: options.terminology,
+    asyncCache: options.asyncCache,
     env,
     model: options.model,
     now: options.now ?? new Date(),

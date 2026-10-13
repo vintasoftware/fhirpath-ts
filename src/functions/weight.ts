@@ -8,6 +8,7 @@ import type { ModelProvider } from '../model/provider.ts'
 import { Decimal } from '../values/decimal.ts'
 import { SYSTEM_DECIMAL, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
+import { callProvider, lookupProperty } from './terminology.ts'
 
 const WEIGHT_URLS = new Set<unknown>([
   'http://hl7.org/fhir/StructureDefinition/itemWeight',
@@ -84,11 +85,19 @@ function weightOf(context: EvaluationContext, model: ModelProvider, item: TypedV
   }
   // A code's CodeSystem comes from its binding and a Coding's from its system.
   // A Coding without a system names no CodeSystem, so it has no weight.
-  if (
-    value.type === 'FHIR.code' ||
-    (value.type === 'FHIR.Coding' && children(model, value, 'system')[0]?.value !== undefined)
-  ) {
-    throw new FhirPathRuntimeError('weight() cannot resolve CodeSystem weights; terminology lookup is not supported')
+  if (value.type === 'FHIR.code') {
+    throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem binding of a code')
+  }
+  if (value.type === 'FHIR.Coding' && children(model, value, 'system')[0]?.value !== undefined) {
+    if (children(model, value, 'code')[0]?.value === undefined) {
+      throw new FhirPathRuntimeError('weight() needs a Coding with a code for CodeSystem lookup')
+    }
+    const response = callProvider(context, 'weight()', 'lookup', [value.value, 'property=itemWeight'])
+    const weight = lookupProperty(response, 'itemWeight')
+    if (weight === undefined) return undefined
+    const decimal = typeof weight === 'number' ? Decimal.fromNumber(weight) : undefined
+    if (decimal === undefined) throw new FhirPathRuntimeError('weight() requires a numeric CodeSystem itemWeight')
+    return decimal
   }
   return undefined
 }

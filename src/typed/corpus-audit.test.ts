@@ -49,7 +49,8 @@ describe('reference-derived type-inference inventory', () => {
 
   it('has runnable cases for every signed built-in except the documented gaps', () => {
     expect(INFERENCE_CORPUS_AUDIT.signedFunctions).toBe(Object.keys(FUNCTION_SIGNATURES).length)
-    // The convertsToLong() cases are skipped. The inventory's sources (the official
+    // The convertsToLong() and terminology cases need contexts this inventory
+    // does not supply. The inventory's sources (the official
     // suites, fhirpath.js, and fhirpath-py) do not call the FHIRPath 3.0.0 functions
     // difference(), duration(), pathname(), and repeatAll(), or the SDC weight(),
     // yet; unit tests, the cross-checks in test-data/crosschecks, and the generated
@@ -58,8 +59,10 @@ describe('reference-derived type-inference inventory', () => {
       'convertsToLong',
       'difference',
       'duration',
+      'memberOf',
       'pathname',
       'repeatAll',
+      'subsumedBy',
       'weight',
     ])
   })

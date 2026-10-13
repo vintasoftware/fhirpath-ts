@@ -45,6 +45,7 @@ export function assertStrictExpression(
     model
   )
   const declarations = normalizeEnvKeys(options.varTypes)
+  if (options.terminology !== undefined) variables['terminologies'] = { types: ['TerminologyService'], single: true }
   const findings: StrictFinding[] = []
 
   for (const [name, value] of Object.entries(normalizeEnvKeys(options.vars))) {

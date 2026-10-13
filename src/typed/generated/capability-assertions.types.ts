@@ -1358,6 +1358,14 @@ export type BuiltinMaxDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.
 export type BuiltinMaxComposition = Assert<
   Equal<FhirpathResultIn<'(Patient.name.given.max()).count()', 'opaque'>, number[]>
 >
+export type BuiltinMemberOfFastSlowParity = Assert<FastSlowInferenceParity<"Patient.name.memberOf('x')", 'opaque'>>
+export type BuiltinMemberOfPositive = Assert<Equal<FhirpathResultIn<"Patient.name.memberOf('x')", 'opaque'>, boolean[]>>
+export type BuiltinMemberOfDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinMemberOfComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.memberOf('x')).count()", 'opaque'>, number[]>
+>
 export type BuiltinMillisecondOfFastSlowParity = Assert<
   FastSlowInferenceParity<'@2020-01-01.millisecondOf()', 'opaque'>
 >
@@ -1552,6 +1560,16 @@ export type BuiltinSubstringDegradation = Assert<
 >
 export type BuiltinSubstringComposition = Assert<
   Equal<FhirpathResultIn<"('abc'.substring(1, 1)).count()", 'opaque'>, number[]>
+>
+export type BuiltinSubsumedByFastSlowParity = Assert<FastSlowInferenceParity<"Patient.name.subsumedBy('x')", 'opaque'>>
+export type BuiltinSubsumedByPositive = Assert<
+  Equal<FhirpathResultIn<"Patient.name.subsumedBy('x')", 'opaque'>, boolean[]>
+>
+export type BuiltinSubsumedByDegradation = Assert<
+  Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
+>
+export type BuiltinSubsumedByComposition = Assert<
+  Equal<FhirpathResultIn<"(Patient.name.subsumedBy('x')).count()", 'opaque'>, number[]>
 >
 export type BuiltinSumFastSlowParity = Assert<FastSlowInferenceParity<'2.sum()', 'opaque'>>
 export type BuiltinSumPositive = Assert<Equal<FhirpathResultIn<'2.sum()', 'opaque'>, unknown[]>>

@@ -1,0 +1,165 @@
+{
+  "server": "https://tx.fhir.org/r5",
+  "recordedAt": "2026-07-07",
+  "entries": [
+    {
+      "operation": "expand",
+      "args": [
+        "http://hl7.org/fhir/ValueSet/administrative-gender"
+      ],
+      "response": {
+        "resourceType": "ValueSet",
+        "meta": {
+          "lastUpdated": "2023-03-26T15:21:02.749+11:00",
+          "profile": [
+            "http://hl7.org/fhir/StructureDefinition/shareablevalueset"
+          ]
+        },
+        "url": "http://hl7.org/fhir/ValueSet/administrative-gender",
+        "identifier": [
+          {
+            "system": "urn:ietf:rfc:3986",
+            "value": "urn:oid:2.16.840.1.113883.4.642.3.1"
+          }
+        ],
+        "version": "5.0.0",
+        "name": "AdministrativeGender",
+        "title": "AdministrativeGender",
+        "status": "active",
+        "experimental": false,
+        "date": "2023-03-26T15:21:02+11:00",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          }
+        ],
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "immutable": true,
+        "expansion": {
+          "timestamp": "2026-07-07T13:49:33.297Z",
+          "identifier": "urn:uuid:736157e1-227e-4c3a-a884-3d730d01b571",
+          "parameter": [
+            {
+              "name": "displayLanguage",
+              "valueCode": "*"
+            },
+            {
+              "name": "used-codesystem",
+              "valueUri": "http://hl7.org/fhir/administrative-gender|5.0.0"
+            }
+          ],
+          "total": 4,
+          "contains": [
+            {
+              "system": "http://hl7.org/fhir/administrative-gender",
+              "code": "male",
+              "display": "Male"
+            },
+            {
+              "system": "http://hl7.org/fhir/administrative-gender",
+              "code": "female",
+              "display": "Female"
+            },
+            {
+              "system": "http://hl7.org/fhir/administrative-gender",
+              "code": "other",
+              "display": "Other"
+            },
+            {
+              "system": "http://hl7.org/fhir/administrative-gender",
+              "code": "unknown",
+              "display": "Unknown"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "validateVS",
+      "args": [
+        "http://hl7.org/fhir/ValueSet/administrative-gender",
+        "male"
+      ],
+      "response": {
+        "resourceType": "Parameters",
+        "parameter": [
+          {
+            "name": "result",
+            "valueBoolean": true
+          },
+          {
+            "name": "system",
+            "valueUri": "http://hl7.org/fhir/administrative-gender"
+          },
+          {
+            "name": "code",
+            "valueCode": "male"
+          },
+          {
+            "name": "version",
+            "valueString": "5.0.0"
+          },
+          {
+            "name": "display",
+            "valueString": "Male"
+          }
+        ]
+      }
+    },
+    {
+      "operation": "translate",
+      "args": [
+        "http://hl7.org/fhir/ConceptMap/cm-address-use-v2",
+        "home"
+      ],
+      "response": {
+        "resourceType": "Parameters",
+        "parameter": [
+          {
+            "name": "match",
+            "part": [
+              {
+                "name": "concept",
+                "valueCoding": {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0190",
+                  "code": "H"
+                }
+              },
+              {
+                "name": "relationship",
+                "valueCode": "equivalent"
+              },
+              {
+                "name": "originMap",
+                "valueCanonical": "http://hl7.org/fhir/ConceptMap/cm-address-use-v2|5.0.0"
+              }
+            ]
+          },
+          {
+            "name": "result",
+            "valueBoolean": true
+          }
+        ]
+      }
+    }
+  ]
+}

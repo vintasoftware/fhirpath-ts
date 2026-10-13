@@ -42,10 +42,11 @@ function describeDiagnostics(diagnostics: ReturnType<typeof analyzeExpression>):
 
 function analyzeCase(suite: SuiteName, test: OfficialTest): ReturnType<typeof analyzeExpression> {
   const inputType = test.inputfile === undefined ? undefined : fixtureResourceType(suite, test.inputfile)
-  return analyzeExpression(
-    test.expression,
-    inputType === undefined ? { model: r4Model } : { model: r4Model, inputType }
-  )
+  return analyzeExpression(test.expression, {
+    model: r4Model,
+    ...(inputType !== undefined && { inputType }),
+    ...(test.mode === 'tx' && { variables: { terminologies: { types: ['TerminologyService'], single: true } } }),
+  })
 }
 
 for (const suite of ['r4', 'r5'] as const) {

@@ -79,11 +79,6 @@ export const SKIP_MANIFEST: SkipEntry[] = [
   },
   {
     suite: 'r5',
-    mode: 'tx',
-    reason: 'terminology tests need a terminology service; out of scope for v1 (README: deferred features)',
-  },
-  {
-    suite: 'r5',
     mode: 'lenient/polymorphics',
     reason: 'lenient polymorphic access is profile-dependent behavior this engine does not offer',
   },

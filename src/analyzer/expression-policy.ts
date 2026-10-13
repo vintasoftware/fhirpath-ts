@@ -90,6 +90,10 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   ['fhirpath', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
   ['compile', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
   [
+    'evaluateAsync',
+    { argIndex: 0, shape: 'expression', receiver: 'any', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
+  ],
+  [
     'evaluate',
     { argIndex: 0, shape: 'expression', receiver: 'any', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
   ],

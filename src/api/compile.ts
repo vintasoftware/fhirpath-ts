@@ -1,4 +1,5 @@
 import type { CustomFunctionSignature } from '../analyzer/signatures.ts'
+import { resolveSuspensions } from '../engine/async.ts'
 import {
   createContext,
   envCollections,
@@ -18,6 +19,7 @@ import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { printExpression } from '../parser/printer.ts'
+import type { TerminologyProvider } from '../terminology/provider.ts'
 import type {
   CheckedFhirpathOptionValues,
   EmptyFhirpathTypeContext,
@@ -93,6 +95,8 @@ export interface EvaluateOptions {
   /** Types for pre-resolved vars, or explicit overrides for expression vars. */
   varTypes?: FhirpathTypeDeclarations
   model?: ModelProvider
+  /** Async terminology operations used by evaluateAsync() and evaluateTypedAsync(). */
+  terminology?: TerminologyProvider
   /** Clock for `now()`, `today()`, and `timeOfDay()`. Defaults to the current time. */
   now?: Date
   /**
@@ -208,6 +212,39 @@ export class CompiledExpression<
     return evaluateNode(this.ast, contextFactory(options)(root), root)
   }
 
+  /** Evaluate with asynchronous services and unwrap the result. */
+  async evaluateAsync<const Options extends object = EmptyFhirpathTypeContext>(
+    input?: TInput,
+    options?: Declaring<Options>
+  ): Promise<CompiledExpressionResult<Expr, TResult, Root, Options>> {
+    return (await this.evaluateTypedAsync(input, options)).map(unwrap) as CompiledExpressionResult<
+      Expr,
+      TResult,
+      Root,
+      Options
+    >
+  }
+
+  /** Retain FHIR types while awaiting provider results. */
+  async evaluateTypedAsync(input?: TInput, options?: EvaluateOptions): Promise<TypedValue[]> {
+    const root = toCollection(input)
+    assertStrictExpression(this.ast, root, options, this.inputType)
+    let traces: [string, TypedValue[]][] = []
+    const contextFor = contextFactory({
+      ...options,
+      now: options?.now ?? new Date(),
+      trace: (name, values) => {
+        if (options?.trace) traces.push([name, values])
+      },
+    })
+    const result = await resolveSuspensions(asyncCache => {
+      traces = []
+      return evaluateNode(this.ast, contextFor(root, undefined, asyncCache), root)
+    })
+    for (const [name, values] of traces) options?.trace?.(name, values)
+    return result
+  }
+
   /** The canonical form of the expression. */
   toString(): string {
     return printExpression(this.ast)
@@ -279,15 +316,17 @@ function planVars(vars: Record<string, AnyExpression | readonly TypedValue[]>): 
  */
 export function contextFactory(
   options: EvaluateOptions | undefined
-): (root: TypedValue[], extraEnv?: Record<string, unknown>) => EvaluationContext {
+): (root: TypedValue[], extraEnv?: Record<string, unknown>, asyncCache?: Map<string, unknown>) => EvaluationContext {
   const functions = options?.functions === undefined ? undefined : toHostFunctions(options.functions)
   const env = normalizeEnvKeys(options?.env)
   const vars = options?.vars === undefined ? undefined : planVars(options.vars)
-  return (root, extraEnv) => {
+  return (root, extraEnv, asyncCache) => {
     const context = createContext({
       root,
       env: extraEnv === undefined ? env : { ...env, ...extraEnv },
       model: options?.model,
+      terminology: options?.terminology,
+      asyncCache,
       now: options?.now,
       trace: options?.trace,
       functions,

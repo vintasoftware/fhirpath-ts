@@ -50,7 +50,7 @@ export type {
   ViewBaseClass,
 } from './api/engine.ts'
 export { BoundExpression, FhirPathEngine, recordEngines } from './api/engine.ts'
-export { evaluate } from './api/evaluate.ts'
+export { evaluate, evaluateAsync } from './api/evaluate.ts'
 export type { ColumnOptions, ColumnResult, Projection, ProjectionColumn, ProjectionColumns } from './api/project.ts'
 export { fhirpath } from './api/tagged.ts'
 export type { HostNativeFunction, NarrativeSanitizer, RegexEngine } from './engine/context.ts'
@@ -61,6 +61,7 @@ export type { ElementInfo, ModelProvider } from './model/provider.ts'
 export type { AstNode } from './parser/ast.ts'
 export { parse } from './parser/parser.ts'
 export { printExpression } from './parser/printer.ts'
+export type { TerminologyProvider } from './terminology/provider.ts'
 export type { EmptyContextMap } from './typed/context-maps.ts'
 export type {
   EmptyFhirpathTypeContext,
