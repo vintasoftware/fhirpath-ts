@@ -95,8 +95,8 @@ function codingSubsumes(
   if (item === undefined || other === undefined) {
     return []
   }
-  const inputCodings = codingsOf(item.value)
-  const argCodings = codingsOf(other.value)
+  const inputCodings = codingsOf(item)
+  const argCodings = codingsOf(other)
   if (inputCodings.length === 0 || argCodings.length === 0) {
     return []
   }
@@ -193,7 +193,8 @@ type ProviderArgs<K extends keyof TerminologyProvider> = Parameters<NonNullable<
  * (method, arguments) — the same rendering the tx fixture recorder uses — so
  * identical requests from different functions share one provider round-trip
  * and cache keys cannot drift per call site. The two configuration failures
- * are named: no provider at all, or a provider without this operation.
+ * are named: no provider (which only `evaluateAsync()` accepts), or a provider
+ * without this operation.
  */
 export function callProvider<K extends keyof TerminologyProvider>(
   context: EvaluationContext,
@@ -201,31 +202,44 @@ export function callProvider<K extends keyof TerminologyProvider>(
   method: K,
   args: ProviderArgs<K>
 ): unknown {
-  const provider = context.terminology
-  if (!provider) {
-    throw new FhirPathRuntimeError(`${what} needs a terminology provider (pass options.terminology)`)
+  const services = context.async
+  const provider = services?.terminology
+  if (services === undefined || provider === undefined) {
+    throw new FhirPathRuntimeError(`${what} needs evaluateAsync() with options.terminology`)
   }
   const impl = provider[method]
   if (!impl) {
     throw new FhirPathRuntimeError(`the terminology provider does not implement ${method}()`)
   }
-  return requestAsync(context, what, `${method}|${JSON.stringify(args)}`, () =>
+  return requestAsync(services, `${method}|${JSON.stringify(args)}`, () =>
     (impl as (...callArgs: unknown[]) => Promise<unknown>).apply(provider, args)
   )
+}
+
+type CodedKind = 'code' | 'FHIR.Coding' | 'FHIR.CodeableConcept'
+
+/**
+ * The one rule for what counts as a coded value: a string code, a FHIR Coding
+ * or CodeableConcept, or an untyped object shaped like one. Other typed values,
+ * such as a Quantity with `system` and `code`, are not coded.
+ */
+function codedKind(item: TypedValue): CodedKind | undefined {
+  if (systemTypeOf(item) === SYSTEM_STRING) return 'code'
+  if (item.type === 'FHIR.Coding' || item.type === 'FHIR.CodeableConcept') return item.type
+  if (item.type !== OBJECT_TYPE || !isObject(item.value)) return undefined
+  const value = item.value as CodedElement
+  if (typeof value.code === 'string' || typeof value.system === 'string') return 'FHIR.Coding'
+  return Array.isArray(value.coding) ? 'FHIR.CodeableConcept' : undefined
 }
 
 /**
  * A coded value as the provider receives it: a code string, or a Coding /
  * CodeableConcept object passed through as plain JSON.
  */
-function codedValueOf(item: TypedValue | undefined, allowConcept = true): unknown {
-  if (item === undefined) return undefined
-  if (systemTypeOf(item) === SYSTEM_STRING || item.type === 'FHIR.Coding') return item.value
-  if (allowConcept && item.type === 'FHIR.CodeableConcept') return item.value
-  if (item.type !== OBJECT_TYPE || !isObject(item.value)) return undefined
-  const value = item.value as CodedElement
-  if (typeof value.code === 'string' || typeof value.system === 'string') return value
-  return allowConcept && Array.isArray(value.coding) ? value : undefined
+function codedValueOf(item: TypedValue, allowConcept = true): unknown {
+  const kind = codedKind(item)
+  if (kind === undefined || (kind === 'FHIR.CodeableConcept' && !allowConcept)) return undefined
+  return item.value
 }
 
 /** The shape shared by Codings, CodeableConcepts, and their extension carriers. */
@@ -237,62 +251,39 @@ interface CodedElement {
 }
 
 /** The Codings inside a value: a Coding is itself, a CodeableConcept contributes its coding list. */
-function codingsOf(value: unknown): CodedElement[] {
-  if (!isObject(value)) {
-    return []
-  }
-  const element = value as CodedElement
-  if (Array.isArray(element.coding)) {
-    return element.coding.filter(isObject) as CodedElement[]
-  }
-  // A Coding proper: `code`/`system` are strings. A resource that merely has a
-  // `code` element (e.g. Observation) is not one, and yields no codings.
-  return typeof element.code === 'string' || typeof element.system === 'string' ? [element] : []
+function codingsOf(item: TypedValue): CodedElement[] {
+  const kind = codedKind(item)
+  if (kind === 'FHIR.Coding') return [item.value as CodedElement]
+  if (kind !== 'FHIR.CodeableConcept') return []
+  const coding = (item.value as CodedElement).coding
+  return Array.isArray(coding) ? (coding.filter(isObject) as CodedElement[]) : []
 }
 
-interface ParameterEntry {
+export interface ParameterEntry {
   name?: unknown
   part?: unknown
 }
 
 /** `parameter.where(name = $name)` value from a Parameters resource, e.g. validate-code's `result`. */
 function parameterValue(parameters: unknown, name: string): unknown {
-  const entry = parameterList(parameters).find(parameter => parameter.name === name)
+  const entry = parameterList(parameters)?.find(parameter => parameter.name === name)
   return entry === undefined ? undefined : parameterValueX(entry)
 }
 
-/** A $lookup property part value, e.g. the itemWeight ordinal. */
-export function lookupProperty(parameters: unknown, code: string): unknown {
-  if (!isObject(parameters) || (parameters as { resourceType?: unknown }).resourceType !== 'Parameters') {
-    throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem')
-  }
-  for (const parameter of parameterList(parameters)) {
-    if (parameter.name !== 'property' || !Array.isArray(parameter.part)) {
-      continue
-    }
-    const parts = parameter.part.filter(isObject) as ParameterEntry[]
-    const codePart = parts.find(part => part.name === 'code')
-    const valuePart = parts.find(part => part.name === 'value')
-    if (codePart !== undefined && parameterValueX(codePart) === code && valuePart !== undefined) {
-      return parameterValueX(valuePart)
-    }
-  }
-  return undefined
-}
-
-function parameterList(parameters: unknown): ParameterEntry[] {
+/** The parameters of a Parameters resource; undefined for any other answer. */
+export function parameterList(parameters: unknown): ParameterEntry[] | undefined {
   if (!isObject(parameters)) {
-    return []
+    return undefined
   }
   const resource = parameters as { resourceType?: unknown; parameter?: unknown }
-  if (resource.resourceType !== 'Parameters' || !Array.isArray(resource.parameter)) {
-    return []
+  if (resource.resourceType !== 'Parameters') {
+    return undefined
   }
-  return resource.parameter.filter(isObject) as ParameterEntry[]
+  return Array.isArray(resource.parameter) ? (resource.parameter.filter(isObject) as ParameterEntry[]) : []
 }
 
 /** The value[x] of a Parameters parameter or part. */
-function parameterValueX(entry: object): unknown {
+export function parameterValueX(entry: object): unknown {
   for (const [key, value] of Object.entries(entry)) {
     if (key.startsWith('value')) {
       return value
@@ -319,6 +310,6 @@ function requireArity(name: string, args: AstNode[], min: number, max: number): 
   }
 }
 
-function isObject(value: unknown): value is object {
+export function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { EvaluateOptions } from '../api/compile.ts'
+import type { AsyncEvaluateOptions } from '../api/compile.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate, evaluateAsync } from '../api/evaluate.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
@@ -89,7 +89,7 @@ function codeOf(coded: unknown): unknown {
   return value.code ?? value.coding?.[0]?.code
 }
 
-function asyncOptions(terminology: TerminologyProvider): EvaluateOptions {
+function asyncOptions(terminology: TerminologyProvider): AsyncEvaluateOptions {
   return { model: r4Model, terminology, env: { vs: VS_VITALS } }
 }
 
@@ -171,16 +171,11 @@ describe('memberOf', () => {
     expect(provider.calls).toHaveLength(2)
   })
 
-  it('fails under sync evaluate() with a pointer to evaluateAsync()', () => {
-    expect(() => evaluate('Observation.code.memberOf(%vs)', observation, asyncOptions(stubProvider()))).toThrow(
-      'memberOf() is only available with evaluateAsync()'
-    )
-  })
-
-  it('fails without a terminology provider', async () => {
-    await expect(
-      evaluateAsync('Observation.code.memberOf(%vs)', observation, { model: r4Model, env: { vs: VS_VITALS } })
-    ).rejects.toThrow('memberOf() needs a terminology provider (pass options.terminology)')
+  it('fails under sync evaluate() or without a provider with a pointer to evaluateAsync()', async () => {
+    const options = { model: r4Model, env: { vs: VS_VITALS } }
+    const message = 'memberOf() needs evaluateAsync() with options.terminology'
+    expect(() => evaluate('Observation.code.memberOf(%vs)', observation, options)).toThrow(message)
+    await expect(evaluateAsync('Observation.code.memberOf(%vs)', observation, options)).rejects.toThrow(message)
   })
 
   it('fails when the provider lacks the operation', async () => {
@@ -249,6 +244,15 @@ describe('subsumes / subsumedBy', () => {
     await expect(evaluateAsync('{}.subsumes(%panel)', observation, options)).resolves.toEqual([])
     await expect(evaluateAsync('%panel.subsumes({})', observation, options)).resolves.toEqual([])
     await expect(evaluateAsync("'code-string'.subsumedBy(%panel)", observation, options)).resolves.toEqual([])
+  })
+
+  it('does not treat a typed Quantity as a Coding', async () => {
+    const provider = stubProvider()
+    const input = { ...observation, valueQuantity: { value: 1, system: 'http://unitsofmeasure.org', code: 'mg' } }
+    const options = { model: r4Model, terminology: provider }
+    await expect(evaluateAsync('Observation.value.subsumes(Observation.value)', input, options)).resolves.toEqual([])
+    await expect(evaluateAsync('Observation.value.subsumedBy(%panel)', input, { ...options, env })).resolves.toEqual([])
+    expect(provider.calls).toEqual([])
   })
 
   it('enforces the single-argument form on coded inputs', async () => {
@@ -542,7 +546,7 @@ describe('weight', () => {
 
   it('needs a provider when no extension answers', () => {
     expect(() => evaluate('code.coding.weight()', observation, { model: r4Model })).toThrow(
-      'weight() needs a terminology provider (pass options.terminology)'
+      'weight() needs evaluateAsync() with options.terminology'
     )
   })
 })

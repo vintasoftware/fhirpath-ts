@@ -8,7 +8,7 @@ import type { ModelProvider } from '../model/provider.ts'
 import { Decimal } from '../values/decimal.ts'
 import { SYSTEM_DECIMAL, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
-import { callProvider, lookupProperty } from './terminology.ts'
+import { callProvider, isObject, type ParameterEntry, parameterList, parameterValueX } from './terminology.ts'
 
 const WEIGHT_URLS = new Set<unknown>([
   'http://hl7.org/fhir/StructureDefinition/itemWeight',
@@ -92,12 +92,29 @@ function weightOf(context: EvaluationContext, model: ModelProvider, item: TypedV
     if (children(model, value, 'code')[0]?.value === undefined) {
       throw new FhirPathRuntimeError('weight() needs a Coding with a code for CodeSystem lookup')
     }
-    const response = callProvider(context, 'weight()', 'lookup', [value.value, 'property=itemWeight'])
+    const response = parameterList(callProvider(context, 'weight()', 'lookup', [value.value, 'property=itemWeight']))
+    if (response === undefined) throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem')
     const weight = lookupProperty(response, 'itemWeight')
     if (weight === undefined) return undefined
     const decimal = typeof weight === 'number' ? Decimal.fromNumber(weight) : undefined
     if (decimal === undefined) throw new FhirPathRuntimeError('weight() requires a numeric CodeSystem itemWeight')
     return decimal
+  }
+  return undefined
+}
+
+/** A $lookup property part value, e.g. the itemWeight ordinal. */
+function lookupProperty(parameters: ParameterEntry[], code: string): unknown {
+  for (const parameter of parameters) {
+    if (parameter.name !== 'property' || !Array.isArray(parameter.part)) {
+      continue
+    }
+    const parts = parameter.part.filter(isObject) as ParameterEntry[]
+    const codePart = parts.find(part => part.name === 'code')
+    const valuePart = parts.find(part => part.name === 'value')
+    if (codePart !== undefined && parameterValueX(codePart) === code && valuePart !== undefined) {
+      return parameterValueX(valuePart)
+    }
   }
   return undefined
 }

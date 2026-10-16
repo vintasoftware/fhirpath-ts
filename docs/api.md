@@ -52,8 +52,11 @@ answer; `weight()` reports unavailable lookups as errors to prevent partial tota
 A supplied empty, plural, or wrongly typed service argument returns empty
 without calling the provider. Omit the trailing parameter string or pass `''`
 when no additional parameters are needed.
-A missing method or provider raises an error. Synchronous evaluation that needs
-a provider directs the caller to `evaluateAsync()`.
+Only the asynchronous entry points take `terminology`: it belongs to
+`AsyncEvaluateOptions`, not to `EvaluateOptions` or engine options. A function
+that needs the provider under `evaluate()`, or without one, raises an error
+naming `evaluateAsync()` with `options.terminology`. A provider without the
+requested method also raises an error.
 
 The evaluator caches service answers per evaluation and replays the expression
 when an answer arrives. Each distinct request calls its provider once. The

@@ -1,5 +1,14 @@
-import { FhirPathRuntimeError } from '../errors.ts'
-import type { EvaluationContext } from './context.ts'
+import type { TerminologyProvider } from '../terminology/provider.ts'
+
+/**
+ * What only `evaluateAsync()` gives an evaluation: the per-evaluation answer
+ * cache and the host services that fill it. A sync evaluation has none, so a
+ * function that needs a service reports that from one check.
+ */
+export interface AsyncServices {
+  readonly cache: Map<string, unknown>
+  readonly terminology: TerminologyProvider | undefined
+}
 
 /**
  * Control-flow signal for the suspend-and-replay async strategy. The evaluator
@@ -21,24 +30,13 @@ class AsyncSuspension {
 
 /**
  * The resolved result for `key`, or a suspension that makes `evaluateAsync()`
- * produce it on the next replay. Under sync evaluation there is no replay loop,
- * so the request fails with a clear pointer to `evaluateAsync()`; `what` names
- * the calling feature for that message.
+ * produce it on the next replay.
  */
-export function requestAsync(
-  context: EvaluationContext,
-  what: string,
-  key: string,
-  run: () => Promise<unknown>
-): unknown {
-  const cache = context.asyncCache
-  if (!cache) {
-    throw new FhirPathRuntimeError(`${what} is only available with evaluateAsync()`)
-  }
-  if (!cache.has(key)) {
+export function requestAsync(services: AsyncServices, key: string, run: () => Promise<unknown>): unknown {
+  if (!services.cache.has(key)) {
     throw new AsyncSuspension(key, run)
   }
-  return cache.get(key)
+  return services.cache.get(key)
 }
 
 /**

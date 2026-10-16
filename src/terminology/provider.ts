@@ -13,8 +13,9 @@ import type { TypedValue } from '../values/typed-value.ts'
  * empty for an indeterminate answer. weight() instead reports an unavailable
  * CodeSystem lookup as an error, so it cannot silently reduce a total.
  *
- * Providers are only consulted through `evaluateAsync()`; the sync `evaluate()`
- * fails with a pointer to it. Results are cached per evaluation (keyed by
+ * Only `evaluateAsync()` and `evaluateTypedAsync()` accept a provider
+ * (`AsyncEvaluateOptions.terminology`); a terminology function under the sync
+ * `evaluate()` fails with a pointer to them. Results are cached per evaluation (keyed by
  * operation and arguments), so repeated identical requests hit the provider once.
  */
 export interface TerminologyProvider {
