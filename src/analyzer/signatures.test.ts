@@ -9,7 +9,17 @@ import { FUNCTION_SIGNATURES } from './signatures.ts'
 // checks from the runtime registry, and their results stay unknown. Adding a
 // runtime function without deciding its signature must be a conscious choice —
 // extend either FUNCTION_SIGNATURES or this list.
-const INTENTIONALLY_UNSIGNED = ['slice', 'elementDefinition', 'checkModifiers', 'memberOf', 'subsumes', 'subsumedBy']
+const INTENTIONALLY_UNSIGNED = [
+  'slice',
+  'elementDefinition',
+  'checkModifiers',
+  'subsumes',
+  'expand',
+  'lookup',
+  'validateVS',
+  'validateCS',
+  'translate',
+]
 
 describe('analyzer signature table', () => {
   it('every signature refers to a registered runtime function', () => {

@@ -54,7 +54,7 @@ export const INFERENCE_CORPUS_AUDIT = {
     '~',
   ],
   literals: ['boolean', 'date', 'dateTime', 'decimal', 'long', 'null', 'number', 'quantity', 'string', 'time'],
-  signedFunctions: 119,
+  signedFunctions: 121,
   coveredSignedFunctions: [
     'abs',
     'aggregate',
@@ -170,7 +170,16 @@ export const INFERENCE_CORPUS_AUDIT = {
     'where',
     'yearOf',
   ],
-  missingSignedFunctions: ['convertsToLong', 'difference', 'duration', 'pathname', 'repeatAll', 'weight'],
+  missingSignedFunctions: [
+    'convertsToLong',
+    'difference',
+    'duration',
+    'memberOf',
+    'pathname',
+    'repeatAll',
+    'subsumedBy',
+    'weight',
+  ],
   rejectedExpressions: [
     {
       id: 'fhirpathjs:4.1_literals.yaml:9:0',

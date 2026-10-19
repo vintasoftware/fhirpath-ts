@@ -305,6 +305,10 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   // A number counts as a unity Quantity; any other operand gives empty, not an error.
   comparable: { input: { singleton: true }, args: ['any'], result: BOOLEAN },
   conformsTo: { input: { singleton: true }, args: ['String'], result: BOOLEAN },
+  memberOf: { args: ['String'], result: BOOLEAN },
+  // subsumes is deliberately absent: it is dual-form (Coding.subsumes(coded) → Boolean,
+  // %terminologies.subsumes(system, c1, c2) → code), so its result stays unknown.
+  subsumedBy: { args: ['any'], result: BOOLEAN },
 
   length: { input: { kind: 'String', singleton: true }, result: INTEGER },
   indexOf: { ...STRING_FN, result: INTEGER },

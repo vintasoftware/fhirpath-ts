@@ -1,8 +1,10 @@
-import { FhirPathTypeError } from '../errors.ts'
+import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
+import { terminologyServiceValue } from '../terminology/provider.ts'
 import { SYSTEM_STRING, toCollection, type TypedValue } from '../values/typed-value.ts'
+import type { AsyncServices } from './async.ts'
 
 /**
  * The runtime side of a native host-supplied function: arity and implementation.
@@ -132,6 +134,8 @@ export interface Frame {
 }
 
 export interface EvaluationContext {
+  /** Host services and their answer cache; present only under `evaluateAsync()`. */
+  async: AsyncServices | undefined
   /** The original input node: `%context`. */
   root: TypedValue[]
   /** Environment variables by name (without the `%`). Values are collections. */
@@ -229,6 +233,7 @@ export function createContext(options: {
   root: TypedValue[]
   env?: Record<string, unknown> | undefined
   model?: ModelProvider | undefined
+  async?: AsyncServices | undefined
   now?: Date | undefined
   trace?: ((name: string, values: TypedValue[]) => void) | undefined
   functions?: Record<string, HostFunction> | undefined
@@ -246,6 +251,11 @@ export function createContext(options: {
   for (const [name, value] of envCollections(options.env)) {
     env.set(name, value)
   }
+  if (options.async?.terminology !== undefined) {
+    if (env.has('terminologies'))
+      throw new FhirPathTypeError('Cannot override %terminologies when a terminology provider is configured')
+    env.set('terminologies', [terminologyServiceValue])
+  }
   const hostFunctions = new Map<string, HostFunction>()
   for (const [name, fn] of Object.entries(options.functions ?? {})) {
     // Overriding a built-in would silently change spec behavior — fail loudly.
@@ -256,6 +266,7 @@ export function createContext(options: {
   }
   return {
     root: options.root,
+    async: options.async,
     env,
     model: options.model,
     now: options.now ?? new Date(),
@@ -310,6 +321,10 @@ export function resolveEnvironmentVariable(context: EvaluationContext, name: str
   }
   if (name.startsWith('ext-')) {
     return [{ type: SYSTEM_STRING, value: `http://hl7.org/fhir/StructureDefinition/${name.slice(4)}` }]
+  }
+  // Only a provider binds the spec's terminology service (see createContext).
+  if (name === 'terminologies') {
+    throw new FhirPathRuntimeError('%terminologies needs evaluateAsync() with options.terminology')
   }
   throw new FhirPathTypeError(`Undefined environment variable %${name}`)
 }

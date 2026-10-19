@@ -34,6 +34,103 @@ const fp = new FhirPathEngine({
 })
 ```
 
+### Asynchronous terminology
+
+The free `evaluateAsync(expression, input, options)` returns a Promise of plain
+values. `compile()` also exposes `evaluateAsync()` and `evaluateTypedAsync()`;
+the latter retains FHIR types and element ancestry. Engine and bound-expression
+methods remain synchronous. Pass the model and context explicitly when using
+the asynchronous entry points, for example `options.model: r4Model`.
+
+Supply `options.terminology`, a `TerminologyProvider`, for `memberOf()`,
+`subsumes()`, `subsumedBy()`, CodeSystem weight lookup, and `%terminologies`.
+Its optional async methods are `expand`, `lookup`, `validateVS`, `validateCS`,
+`subsumes`, and `translate`. They accept plain FHIR JSON and the API's optional
+URL-encoded parameter string. Return FHIR resources for resource operations and
+the outcome code for `subsumes`. Return `undefined` when the service cannot
+answer; `weight()` reports unavailable lookups as errors to prevent partial totals.
+A supplied empty, plural, or wrongly typed service argument returns empty
+without calling the provider. Omit the trailing parameter string or pass `''`
+when no additional parameters are needed.
+Only the asynchronous entry points take `terminology`: it belongs to
+`AsyncEvaluateOptions`, not to `EvaluateOptions` or engine options. A sync
+evaluation given it raises an error naming the asynchronous entry points. A function
+that needs the provider under `evaluate()`, or without one, raises an error
+naming `evaluateAsync()` with `options.terminology`. A provider without the
+requested method also raises an error.
+
+For example, a provider that implements `validateVS` against a FHIR terminology
+server serves `memberOf()`. The other methods follow the same pattern with
+their operations (`ValueSet/$expand`, `CodeSystem/$lookup`, and so on):
+
+```ts
+import { evaluateAsync, type TerminologyProvider } from 'fhirpath-ts'
+import { r4Model } from 'fhirpath-ts/r4'
+
+const server = 'https://tx.example.org/fhir'
+
+/**
+ * POST a FHIR operation. Servers answer an unknown value set, code system, or
+ * concept with 400, 404, or 422: that is `undefined`, an answer the service
+ * cannot give. Any other failure, such as rate limiting, stays an error, so it
+ * cannot read as "not a member".
+ */
+async function operation(path: string, parameter: object[]): Promise<unknown> {
+  const response = await fetch(`${server}/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/fhir+json' },
+    body: JSON.stringify({ resourceType: 'Parameters', parameter }),
+  })
+  if ([400, 404, 422].includes(response.status)) return undefined
+  if (!response.ok) throw new Error(`Terminology server answered ${response.status}`)
+  return response.json()
+}
+
+const terminology: TerminologyProvider = {
+  validateVS: (valueSet, coded) =>
+    operation('ValueSet/$validate-code', [
+      typeof valueSet === 'string' ? { name: 'url', valueUri: valueSet } : { name: 'valueSet', resource: valueSet },
+      typeof coded === 'string'
+        ? { name: 'code', valueCode: coded }
+        : 'coding' in (coded as object)
+          ? { name: 'codeableConcept', valueCodeableConcept: coded }
+          : { name: 'coding', valueCoding: coded },
+    ]),
+}
+
+const observation = {
+  resourceType: 'Observation',
+  status: 'final',
+  code: { coding: [{ system: 'http://loinc.org', code: '29463-7' }] },
+}
+
+await evaluateAsync('Observation.code.coding.where(memberOf(%vitals)).code', observation, {
+  model: r4Model,
+  terminology,
+  env: { vitals: 'http://hl7.org/fhir/ValueSet/observation-vitalsignresult' },
+}) // ['29463-7']
+```
+
+The evaluator caches service answers per evaluation and replays the expression
+when answers arrive. Each distinct request calls its provider once. Requests
+from independent items (each item of `weight()`, `where()`, `select()`,
+`all()`, `exists()`, and `repeat()`) and from the two operands of an operator
+start together, as in fhirpath.js. Only a request that needs an earlier
+answer waits for another round. The
+clock stays fixed and only the successful pass emits `trace()` output. Host
+functions may run again on replay: keep them deterministic and free of side
+effects, and keep input and environment values unchanged until evaluation ends.
+Work before a service call can repeat once per round, so cost grows with the
+depth of dependent requests and the expression's work. Provider rejections propagate to the caller.
+
+The `memberOf()` and Boolean subsumption functions return empty for non-singleton
+inputs. Unknown service outcomes remain empty. For different code systems,
+`subsumes()` returns empty and `subsumedBy()` raises an error when no matching
+Coding pair establishes the relationship. A configured provider
+reserves `%terminologies`; applications must not replace it through `env` or
+`vars`. Static analysis accepts an explicit variable declaration for this host
+service, while strict runtime evaluation supplies that declaration automatically.
+
 ### Strict evaluation
 
 Evaluation is lenient by default: invalid model members navigate to an empty

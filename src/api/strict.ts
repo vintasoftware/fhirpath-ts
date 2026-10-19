@@ -16,7 +16,7 @@ import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import type { TypedValue } from '../values/typed-value.ts'
-import type { AnyExpression, EvaluateOptions } from './compile.ts'
+import type { AnyExpression, AsyncEvaluateOptions, EvaluateOptions } from './compile.ts'
 
 interface StrictFinding {
   diagnostic: AnalyzerDiagnostic
@@ -30,7 +30,7 @@ interface StrictFinding {
 export function assertStrictExpression(
   ast: AstNode,
   root: TypedValue[],
-  options: EvaluateOptions | undefined,
+  options: AsyncEvaluateOptions | undefined,
   inputType?: string
 ): void {
   if (options?.strict !== true) {
@@ -45,6 +45,7 @@ export function assertStrictExpression(
     model
   )
   const declarations = normalizeEnvKeys(options.varTypes)
+  if (options.terminology !== undefined) variables['terminologies'] = { types: ['TerminologyService'], single: true }
   const findings: StrictFinding[] = []
 
   for (const [name, value] of Object.entries(normalizeEnvKeys(options.vars))) {

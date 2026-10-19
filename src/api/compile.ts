@@ -1,4 +1,5 @@
 import type { CustomFunctionSignature } from '../analyzer/signatures.ts'
+import { type AsyncServices, resolveSuspensions } from '../engine/async.ts'
 import {
   createContext,
   envCollections,
@@ -18,6 +19,7 @@ import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import { printExpression } from '../parser/printer.ts'
+import type { TerminologyProvider } from '../terminology/provider.ts'
 import type {
   CheckedFhirpathOptionValues,
   EmptyFhirpathTypeContext,
@@ -118,6 +120,18 @@ export interface EvaluateOptions {
   narrativeSanitizer?: NarrativeSanitizer
 }
 
+type AsyncOnlyOption = Exclude<keyof AsyncEvaluateOptions, keyof EvaluateOptions>
+const ASYNC_ONLY_OPTIONS = Object.keys({ terminology: true } satisfies Record<
+  AsyncOnlyOption,
+  true
+>) as AsyncOnlyOption[]
+
+/** What `evaluateAsync()` and `evaluateTypedAsync()` take: the sync options plus host services. */
+export interface AsyncEvaluateOptions extends EvaluateOptions {
+  /** Terminology operations for `memberOf()`, `subsumes()`, `subsumedBy()`, `weight()`, and `%terminologies`. */
+  terminology?: TerminologyProvider
+}
+
 type CheckedOptionKeys<Options, Accepted> = string extends keyof Options
   ? unknown
   : keyof EvaluateOptions extends keyof Options
@@ -208,6 +222,39 @@ export class CompiledExpression<
     return evaluateNode(this.ast, contextFactory(options)(root), root)
   }
 
+  /** Evaluate with asynchronous services and unwrap the result. */
+  async evaluateAsync<const Options extends object = EmptyFhirpathTypeContext>(
+    input?: TInput,
+    options?: Declaring<Options, AsyncEvaluateOptions>
+  ): Promise<CompiledExpressionResult<Expr, TResult, Root, Options>> {
+    return (await this.evaluateTypedAsync(input, options)).map(unwrap) as CompiledExpressionResult<
+      Expr,
+      TResult,
+      Root,
+      Options
+    >
+  }
+
+  /** Retain FHIR types while awaiting provider results. */
+  async evaluateTypedAsync(input?: TInput, options?: AsyncEvaluateOptions): Promise<TypedValue[]> {
+    const root = toCollection(input)
+    assertStrictExpression(this.ast, root, options, this.inputType)
+    let traces: [string, TypedValue[]][] = []
+    const contextFor = contextFactory({
+      ...options,
+      now: options?.now ?? new Date(),
+      trace: (name, values) => {
+        if (options?.trace) traces.push([name, values])
+      },
+    })
+    const result = await resolveSuspensions(cache => {
+      traces = []
+      return evaluateNode(this.ast, contextFor(root, undefined, { cache, terminology: options?.terminology }), root)
+    })
+    for (const [name, values] of traces) options?.trace?.(name, values)
+    return result
+  }
+
   /** The canonical form of the expression. */
   toString(): string {
     return printExpression(this.ast)
@@ -279,15 +326,22 @@ function planVars(vars: Record<string, AnyExpression | readonly TypedValue[]>): 
  */
 export function contextFactory(
   options: EvaluateOptions | undefined
-): (root: TypedValue[], extraEnv?: Record<string, unknown>) => EvaluationContext {
+): (root: TypedValue[], extraEnv?: Record<string, unknown>, async?: AsyncServices) => EvaluationContext {
   const functions = options?.functions === undefined ? undefined : toHostFunctions(options.functions)
   const env = normalizeEnvKeys(options?.env)
   const vars = options?.vars === undefined ? undefined : planVars(options.vars)
-  return (root, extraEnv) => {
+  // The types keep these options to the async entry points; an untyped caller
+  // that passes one to a sync evaluation would otherwise see it ignored.
+  const asyncOnly = ASYNC_ONLY_OPTIONS.find(key => (options as AsyncEvaluateOptions | undefined)?.[key] !== undefined)
+  return (root, extraEnv, async) => {
+    if (async === undefined && asyncOnly !== undefined) {
+      throw new FhirPathTypeError(`options.${asyncOnly} is only accepted by evaluateAsync() and evaluateTypedAsync()`)
+    }
     const context = createContext({
       root,
       env: extraEnv === undefined ? env : { ...env, ...extraEnv },
       model: options?.model,
+      async,
       now: options?.now,
       trace: options?.trace,
       functions,

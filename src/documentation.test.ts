@@ -81,6 +81,7 @@ const documentation: readonly DocumentExpectation[] = [
     fences: [
       valid('Patient.name.given', 'Patient.name.family'),
       valid(),
+      valid('Observation.code.coding.where(memberOf(%vitals)).code'),
       invalid('Patient', ['unknown-element'], 'Patient.name.givenn'),
       invalid('Patient', ['unknown-element', 'unknown-element'], 'Patient.name.givenn', 'Patient.name.givenn'),
       valid('Patient.name.given'),
