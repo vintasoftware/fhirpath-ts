@@ -4,6 +4,13 @@ import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
 /**
+ * Resources the host's resolver returned. They own their navigation: a
+ * reference inside one never resolves against the input's Bundle, whose
+ * entries may share its relative ids but live on another server.
+ */
+const externalResources = new WeakSet<TypedValue>()
+
+/**
  * Try the originating resource and Bundle before the host's external resolver.
  * Local results retain their position for pathname() and subsequent resolve()
  * calls; external results start a new resource scope.
@@ -26,7 +33,10 @@ registerFunction('resolve', {
       const resolver = services?.resolver
       if (services === undefined || resolver === undefined || reference.startsWith('#')) return
       const external = requestAsync(services, `resolve|${reference}`, () => resolver(reference))
-      if (typeof record(external)?.['resourceType'] === 'string') result.push(toTypedValue(external))
+      if (typeof record(external)?.['resourceType'] !== 'string') return
+      const resource = toTypedValue(external)
+      externalResources.add(resource)
+      result.push(resource)
     })
     return result
   },
@@ -52,10 +62,13 @@ function resolveLocal(reference: string, item: TypedValue, root: TypedValue | un
     const index = contained.findIndex(value => record(value)?.['id'] === reference.slice(1))
     return index === -1 ? undefined : childValue(toTypedValue(contained[index]), scope, 'contained', index)
   }
+  let outermost = item
   for (const node of ancestors(item)) {
     if (record(node.value)?.['resourceType'] === 'Bundle') return resolveInBundle(reference, node)
+    outermost = node
   }
-  return root === undefined ? undefined : resolveInBundle(reference, root)
+  if (root === undefined || externalResources.has(outermost)) return undefined
+  return resolveInBundle(reference, root)
 }
 
 function resolveInBundle(reference: string, bundle: TypedValue): TypedValue | undefined {

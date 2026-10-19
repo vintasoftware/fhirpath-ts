@@ -290,6 +290,35 @@ describe('external references via options.resolver', () => {
     expect(calls).toEqual(['Patient/remote', 'Organization/network'])
   })
 
+  it("resolves an external resource's references through the resolver, not the input Bundle", async () => {
+    const input = {
+      resourceType: 'Bundle',
+      type: 'searchset',
+      entry: [
+        {
+          fullUrl: 'https://local.example/Organization/network',
+          resource: { resourceType: 'Organization', id: 'network', name: 'local network' },
+        },
+      ],
+    }
+    const calls: string[] = []
+    const resolver = async (reference: string) => {
+      calls.push(reference)
+      if (reference === 'https://remote.example/Patient/p')
+        return { resourceType: 'Patient', id: 'p', managingOrganization: { reference: 'Organization/network' } }
+      if (reference === 'Organization/network')
+        return { resourceType: 'Organization', id: 'network', name: 'remote network' }
+      return undefined
+    }
+    const expression = "'https://remote.example/Patient/p'.resolve().managingOrganization.resolve().name"
+    await expect(evaluateAsync(expression, input, { ...options, resolver })).resolves.toEqual(['remote network'])
+    expect(calls).toEqual(['https://remote.example/Patient/p', 'Organization/network'])
+    // The input's own references still resolve within it.
+    await expect(
+      evaluateAsync("'Organization/network'.resolve().name", input, { ...options, resolver })
+    ).resolves.toEqual(['local network'])
+  })
+
   it('keeps Bundle-contained and Bundle entry resolution local with a resolver configured', async () => {
     const { calls, resolver } = stubResolver()
     await expect(

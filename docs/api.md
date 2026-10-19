@@ -91,7 +91,7 @@ Return a FHIR resource as plain JSON, or `undefined` if it cannot be resolved.
 Answers without a string `resourceType` are ignored. Provider rejections propagate.
 Each reference is requested once per asynchronous evaluation. A returned resource
 becomes the owner for subsequent navigation, so its contained references resolve
-locally. The same options and cache remain available for further external hops.
+locally and its other references go to the resolver, never to the input Bundle. The same options and cache remain available for further external hops.
 
 Without a resolver, external misses remain empty. That includes the synchronous
 `evaluate()`, which takes no resolver; local resolution works there as usual.
