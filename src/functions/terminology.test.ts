@@ -171,11 +171,11 @@ describe('memberOf', () => {
     expect(provider.calls).toHaveLength(2)
   })
 
-  it('refuses a provider passed to sync evaluate()', () => {
+  it('refuses a provider passed to sync evaluate(), even when no function needs it', () => {
     const untyped = asyncOptions(stubProvider()) as Parameters<typeof evaluate>[2]
-    expect(() => evaluate('Observation.code.memberOf(%vs)', observation, untyped)).toThrow(
-      'options.terminology is only accepted by evaluateAsync() and evaluateTypedAsync()'
-    )
+    const message = 'options.terminology is only accepted by evaluateAsync() and evaluateTypedAsync()'
+    expect(() => evaluate('1', observation, untyped)).toThrow(message)
+    expect(() => compile('1').evaluate(observation, untyped)).toThrow(message)
   })
 
   it('fails under sync evaluate() or without a provider with a pointer to evaluateAsync()', async () => {
@@ -729,6 +729,31 @@ describe('evaluateAsync', () => {
     await expect(
       evaluateAsync('code.coding.weight()', { ...observation, code: { coding } }, asyncOptions({ lookup }))
     ).rejects.toThrow('lookup a failed')
+  })
+
+  it('settles a provider that throws instead of rejecting, in request order', async () => {
+    let unhandled = 0
+    const onUnhandled = () => unhandled++
+    process.on('unhandledRejection', onUnhandled)
+    try {
+      const asked: string[] = []
+      const terminology: TerminologyProvider = {
+        validateVS: (_valueSet, coded) => {
+          asked.push(String(coded))
+          if (coded === 'a') return Promise.reject(new Error('a failed'))
+          if (coded === 'b') throw new Error('b failed')
+          return Promise.resolve({ resourceType: 'Parameters', parameter: [{ name: 'result', valueBoolean: true }] })
+        },
+      }
+      await expect(
+        evaluateAsync("('a' | 'b' | 'c').select(memberOf(%vs))", observation, asyncOptions(terminology))
+      ).rejects.toThrow('a failed')
+      expect(asked).toEqual(['a', 'b', 'c'])
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(unhandled).toBe(0)
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+    }
   })
 
   it('protects a configured terminology service from host variable overrides', async () => {
