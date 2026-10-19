@@ -4,11 +4,14 @@
  * replays offline.
  *
  *   MEDPLUM_BASE_URL=https://api.medplum.com/ MEDPLUM_CLIENT_ID=... MEDPLUM_CLIENT_SECRET=... \
- *     pnpm record:tx:medplum
+ *     pnpm record:tx:medplum [--dry-run] [--delete-leftovers]
  *
  * Use a client of a project that holds only synthetic data. The script creates a
  * scored CodeSystem and a ConceptMap under example.org URLs, records, and deletes
- * them in all cases. Medplum deletes are soft deletes.
+ * them in all cases; a failed delete fails the run. Medplum deletes are soft.
+ * `--dry-run` logs in, checks for leftovers, and prints the plan without writing
+ * anything. Leftovers from an interrupted run make the script refuse;
+ * `--delete-leftovers` deletes them first, so a re-run converges.
  *
  * Recording happens at the TerminologyProvider boundary: the file holds the
  * engine's (operation, arguments) and the FHIR answers, never HTTP traffic, so
@@ -41,6 +44,8 @@ function required(name: string): string {
   return value
 }
 
+const dryRun = process.argv.includes('--dry-run')
+const deleteLeftovers = process.argv.includes('--delete-leftovers')
 const server = new URL(required('MEDPLUM_BASE_URL'))
 const clientId = required('MEDPLUM_CLIENT_ID')
 const clientSecret = required('MEDPLUM_CLIENT_SECRET')
@@ -71,16 +76,18 @@ async function fhir(method: string, path: string, body?: unknown): Promise<unkno
 }
 
 /**
- * A FHIR operation as the provider answers it. An unknown value set, code
- * system, or concept answers 4xx: that is `undefined`, an answer the service
- * cannot give. Authentication and server failures stop the recording.
+ * The statuses of an answer the service cannot give: Medplum answers 400 for an
+ * unknown value set or a code system without a hierarchy, and 404 for an unknown
+ * concept. Any other failure, such as rate limiting, stops the recording.
  */
+const CANNOT_ANSWER = new Set([400, 404, 422])
+
+/** A FHIR operation as the provider answers it. */
 async function operation(path: string, parameter: object[]): Promise<unknown> {
   const response = await call('POST', new URL(path, fhirBase), { resourceType: 'Parameters', parameter })
-  if (response.status === 401 || response.status === 403 || response.status >= 500) {
-    throw new Error(`${path} answered ${response.status}`)
-  }
-  return response.ok ? withoutServerFields(await response.json()) : undefined
+  if (CANNOT_ANSWER.has(response.status)) return undefined
+  if (!response.ok) throw new Error(`${path} answered ${response.status}`)
+  return withoutServerFields(await response.json())
 }
 
 /** An answer without server bookkeeping: `meta` (project, author) and resource ids the server assigned. */
@@ -147,15 +154,30 @@ const live: Required<TerminologyProvider> = {
     ]),
 }
 
-/** Creates the synthetic resources, refusing to touch any that already exist. */
-async function createFixtures(created: string[]): Promise<void> {
+/** Deletes a resource; anything but success fails the run, so nothing is left behind unnoticed. */
+async function remove(reference: string): Promise<void> {
+  const response = await call('DELETE', new URL(reference, fhirBase))
+  if (!response.ok) throw new Error(`DELETE ${reference} answered ${response.status}`)
+  console.log(`deleted ${reference}`)
+}
+
+/** The synthetic resources an interrupted run left behind, found by their URLs. */
+async function leftovers(): Promise<string[]> {
+  const found: string[] = []
   for (const [type, url] of [
     ['CodeSystem', SCORES_SYSTEM],
     ['ConceptMap', FREQUENCY_MAP],
   ] as const) {
-    const existing = (await fhir('GET', `${type}?url=${encodeURIComponent(url)}`)) as { entry?: unknown[] }
-    if ((existing.entry?.length ?? 0) > 0) throw new Error(`${type} ${url} already exists; delete it and re-run`)
+    const bundle = (await fhir('GET', `${type}?url=${encodeURIComponent(url)}`)) as {
+      entry?: { resource?: { id?: string } }[]
+    }
+    for (const entry of bundle.entry ?? []) found.push(`${type}/${entry.resource?.id}`)
   }
+  return found
+}
+
+/** Creates the synthetic resources, recording each id as soon as it exists. */
+async function createFixtures(created: string[]): Promise<void> {
   const codeSystem = (await fhir('POST', 'CodeSystem', {
     resourceType: 'CodeSystem',
     url: SCORES_SYSTEM,
@@ -200,7 +222,23 @@ const terminology = txProvider(async (operationName, args) => {
   return response
 })
 
+const left = await leftovers()
+if (left.length > 0 && !deleteLeftovers) {
+  throw new Error(`Leftovers from an earlier run: ${left.join(', ')}; re-run with --delete-leftovers`)
+}
+if (dryRun) {
+  for (const reference of left) console.log(`would delete leftover ${reference}`)
+  console.log(`would create CodeSystem ${SCORES_SYSTEM} with ${SCORED_CONCEPTS.length} imported concepts`)
+  console.log(`would create ConceptMap ${FREQUENCY_MAP}`)
+  console.log(
+    `would record ${MEDPLUM_CASES.length} cases, delete both resources, and write test-data/${MEDPLUM_CASSETTE}`
+  )
+  process.exit(0)
+}
+for (const reference of left) await remove(reference)
+
 const created: string[] = []
+const failedDeletes: string[] = []
 let failures = 0
 try {
   await createFixtures(created)
@@ -228,12 +266,17 @@ try {
   }
 } finally {
   for (const reference of created) {
-    const response = await call('DELETE', new URL(reference, fhirBase))
-    console.log(`deleted ${reference.split('/')[0]}: ${response.status}`)
+    await remove(reference).catch((error: Error) => failedDeletes.push(error.message))
   }
+}
+if (failedDeletes.length > 0) {
+  throw new Error(`Cleanup failed (${failedDeletes.join('; ')}); re-run with --delete-leftovers; nothing written`)
 }
 if (failures > 0) throw new Error(`${failures} case(s) did not match; nothing written`)
 
+// Concurrent requests finish in any order; sorting keeps re-recorded files diffable.
+const key = (entry: TxFixtureEntry) => `${entry.operation}|${JSON.stringify(entry.args)}`
+entries.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0))
 const file: TxFixtureFile = { server: 'Medplum', recordedAt: new Date().toISOString().slice(0, 10), entries }
 const text = `${JSON.stringify(file, null, 2)}\n`
 const secrets = { clientId, clientSecret, accessToken, projectId, host: server.host }

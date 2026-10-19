@@ -3,81 +3,6 @@
   "recordedAt": "2026-10-19",
   "entries": [
     {
-      "operation": "validateVS",
-      "args": [
-        "http://hl7.org/fhir/ValueSet/administrative-gender",
-        {
-          "system": "http://hl7.org/fhir/administrative-gender",
-          "code": "female"
-        }
-      ],
-      "response": {
-        "resourceType": "Parameters",
-        "parameter": [
-          {
-            "name": "result",
-            "valueBoolean": true
-          },
-          {
-            "name": "display",
-            "valueString": "Female"
-          }
-        ]
-      }
-    },
-    {
-      "operation": "validateVS",
-      "args": [
-        "http://hl7.org/fhir/ValueSet/administrative-gender",
-        {
-          "system": "http://hl7.org/fhir/administrative-gender",
-          "code": "not-a-gender"
-        }
-      ],
-      "response": {
-        "resourceType": "Parameters",
-        "parameter": [
-          {
-            "name": "result",
-            "valueBoolean": false
-          }
-        ]
-      }
-    },
-    {
-      "operation": "validateVS",
-      "args": [
-        "http://hl7.org/fhir/ValueSet/administrative-gender",
-        {
-          "system": "http://hl7.org/fhir/administrative-gender",
-          "code": "male"
-        }
-      ],
-      "response": {
-        "resourceType": "Parameters",
-        "parameter": [
-          {
-            "name": "result",
-            "valueBoolean": true
-          },
-          {
-            "name": "display",
-            "valueString": "Male"
-          }
-        ]
-      }
-    },
-    {
-      "operation": "validateVS",
-      "args": [
-        "http://example.org/fhirpath-ts/ValueSet/missing",
-        {
-          "system": "http://hl7.org/fhir/administrative-gender",
-          "code": "female"
-        }
-      ]
-    },
-    {
       "operation": "expand",
       "args": [
         "http://hl7.org/fhir/ValueSet/administrative-gender"
@@ -141,7 +66,7 @@
         },
         "expansion": {
           "total": 4,
-          "timestamp": "2026-10-19T19:49:55.003Z",
+          "timestamp": "2026-10-19T20:01:26.868Z",
           "contains": [
             {
               "system": "http://hl7.org/fhir/administrative-gender",
@@ -171,157 +96,11 @@
       "operation": "lookup",
       "args": [
         {
-          "system": "http://hl7.org/fhir/administrative-gender",
-          "code": "female"
-        }
-      ],
-      "response": {
-        "resourceType": "Parameters",
-        "parameter": [
-          {
-            "name": "name",
-            "valueString": "AdministrativeGender"
-          },
-          {
-            "name": "display",
-            "valueString": "Female"
-          }
-        ]
-      }
-    },
-    {
-      "operation": "validateCS",
-      "args": [
-        "http://hl7.org/fhir/administrative-gender",
-        {
-          "system": "http://hl7.org/fhir/administrative-gender",
-          "code": "not-a-gender"
-        }
-      ],
-      "response": {
-        "resourceType": "Parameters",
-        "parameter": [
-          {
-            "name": "result",
-            "valueBoolean": false
-          }
-        ]
-      }
-    },
-    {
-      "operation": "subsumes",
-      "args": [
-        "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-        {
-          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-          "code": "_ActEncounterCode"
-        },
-        {
-          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-          "code": "AMB"
-        }
-      ],
-      "response": "subsumes"
-    },
-    {
-      "operation": "subsumes",
-      "args": [
-        "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-        {
-          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-          "code": "AMB"
-        },
-        {
-          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
-          "code": "_ActEncounterCode"
-        }
-      ],
-      "response": "subsumed-by"
-    },
-    {
-      "operation": "subsumes",
-      "args": [
-        "http://hl7.org/fhir/administrative-gender",
-        {
-          "system": "http://hl7.org/fhir/administrative-gender",
-          "code": "female"
-        },
-        {
-          "system": "http://hl7.org/fhir/administrative-gender",
-          "code": "male"
-        }
-      ]
-    },
-    {
-      "operation": "translate",
-      "args": [
-        "http://example.org/fhirpath-ts/ConceptMap/e2e-scores-to-frequency",
-        {
           "system": "http://example.org/fhirpath-ts/CodeSystem/e2e-scores",
-          "code": "often"
-        }
-      ],
-      "response": {
-        "resourceType": "Parameters",
-        "parameter": [
-          {
-            "name": "result",
-            "valueBoolean": true
-          },
-          {
-            "name": "match",
-            "part": [
-              {
-                "name": "equivalence",
-                "valueCode": "equivalent"
-              },
-              {
-                "name": "concept",
-                "valueCoding": {
-                  "system": "http://example.org/fhirpath-ts/CodeSystem/e2e-frequency",
-                  "code": "frequent"
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "operation": "lookup",
-      "args": [
-        {
-          "system": "http://example.org/fhirpath-ts/CodeSystem/e2e-scores",
-          "code": "sometimes"
+          "code": "missing"
         },
         "property=itemWeight"
-      ],
-      "response": {
-        "resourceType": "Parameters",
-        "parameter": [
-          {
-            "name": "name",
-            "valueString": "http://example.org/fhirpath-ts/CodeSystem/e2e-scores"
-          },
-          {
-            "name": "display",
-            "valueString": "Sometimes"
-          },
-          {
-            "name": "property",
-            "part": [
-              {
-                "name": "code",
-                "valueCode": "itemWeight"
-              },
-              {
-                "name": "value",
-                "valueDecimal": 1.5
-              }
-            ]
-          }
-        ]
-      }
+      ]
     },
     {
       "operation": "lookup",
@@ -400,6 +179,42 @@
       "args": [
         {
           "system": "http://example.org/fhirpath-ts/CodeSystem/e2e-scores",
+          "code": "sometimes"
+        },
+        "property=itemWeight"
+      ],
+      "response": {
+        "resourceType": "Parameters",
+        "parameter": [
+          {
+            "name": "name",
+            "valueString": "http://example.org/fhirpath-ts/CodeSystem/e2e-scores"
+          },
+          {
+            "name": "display",
+            "valueString": "Sometimes"
+          },
+          {
+            "name": "property",
+            "part": [
+              {
+                "name": "code",
+                "valueCode": "itemWeight"
+              },
+              {
+                "name": "value",
+                "valueDecimal": 1.5
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "operation": "lookup",
+      "args": [
+        {
+          "system": "http://example.org/fhirpath-ts/CodeSystem/e2e-scores",
           "code": "unscored"
         },
         "property=itemWeight"
@@ -422,11 +237,196 @@
       "operation": "lookup",
       "args": [
         {
-          "system": "http://example.org/fhirpath-ts/CodeSystem/e2e-scores",
-          "code": "missing"
+          "system": "http://hl7.org/fhir/administrative-gender",
+          "code": "female"
+        }
+      ],
+      "response": {
+        "resourceType": "Parameters",
+        "parameter": [
+          {
+            "name": "name",
+            "valueString": "AdministrativeGender"
+          },
+          {
+            "name": "display",
+            "valueString": "Female"
+          }
+        ]
+      }
+    },
+    {
+      "operation": "subsumes",
+      "args": [
+        "http://hl7.org/fhir/administrative-gender",
+        {
+          "system": "http://hl7.org/fhir/administrative-gender",
+          "code": "female"
         },
-        "property=itemWeight"
+        {
+          "system": "http://hl7.org/fhir/administrative-gender",
+          "code": "male"
+        }
       ]
+    },
+    {
+      "operation": "subsumes",
+      "args": [
+        "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB"
+        },
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "_ActEncounterCode"
+        }
+      ],
+      "response": "subsumed-by"
+    },
+    {
+      "operation": "subsumes",
+      "args": [
+        "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "_ActEncounterCode"
+        },
+        {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB"
+        }
+      ],
+      "response": "subsumes"
+    },
+    {
+      "operation": "translate",
+      "args": [
+        "http://example.org/fhirpath-ts/ConceptMap/e2e-scores-to-frequency",
+        {
+          "system": "http://example.org/fhirpath-ts/CodeSystem/e2e-scores",
+          "code": "often"
+        }
+      ],
+      "response": {
+        "resourceType": "Parameters",
+        "parameter": [
+          {
+            "name": "result",
+            "valueBoolean": true
+          },
+          {
+            "name": "match",
+            "part": [
+              {
+                "name": "equivalence",
+                "valueCode": "equivalent"
+              },
+              {
+                "name": "concept",
+                "valueCoding": {
+                  "system": "http://example.org/fhirpath-ts/CodeSystem/e2e-frequency",
+                  "code": "frequent"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "operation": "validateCS",
+      "args": [
+        "http://hl7.org/fhir/administrative-gender",
+        {
+          "system": "http://hl7.org/fhir/administrative-gender",
+          "code": "not-a-gender"
+        }
+      ],
+      "response": {
+        "resourceType": "Parameters",
+        "parameter": [
+          {
+            "name": "result",
+            "valueBoolean": false
+          }
+        ]
+      }
+    },
+    {
+      "operation": "validateVS",
+      "args": [
+        "http://example.org/fhirpath-ts/ValueSet/missing",
+        {
+          "system": "http://hl7.org/fhir/administrative-gender",
+          "code": "female"
+        }
+      ]
+    },
+    {
+      "operation": "validateVS",
+      "args": [
+        "http://hl7.org/fhir/ValueSet/administrative-gender",
+        {
+          "system": "http://hl7.org/fhir/administrative-gender",
+          "code": "female"
+        }
+      ],
+      "response": {
+        "resourceType": "Parameters",
+        "parameter": [
+          {
+            "name": "result",
+            "valueBoolean": true
+          },
+          {
+            "name": "display",
+            "valueString": "Female"
+          }
+        ]
+      }
+    },
+    {
+      "operation": "validateVS",
+      "args": [
+        "http://hl7.org/fhir/ValueSet/administrative-gender",
+        {
+          "system": "http://hl7.org/fhir/administrative-gender",
+          "code": "male"
+        }
+      ],
+      "response": {
+        "resourceType": "Parameters",
+        "parameter": [
+          {
+            "name": "result",
+            "valueBoolean": true
+          },
+          {
+            "name": "display",
+            "valueString": "Male"
+          }
+        ]
+      }
+    },
+    {
+      "operation": "validateVS",
+      "args": [
+        "http://hl7.org/fhir/ValueSet/administrative-gender",
+        {
+          "system": "http://hl7.org/fhir/administrative-gender",
+          "code": "not-a-gender"
+        }
+      ],
+      "response": {
+        "resourceType": "Parameters",
+        "parameter": [
+          {
+            "name": "result",
+            "valueBoolean": false
+          }
+        ]
+      }
     }
   ]
 }
