@@ -110,10 +110,7 @@ function weightOf(context: EvaluationContext, model: ModelProvider, item: TypedV
     const response = parameterList(callProvider(context, 'weight()', 'lookup', [value.value, 'property=itemWeight']))
     if (response === undefined) throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem')
     const weight = lookupProperty(response, 'itemWeight')
-    if (weight === undefined) return undefined
-    const decimal = typeof weight === 'number' ? Decimal.fromNumber(weight) : undefined
-    if (decimal === undefined) throw new FhirPathRuntimeError('weight() requires a numeric CodeSystem itemWeight')
-    return decimal
+    return weight === undefined ? undefined : numericWeight(weight)
   }
   return undefined
 }
@@ -121,10 +118,10 @@ function weightOf(context: EvaluationContext, model: ModelProvider, item: TypedV
 /**
  * The weight a bound value set gives a Coding answer: from a ValueSet contained
  * in the Questionnaire (`#id`, or a matching url and version), or else from the
- * provider's expansion. The concept carries it as a weight extension, in the
- * expansion or in `compose.include.concept`. A concept without one, or a code
- * the value set does not list, leaves the lookup to the CodeSystem; a value set
- * that cannot be resolved fails the call.
+ * provider's expansion. The concept carries it as a weight extension on its
+ * expansion entry or, when that has none, on its `compose.include.concept`. A
+ * concept without one, or a code the value set does not list, leaves the lookup
+ * to the CodeSystem; a value set that cannot be resolved fails the call.
  */
 function valueSetWeight(
   context: EvaluationContext,
@@ -137,15 +134,15 @@ function valueSetWeight(
   const code = children(model, value, 'code')[0]?.value
   if (value.type !== 'FHIR.Coding' || typeof system !== 'string' || typeof code !== 'string') return undefined
   const valueSet = containedValueSet(model, questionnaire, canonical) ?? expandedValueSet(context, canonical)
-  for (const contains of nested(model, children(model, valueSet, 'expansion'), 'contains')) {
-    if (matches(model, contains, system, code)) return embeddedWeight(contains)
-  }
-  for (const include of children(model, valueSet, 'compose').flatMap(compose => children(model, compose, 'include'))) {
-    if (children(model, include, 'system')[0]?.value !== system) continue
-    const concept = children(model, include, 'concept').find(item => children(model, item, 'code')[0]?.value === code)
-    if (concept !== undefined) return embeddedWeight(concept)
-  }
-  return undefined
+  const entry = nested(model, children(model, valueSet, 'expansion'), 'contains').find(item =>
+    matches(model, item, system, code)
+  )
+  const concept = children(model, valueSet, 'compose')
+    .flatMap(compose => children(model, compose, 'include'))
+    .filter(include => children(model, include, 'system')[0]?.value === system)
+    .flatMap(include => children(model, include, 'concept'))
+    .find(item => children(model, item, 'code')[0]?.value === code)
+  return embeddedWeight(entry) ?? embeddedWeight(concept)
 }
 
 function containedValueSet(model: ModelProvider, questionnaire: TypedValue, canonical: string): TypedValue | undefined {
@@ -217,13 +214,16 @@ function conceptWeight(model: ModelProvider, codeSystem: TypedValue, concept: Ty
   )
   for (const property of children(model, concept, 'property')) {
     if (!weightCodes.has(children(model, property, 'code')[0]?.value)) continue
-    const weight = children(model, property, 'value')[0]
-    if (!(weight?.value instanceof Decimal)) {
-      throw new FhirPathRuntimeError('weight() requires a numeric CodeSystem itemWeight')
-    }
-    return weight.value
+    return numericWeight(children(model, property, 'value')[0]?.value)
   }
   return undefined
+}
+
+/** A CodeSystem weight property's value: a Decimal or integer when contained, a JSON number from $lookup. */
+function numericWeight(value: unknown): Decimal {
+  const decimal = value instanceof Decimal ? value : typeof value === 'number' ? Decimal.fromNumber(value) : undefined
+  if (decimal === undefined) throw new FhirPathRuntimeError('weight() requires a numeric CodeSystem itemWeight')
+  return decimal
 }
 
 /** Every `name` child at any depth below `roots`: nested concepts or expansion entries. */

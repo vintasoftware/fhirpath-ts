@@ -275,6 +275,22 @@ describe('SDC weight()', () => {
       }
     })
 
+    it('reads the compose concept when the expansion entry carries no weight', async () => {
+      const withBoth = valueSet([scored('a', 3)], {
+        expansion: { timestamp: '2026-10-19', contains: [{ system: csUrl, code: 'a' }] },
+      })
+      const q = { resourceType: 'Questionnaire', item: [item('#vs')], contained: [withBoth] }
+      expect(run(q, reply(coding('a')))).toEqual([3])
+      const expand = async () => withBoth
+      await expect(
+        evaluateAsync('item.answer.value.weight()', reply(coding('a')), {
+          model: r4Model,
+          terminology: { expand },
+          env: { questionnaire: { resourceType: 'Questionnaire', item: [item(vsUrl)] } },
+        })
+      ).resolves.toEqual([3])
+    })
+
     it('reads nested expansion entries, matching system and code exactly', () => {
       const q = {
         resourceType: 'Questionnaire',
@@ -350,9 +366,13 @@ describe('SDC weight()', () => {
       const byCode = codeSystem([{ code: 'a', property: [{ code: 'itemWeight', valueDecimal: 0 }] }], {
         property: [{ code: 'itemWeight', type: 'decimal' }],
       })
+      const integer = codeSystem([{ code: 'a', property: [{ code: 'itemWeight', valueInteger: 2 }] }], {
+        property: [{ code: 'itemWeight', type: 'integer' }],
+      })
       for (const [cs, expected] of [
         [byUri, [2.5]],
         [byCode, [0]],
+        [integer, [2]],
       ] as const) {
         expect(run({ resourceType: 'Questionnaire', item: [item()], contained: [cs] }, reply(coding('a')))).toEqual(
           expected
