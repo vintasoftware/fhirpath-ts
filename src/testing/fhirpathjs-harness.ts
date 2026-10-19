@@ -2,12 +2,13 @@ import { readFileSync } from 'node:fs'
 
 import {
   DEFERRED_FEATURES,
+  MODEL_DIFFERENCES,
   OFFICIAL_SUITE_COPIES,
   QUIRK_FAMILIES,
   type QuirkFamily,
   SKIPPED_MODELS,
 } from '../../test-data/fhirpathjs/quirk-manifest.ts'
-import { SKIP_CATEGORY_LABELS } from '../../test-data/official/skip-manifest.ts'
+import { SKIP_CATEGORY_LABELS, type SkipCategory } from '../../test-data/official/skip-manifest.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate } from '../api/evaluate.ts'
 import { r4Model } from '../r4/index.ts'
@@ -52,14 +53,14 @@ function loadResource(name: string): unknown {
 }
 
 /**
- * Why a corpus case is not run: another FHIR version's model, an intentional
- * divergence (quirk), or a feature the README defers. `official-copy` marks a
- * case of a file `official.test.ts` runs instead; the corpus test leaves those
- * files out, so it never reports one as skipped.
+ * Why a corpus case is not run, by skip category: a case run with another
+ * model, or a manifest family's case. `official-copy` marks a case of a file
+ * `official.test.ts` runs instead; the corpus test leaves those files out, so
+ * it never reports one as skipped.
  */
 export type CaseSkip =
-  | { kind: 'fhir-version'; reason: string }
-  | { kind: 'quirk' | 'deferred'; family: QuirkFamily; key: string }
+  | { kind: 'model'; reason: string }
+  | { kind: SkipCategory; family: QuirkFamily; key: string }
   | { kind: 'official-copy'; reason: string }
 
 export function isOfficialSuiteCopy(file: string): boolean {
@@ -71,7 +72,7 @@ export function classifyCase(test: CorpusTest, expression: string, file: string)
     return { kind: 'official-copy', reason: 'disabled upstream; official.test.ts runs this official-suite case' }
   }
   if (test.model !== undefined && test.model !== 'r4') {
-    return { kind: 'fhir-version', reason: SKIPPED_MODELS[test.model] ?? `unknown model ${test.model}` }
+    return { kind: 'model', reason: SKIPPED_MODELS[test.model] ?? `unknown model ${test.model}` }
   }
   return matchQuirk(file, test, expression)
 }
@@ -79,21 +80,15 @@ export function classifyCase(test: CorpusTest, expression: string, file: string)
 /** Why a case is skipped, or undefined when it should run. */
 export function skipReason(test: CorpusTest, expression: string, file: string): string | undefined {
   const skip = classifyCase(test, expression, file)
-  switch (skip?.kind) {
-    case undefined:
-      return undefined
-    case 'fhir-version':
-      return `${SKIP_CATEGORY_LABELS[skip.kind]}: ${skip.reason}`
-    case 'quirk':
-    case 'deferred':
-      return `${SKIP_CATEGORY_LABELS[skip.kind]}: ${skip.family.name}`
-    case 'official-copy':
-      return skip.reason
+  if (skip === undefined || skip.kind === 'official-copy') {
+    return skip?.reason
   }
+  return `${SKIP_CATEGORY_LABELS[skip.kind]}: ${'family' in skip ? skip.family.name : skip.reason}`
 }
 
-const FAMILY_INDEX = new Map<string, { kind: 'quirk' | 'deferred'; family: QuirkFamily }>()
+const FAMILY_INDEX = new Map<string, { kind: SkipCategory; family: QuirkFamily }>()
 for (const [kind, families] of [
+  ['model', MODEL_DIFFERENCES],
   ['quirk', QUIRK_FAMILIES],
   ['deferred', DEFERRED_FEATURES],
 ] as const) {
@@ -113,12 +108,12 @@ function caseKeys(file: string, test: CorpusTest, expression: string): string[] 
   return keys
 }
 
-/** The quirk or deferred-feature family whose manifest key names this case. */
+/** The manifest family (model difference, quirk, or deferred feature) whose key names this case. */
 export function matchQuirk(
   file: string,
   test: CorpusTest,
   expression: string
-): { kind: 'quirk' | 'deferred'; family: QuirkFamily; key: string } | undefined {
+): { kind: SkipCategory; family: QuirkFamily; key: string } | undefined {
   for (const key of caseKeys(file, test, expression)) {
     const entry = FAMILY_INDEX.get(key)
     if (entry !== undefined) {

@@ -35,16 +35,17 @@ no syntax diagnostic for them, apart from the phase overrides.
 ## Skipped official cases
 
 Every skip is listed in `test-data/official/skip-manifest.ts` with a category:
-a different FHIR version, an intentional divergence, or a deferred feature. Test
-titles name the category. A maintenance test fails when a skip no longer matches
+a different FHIR version or model, an intentional divergence, or a deferred
+feature. Test titles name the category. No official case is skipped as a
+deferred feature. A maintenance test fails when a skip no longer matches
 a suite case.
 
 | Cases | Category | Reason |
 | --- | --- | --- |
-| CDA mode | Deferred feature | Needs a CDA `ModelProvider` |
-| Lenient polymorphics | Deferred feature | Profile-dependent mode that this engine does not offer |
-| R5-only elements | Different FHIR version | The package currently ships an R4 model |
-| `testPlusDate19` in R4 | Different FHIR version | R5 changed ambiguous R4 behavior; the engine follows R5 |
+| CDA mode | Different FHIR version or model | Needs a CDA model; the package ships the FHIR R4 model |
+| R5-only elements | Different FHIR version or model | The package currently ships an R4 model |
+| `testPlusDate19` in R4 | Different FHIR version or model | R5 changed ambiguous R4 behavior; the engine follows R5 |
+| Lenient polymorphics | Intentional divergence | FHIRPath reads a choice element by its base name; the suite pins suffixed keys such as `valueQuantity` as errors outside lenient mode (`testPolymorphismB`) |
 | Decimal boundary and dateTime millisecond cases | Intentional divergence | Expected values conflict with the mathematical bounds; recorded as upstream test issues |
 | `testSort10` | Intentional divergence | Expects an empty sort key first in descending order; FHIRPath 3.0.0 sorts it last |
 
@@ -84,14 +85,17 @@ are left out: `official.test.ts` runs those suites directly, with their modes
 and predicates, and a maintenance test checks that every copied case is in them.
 Other cases disabled upstream run here. The skips, by category:
 
-- 35 need another FHIR version's model: 17 R5, 9 STU3, and 9 DSTU2.
+- 92 need another FHIR version or model: 17 run with the R5 model, 9 STU3, 9
+  DSTU2, and 57 use the `%factory` API. `%factory` is not in
+  [FHIR R4's FHIRPath page](https://hl7.org/fhir/R4/fhirpath.html); FHIR R5 adds
+  it in section 2.1.9.3, "Type Factory", as a draft (maturity 0).
 - 152 are intentional differences, including four disabled upstream whose
   expected result is wrong.
-- 73 need a deferred feature: 57 the `%factory` API, 15 UCUM special units
-  (Celsius, Fahrenheit, and the bel), and one a typed element context (#119).
+- 16 need a deferred feature: 15 UCUM special units (Celsius, Fahrenheit, and
+  the bel) and one typed element context (#119).
 
-`test-data/fhirpathjs/quirk-manifest.ts` lists the intentional differences and
-deferred features by family, each with its specification or official-suite
+`test-data/fhirpathjs/quirk-manifest.ts` lists the version differences,
+intentional differences, and deferred features by family, each with its
 evidence. A maintenance test runs every listed case and fails when one starts
 passing, so the manifest lists only differences that still exist.
 

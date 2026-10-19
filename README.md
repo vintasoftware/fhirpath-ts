@@ -397,7 +397,7 @@ sites, DTO discovery, and cases where source-only checks stay quiet.
 The engine passes every non-skipped case in the vendored official R4 and R5
 FHIRPath suites. It also runs the fhirpath.js and fhirpath-py corpora. Each skip
 has a checked manifest entry with its reason and category: a different FHIR
-version, an intentional difference, or a deferred feature.
+version or model, an intentional difference, or a deferred feature.
 
 Property tests cover parser round trips, decimal arithmetic, and temporal
 comparisons. Generated expressions are also compared with fhirpath.js. A weekly

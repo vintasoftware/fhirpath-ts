@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFERRED_FEATURES, OFFICIAL_SUITE_COPIES, QUIRK_FAMILIES } from '../test-data/fhirpathjs/quirk-manifest.ts'
+import {
+  DEFERRED_FEATURES,
+  MODEL_DIFFERENCES,
+  OFFICIAL_SUITE_COPIES,
+  QUIRK_FAMILIES,
+} from '../test-data/fhirpathjs/quirk-manifest.ts'
 import {
   classifyCase,
   type CorpusFile,
@@ -15,9 +20,9 @@ import { loadOfficialSuite } from './testing/official-harness.ts'
 
 /**
  * The fhirpath.js YAML corpus (plus the fhirpath-py-only files), vendored as
- * JSON. Cases for another FHIR version, intentional divergences (the quirk
- * manifest carries the evidence for each), and cases that need a deferred
- * feature are skipped; everything else must pass. The corpus's copies of the
+ * JSON. Cases for another FHIR version or model, intentional divergences (the
+ * quirk manifest carries the evidence for each), and cases that need a
+ * deferred feature are skipped; everything else must pass. The corpus's copies of the
  * official suites are left out: official.test.ts runs those suites directly.
  * See test-data/fhirpathjs/README.md for provenance.
  */
@@ -84,14 +89,14 @@ describe('quirk manifest hygiene', () => {
     }
   }
 
-  it('every quirk and deferred-feature key shields a case this engine still fails', () => {
+  it('every manifest family key shields a case this engine still fails', () => {
     // A case that starts passing must take its manifest key with it, and a key
     // matching only official-suite copies or other-model cases shields nothing.
     const shielding = new Set<string>()
     const passing: string[] = []
     for (const { file, data, test, expression } of cases) {
       const skip = classifyCase(test, expression, file)
-      if (skip?.kind !== 'quirk' && skip?.kind !== 'deferred') {
+      if (skip === undefined || !('family' in skip)) {
         continue
       }
       shielding.add(skip.key)
@@ -100,7 +105,7 @@ describe('quirk manifest hygiene', () => {
       }
     }
     expect(passing, 'these cases now pass; remove their manifest keys').toEqual([])
-    const unused = [...QUIRK_FAMILIES, ...DEFERRED_FEATURES].flatMap(family =>
+    const unused = [...MODEL_DIFFERENCES, ...QUIRK_FAMILIES, ...DEFERRED_FEATURES].flatMap(family =>
       family.keys.filter(key => !shielding.has(key))
     )
     expect(unused, 'these manifest keys shield no runnable corpus case').toEqual([])

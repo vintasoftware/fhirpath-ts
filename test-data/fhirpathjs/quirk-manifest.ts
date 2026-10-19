@@ -2,8 +2,9 @@
  * Exact corpus cases this engine does not run, grouped by family.
  * `QUIRK_FAMILIES` are intentional divergences: every entry names the
  * fhirpath.js/fhirpath-py behavior we do not inherit and the evidence for our
- * reading. `DEFERRED_FEATURES` are cases that need a feature the README lists
- * as deferred. Keys are `${file}||${expression}`,
+ * reading. `MODEL_DIFFERENCES` need a FHIR version later than the R4 this
+ * package ships. `DEFERRED_FEATURES` need a feature the README lists as
+ * deferred. Keys are `${file}||${expression}`,
  * `${file}@${model}||${expression}` to match only cases run with that model
  * (`none` for model-free cases), or `${file}#${desc}||${expression}` to match one
  * of several cases with the same expression. The harness fails when an entry shields no case,
@@ -266,36 +267,12 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   },
 ]
 
-/**
- * Features the README defers, with the corpus cases that need them. Each entry
- * names the feature; the cases run once it ships.
- */
-export const DEFERRED_FEATURES: QuirkFamily[] = [
-  {
-    name: 'full-ucum-table',
-    evidence:
-      'UCUM special units need more than the multiplicative unit table: Celsius and Fahrenheit convert to kelvin with an offset, and logarithmic units such as the bel (B) take no arithmetic. README: deferred features, Full UCUM.',
-    keys: [
-      "5.5_conversion.yaml||'0 \\'Cel\\''.toQuantity('K') = 273.15 'K'",
-      "5.5_conversion.yaml||'23 \\'Cel\\''.toQuantity('[degF]') ~ 73.4 '[degF]'",
-      "5.5_conversion.yaml||'73.4 \\'[degF]\\''.toQuantity('Cel') ~ 23 'Cel'",
-      "6.1_equality.yaml||0 'Cel' ~ 273.15 'K'",
-      "6.1_equality.yaml||23 'Cel' ~ 73.4 '[degF]'",
-      "6.1_equality.yaml||73.4 '[degF]' ~ 23 'Cel'",
-      "6.2_comparision.yaml||0 'Cel' <= 273.15 'K'",
-      "6.2_comparision.yaml||0 'Cel' >= 273.15 'K'",
-      "6.2_comparision.yaml||23 'Cel' < 72 '[degF]'",
-      "6.2_comparision.yaml||23 'Cel' > 72 '[degF]'",
-      "6.6_math.yaml||1 'B' * 2",
-      "6.6_math.yaml||1 'B' + 1 'B'",
-      "6.6_math.yaml||1 'B' - 1 'B'",
-      "6.6_math.yaml||1 'B' / 2",
-      "6.6_math.yaml||1 'B' / 2 '1'",
-    ],
-  },
+/** Cases that need a FHIR version later than R4, with the evidence that the feature is not in R4. */
+export const MODEL_DIFFERENCES: QuirkFamily[] = [
   {
     name: 'factory-api',
-    evidence: 'The %factory type-factory API (R5 draft, maturity 0). README: deferred features, %factory.',
+    evidence:
+      'The %factory type-factory API is not in FHIR R4 (https://hl7.org/fhir/R4/fhirpath.html); FHIR R5 adds it in section 2.1.9.3 "Type Factory" as a draft (maturity 0). This package ships the R4 model.',
     keys: [
       "6.1_equality.yaml||(%factory.date('2024-01-01', %factory.Extension('someExt', 'someString')) =\n %factory.date('2024-01-01', %factory.Extension('someExt', 'someString'))) |\n(%factory.date('2024-01-01', %factory.Extension('someExt', 'someString1')) =\n %factory.date('2024-01-01', %factory.Extension('someExt', 'someString2')))",
       "factory.yaml||%factory.Address('5 Nowhere Road' | 'second line', 'SomeCity', 'EW', '0000', {}, 'home', 'physical').where(line = ('5 Nowhere Road' | 'second line') and city = 'SomeCity' and state = 'EW' and postalCode = '0000' and country.empty() and use = 'home' and type = 'physical') is Address",
@@ -354,6 +331,35 @@ export const DEFERRED_FEATURES: QuirkFamily[] = [
       "factory.yaml||%factory.withExtension(%factory.integer(134, %factory.Extension( 'someExt1', 'someString')), 'someExt2', 1).extension.value = 'someString' | 1",
       "factory.yaml||%factory.withExtension(%factory.integer({}), 'someExt', 1).extension( 'someExt').value = 1",
       "factory.yaml||%factory.withProperty(%factory.integer(134, %factory.Extension( 'someExt1', 'someString')), 'id', 'someId').where(extension.value = 'someString').id = 'someId'",
+    ],
+  },
+]
+
+/**
+ * Features the README defers, with the corpus cases that need them. Each entry
+ * names the feature; the cases run once it ships.
+ */
+export const DEFERRED_FEATURES: QuirkFamily[] = [
+  {
+    name: 'full-ucum-table',
+    evidence:
+      'UCUM special units need more than the multiplicative unit table: Celsius and Fahrenheit convert to kelvin with an offset, and logarithmic units such as the bel (B) take no arithmetic. README: deferred features, Full UCUM.',
+    keys: [
+      "5.5_conversion.yaml||'0 \\'Cel\\''.toQuantity('K') = 273.15 'K'",
+      "5.5_conversion.yaml||'23 \\'Cel\\''.toQuantity('[degF]') ~ 73.4 '[degF]'",
+      "5.5_conversion.yaml||'73.4 \\'[degF]\\''.toQuantity('Cel') ~ 23 'Cel'",
+      "6.1_equality.yaml||0 'Cel' ~ 273.15 'K'",
+      "6.1_equality.yaml||23 'Cel' ~ 73.4 '[degF]'",
+      "6.1_equality.yaml||73.4 '[degF]' ~ 23 'Cel'",
+      "6.2_comparision.yaml||0 'Cel' <= 273.15 'K'",
+      "6.2_comparision.yaml||0 'Cel' >= 273.15 'K'",
+      "6.2_comparision.yaml||23 'Cel' < 72 '[degF]'",
+      "6.2_comparision.yaml||23 'Cel' > 72 '[degF]'",
+      "6.6_math.yaml||1 'B' * 2",
+      "6.6_math.yaml||1 'B' + 1 'B'",
+      "6.6_math.yaml||1 'B' - 1 'B'",
+      "6.6_math.yaml||1 'B' / 2",
+      "6.6_math.yaml||1 'B' / 2 '1'",
     ],
   },
   {

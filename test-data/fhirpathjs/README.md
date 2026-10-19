@@ -19,14 +19,15 @@ license (beda.software) and covers `cases-py-extras.json`.
   suites, which `official.test.ts` runs directly with their modes and
   predicates. A hygiene test checks that every copied case is in the vendored
   official suites.
-- Cases with `model: r5/stu3/dstu2` are skipped as a **different FHIR version**
-  (this package ships the R4 model).
+- Cases with `model: r5/stu3/dstu2`, and the `%factory` cases listed in
+  `MODEL_DIFFERENCES` (FHIR R5 adds that API; R4 has none), are skipped as a
+  **different FHIR version or model** (this package ships the R4 model).
 - Other cases disabled upstream run; the ones whose expected result is wrong
   are quirk families like any other divergence.
-- Cases that need a feature the README defers (`%factory`, UCUM special units,
-  typed element contexts) are skipped as **deferred features**, listed in
-  `DEFERRED_FEATURES` in `quirk-manifest.ts` with the same key forms and
-  hygiene checks as the quirks.
+- Cases that need a feature the README defers (UCUM special units, typed
+  element contexts) are skipped as **deferred features**, listed in
+  `DEFERRED_FEATURES`. Every family list in `quirk-manifest.ts` uses the same
+  key forms and hygiene checks.
 - Cases listed in `QUIRK_FAMILIES` are skipped as **intentional divergences**:
   each family documents the reference-implementation behavior we do not inherit
   and the spec/official-suite evidence for our reading. The hygiene tests fail if

@@ -3,15 +3,15 @@
  * fails if an entry matches nothing, so stale entries cannot linger.
  */
 /**
- * Why a case does not run: another FHIR version's model or semantics, a
- * documented divergence from the suite (quirk), or a feature or mode the
- * engine does not offer yet.
+ * Why a case does not run: another FHIR version or model (R5, STU3, DSTU2,
+ * CDA), a documented divergence from the suite (quirk), or a feature the
+ * README defers.
  */
-export type SkipCategory = 'fhir-version' | 'quirk' | 'deferred'
+export type SkipCategory = 'model' | 'quirk' | 'deferred'
 
 /** How skipped test titles name each category, in both the official suites and the corpora. */
 export const SKIP_CATEGORY_LABELS: Readonly<Record<SkipCategory, string>> = {
-  'fhir-version': 'different FHIR version',
+  model: 'different FHIR version or model',
   quirk: 'intentional divergence',
   deferred: 'deferred feature',
 }
@@ -88,19 +88,20 @@ export const PHASE_OVERRIDES: PhaseOverride[] = [
 
 export const SKIP_MANIFEST: SkipEntry[] = [
   {
-    category: 'deferred',
+    category: 'model',
     suite: 'r5',
     mode: 'cda',
-    reason: 'CDA documents need a CDA ModelInfo; out of scope for v1 (README: deferred features)',
+    reason: 'CDA documents need a CDA model; this package ships the FHIR R4 model',
   },
   {
-    category: 'deferred',
+    category: 'quirk',
     suite: 'r5',
     mode: 'lenient/polymorphics',
-    reason: 'lenient polymorphic access is profile-dependent behavior this engine does not offer',
+    reason:
+      'FHIRPath reads a choice element by its base name; the suite itself pins suffixed keys such as valueQuantity as errors outside lenient mode (testPolymorphismB)',
   },
   {
-    category: 'fhir-version',
+    category: 'model',
     suite: 'r5',
     group: 'miscEngineTests',
     test: 'testMultipleResolve',
@@ -193,14 +194,14 @@ export const SKIP_MANIFEST: SkipEntry[] = [
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
   {
-    category: 'fhir-version',
+    category: 'model',
     suite: 'r5',
     group: 'defineVariable',
     test: 'dvConceptMapExample',
     reason: 'uses the R5-only ConceptMap ... target.relationship element; this package ships the R4 model',
   },
   {
-    category: 'fhir-version',
+    category: 'model',
     suite: 'r4',
     group: 'testPlus',
     test: 'testPlusDate19',
