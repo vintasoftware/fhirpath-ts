@@ -120,6 +120,12 @@ export interface EvaluateOptions {
   narrativeSanitizer?: NarrativeSanitizer
 }
 
+type AsyncOnlyOption = Exclude<keyof AsyncEvaluateOptions, keyof EvaluateOptions>
+const ASYNC_ONLY_OPTIONS = Object.keys({ terminology: true } satisfies Record<
+  AsyncOnlyOption,
+  true
+>) as AsyncOnlyOption[]
+
 /** What `evaluateAsync()` and `evaluateTypedAsync()` take: the sync options plus host services. */
 export interface AsyncEvaluateOptions extends EvaluateOptions {
   /** Terminology operations for `memberOf()`, `subsumes()`, `subsumedBy()`, `weight()`, and `%terminologies`. */
@@ -324,7 +330,13 @@ export function contextFactory(
   const functions = options?.functions === undefined ? undefined : toHostFunctions(options.functions)
   const env = normalizeEnvKeys(options?.env)
   const vars = options?.vars === undefined ? undefined : planVars(options.vars)
+  // The types keep these options to the async entry points; an untyped caller
+  // that passes one to a sync evaluation would otherwise see it ignored.
+  const asyncOnly = ASYNC_ONLY_OPTIONS.find(key => (options as AsyncEvaluateOptions | undefined)?.[key] !== undefined)
   return (root, extraEnv, async) => {
+    if (async === undefined && asyncOnly !== undefined) {
+      throw new FhirPathTypeError(`options.${asyncOnly} is only accepted by evaluateAsync() and evaluateTypedAsync()`)
+    }
     const context = createContext({
       root,
       env: extraEnv === undefined ? env : { ...env, ...extraEnv },

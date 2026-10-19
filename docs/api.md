@@ -53,7 +53,8 @@ A supplied empty, plural, or wrongly typed service argument returns empty
 without calling the provider. Omit the trailing parameter string or pass `''`
 when no additional parameters are needed.
 Only the asynchronous entry points take `terminology`: it belongs to
-`AsyncEvaluateOptions`, not to `EvaluateOptions` or engine options. A function
+`AsyncEvaluateOptions`, not to `EvaluateOptions` or engine options. A sync
+evaluation given it raises an error naming the asynchronous entry points. A function
 that needs the provider under `evaluate()`, or without one, raises an error
 naming `evaluateAsync()` with `options.terminology`. A provider without the
 requested method also raises an error.

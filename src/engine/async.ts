@@ -107,7 +107,8 @@ export async function resolveSuspensions<T>(attempt: (cache: Map<string, unknown
         throw error
       }
       const requests = [...error.requests]
-      const answers = await Promise.allSettled(requests.map(([, run]) => run()))
+      // async: a provider that throws instead of rejecting still settles in order.
+      const answers = await Promise.allSettled(requests.map(async ([, run]) => run()))
       for (const [index, answer] of answers.entries()) {
         if (answer.status === 'rejected') throw answer.reason
         cache.set((requests[index] as [string, unknown])[0], answer.value)
