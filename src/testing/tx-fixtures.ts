@@ -4,10 +4,11 @@ import type { TerminologyProvider } from '../terminology/provider.ts'
 import { testDataPath } from './test-data.ts'
 
 /**
- * Recorded tx.fhir.org responses backing the official suite's tx-mode tests.
- * The file is committed so the suite stays hermetic — no network in tests;
- * `pnpm record:tx` (scripts/record-tx-fixtures.ts) re-records it against the
- * live server.
+ * Recorded terminology-service responses: tx.fhir.org for the official suite's
+ * tx-mode tests (`pnpm record:tx`, scripts/record-tx-fixtures.ts) and Medplum
+ * for the provider end-to-end cases (`pnpm record:tx:medplum`,
+ * scripts/record-medplum-terminology.ts). The files are committed so the suite
+ * stays hermetic — no network in tests.
  */
 export interface TxFixtureFile {
   server: string
@@ -35,21 +36,27 @@ export function txProvider(handle: (operation: string, args: unknown[]) => Promi
   ) as TerminologyProvider
 }
 
-let cached: TxFixtureFile | undefined
-
-function fixtureFile(): TxFixtureFile {
-  cached ??= JSON.parse(readFileSync(testDataPath('official/r5/tx-fixtures.json'), 'utf8')) as TxFixtureFile
-  return cached
-}
-
-async function respond(operation: string, args: unknown[]): Promise<unknown> {
-  const key = JSON.stringify(args)
-  const entry = fixtureFile().entries.find(e => e.operation === operation && JSON.stringify(e.args) === key)
-  if (!entry) {
-    throw new Error(`No recorded tx.fhir.org response for ${operation}(${key.slice(1, -1)}); run: pnpm record:tx`)
-  }
-  return entry.response
+/**
+ * Replays a recorded fixture file (under `test-data/`) as a TerminologyProvider.
+ * A request the file does not hold fails with the command that re-records it.
+ */
+export function replayedTerminology(file: string, recordCommand: string): TerminologyProvider {
+  let cached: TxFixtureFile | undefined
+  return txProvider(async (operation, args) => {
+    cached ??= JSON.parse(readFileSync(testDataPath(file), 'utf8')) as TxFixtureFile
+    const key = JSON.stringify(args)
+    const entry = cached.entries.find(e => e.operation === operation && JSON.stringify(e.args) === key)
+    if (!entry) {
+      throw new Error(
+        `No recorded ${cached.server} response for ${operation}(${key.slice(1, -1)}); run: ${recordCommand}`
+      )
+    }
+    return entry.response
+  })
 }
 
 /** Replays the recorded tx.fhir.org responses as a TerminologyProvider. */
-export const recordedTerminology: TerminologyProvider = txProvider(respond)
+export const recordedTerminology: TerminologyProvider = replayedTerminology(
+  'official/r5/tx-fixtures.json',
+  'pnpm record:tx'
+)
