@@ -12,8 +12,8 @@ repository, converted to JSON offline, and run with Vitest.
 
 | Suite | Passing | Skipped with a reason | Failing |
 | --- | ---: | ---: | ---: |
-| R4 (`tests-fhir-r4.xml`) | 941 | 6 | 0 |
-| R5 (`tests-fhir-r5.xml`) | 1,060 | 15 | 0 |
+| R4 (`tests-fhir-r4.xml`) | 940 | 7 | 0 |
+| R5 (`tests-fhir-r5.xml`) | 1,062 | 13 | 0 |
 
 Every non-skipped official case passes.
 
@@ -29,22 +29,24 @@ Four intentional phase differences are recorded in the checked
 Semantic-invalid and strict-mode cases run through strict evaluation. The static
 analyzer also runs a separate pass over both official suites. Every
 semantic-invalid case it supports must report an error diagnostic, while valid
-cases must report none.
+cases must report none. Execution-invalid cases must parse: the analyzer reports
+no syntax diagnostic for them, apart from the phase overrides.
 
 ## Skipped official cases
 
-Every skip is listed in `test-data/official/skip-manifest.ts`. A maintenance test
-fails when a skip no longer matches a suite case.
+Every skip is listed in `test-data/official/skip-manifest.ts` with a category:
+a different FHIR version, an intentional divergence, or a deferred feature. Test
+titles name the category. A maintenance test fails when a skip no longer matches
+a suite case.
 
-| Category | Reason |
-| --- | --- |
-| Terminology mode | Needs a terminology service |
-| CDA mode | Needs a CDA `ModelProvider` |
-| Lenient polymorphics | Profile-dependent mode that this engine does not offer |
-| R5-only elements | The package currently ships an R4 model |
-| Decimal boundary and dateTime millisecond cases | Expected values conflict with the mathematical bounds; recorded as upstream test issues |
-| `testPlusDate19` in R4 | R5 changed ambiguous R4 behavior; the engine follows R5 |
-| `testSort10` | Expects an empty sort key first in descending order; FHIRPath 3.0.0 sorts it last |
+| Cases | Category | Reason |
+| --- | --- | --- |
+| CDA mode | Deferred feature | Needs a CDA `ModelProvider` |
+| Lenient polymorphics | Deferred feature | Profile-dependent mode that this engine does not offer |
+| R5-only elements | Different FHIR version | The package currently ships an R4 model |
+| `testPlusDate19` in R4 | Different FHIR version | R5 changed ambiguous R4 behavior; the engine follows R5 |
+| Decimal boundary and dateTime millisecond cases | Intentional divergence | Expected values conflict with the mathematical bounds; recorded as upstream test issues |
+| `testSort10` | Intentional divergence | Expects an empty sort key first in descending order; FHIRPath 3.0.0 sorts it last |
 
 The manifest contains the exact case names and evidence. Entries marked
 `runtimeOnly` dispute an expected value, not a feature. The analyzer pass still
@@ -75,15 +77,23 @@ The package also runs tests from
 
 | Corpus | Passing | Skipped with a reason |
 | --- | ---: | ---: |
-| fhirpath.js cases plus fhirpath-py additions | 2,306 | 1,363 |
+| fhirpath.js cases plus fhirpath-py additions | 1,425 | 260 |
 
-Most skips require a model other than R4 or copy official-suite cases that
-upstream disabled; `official.test.ts` runs those cases directly. Other cases
-disabled upstream run here. Another 236 cases are intentional differences
-recorded in `test-data/fhirpathjs/quirk-manifest.ts`, including four disabled
-upstream whose expected result is wrong. Each group includes its specification or
-official-suite evidence. A maintenance test runs every listed case and fails when
-one starts passing, so the manifest lists only differences that still exist.
+The corpus's copies of the official suites (`fhir-r4.yaml` and `fhir-r5.yaml`)
+are left out: `official.test.ts` runs those suites directly, with their modes
+and predicates, and a maintenance test checks that every copied case is in them.
+Other cases disabled upstream run here. The skips, by category:
+
+- 35 need another FHIR version's model: 17 R5, 9 STU3, and 9 DSTU2.
+- 152 are intentional differences, including four disabled upstream whose
+  expected result is wrong.
+- 73 need a deferred feature: 57 the `%factory` API, 15 UCUM special units
+  (Celsius, Fahrenheit, and the bel), and one a typed element context (#119).
+
+`test-data/fhirpathjs/quirk-manifest.ts` lists the intentional differences and
+deferred features by family, each with its specification or official-suite
+evidence. A maintenance test runs every listed case and fails when one starts
+passing, so the manifest lists only differences that still exist.
 
 The fhirpath-rs corpus was also reviewed. Its official R5 cases are already
 covered by the official suite. Its additional cases are included in
