@@ -59,12 +59,16 @@ naming `evaluateAsync()` with `options.terminology`. A provider without the
 requested method also raises an error.
 
 The evaluator caches service answers per evaluation and replays the expression
-when an answer arrives. Each distinct request calls its provider once. The
+when answers arrive. Each distinct request calls its provider once. Requests
+from independent items (each item of `weight()`, `where()`, `select()`,
+`all()`, `exists()`, and `repeat()`) and from the two operands of an operator
+start together, as in fhirpath.js. Only a request that needs an earlier
+answer waits for another round. The
 clock stays fixed and only the successful pass emits `trace()` output. Host
 functions may run again on replay: keep them deterministic and free of side
 effects, and keep input and environment values unchanged until evaluation ends.
-Work before a service call can repeat, so cost grows with the number of distinct
-requests and the expression's work. Provider rejections propagate to the caller.
+Work before a service call can repeat once per round, so cost grows with the
+depth of dependent requests and the expression's work. Provider rejections propagate to the caller.
 
 The `memberOf()` and Boolean subsumption functions return empty for non-singleton
 inputs. Unknown service outcomes remain empty. For different code systems,

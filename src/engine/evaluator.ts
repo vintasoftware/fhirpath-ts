@@ -21,6 +21,7 @@ import {
   type TypedValue,
   unwrap,
 } from '../values/typed-value.ts'
+import { forEachCollecting } from './async.ts'
 import {
   type EvaluationContext,
   forkVariables,
@@ -134,15 +135,16 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
     }
     case 'unary':
       return evaluateUnary(context, node.operator, evaluateNode(node.operand, context, input))
-    case 'binary':
+    case 'binary': {
       // Operator operands are separate chains; variables defined in one are not
-      // visible in the other (locked by the official defineVariable tests).
-      return evaluateBinary(
-        context,
-        node.operator,
-        evaluateNode(node.left, forkVariables(context), input),
-        evaluateNode(node.right, forkVariables(context), input)
-      )
+      // visible in the other (locked by the official defineVariable tests). Being
+      // independent, their provider requests are collected together.
+      const operands: TypedValue[][] = []
+      forEachCollecting([node.left, node.right], operand => {
+        operands.push(evaluateNode(operand, forkVariables(context), input))
+      })
+      return evaluateBinary(context, node.operator, operands[0] as TypedValue[], operands[1] as TypedValue[])
+    }
     case 'typeOp':
       return evaluateTypeOp(context, node.operator, evaluateNode(node.operand, context, input), node.type)
     case 'instance':

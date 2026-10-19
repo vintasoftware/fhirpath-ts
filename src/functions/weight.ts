@@ -1,3 +1,4 @@
+import { forEachCollecting } from '../engine/async.ts'
 import { type EvaluationContext, lookupEnvironmentVariable } from '../engine/context.ts'
 import { pairEquals, pairEquivalent } from '../engine/operators/equality.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
@@ -28,10 +29,13 @@ registerFunction('weight', {
     if (model === undefined) {
       throw new FhirPathRuntimeError('weight() needs a model to find answers, answer options, and Codings')
     }
-    return input.flatMap(item => {
+    const weights: TypedValue[] = []
+    // Each item's lookup is independent, so they are requested together.
+    forEachCollecting(input, item => {
       const score = weightOf(context, model, item)
-      return score === undefined ? [] : [{ type: SYSTEM_DECIMAL, value: score }]
+      if (score !== undefined) weights.push({ type: SYSTEM_DECIMAL, value: score })
     })
+    return weights
   },
 })
 

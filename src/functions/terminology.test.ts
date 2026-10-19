@@ -653,6 +653,65 @@ describe('evaluateAsync', () => {
     ).resolves.toEqual([true])
   })
 
+  it('requests the answers of independent items and operands together', async () => {
+    // Each call records how many calls are in flight when it starts: 1, 2, 3
+    // when they start together, 1, 1, 1 when one waits for another.
+    const started: number[] = []
+    let inFlight = 0
+    const answer = async <T>(value: T): Promise<T> => {
+      started.push(++inFlight)
+      await null
+      inFlight--
+      return value
+    }
+    const weighted = (code: string) => ({ system: 'urn:scores', code })
+    const provider: TerminologyProvider = {
+      validateVS: (_valueSet, coded) =>
+        answer({ resourceType: 'Parameters', parameter: [{ name: 'result', valueBoolean: codeOf(coded) === 'b' }] }),
+      lookup: coded =>
+        answer({
+          resourceType: 'Parameters',
+          parameter: [
+            {
+              name: 'property',
+              part: [
+                { name: 'code', valueCode: 'itemWeight' },
+                { name: 'value', valueDecimal: (codeOf(coded) as string).charCodeAt(0) - 96 },
+              ],
+            },
+          ],
+        }),
+    }
+    const input = { ...observation, code: { coding: ['a', 'b', 'c'].map(weighted) } }
+    const options = asyncOptions(provider)
+    await expect(evaluateAsync('code.coding.weight().sum()', input, options)).resolves.toEqual([6])
+    expect(started).toEqual([1, 2, 3])
+    started.length = 0
+    await expect(evaluateAsync('code.coding.where(memberOf(%vs)).code', input, options)).resolves.toEqual(['b'])
+    expect(started).toEqual([1, 2, 3])
+    started.length = 0
+    await expect(
+      evaluateAsync('code.coding[0].memberOf(%vs) or code.coding[1].memberOf(%vs)', input, options)
+    ).resolves.toEqual([true])
+    expect(started).toEqual([1, 2])
+  })
+
+  it('reports the first failing item, after the answers an earlier item waits for', async () => {
+    const provider = stubProvider()
+    const options = { model: r4Model, terminology: provider }
+    const noCode = { system: 'urn:scores' }
+    const weighted = { system: 'urn:scores', code: 'a' }
+    const message = 'weight() needs a Coding with a code for CodeSystem lookup'
+    await expect(
+      evaluateAsync('code.coding.weight()', { ...observation, code: { coding: [noCode, weighted] } }, options)
+    ).rejects.toThrow(message)
+    expect(provider.calls).toEqual([])
+    await expect(
+      evaluateAsync('code.coding.weight()', { ...observation, code: { coding: [weighted, noCode] } }, options)
+    ).rejects.toThrow(message)
+    expect(provider.calls).toHaveLength(1)
+  })
+
   it('protects a configured terminology service from host variable overrides', async () => {
     const options = asyncOptions(stubProvider())
     await expect(
