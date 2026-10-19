@@ -34,7 +34,7 @@ const fp = new FhirPathEngine({
 })
 ```
 
-### Asynchronous terminology
+### Asynchronous services
 
 The free `evaluateAsync(expression, input, options)` returns a Promise of plain
 values. `compile()` also exposes `evaluateAsync()` and `evaluateTypedAsync()`;
@@ -52,10 +52,10 @@ answer; `weight()` reports unavailable lookups as errors to prevent partial tota
 A supplied empty, plural, or wrongly typed service argument returns empty
 without calling the provider. Omit the trailing parameter string or pass `''`
 when no additional parameters are needed.
-Only the asynchronous entry points take `terminology`: it belongs to
-`AsyncEvaluateOptions`, not to `EvaluateOptions` or engine options. A sync
-evaluation given it raises an error naming the asynchronous entry points. A function
-that needs the provider under `evaluate()`, or without one, raises an error
+Only the asynchronous entry points take `terminology` and `resolver`: they belong
+to `AsyncEvaluateOptions`, not to `EvaluateOptions` or engine options. A sync
+evaluation given either raises an error naming the asynchronous entry points.
+A function that needs the provider under `evaluate()`, or without one, raises an error
 naming `evaluateAsync()` with `options.terminology`. A provider without the
 requested method also raises an error.
 
@@ -130,6 +130,66 @@ Coding pair establishes the relationship. A configured provider
 reserves `%terminologies`; applications must not replace it through `env` or
 `vars`. Static analysis accepts an explicit variable declaration for this host
 service, while strict runtime evaluation supplies that declaration automatically.
+
+### External references
+
+`options.resolver` is a `ReferenceResolver`:
+`(reference: string, base: string | undefined) => Promise<unknown>`.
+`resolve()` first searches the originating resource and available Bundle. Only
+unresolved external references reach the callback; `#fragment` misses stay empty.
+Independent references, such as the items of one `resolve()` call, are requested together.
+
+The engine passes the reference unchanged. For a relative reference, `base` is
+the server base of the resource that holds it, when known: from its Bundle entry
+`fullUrl`, or else from the absolute reference that fetched it or the Bundle
+holding it (or the base that one was resolved against). FHIR resolves a relative reference against that base.
+A reference in the input with no `fullUrl`, or a string literal, has no base.
+The host chooses how to resolve it, including the default server base,
+credentials, and request policy.
+
+For example, a resolver for one FHIR server. References come from the data,
+so it sends credentials only to that server and leaves other references
+unresolved:
+
+```ts
+import { evaluateAsync, type ReferenceResolver } from 'fhirpath-ts'
+import { r4Model } from 'fhirpath-ts/r4'
+
+const server = 'https://fhir.example.org/fhir'
+
+const resolver: ReferenceResolver = async (reference, base) => {
+  // A relative reference resolves against the base of the resource holding it.
+  const url = new URL(reference, `${base ?? server}/`)
+  // References come from the data: send credentials only to the trusted server.
+  if (!url.href.startsWith(`${server}/`)) return undefined
+  const response = await fetch(url, {
+    headers: { Accept: 'application/fhir+json', Authorization: `Bearer ${process.env.FHIR_ACCESS_TOKEN}` },
+  })
+  if (response.status === 404 || response.status === 410) return undefined
+  if (!response.ok) throw new Error(`FHIR server answered ${response.status}`)
+  return response.json()
+}
+
+const observation = {
+  resourceType: 'Observation',
+  status: 'final',
+  code: { text: 'Body weight' },
+  subject: { reference: 'Patient/123' },
+}
+
+await evaluateAsync('Observation.subject.resolve().name.given', observation, { model: r4Model, resolver }) // ['Ana']
+```
+
+Return a FHIR resource as plain JSON, or `undefined` if it cannot be resolved.
+Answers without a string `resourceType` are ignored. Provider rejections propagate.
+Each reference and base pair is requested once per asynchronous evaluation. A
+returned resource becomes the owner for subsequent navigation, so its contained
+references resolve locally and its other references go to the resolver, never to
+the input Bundle. The same options and cache remain available for further
+external hops.
+
+Without a resolver, external misses remain empty, including under the
+synchronous `evaluate()`, which refuses one; local resolution works there as usual.
 
 ### Strict evaluation
 

@@ -15,6 +15,7 @@ import {
 } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathTypeError } from '../errors.ts'
+import type { ReferenceResolver } from '../fhir/reference-resolver.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
@@ -121,7 +122,7 @@ export interface EvaluateOptions {
 }
 
 type AsyncOnlyOption = Exclude<keyof AsyncEvaluateOptions, keyof EvaluateOptions>
-const ASYNC_ONLY_OPTIONS = Object.keys({ terminology: true } satisfies Record<
+const ASYNC_ONLY_OPTIONS = Object.keys({ terminology: true, resolver: true } satisfies Record<
   AsyncOnlyOption,
   true
 >) as AsyncOnlyOption[]
@@ -130,6 +131,8 @@ const ASYNC_ONLY_OPTIONS = Object.keys({ terminology: true } satisfies Record<
 export interface AsyncEvaluateOptions extends EvaluateOptions {
   /** Terminology operations for `memberOf()`, `subsumes()`, `subsumedBy()`, `weight()`, and `%terminologies`. */
   terminology?: TerminologyProvider
+  /** Fallback for references absent from the local resource or Bundle. Fragment misses stay local. */
+  resolver?: ReferenceResolver
 }
 
 type CheckedOptionKeys<Options, Accepted> = string extends keyof Options
@@ -249,7 +252,11 @@ export class CompiledExpression<
     })
     const result = await resolveSuspensions(cache => {
       traces = []
-      return evaluateNode(this.ast, contextFor(root, undefined, { cache, terminology: options?.terminology }), root)
+      return evaluateNode(
+        this.ast,
+        contextFor(root, undefined, { cache, terminology: options?.terminology, resolver: options?.resolver }),
+        root
+      )
     })
     for (const [name, values] of traces) options?.trace?.(name, values)
     return result

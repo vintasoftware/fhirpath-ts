@@ -1,3 +1,4 @@
+import type { ReferenceResolver } from '../fhir/reference-resolver.ts'
 import type { TerminologyProvider } from '../terminology/provider.ts'
 
 /**
@@ -8,6 +9,7 @@ import type { TerminologyProvider } from '../terminology/provider.ts'
 export interface AsyncServices {
   readonly cache: Map<string, unknown>
   readonly terminology: TerminologyProvider | undefined
+  readonly resolver: ReferenceResolver | undefined
 }
 
 /**
