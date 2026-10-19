@@ -147,6 +147,39 @@ A reference in the input with no `fullUrl`, or a string literal, has no base.
 The host chooses how to resolve it, including the default server base,
 credentials, and request policy.
 
+For example, a resolver for one FHIR server. References come from the data,
+so it sends credentials only to that server and leaves other references
+unresolved:
+
+```ts
+import { evaluateAsync, type ReferenceResolver } from 'fhirpath-ts'
+import { r4Model } from 'fhirpath-ts/r4'
+
+const server = 'https://fhir.example.org/fhir'
+
+const resolver: ReferenceResolver = async (reference, base) => {
+  // A relative reference resolves against the base of the resource holding it.
+  const url = new URL(reference, `${base ?? server}/`)
+  // References come from the data: send credentials only to the trusted server.
+  if (!url.href.startsWith(`${server}/`)) return undefined
+  const response = await fetch(url, {
+    headers: { Accept: 'application/fhir+json', Authorization: `Bearer ${process.env.FHIR_ACCESS_TOKEN}` },
+  })
+  if (response.status === 404 || response.status === 410) return undefined
+  if (!response.ok) throw new Error(`FHIR server answered ${response.status}`)
+  return response.json()
+}
+
+const observation = {
+  resourceType: 'Observation',
+  status: 'final',
+  code: { text: 'Body weight' },
+  subject: { reference: 'Patient/123' },
+}
+
+await evaluateAsync('Observation.subject.resolve().name.given', observation, { model: r4Model, resolver }) // ['Ana']
+```
+
 Return a FHIR resource as plain JSON, or `undefined` if it cannot be resolved.
 Answers without a string `resourceType` are ignored. Provider rejections propagate.
 Each reference and base pair is requested once per asynchronous evaluation. A

@@ -11,6 +11,7 @@ import {
   evaluateAsync,
   FhirPathEngine,
   type FhirTypeName,
+  type ReferenceResolver,
   type TerminologyProvider,
   type ViewBaseClass,
 } from '../index.ts'
@@ -514,6 +515,25 @@ describe('README usage recipes', () => {
         env: { vitals },
       })
     ).resolves.toEqual(['29463-7'])
+  })
+
+  it('runs the API reference resolver example', async () => {
+    const patient: Patient = { resourceType: 'Patient', id: '123', name: [{ given: ['Ana'] }] }
+    const requests: [string, string | undefined][] = []
+    const resolver: ReferenceResolver = async (reference, base) => {
+      requests.push([reference, base])
+      return reference === 'Patient/123' ? patient : undefined
+    }
+    const observation: Observation = {
+      resourceType: 'Observation',
+      status: 'final',
+      code: { text: 'Body weight' },
+      subject: { reference: 'Patient/123' },
+    }
+    await expect(
+      evaluateAsync('Observation.subject.resolve().name.given', observation, { model: r4Model, resolver })
+    ).resolves.toEqual(['Ana'])
+    expect(requests).toEqual([['Patient/123', undefined]])
   })
 
   it('runs the type name and declared root examples', () => {
