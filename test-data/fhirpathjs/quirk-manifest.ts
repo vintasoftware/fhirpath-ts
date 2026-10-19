@@ -1,7 +1,9 @@
 /**
- * Exact corpus cases this engine intentionally diverges on, grouped by the
- * behavior family. Every entry names the fhirpath.js/fhirpath-py behavior we
- * do not inherit and the evidence for our reading. Keys are `${file}||${expression}`,
+ * Exact corpus cases this engine does not run, grouped by family.
+ * `QUIRK_FAMILIES` are intentional divergences: every entry names the
+ * fhirpath.js/fhirpath-py behavior we do not inherit and the evidence for our
+ * reading. `DEFERRED_FEATURES` are cases that need a feature the README lists
+ * as deferred. Keys are `${file}||${expression}`,
  * `${file}@${model}||${expression}` to match only cases run with that model
  * (`none` for model-free cases), or `${file}#${desc}||${expression}` to match one
  * of several cases with the same expression. The harness fails when an entry shields no case,
@@ -148,28 +150,6 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     ],
   },
   {
-    name: 'full-ucum-table',
-    evidence:
-      'Offset and logarithmic units (Cel, [degF], K, B) need a complete UCUM implementation \u2014 a deferred feature (README register).',
-    keys: [
-      "5.5_conversion.yaml||'0 \\'Cel\\''.toQuantity('K') = 273.15 'K'",
-      "5.5_conversion.yaml||'23 \\'Cel\\''.toQuantity('[degF]') ~ 73.4 '[degF]'",
-      "5.5_conversion.yaml||'73.4 \\'[degF]\\''.toQuantity('Cel') ~ 23 'Cel'",
-      "6.1_equality.yaml||0 'Cel' ~ 273.15 'K'",
-      "6.1_equality.yaml||23 'Cel' ~ 73.4 '[degF]'",
-      "6.1_equality.yaml||73.4 '[degF]' ~ 23 'Cel'",
-      "6.2_comparision.yaml||0 'Cel' <= 273.15 'K'",
-      "6.2_comparision.yaml||0 'Cel' >= 273.15 'K'",
-      "6.2_comparision.yaml||23 'Cel' < 72 '[degF]'",
-      "6.2_comparision.yaml||23 'Cel' > 72 '[degF]'",
-      "6.6_math.yaml||1 'B' * 2",
-      "6.6_math.yaml||1 'B' + 1 'B'",
-      "6.6_math.yaml||1 'B' - 1 'B'",
-      "6.6_math.yaml||1 'B' / 2",
-      "6.6_math.yaml||1 'B' / 2 '1'",
-    ],
-  },
-  {
     name: 'equivalence-rounding',
     evidence:
       'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec "~ (Equivalent)" says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding.',
@@ -269,8 +249,53 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     ],
   },
   {
-    name: 'deferred-factory-api',
-    evidence: 'The %factory type-factory API (R5 draft, maturity 0) is a deferred feature — see the README register.',
+    name: 'empty-operand-error',
+    evidence:
+      'Cases disabled upstream that expect an error for an empty operand. Spec "Math" operators return empty when either operand is empty, and the same file expects [] for n1 + n4.',
+    keys: [
+      '6.6_math.yaml#** Error adding missing numbers||n1 + n4',
+      '6.6_math.yaml||MathTestData.n1 div MathTestData.n4',
+      '6.6_math.yaml||MathTestData.n1 mod MathTestData.n4',
+    ],
+  },
+  {
+    name: 'too-many-values-singletons',
+    evidence:
+      'A case disabled upstream that expects a too-many-values error, but a and h are single integers (1 and 2) in the test data, so a <= h is true; the same file expects [true].',
+    keys: ['6.2_comparision.yaml#less than equal, with too many values||a <= h'],
+  },
+]
+
+/**
+ * Features the README defers, with the corpus cases that need them. Each entry
+ * names the feature; the cases run once it ships.
+ */
+export const DEFERRED_FEATURES: QuirkFamily[] = [
+  {
+    name: 'full-ucum-table',
+    evidence:
+      'UCUM special units need more than the multiplicative unit table: Celsius and Fahrenheit convert to kelvin with an offset, and logarithmic units such as the bel (B) take no arithmetic. README: deferred features, Full UCUM.',
+    keys: [
+      "5.5_conversion.yaml||'0 \\'Cel\\''.toQuantity('K') = 273.15 'K'",
+      "5.5_conversion.yaml||'23 \\'Cel\\''.toQuantity('[degF]') ~ 73.4 '[degF]'",
+      "5.5_conversion.yaml||'73.4 \\'[degF]\\''.toQuantity('Cel') ~ 23 'Cel'",
+      "6.1_equality.yaml||0 'Cel' ~ 273.15 'K'",
+      "6.1_equality.yaml||23 'Cel' ~ 73.4 '[degF]'",
+      "6.1_equality.yaml||73.4 '[degF]' ~ 23 'Cel'",
+      "6.2_comparision.yaml||0 'Cel' <= 273.15 'K'",
+      "6.2_comparision.yaml||0 'Cel' >= 273.15 'K'",
+      "6.2_comparision.yaml||23 'Cel' < 72 '[degF]'",
+      "6.2_comparision.yaml||23 'Cel' > 72 '[degF]'",
+      "6.6_math.yaml||1 'B' * 2",
+      "6.6_math.yaml||1 'B' + 1 'B'",
+      "6.6_math.yaml||1 'B' - 1 'B'",
+      "6.6_math.yaml||1 'B' / 2",
+      "6.6_math.yaml||1 'B' / 2 '1'",
+    ],
+  },
+  {
+    name: 'factory-api',
+    evidence: 'The %factory type-factory API (R5 draft, maturity 0). README: deferred features, %factory.',
     keys: [
       "6.1_equality.yaml||(%factory.date('2024-01-01', %factory.Extension('someExt', 'someString')) =\n %factory.date('2024-01-01', %factory.Extension('someExt', 'someString'))) |\n(%factory.date('2024-01-01', %factory.Extension('someExt', 'someString1')) =\n %factory.date('2024-01-01', %factory.Extension('someExt', 'someString2')))",
       "factory.yaml||%factory.Address('5 Nowhere Road' | 'second line', 'SomeCity', 'EW', '0000', {}, 'home', 'physical').where(line = ('5 Nowhere Road' | 'second line') and city = 'SomeCity' and state = 'EW' and postalCode = '0000' and country.empty() and use = 'home' and type = 'physical') is Address",
@@ -332,24 +357,14 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
     ],
   },
   {
-    name: 'empty-operand-error',
+    name: 'typed-element-context',
     evidence:
-      'Cases disabled upstream that expect an error for an empty operand. Spec "Math" operators return empty when either operand is empty, and the same file expects [] for n1 + n4.',
-    keys: [
-      '6.6_math.yaml#** Error adding missing numbers||n1 + n4',
-      '6.6_math.yaml||MathTestData.n1 div MathTestData.n4',
-      '6.6_math.yaml||MathTestData.n1 mod MathTestData.n4',
-    ],
-  },
-  {
-    name: 'too-many-values-singletons',
-    evidence:
-      'A case disabled upstream that expects a too-many-values error, but a and h are single integers (1 and 2) in the test data, so a <= h is true; the same file expects [true].',
-    keys: ['6.2_comparision.yaml#less than equal, with too many values||a <= h'],
+      "fhirpath.js's {base, expression} form evaluates the expression with the raw input typed as the base path (here a QuestionnaireResponse.item), so answer.value resolves its choice type. This engine has no public way to type raw input as a backbone element yet: issue #119.",
+    keys: ['simple.yaml||answer.value = 2 year'],
   },
 ]
 
-/** Models the engine does not ship yet; cases are skipped with this reason. */
+/** FHIR versions the engine does not ship a model for; their cases are skipped with this reason. */
 export const SKIPPED_MODELS: Readonly<Record<string, string>> = {
   r5: 'needs the R5 model package (deferred; the R4 model ships first)',
   stu3: 'STU3 model is out of scope',
@@ -358,7 +373,8 @@ export const SKIPPED_MODELS: Readonly<Record<string, string>> = {
 
 /**
  * Corpus files that copy official-suite cases. `official.test.ts` runs those
- * cases directly, with the suite's modes and skips, so cases disabled upstream
- * in these files stay skipped here.
+ * suites directly, with their modes, predicates, and skips, so the corpus test
+ * leaves these files out; a hygiene test checks that each of their cases is in
+ * the vendored official suites.
  */
 export const OFFICIAL_SUITE_COPIES: readonly string[] = ['fhir-r4.yaml', 'fhir-r5.yaml']

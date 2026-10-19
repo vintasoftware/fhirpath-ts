@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs'
 
 import {
+  DEFERRED_FEATURES,
   OFFICIAL_SUITE_COPIES,
   QUIRK_FAMILIES,
   type QuirkFamily,
   SKIPPED_MODELS,
 } from '../../test-data/fhirpathjs/quirk-manifest.ts'
+import { SKIP_CATEGORY_LABELS } from '../../test-data/official/skip-manifest.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate } from '../api/evaluate.ts'
 import { r4Model } from '../r4/index.ts'
@@ -49,36 +51,56 @@ function loadResource(name: string): unknown {
   return structuredClone(resourceCache.get(name))
 }
 
-/** Why a corpus case is skipped: a quirk family with the manifest key that names the case, or another reason. */
-export type CaseSkip = { kind: 'quirk'; family: QuirkFamily; key: string } | { kind: 'other'; reason: string }
+/**
+ * Why a corpus case is not run: another FHIR version's model, an intentional
+ * divergence (quirk), or a feature the README defers. `official-copy` marks a
+ * case of a file `official.test.ts` runs instead; the corpus test leaves those
+ * files out, so it never reports one as skipped.
+ */
+export type CaseSkip =
+  | { kind: 'fhir-version'; reason: string }
+  | { kind: 'quirk' | 'deferred'; family: QuirkFamily; key: string }
+  | { kind: 'official-copy'; reason: string }
+
+export function isOfficialSuiteCopy(file: string): boolean {
+  return OFFICIAL_SUITE_COPIES.includes(file)
+}
 
 export function classifyCase(test: CorpusTest, expression: string, file: string): CaseSkip | undefined {
-  if ((test.disable === true || test.inheritedDisable === true) && OFFICIAL_SUITE_COPIES.includes(file)) {
-    return { kind: 'other', reason: 'disabled upstream; official.test.ts runs this official-suite case' }
-  }
-  if (typeof test.expression === 'object' && !Array.isArray(test.expression)) {
-    return { kind: 'other', reason: 'non-string expression (fhirpath.js internal AST form)' }
+  if ((test.disable === true || test.inheritedDisable === true) && isOfficialSuiteCopy(file)) {
+    return { kind: 'official-copy', reason: 'disabled upstream; official.test.ts runs this official-suite case' }
   }
   if (test.model !== undefined && test.model !== 'r4') {
-    return { kind: 'other', reason: SKIPPED_MODELS[test.model] ?? `unknown model ${test.model}` }
+    return { kind: 'fhir-version', reason: SKIPPED_MODELS[test.model] ?? `unknown model ${test.model}` }
   }
-  const quirk = matchQuirk(file, test, expression)
-  return quirk === undefined ? undefined : { kind: 'quirk', ...quirk }
+  return matchQuirk(file, test, expression)
 }
 
 /** Why a case is skipped, or undefined when it should run. */
 export function skipReason(test: CorpusTest, expression: string, file: string): string | undefined {
   const skip = classifyCase(test, expression, file)
-  if (skip === undefined) {
-    return undefined
+  switch (skip?.kind) {
+    case undefined:
+      return undefined
+    case 'fhir-version':
+      return `${SKIP_CATEGORY_LABELS[skip.kind]}: ${skip.reason}`
+    case 'quirk':
+    case 'deferred':
+      return `${SKIP_CATEGORY_LABELS[skip.kind]}: ${skip.family.name}`
+    case 'official-copy':
+      return skip.reason
   }
-  return skip.kind === 'quirk' ? `intentional divergence: ${skip.family.name}` : skip.reason
 }
 
-const QUIRK_INDEX = new Map<string, QuirkFamily>()
-for (const family of QUIRK_FAMILIES) {
-  for (const key of family.keys) {
-    QUIRK_INDEX.set(key, family)
+const FAMILY_INDEX = new Map<string, { kind: 'quirk' | 'deferred'; family: QuirkFamily }>()
+for (const [kind, families] of [
+  ['quirk', QUIRK_FAMILIES],
+  ['deferred', DEFERRED_FEATURES],
+] as const) {
+  for (const family of families) {
+    for (const key of family.keys) {
+      FAMILY_INDEX.set(key, { kind, family })
+    }
   }
 }
 
@@ -91,15 +113,16 @@ function caseKeys(file: string, test: CorpusTest, expression: string): string[] 
   return keys
 }
 
+/** The quirk or deferred-feature family whose manifest key names this case. */
 export function matchQuirk(
   file: string,
   test: CorpusTest,
   expression: string
-): { family: QuirkFamily; key: string } | undefined {
+): { kind: 'quirk' | 'deferred'; family: QuirkFamily; key: string } | undefined {
   for (const key of caseKeys(file, test, expression)) {
-    const family = QUIRK_INDEX.get(key)
-    if (family !== undefined) {
-      return { family, key }
+    const entry = FAMILY_INDEX.get(key)
+    if (entry !== undefined) {
+      return { ...entry, key }
     }
   }
   return undefined
