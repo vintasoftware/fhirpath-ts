@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { ANALYZER_SKIP_MANIFEST } from '../../test-data/official/analyzer-skip-manifest.ts'
-import { SKIP_MANIFEST } from '../../test-data/official/skip-manifest.ts'
+import { PHASE_OVERRIDES, SKIP_MANIFEST } from '../../test-data/official/skip-manifest.ts'
 import { r4Model } from '../r4/index.ts'
 import {
   casesMatching,
@@ -17,8 +17,10 @@ import { analyzeExpression } from './analyze.ts'
 /**
  * Runs the analyzer over the official suites. Syntax, semantic, and strict cases
  * must report an error; valid cases must report none. Execution-only failures
- * are excluded. Runtime feature skips and the analyzer skip manifest apply with
- * stale-entry checks.
+ * must parse: the analyzer may still prove some of them wrong, but a syntax
+ * diagnostic contradicts the suite unless a phase override says the grammar
+ * rejects the case. Runtime feature skips and the analyzer skip manifest apply
+ * with stale-entry checks.
  */
 
 const suites: Record<SuiteName, OfficialGroup[]> = {
@@ -57,11 +59,26 @@ for (const suite of ['r4', 'r5'] as const) {
           const title = `${test.name}: ${test.expression.slice(0, 100)}`
           const skipReason =
             findSkipReason(suite, group, test, RUNTIME_SKIPS) ??
-            findSkipReason(suite, group, test, ANALYZER_SKIP_MANIFEST) ??
-            (test.skipStaticCheck ? 'suite marks this case skipStaticCheck' : undefined) ??
-            (test.invalid === 'execution' ? 'execution-time failures are beyond static checking' : undefined)
+            findSkipReason(suite, group, test, ANALYZER_SKIP_MANIFEST)
           if (skipReason !== undefined) {
             it.skip(`${title} [${skipReason}]`, () => {})
+            continue
+          }
+          if (test.invalid === 'execution') {
+            it(title, () => {
+              const rejectedByGrammar = PHASE_OVERRIDES.some(
+                entry =>
+                  entry.suite === suite &&
+                  entry.group === group.name &&
+                  entry.test === test.name &&
+                  entry.throws === 'syntax'
+              )
+              const diagnostics = analyzeCase(suite, test)
+              expect(
+                diagnostics.some(d => d.code === 'syntax'),
+                `syntax diagnostic ${rejectedByGrammar ? 'expected' : 'unexpected'}: ${describeDiagnostics(diagnostics) || 'none'}`
+              ).toBe(rejectedByGrammar)
+            })
             continue
           }
           if (mustError(test)) {

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import {
   PHASE_OVERRIDES,
   type PhaseName,
+  SKIP_CATEGORY_LABELS,
   SKIP_MANIFEST,
   type SkipEntry,
 } from '../../test-data/official/skip-manifest.ts'
@@ -28,7 +29,7 @@ export interface OfficialTest {
   invalid?: string
   predicate?: boolean
   mode?: string
-  /** Suite marker: valid to evaluate but not statically checkable; the analyzer conformance test skips it. */
+  /** Suite marker for cases some static checkers cannot handle; this analyzer checks them like any other case. */
   skipStaticCheck?: boolean
   outputs: OfficialOutput[]
 }
@@ -63,7 +64,8 @@ export function findSkipReason(
   test: OfficialTest,
   manifest: SkipEntry[] = SKIP_MANIFEST
 ): string | undefined {
-  return manifest.find(entry => skipMatches(entry, suite, group, test))?.reason
+  const entry = manifest.find(candidate => skipMatches(candidate, suite, group, test))
+  return entry === undefined ? undefined : `${SKIP_CATEGORY_LABELS[entry.category]}: ${entry.reason}`
 }
 
 /** The fixture's resourceType, for seeding the analyzer's input type. */
@@ -73,7 +75,10 @@ export function fixtureResourceType(suite: SuiteName, inputfile: string): string
   return typeof resourceType === 'string' ? resourceType : undefined
 }
 
-function skipMatches(entry: SkipEntry, suite: SuiteName, group: OfficialGroup, test: OfficialTest): boolean {
+/** The fields that pick suite cases, shared by skip entries and phase overrides. */
+type CaseSelector = Pick<SkipEntry, 'suite' | 'group' | 'test' | 'mode'>
+
+function skipMatches(entry: CaseSelector, suite: SuiteName, group: OfficialGroup, test: OfficialTest): boolean {
   return (
     entry.suite === suite &&
     (entry.group === undefined || entry.group === group.name) &&
@@ -84,7 +89,7 @@ function skipMatches(entry: SkipEntry, suite: SuiteName, group: OfficialGroup, t
 
 /** Every suite case a manifest entry matches — the hygiene tests derive existence and per-case checks from this. */
 export function casesMatching(
-  entry: SkipEntry,
+  entry: CaseSelector,
   suites: Record<SuiteName, OfficialGroup[]>
 ): { group: OfficialGroup; test: OfficialTest }[] {
   const matches: { group: OfficialGroup; test: OfficialTest }[] = []
