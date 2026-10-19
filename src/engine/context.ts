@@ -1,4 +1,4 @@
-import { FhirPathTypeError } from '../errors.ts'
+import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
@@ -321,6 +321,10 @@ export function resolveEnvironmentVariable(context: EvaluationContext, name: str
   }
   if (name.startsWith('ext-')) {
     return [{ type: SYSTEM_STRING, value: `http://hl7.org/fhir/StructureDefinition/${name.slice(4)}` }]
+  }
+  // Only a provider binds the spec's terminology service (see createContext).
+  if (name === 'terminologies') {
+    throw new FhirPathRuntimeError('%terminologies needs evaluateAsync() with options.terminology')
   }
   throw new FhirPathTypeError(`Undefined environment variable %${name}`)
 }

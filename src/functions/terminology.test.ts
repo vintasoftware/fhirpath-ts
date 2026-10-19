@@ -422,9 +422,11 @@ describe('%terminologies API', () => {
     ).rejects.toThrow('lookup() is only available on %terminologies')
   })
 
-  it('%terminologies is undefined without a provider', () => {
-    expect(() => evaluate('%terminologies', observation, { model: r4Model })).toThrow(
-      'Undefined environment variable %terminologies'
+  it('%terminologies points to evaluateAsync() without a provider', async () => {
+    const message = '%terminologies needs evaluateAsync() with options.terminology'
+    expect(() => evaluate("%terminologies.expand('urn:vs')", observation, { model: r4Model })).toThrow(message)
+    await expect(evaluateAsync("%terminologies.expand('urn:vs')", observation, { model: r4Model })).rejects.toThrow(
+      message
     )
   })
 })
