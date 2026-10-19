@@ -10,8 +10,6 @@ export interface AsyncServices {
   readonly terminology: TerminologyProvider | undefined
 }
 
-type Requests = ReadonlyMap<string, () => Promise<unknown>>
-
 /**
  * Control-flow signal for the suspend-and-replay async strategy. The evaluator
  * stays synchronous: when a function needs a value only an async provider can
@@ -22,10 +20,17 @@ type Requests = ReadonlyMap<string, () => Promise<unknown>>
  * should never observe it.
  */
 class AsyncSuspension {
-  readonly requests: Requests
+  readonly requests: Map<string, () => Promise<unknown>>
 
-  constructor(requests: Requests) {
+  constructor(requests: Map<string, () => Promise<unknown>>) {
     this.requests = requests
+  }
+
+  /** Adds a later suspension's requests; false when `error` is a real failure. */
+  absorb(error: unknown): boolean {
+    if (!(error instanceof AsyncSuspension)) return false
+    for (const [key, run] of error.requests) this.requests.set(key, run)
+    return true
   }
 }
 
@@ -40,38 +45,57 @@ export function requestAsync(services: AsyncServices, key: string, run: () => Pr
   return services.cache.get(key)
 }
 
-/**
- * Runs `step` for each item without letting one item's suspension stop the
- * others, so a replay collects the requests of every independent item and
- * awaits them together, as fhirpath.js starts them together. Callers pass items
- * whose evaluations do not read each other's results, so an answer one item
- * waits for cannot change what another asks. A failure after an item suspended
- * is set aside for that suspension: the replay reaches it again, in order, with
- * the answers in place.
+/*
+ * Independent work keeps running after one part suspends, so a replay collects
+ * the requests of every independent part and awaits them together, as
+ * fhirpath.js starts them together. Callers pass parts whose evaluations do not
+ * read each other's results, so an answer one part waits for cannot change what
+ * another asks. A failure after a part suspended is set aside for that
+ * suspension: the replay reaches it again, in order, with the answers in place.
+ * Sync evaluation never suspends, so it pays only for the try.
  */
+
+/** Runs `step` for each item, collecting the requests of every item that suspends. */
 export function forEachCollecting<T>(items: readonly T[], step: (item: T, index: number) => void): void {
-  let pending: Map<string, () => Promise<unknown>> | undefined
+  let pending: AsyncSuspension | undefined
   for (let index = 0; index < items.length; index++) {
     try {
       step(items[index] as T, index)
     } catch (error) {
-      if (!(error instanceof AsyncSuspension)) {
-        if (pending === undefined) throw error
+      if (pending === undefined) {
+        if (!(error instanceof AsyncSuspension)) throw error
+        pending = error
+      } else if (!pending.absorb(error)) {
         break
       }
-      pending ??= new Map()
-      for (const [key, run] of error.requests) pending.set(key, run)
     }
   }
-  if (pending !== undefined) throw new AsyncSuspension(pending)
+  if (pending !== undefined) throw pending
+}
+
+/**
+ * What to throw after `error` stopped one part: a suspension also collects the
+ * requests of the independent `rest`; anything else is thrown as is.
+ */
+export function alsoCollecting(error: unknown, rest: () => unknown): unknown {
+  if (error instanceof AsyncSuspension) {
+    try {
+      rest()
+    } catch (later) {
+      error.absorb(later)
+    }
+  }
+  return error
 }
 
 /**
  * The catch half of the protocol: run `attempt` until it completes without
  * suspending, awaiting each suspension's requests concurrently and caching
- * them in between. Each replay resolves at least one request the cache did not
- * have, so the loop terminates — a deterministic attempt can only suspend
- * finitely often.
+ * the answers in between. Every request settles before the next step, and a
+ * rejection propagates in request order, so the reported failure does not
+ * depend on which provider answers first. Each replay resolves at least one
+ * request the cache did not have, so the loop terminates — a deterministic
+ * attempt can only suspend finitely often.
  */
 export async function resolveSuspensions<T>(attempt: (cache: Map<string, unknown>) => T): Promise<T> {
   const cache = new Map<string, unknown>()
@@ -83,8 +107,11 @@ export async function resolveSuspensions<T>(attempt: (cache: Map<string, unknown
         throw error
       }
       const requests = [...error.requests]
-      const answers = await Promise.all(requests.map(([, run]) => run()))
-      requests.forEach(([key], index) => cache.set(key, answers[index]))
+      const answers = await Promise.allSettled(requests.map(([, run]) => run()))
+      for (const [index, answer] of answers.entries()) {
+        if (answer.status === 'rejected') throw answer.reason
+        cache.set((requests[index] as [string, unknown])[0], answer.value)
+      }
     }
   }
 }

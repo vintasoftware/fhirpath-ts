@@ -712,6 +712,18 @@ describe('evaluateAsync', () => {
     expect(provider.calls).toHaveLength(1)
   })
 
+  it('propagates the first rejected request in evaluation order, whichever rejects first', async () => {
+    const lookup = async (coded: unknown) => {
+      // 'a' rejects after 'b' does.
+      if (codeOf(coded) === 'a') for (let tick = 0; tick < 3; tick++) await null
+      throw new Error(`lookup ${String(codeOf(coded))} failed`)
+    }
+    const coding = ['a', 'b'].map(code => ({ system: 'urn:scores', code }))
+    await expect(
+      evaluateAsync('code.coding.weight()', { ...observation, code: { coding } }, asyncOptions({ lookup }))
+    ).rejects.toThrow('lookup a failed')
+  })
+
   it('protects a configured terminology service from host variable overrides', async () => {
     const options = asyncOptions(stubProvider())
     await expect(
