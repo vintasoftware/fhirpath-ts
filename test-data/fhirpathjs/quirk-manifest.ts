@@ -153,7 +153,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'equivalence-rounding',
     evidence:
-      'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec "~ (Equivalent)" says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding.',
+      'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec "~ (Equivalent)" says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding. For quantities it also compares in the more granular unit, while the official suite pins 4 \'g\' ~ 4040 \'mg\' (testQuantity4): compared in the less precise unit, 74 \'[degF]\' (23.3 \'Cel\') is equivalent to 23 \'Cel\'.',
     keys: [
       '6.1_equality.yaml||0.00000011 ~ 0.00000010',
       '6.1_equality.yaml||1.1 ~ 1.0',
@@ -161,6 +161,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       '6.1_equality.yaml||1.10 ~ 1.00',
       '6.1_equality.yaml||1.100 ~ 1.101',
       "6.1_equality.yaml||4 'g' !~ 4040 'mg'",
+      "6.1_equality.yaml||23 'Cel' !~ 74 '[degF]'",
       '6.1_equality.yaml||Ops.complex ~ Ops.complexsimilar',
     ],
   },
@@ -340,28 +341,6 @@ export const MODEL_DIFFERENCES: QuirkFamily[] = [
  * names the feature; the cases run once it ships.
  */
 export const DEFERRED_FEATURES: QuirkFamily[] = [
-  {
-    name: 'full-ucum-table',
-    evidence:
-      'UCUM special units need more than the multiplicative unit table: Celsius and Fahrenheit convert to kelvin with an offset, and logarithmic units such as the bel (B) take no arithmetic. README: deferred features, Full UCUM.',
-    keys: [
-      "5.5_conversion.yaml||'0 \\'Cel\\''.toQuantity('K') = 273.15 'K'",
-      "5.5_conversion.yaml||'23 \\'Cel\\''.toQuantity('[degF]') ~ 73.4 '[degF]'",
-      "5.5_conversion.yaml||'73.4 \\'[degF]\\''.toQuantity('Cel') ~ 23 'Cel'",
-      "6.1_equality.yaml||0 'Cel' ~ 273.15 'K'",
-      "6.1_equality.yaml||23 'Cel' ~ 73.4 '[degF]'",
-      "6.1_equality.yaml||73.4 '[degF]' ~ 23 'Cel'",
-      "6.2_comparision.yaml||0 'Cel' <= 273.15 'K'",
-      "6.2_comparision.yaml||0 'Cel' >= 273.15 'K'",
-      "6.2_comparision.yaml||23 'Cel' < 72 '[degF]'",
-      "6.2_comparision.yaml||23 'Cel' > 72 '[degF]'",
-      "6.6_math.yaml||1 'B' * 2",
-      "6.6_math.yaml||1 'B' + 1 'B'",
-      "6.6_math.yaml||1 'B' - 1 'B'",
-      "6.6_math.yaml||1 'B' / 2",
-      "6.6_math.yaml||1 'B' / 2 '1'",
-    ],
-  },
   {
     name: 'typed-element-context',
     evidence:

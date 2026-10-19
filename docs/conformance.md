@@ -78,7 +78,7 @@ The package also runs tests from
 
 | Corpus | Passing | Skipped with a reason |
 | --- | ---: | ---: |
-| fhirpath.js cases plus fhirpath-py additions | 1,425 | 260 |
+| fhirpath.js cases plus fhirpath-py additions | 1,439 | 246 |
 
 The corpus's copies of the official suites (`fhir-r4.yaml` and `fhir-r5.yaml`)
 are left out: `official.test.ts` runs those suites directly, with their modes
@@ -89,10 +89,9 @@ Other cases disabled upstream run here. The skips, by category:
   DSTU2, and 57 use the `%factory` API. `%factory` is not in
   [FHIR R4's FHIRPath page](https://hl7.org/fhir/R4/fhirpath.html); FHIR R5 adds
   it in section 2.1.9.3, "Type Factory", as a draft (maturity 0).
-- 152 are intentional differences, including four disabled upstream whose
+- 153 are intentional differences, including four disabled upstream whose
   expected result is wrong.
-- 16 need a deferred feature: 15 UCUM special units (Celsius, Fahrenheit, and
-  the bel) and one typed element context (#119).
+- 1 needs a deferred feature: a typed element context (#119).
 
 `test-data/fhirpathjs/quirk-manifest.ts` lists the version differences,
 intentional differences, and deferred features by family, each with its

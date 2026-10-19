@@ -19,7 +19,7 @@ import {
   systemTypeOf,
   type TypedValue,
 } from '../../values/typed-value.ts'
-import { canonicalizeUnit, sameDimensions } from '../../values/ucum.ts'
+import { canonicalizeUnit, isSpecialUnit, sameDimensions } from '../../values/ucum.ts'
 import type { BinaryOperatorTable, UnaryOperatorImpl } from './index.ts'
 
 type ArithmeticOperator = '+' | '-' | '*' | '/' | 'div' | 'mod'
@@ -73,6 +73,10 @@ function quantityArithmetic(operator: ArithmeticOperator, left: QuantityValue, r
     return [{ type: SYSTEM_QUANTITY, value: { value, unit: aligned.unit, calendar: aligned.calendar } }]
   }
   if (operator === '*' || operator === '/') {
+    // UCUM special units (temperatures, logarithmic units) do not scale.
+    if ((!left.calendar && isSpecialUnit(left.unit)) || (!right.calendar && isSpecialUnit(right.unit))) {
+      return []
+    }
     if (left.calendar || right.calendar) {
       return calendarMultiplicative(operator, left, right)
     }

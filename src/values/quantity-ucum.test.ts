@@ -109,3 +109,46 @@ describe('cross-unit quantity semantics', () => {
     expect(evaluate("2 weeks.toQuantity('d')")).toEqual([{ value: 14, unit: 'd' }])
   })
 })
+
+describe('UCUM special units', () => {
+  it('converts Celsius, Fahrenheit, and kelvin exactly through their offsets', () => {
+    expect(evaluate("'0 \\'Cel\\''.toQuantity('K')")).toEqual([{ value: 273.15, unit: 'K' }])
+    expect(evaluate("'23 \\'Cel\\''.toQuantity('[degF]')")).toEqual([{ value: 73.4, unit: '[degF]' }])
+    expect(evaluate("'-40 \\'[degF]\\''.toQuantity('Cel')")).toEqual([{ value: -40, unit: 'Cel' }])
+    expect(evaluate("'1000 \\'mK\\''.toQuantity('K')")).toEqual([{ value: 1, unit: 'K' }])
+    expect(evaluate("0 'Cel' = 273.15 'K'")).toEqual([true])
+    expect(evaluate("23 'Cel' = 73.4 '[degF]'")).toEqual([true])
+    expect(evaluate("(23 'Cel' | 73.4 '[degF]').count()")).toEqual([1])
+    expect(evaluate("23 'Cel' > 72 '[degF]'")).toEqual([true])
+    expect(evaluate("-1 'Cel' < 32 '[degF]'")).toEqual([true])
+  })
+
+  it('takes no arithmetic or sums, temperatures and logarithmic units alike', () => {
+    for (const expression of [
+      "1 'Cel' + 1 'Cel'",
+      "1 'Cel' + 1 'K'",
+      "2 'Cel' * 2",
+      "1 'dB' - 1 'dB'",
+      "1 'B' / 2 '1'",
+      "2 '[pH]' * 1",
+      "(1 'Cel' | 2 'Cel').sum()",
+    ]) {
+      expect(evaluate(expression), expression).toEqual([])
+    }
+    expect(evaluate("1 'K' + 1 'K'")).toEqual([{ value: 2, unit: 'K' }])
+  })
+
+  it('compares logarithmic units only with the same unit', () => {
+    expect(evaluate("1 'B' = 1 'B'")).toEqual([true])
+    expect(evaluate("1 'B' < 2 'B'")).toEqual([true])
+    expect(evaluate("1 'B' = 10 'dB'")).toEqual([])
+    expect(evaluate("'1 \\'B\\''.toQuantity('dB')")).toEqual([])
+  })
+
+  it('keeps offset units whole: no powers, compounds, or prefixes', () => {
+    for (const unit of ['Cel2', 'Cel/s', 'g.Cel', 'mCel']) {
+      expect(canonicalizeUnit(unit), unit).toBeUndefined()
+    }
+    expect(canonicalizeUnit('K/s')?.dimensions).toEqual({ K: 1, s: -1 })
+  })
+})

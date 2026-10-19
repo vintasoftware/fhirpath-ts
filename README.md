@@ -157,7 +157,10 @@ result.toOperationOutcome() // { resourceType: 'OperationOutcome', issue: [{ sev
 ### Convert quantities
 
 Known [UCUM](https://ucum.org/ucum) units compare and convert automatically.
-Unknown units can still compare with the same unit.
+Unknown units can still compare with the same unit. Celsius and Fahrenheit
+convert to kelvin with their offsets (`23 'Cel' = 73.4 '[degF]'`); like the
+bel and other logarithmic units, they take no arithmetic, so `1 'Cel' + 1 'Cel'`
+is empty.
 
 ```ts
 r4.filter(observations, "value.ofType(Quantity) > 140 'mm[Hg]'")

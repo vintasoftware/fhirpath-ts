@@ -1,7 +1,7 @@
 import { Decimal } from './decimal.ts'
 import { asNumeric } from './numeric.ts'
 import { type QuantityValue, SYSTEM_QUANTITY, type TypedValue, typeLocalName } from './typed-value.ts'
-import { canonicalizeUnit, sameDimensions } from './ucum.ts'
+import { canonicalizeUnit, fromBase, isSpecialUnit, sameDimensions, toBase } from './ucum.ts'
 
 /** FHIR Quantity and its specializations coerce to System.Quantity for comparison. */
 const FHIR_QUANTITY_TYPES = new Set([
@@ -223,7 +223,7 @@ export function quantityEqualityKey(quantity: QuantityValue): string {
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([dimension, exponent]) => `${dimension}${exponent}`)
     .join('.')
-  return `U${dimensions}|${decimalKey(quantity.value.multiply(canonical.factor))}`
+  return `U${dimensions}|${decimalKey(toBase(quantity.value, canonical))}`
 }
 
 function decimalKey(value: Decimal): string {
@@ -240,7 +240,7 @@ function compareUcum(a: QuantityValue, b: QuantityValue): -1 | 0 | 1 | undefined
   if (!(canonicalA && canonicalB && sameDimensions(canonicalA, canonicalB))) {
     return undefined
   }
-  return a.value.multiply(canonicalA.factor).compare(b.value.multiply(canonicalB.factor))
+  return toBase(a.value, canonicalA).compare(toBase(b.value, canonicalB))
 }
 
 /**
@@ -302,7 +302,7 @@ export function convertQuantity(quantity: QuantityValue, targetUnit: string): Qu
   if (!(source && target && sameDimensions(source, target))) {
     return undefined
   }
-  const converted = quantity.value.multiply(source.factor).divide(target.factor)
+  const converted = fromBase(toBase(quantity.value, source), target)
   return converted === undefined ? undefined : { value: converted, unit: targetUnit, calendar: false }
 }
 
@@ -345,12 +345,16 @@ function convertCalendar(
 
 /**
  * Bring two quantities to a shared unit for + and -; the spec picks the more
- * granular (smaller) unit of the two. Undefined when they cannot be converted.
+ * granular (smaller) unit of the two. Undefined when they cannot be converted,
+ * or when either has a UCUM special unit, whose values do not add.
  */
 export function alignQuantities(
   a: QuantityValue,
   b: QuantityValue
 ): { left: Decimal; right: Decimal; unit: string; calendar: boolean } | undefined {
+  if ((!a.calendar && isSpecialUnit(a.unit)) || (!b.calendar && isSpecialUnit(b.unit))) {
+    return undefined
+  }
   if (a.unit === b.unit && a.calendar === b.calendar) {
     return { left: a.value, right: b.value, unit: a.unit, calendar: a.calendar }
   }
