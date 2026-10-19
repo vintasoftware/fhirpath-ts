@@ -5,7 +5,15 @@ import ts from 'typescript'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeExpression } from '../analyzer/analyze.ts'
-import { type DtoInput, type DtoOptions, FhirPathEngine, type FhirTypeName, type ViewBaseClass } from '../index.ts'
+import {
+  type DtoInput,
+  type DtoOptions,
+  evaluateAsync,
+  FhirPathEngine,
+  type FhirTypeName,
+  type TerminologyProvider,
+  type ViewBaseClass,
+} from '../index.ts'
 import type {
   Appointment,
   Bundle,
@@ -477,6 +485,35 @@ describe('README usage recipes', () => {
     expect(r4.first('entry.count()', bundle)).toBe(1)
     expect(r4.filter(bundle, 'birthDate < @1990-01-01')).toEqual([patient])
     expect(r4.project(bundle, { id: 'id' })).toEqual([{ id: 'p1' }])
+  })
+
+  it('runs the API reference terminology example', async () => {
+    const vitals = 'http://hl7.org/fhir/ValueSet/observation-vitalsignresult'
+    const terminology: TerminologyProvider = {
+      validateVS: async (valueSet, coded) => ({
+        resourceType: 'Parameters',
+        parameter: [
+          { name: 'result', valueBoolean: valueSet === vitals && (coded as { code?: string }).code === '29463-7' },
+        ],
+      }),
+    }
+    const observation: Observation = {
+      resourceType: 'Observation',
+      status: 'final',
+      code: {
+        coding: [
+          { system: LOINC, code: '29463-7' },
+          { system: LOINC, code: '1234-5' },
+        ],
+      },
+    }
+    await expect(
+      evaluateAsync('Observation.code.coding.where(memberOf(%vitals)).code', observation, {
+        model: r4Model,
+        terminology,
+        env: { vitals },
+      })
+    ).resolves.toEqual(['29463-7'])
   })
 
   it('runs the type name and declared root examples', () => {

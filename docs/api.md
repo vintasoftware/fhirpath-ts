@@ -59,6 +59,58 @@ A function that needs the provider under `evaluate()`, or without one, raises an
 naming `evaluateAsync()` with `options.terminology`. A provider without the
 requested method also raises an error.
 
+For example, a provider that implements `validateVS` against a FHIR terminology
+server serves `memberOf()`. The other methods follow the same pattern with
+their operations (`ValueSet/$expand`, `CodeSystem/$lookup`, and so on):
+
+```ts
+import { evaluateAsync, type TerminologyProvider } from 'fhirpath-ts'
+import { r4Model } from 'fhirpath-ts/r4'
+
+const server = 'https://tx.example.org/fhir'
+
+/**
+ * POST a FHIR operation. Servers answer an unknown value set or code system with
+ * a 4xx OperationOutcome (400, 404, or 422): that is `undefined`, an answer the
+ * service cannot give. Authentication and server failures stay errors.
+ */
+async function operation(path: string, parameter: object[]): Promise<unknown> {
+  const response = await fetch(`${server}/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/fhir+json' },
+    body: JSON.stringify({ resourceType: 'Parameters', parameter }),
+  })
+  if (response.status === 401 || response.status === 403 || response.status >= 500) {
+    throw new Error(`Terminology server answered ${response.status}`)
+  }
+  return response.ok ? response.json() : undefined
+}
+
+const terminology: TerminologyProvider = {
+  validateVS: (valueSet, coded) =>
+    operation('ValueSet/$validate-code', [
+      typeof valueSet === 'string' ? { name: 'url', valueUri: valueSet } : { name: 'valueSet', resource: valueSet },
+      typeof coded === 'string'
+        ? { name: 'code', valueCode: coded }
+        : 'coding' in (coded as object)
+          ? { name: 'codeableConcept', valueCodeableConcept: coded }
+          : { name: 'coding', valueCoding: coded },
+    ]),
+}
+
+const observation = {
+  resourceType: 'Observation',
+  status: 'final',
+  code: { coding: [{ system: 'http://loinc.org', code: '29463-7' }] },
+}
+
+await evaluateAsync('Observation.code.coding.where(memberOf(%vitals)).code', observation, {
+  model: r4Model,
+  terminology,
+  env: { vitals: 'http://hl7.org/fhir/ValueSet/observation-vitalsignresult' },
+}) // ['29463-7']
+```
+
 The evaluator caches service answers per evaluation and replays the expression
 when answers arrive. Each distinct request calls its provider once. Requests
 from independent items (each item of `weight()`, `where()`, `select()`,

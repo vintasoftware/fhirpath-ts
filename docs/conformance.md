@@ -50,6 +50,23 @@ The manifest contains the exact case names and evidence. Entries marked
 `runtimeOnly` dispute an expected value, not a feature. The analyzer pass still
 runs those cases, because it checks diagnostics and not values.
 
+## Recorded terminology services
+
+Tests that need a terminology service replay recorded answers, so the suite runs
+offline. The official tx-mode cases replay tx.fhir.org answers from
+`test-data/official/r5/tx-fixtures.json` (`pnpm record:tx`). The cases in
+`src/testing/medplum-terminology.ts` replay a Medplum server's answers from
+`test-data/terminology/medplum.json` (`pnpm record:tx:medplum`). They cover
+`memberOf()`, Boolean subsumption, every `%terminologies` operation, and
+CodeSystem `weight()` lookup.
+
+Both recorders capture the engine's provider calls and the FHIR answers, not
+HTTP traffic, so credentials never reach a recording. The Medplum recorder
+creates a synthetic scored CodeSystem and ConceptMap for the recording, then
+deletes them. It strips server bookkeeping from the answers and refuses to write
+a recording that contains its credentials, access token, project id, or server
+host. Record with a client of a project that holds only synthetic data.
+
 ## Reference test corpora
 
 The package also runs tests from
