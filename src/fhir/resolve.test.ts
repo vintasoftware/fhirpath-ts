@@ -363,6 +363,39 @@ describe('external references via options.resolver', () => {
     ])
   })
 
+  it("passes a fetched Bundle's base to the references it holds", async () => {
+    const calls: [string, string | undefined][] = []
+    const resolver = async (reference: string, base: string | undefined) => {
+      calls.push([reference, base])
+      if (reference.endsWith('/Bundle/1'))
+        return {
+          resourceType: 'Bundle',
+          type: 'document',
+          signature: { who: { reference: 'Practitioner/p' } },
+          entry: [{ resource: { resourceType: 'Composition', author: [{ reference: 'Practitioner/q' }] } }],
+        }
+      return { resourceType: 'Practitioner', id: reference.split('/')[1], name: [{ family: base }] }
+    }
+    await expect(
+      evaluateAsync(
+        "('https://a.example/fhir/Bundle/1' | 'https://b.example/fhir/Bundle/1').resolve().select(signature.who.resolve() | entry.resource.author.resolve()).name.family",
+        {},
+        { ...options, resolver }
+      )
+    ).resolves.toEqual([
+      'https://a.example/fhir',
+      'https://a.example/fhir',
+      'https://b.example/fhir',
+      'https://b.example/fhir',
+    ])
+    expect(calls.slice(2)).toEqual([
+      ['Practitioner/p', 'https://a.example/fhir'],
+      ['Practitioner/q', 'https://a.example/fhir'],
+      ['Practitioner/p', 'https://b.example/fhir'],
+      ['Practitioner/q', 'https://b.example/fhir'],
+    ])
+  })
+
   it('keeps Bundle-contained and Bundle entry resolution local with a resolver configured', async () => {
     const { calls, resolver } = stubResolver()
     await expect(

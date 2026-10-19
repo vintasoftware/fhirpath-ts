@@ -74,9 +74,11 @@ function resolveFragment(reference: string, item: TypedValue, root: TypedValue |
 
 /**
  * Where a reference is written: the Bundle it resolves in, and the server base
- * of the resource that holds it, from that resource's Bundle entry fullUrl or
- * from the external reference that fetched it. A literal or a reference in the
- * input resolves in the input Bundle, with no known base.
+ * of the resource that holds it. Inside a Bundle that is the entry's fullUrl,
+ * or else the base the Bundle itself was fetched from (for `signature.who`, or
+ * an entry without a fullUrl); outside one, the base its fetched resource came
+ * from. A literal or a reference in the input resolves in the input Bundle,
+ * with no known base.
  */
 function referenceScope(
   item: TypedValue,
@@ -85,9 +87,10 @@ function referenceScope(
   let previous: TypedValue | undefined
   for (const node of ancestors(item)) {
     if (record(node.value)?.['resourceType'] === 'Bundle') {
-      // The node below a Bundle is the entry that holds the resource.
+      // An entry, when the reference sits in one, names its resource's own base.
       const fullUrl = previous === undefined ? undefined : record(previous.value)?.['fullUrl']
-      return { bundle: node, base: typeof fullUrl === 'string' ? serverBase(fullUrl) : undefined }
+      const entryBase = typeof fullUrl === 'string' ? serverBase(fullUrl) : undefined
+      return { bundle: node, base: entryBase ?? externalBases.get(node) }
     }
     previous = node
   }

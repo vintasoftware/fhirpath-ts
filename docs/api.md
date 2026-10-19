@@ -141,8 +141,8 @@ Independent references, such as the items of one `resolve()` call, are requested
 
 The engine passes the reference unchanged. For a relative reference, `base` is
 the server base of the resource that holds it, when known: from its Bundle entry
-`fullUrl`, or from the absolute reference that fetched it (or the base that one
-was resolved against). FHIR resolves a relative reference against that base.
+`fullUrl`, or else from the absolute reference that fetched it or the Bundle
+holding it (or the base that one was resolved against). FHIR resolves a relative reference against that base.
 A reference in the input with no `fullUrl`, or a string literal, has no base.
 The host chooses how to resolve it, including the default server base,
 credentials, and request policy.
