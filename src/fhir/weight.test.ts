@@ -146,7 +146,7 @@ describe('SDC weight()', () => {
       item: [{ linkId: 'first', answer: [{ valueCoding: coding('yes', 'urn:other') }] }],
     }
     expect(() => evaluate('item.answer.value.weight()', otherSystem, options)).toThrow(
-      /terminology provider|CodeSystem/
+      'weight() needs evaluateAsync() with options.terminology'
     )
   })
 
@@ -196,7 +196,7 @@ describe('SDC weight()', () => {
     ).toThrow('answerValueSet')
     expect(() =>
       evaluate('code.coding.weight()', { resourceType: 'Observation', code: { coding: [coding('a')] } }, options)
-    ).toThrow(/terminology provider|CodeSystem/)
+    ).toThrow('weight() needs evaluateAsync() with options.terminology')
     expect(() => evaluate('gender.weight()', { resourceType: 'Patient', gender: 'male' }, options)).toThrow(
       'CodeSystem'
     )

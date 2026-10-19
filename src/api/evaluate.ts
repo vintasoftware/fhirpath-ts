@@ -1,4 +1,4 @@
-import { type AnyExpression, createCachedCompiler, type EvaluateOptions } from './compile.ts'
+import { type AnyExpression, type AsyncEvaluateOptions, createCachedCompiler, type EvaluateOptions } from './compile.ts'
 
 const compileCached = createCachedCompiler()
 
@@ -14,7 +14,7 @@ export function evaluate(expression: AnyExpression, input?: unknown, options?: E
 export function evaluateAsync(
   expression: AnyExpression,
   input?: unknown,
-  options?: EvaluateOptions
+  options?: AsyncEvaluateOptions
 ): Promise<unknown[]> {
   return compileCached(expression).evaluateAsync(input, options)
 }

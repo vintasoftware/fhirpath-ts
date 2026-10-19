@@ -1,5 +1,5 @@
 import type { CustomFunctionSignature } from '../analyzer/signatures.ts'
-import { resolveSuspensions } from '../engine/async.ts'
+import { type AsyncServices, resolveSuspensions } from '../engine/async.ts'
 import {
   createContext,
   envCollections,
@@ -96,10 +96,6 @@ export interface EvaluateOptions {
   /** Types for pre-resolved vars, or explicit overrides for expression vars. */
   varTypes?: FhirpathTypeDeclarations
   model?: ModelProvider
-  /** Async terminology operations used by evaluateAsync() and evaluateTypedAsync(). */
-  terminology?: TerminologyProvider
-  /** Async fallback for references absent from the local resource or Bundle. Fragment misses stay local. */
-  resolver?: ReferenceResolver
   /** Clock for `now()`, `today()`, and `timeOfDay()`. Defaults to the current time. */
   now?: Date
   /**
@@ -123,6 +119,14 @@ export interface EvaluateOptions {
    * as HTML (see README, Narrative checking).
    */
   narrativeSanitizer?: NarrativeSanitizer
+}
+
+/** What `evaluateAsync()` and `evaluateTypedAsync()` take: the sync options plus host services. */
+export interface AsyncEvaluateOptions extends EvaluateOptions {
+  /** Terminology operations for `memberOf()`, `subsumes()`, `subsumedBy()`, `weight()`, and `%terminologies`. */
+  terminology?: TerminologyProvider
+  /** Fallback for references absent from the local resource or Bundle. Fragment misses stay local. */
+  resolver?: ReferenceResolver
 }
 
 type CheckedOptionKeys<Options, Accepted> = string extends keyof Options
@@ -218,7 +222,7 @@ export class CompiledExpression<
   /** Evaluate with asynchronous services and unwrap the result. */
   async evaluateAsync<const Options extends object = EmptyFhirpathTypeContext>(
     input?: TInput,
-    options?: Declaring<Options>
+    options?: Declaring<Options, AsyncEvaluateOptions>
   ): Promise<CompiledExpressionResult<Expr, TResult, Root, Options>> {
     return (await this.evaluateTypedAsync(input, options)).map(unwrap) as CompiledExpressionResult<
       Expr,
@@ -229,7 +233,7 @@ export class CompiledExpression<
   }
 
   /** Retain FHIR types while awaiting provider results. */
-  async evaluateTypedAsync(input?: TInput, options?: EvaluateOptions): Promise<TypedValue[]> {
+  async evaluateTypedAsync(input?: TInput, options?: AsyncEvaluateOptions): Promise<TypedValue[]> {
     const root = toCollection(input)
     assertStrictExpression(this.ast, root, options, this.inputType)
     let traces: [string, TypedValue[]][] = []
@@ -240,9 +244,13 @@ export class CompiledExpression<
         if (options?.trace) traces.push([name, values])
       },
     })
-    const result = await resolveSuspensions(asyncCache => {
+    const result = await resolveSuspensions(cache => {
       traces = []
-      return evaluateNode(this.ast, contextFor(root, undefined, asyncCache), root)
+      return evaluateNode(
+        this.ast,
+        contextFor(root, undefined, { cache, terminology: options?.terminology, resolver: options?.resolver }),
+        root
+      )
     })
     for (const [name, values] of traces) options?.trace?.(name, values)
     return result
@@ -319,18 +327,16 @@ function planVars(vars: Record<string, AnyExpression | readonly TypedValue[]>): 
  */
 export function contextFactory(
   options: EvaluateOptions | undefined
-): (root: TypedValue[], extraEnv?: Record<string, unknown>, asyncCache?: Map<string, unknown>) => EvaluationContext {
+): (root: TypedValue[], extraEnv?: Record<string, unknown>, async?: AsyncServices) => EvaluationContext {
   const functions = options?.functions === undefined ? undefined : toHostFunctions(options.functions)
   const env = normalizeEnvKeys(options?.env)
   const vars = options?.vars === undefined ? undefined : planVars(options.vars)
-  return (root, extraEnv, asyncCache) => {
+  return (root, extraEnv, async) => {
     const context = createContext({
       root,
       env: extraEnv === undefined ? env : { ...env, ...extraEnv },
       model: options?.model,
-      terminology: options?.terminology,
-      resolver: options?.resolver,
-      asyncCache,
+      async,
       now: options?.now,
       trace: options?.trace,
       functions,

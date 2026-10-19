@@ -1,10 +1,14 @@
+import { forEachCollecting } from '../engine/async.ts'
 import { type EvaluationContext, withFrame } from '../engine/context.ts'
 import type { AstNode } from '../parser/ast.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 
 export type NodeEvaluator = (node: AstNode, context: EvaluationContext, input: TypedValue[]) => TypedValue[]
 
-/** Evaluate `expression` once per item with `$this` and `$index` bound. */
+/**
+ * Evaluate `expression` once per item with `$this` and `$index` bound. The
+ * items are independent, so their provider requests are collected together.
+ */
 export function perItem(
   context: EvaluationContext,
   input: TypedValue[],
@@ -12,7 +16,7 @@ export function perItem(
   evaluateNode: NodeEvaluator,
   each: (item: TypedValue, result: TypedValue[], index: number) => void
 ): void {
-  input.forEach((item, index) => {
+  forEachCollecting(input, (item, index) => {
     const result = withFrame(context, { thisValue: [item], index }, frameContext =>
       evaluateNode(expression, frameContext, [item])
     )

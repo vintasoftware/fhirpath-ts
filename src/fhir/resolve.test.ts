@@ -201,6 +201,24 @@ describe('external references via options.resolver', () => {
     expect(calls).toEqual([])
   })
 
+  it('requests independent references together', async () => {
+    const started: number[] = []
+    let inFlight = 0
+    const resolver = async (reference: string) => {
+      started.push(++inFlight)
+      await null
+      inFlight--
+      return registry[reference]
+    }
+    await expect(
+      evaluateAsync('(Patient.managingOrganization | Patient.generalPractitioner).resolve().id', subject, {
+        ...options,
+        resolver,
+      })
+    ).resolves.toEqual(['acme', 'dr-a'])
+    expect(started).toEqual([1, 2])
+  })
+
   it('asks the resolver once per distinct reference', async () => {
     const { calls, resolver } = stubResolver()
     await expect(
@@ -230,13 +248,9 @@ describe('external references via options.resolver', () => {
     }
   })
 
-  it('requires evaluateAsync() when an external reference actually needs the resolver', () => {
-    const { resolver } = stubResolver()
-    expect(() => evaluate('Patient.generalPractitioner.resolve()', subject, { ...options, resolver })).toThrow(
-      'resolve() of external references is only available with evaluateAsync()'
-    )
-    // Sync stays fine while everything resolves locally.
-    expect(evaluate('Patient.managingOrganization.resolve().name', patient, { ...options, resolver })).toEqual(['ACME'])
+  it('leaves external references empty under sync evaluate(), which takes no resolver', () => {
+    expect(evaluate('Patient.generalPractitioner.resolve()', subject, options)).toEqual([])
+    expect(evaluate('Patient.managingOrganization.resolve().name', patient, options)).toEqual(['ACME'])
   })
 
   it('resolver failures propagate', async () => {

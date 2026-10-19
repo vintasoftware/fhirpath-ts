@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { EvaluateOptions } from '../api/compile.ts'
+import type { AsyncEvaluateOptions } from '../api/compile.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate, evaluateAsync } from '../api/evaluate.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
@@ -89,7 +89,7 @@ function codeOf(coded: unknown): unknown {
   return value.code ?? value.coding?.[0]?.code
 }
 
-function asyncOptions(terminology: TerminologyProvider): EvaluateOptions {
+function asyncOptions(terminology: TerminologyProvider): AsyncEvaluateOptions {
   return { model: r4Model, terminology, env: { vs: VS_VITALS } }
 }
 
@@ -171,16 +171,11 @@ describe('memberOf', () => {
     expect(provider.calls).toHaveLength(2)
   })
 
-  it('fails under sync evaluate() with a pointer to evaluateAsync()', () => {
-    expect(() => evaluate('Observation.code.memberOf(%vs)', observation, asyncOptions(stubProvider()))).toThrow(
-      'memberOf() is only available with evaluateAsync()'
-    )
-  })
-
-  it('fails without a terminology provider', async () => {
-    await expect(
-      evaluateAsync('Observation.code.memberOf(%vs)', observation, { model: r4Model, env: { vs: VS_VITALS } })
-    ).rejects.toThrow('memberOf() needs a terminology provider (pass options.terminology)')
+  it('fails under sync evaluate() or without a provider with a pointer to evaluateAsync()', async () => {
+    const options = { model: r4Model, env: { vs: VS_VITALS } }
+    const message = 'memberOf() needs evaluateAsync() with options.terminology'
+    expect(() => evaluate('Observation.code.memberOf(%vs)', observation, options)).toThrow(message)
+    await expect(evaluateAsync('Observation.code.memberOf(%vs)', observation, options)).rejects.toThrow(message)
   })
 
   it('fails when the provider lacks the operation', async () => {
@@ -249,6 +244,15 @@ describe('subsumes / subsumedBy', () => {
     await expect(evaluateAsync('{}.subsumes(%panel)', observation, options)).resolves.toEqual([])
     await expect(evaluateAsync('%panel.subsumes({})', observation, options)).resolves.toEqual([])
     await expect(evaluateAsync("'code-string'.subsumedBy(%panel)", observation, options)).resolves.toEqual([])
+  })
+
+  it('does not treat a typed Quantity as a Coding', async () => {
+    const provider = stubProvider()
+    const input = { ...observation, valueQuantity: { value: 1, system: 'http://unitsofmeasure.org', code: 'mg' } }
+    const options = { model: r4Model, terminology: provider }
+    await expect(evaluateAsync('Observation.value.subsumes(Observation.value)', input, options)).resolves.toEqual([])
+    await expect(evaluateAsync('Observation.value.subsumedBy(%panel)', input, { ...options, env })).resolves.toEqual([])
+    expect(provider.calls).toEqual([])
   })
 
   it('enforces the single-argument form on coded inputs', async () => {
@@ -418,9 +422,11 @@ describe('%terminologies API', () => {
     ).rejects.toThrow('lookup() is only available on %terminologies')
   })
 
-  it('%terminologies is undefined without a provider', () => {
-    expect(() => evaluate('%terminologies', observation, { model: r4Model })).toThrow(
-      'Undefined environment variable %terminologies'
+  it('%terminologies points to evaluateAsync() without a provider', async () => {
+    const message = '%terminologies needs evaluateAsync() with options.terminology'
+    expect(() => evaluate("%terminologies.expand('urn:vs')", observation, { model: r4Model })).toThrow(message)
+    await expect(evaluateAsync("%terminologies.expand('urn:vs')", observation, { model: r4Model })).rejects.toThrow(
+      message
     )
   })
 })
@@ -542,7 +548,7 @@ describe('weight', () => {
 
   it('needs a provider when no extension answers', () => {
     expect(() => evaluate('code.coding.weight()', observation, { model: r4Model })).toThrow(
-      'weight() needs a terminology provider (pass options.terminology)'
+      'weight() needs evaluateAsync() with options.terminology'
     )
   })
 })
@@ -645,6 +651,77 @@ describe('evaluateAsync', () => {
     await expect(
       evaluateAsync('iif(false, code.memberOf(%vs), true)', observation, { model: r4Model, env: { vs: VS_VITALS } })
     ).resolves.toEqual([true])
+  })
+
+  it('requests the answers of independent items and operands together', async () => {
+    // Each call records how many calls are in flight when it starts: 1, 2, 3
+    // when they start together, 1, 1, 1 when one waits for another.
+    const started: number[] = []
+    let inFlight = 0
+    const answer = async <T>(value: T): Promise<T> => {
+      started.push(++inFlight)
+      await null
+      inFlight--
+      return value
+    }
+    const weighted = (code: string) => ({ system: 'urn:scores', code })
+    const provider: TerminologyProvider = {
+      validateVS: (_valueSet, coded) =>
+        answer({ resourceType: 'Parameters', parameter: [{ name: 'result', valueBoolean: codeOf(coded) === 'b' }] }),
+      lookup: coded =>
+        answer({
+          resourceType: 'Parameters',
+          parameter: [
+            {
+              name: 'property',
+              part: [
+                { name: 'code', valueCode: 'itemWeight' },
+                { name: 'value', valueDecimal: (codeOf(coded) as string).charCodeAt(0) - 96 },
+              ],
+            },
+          ],
+        }),
+    }
+    const input = { ...observation, code: { coding: ['a', 'b', 'c'].map(weighted) } }
+    const options = asyncOptions(provider)
+    await expect(evaluateAsync('code.coding.weight().sum()', input, options)).resolves.toEqual([6])
+    expect(started).toEqual([1, 2, 3])
+    started.length = 0
+    await expect(evaluateAsync('code.coding.where(memberOf(%vs)).code', input, options)).resolves.toEqual(['b'])
+    expect(started).toEqual([1, 2, 3])
+    started.length = 0
+    await expect(
+      evaluateAsync('code.coding[0].memberOf(%vs) or code.coding[1].memberOf(%vs)', input, options)
+    ).resolves.toEqual([true])
+    expect(started).toEqual([1, 2])
+  })
+
+  it('reports the first failing item, after the answers an earlier item waits for', async () => {
+    const provider = stubProvider()
+    const options = { model: r4Model, terminology: provider }
+    const noCode = { system: 'urn:scores' }
+    const weighted = { system: 'urn:scores', code: 'a' }
+    const message = 'weight() needs a Coding with a code for CodeSystem lookup'
+    await expect(
+      evaluateAsync('code.coding.weight()', { ...observation, code: { coding: [noCode, weighted] } }, options)
+    ).rejects.toThrow(message)
+    expect(provider.calls).toEqual([])
+    await expect(
+      evaluateAsync('code.coding.weight()', { ...observation, code: { coding: [weighted, noCode] } }, options)
+    ).rejects.toThrow(message)
+    expect(provider.calls).toHaveLength(1)
+  })
+
+  it('propagates the first rejected request in evaluation order, whichever rejects first', async () => {
+    const lookup = async (coded: unknown) => {
+      // 'a' rejects after 'b' does.
+      if (codeOf(coded) === 'a') for (let tick = 0; tick < 3; tick++) await null
+      throw new Error(`lookup ${String(codeOf(coded))} failed`)
+    }
+    const coding = ['a', 'b'].map(code => ({ system: 'urn:scores', code }))
+    await expect(
+      evaluateAsync('code.coding.weight()', { ...observation, code: { coding } }, asyncOptions({ lookup }))
+    ).rejects.toThrow('lookup a failed')
   })
 
   it('protects a configured terminology service from host variable overrides', async () => {

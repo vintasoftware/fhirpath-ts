@@ -52,16 +52,23 @@ answer; `weight()` reports unavailable lookups as errors to prevent partial tota
 A supplied empty, plural, or wrongly typed service argument returns empty
 without calling the provider. Omit the trailing parameter string or pass `''`
 when no additional parameters are needed.
-A missing method or provider raises an error. Synchronous evaluation that needs
-a provider directs the caller to `evaluateAsync()`.
+Only the asynchronous entry points take `terminology` and `resolver`: they belong
+to `AsyncEvaluateOptions`, not to `EvaluateOptions` or engine options. A function
+that needs the provider under `evaluate()`, or without one, raises an error
+naming `evaluateAsync()` with `options.terminology`. A provider without the
+requested method also raises an error.
 
 The evaluator caches service answers per evaluation and replays the expression
-when an answer arrives. Each distinct request calls its provider once. The
+when answers arrive. Each distinct request calls its provider once. Requests
+from independent items (each item of `weight()`, `where()`, `select()`,
+`all()`, `exists()`, and `repeat()`) and from the two operands of an operator
+start together, as in fhirpath.js. Only a request that needs an earlier
+answer waits for another round. The
 clock stays fixed and only the successful pass emits `trace()` output. Host
 functions may run again on replay: keep them deterministic and free of side
 effects, and keep input and environment values unchanged until evaluation ends.
-Work before a service call can repeat, so cost grows with the number of distinct
-requests and the expression's work. Provider rejections propagate to the caller.
+Work before a service call can repeat once per round, so cost grows with the
+depth of dependent requests and the expression's work. Provider rejections propagate to the caller.
 
 The `memberOf()` and Boolean subsumption functions return empty for non-singleton
 inputs. Unknown service outcomes remain empty. For different code systems,
@@ -74,6 +81,7 @@ service, while strict runtime evaluation supplies that declaration automatically
 ### External references
 
 `options.resolver` is a `ReferenceResolver`: `(reference: string) => Promise<unknown>`.
+Independent references, such as the items of one `resolve()` call, are requested together.
 `resolve()` first searches the originating resource and available Bundle. Only
 unresolved external references reach the callback; `#fragment` misses stay empty.
 The engine passes relative and absolute references unchanged. The host chooses
@@ -85,9 +93,8 @@ Each reference is requested once per asynchronous evaluation. A returned resourc
 becomes the owner for subsequent navigation, so its contained references resolve
 locally. The same options and cache remain available for further external hops.
 
-Without a resolver, external misses remain empty. With one configured, a sync
-call that needs it throws a message directing the caller to `evaluateAsync()`;
-a call that resolves locally remains synchronous.
+Without a resolver, external misses remain empty. That includes the synchronous
+`evaluate()`, which takes no resolver; local resolution works there as usual.
 
 ### Strict evaluation
 

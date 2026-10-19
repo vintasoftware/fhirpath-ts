@@ -2,6 +2,7 @@ export type { CustomFunctionSignature, ValueArgSpec } from './analyzer/signature
 export type { BundleLike } from './api/bundle.ts'
 export type {
   AnyExpression,
+  AsyncEvaluateOptions,
   CompiledExpressionResult,
   CustomFunction,
   Declaring,
