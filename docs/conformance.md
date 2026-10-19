@@ -38,7 +38,6 @@ fails when a skip no longer matches a suite case.
 
 | Category | Reason |
 | --- | --- |
-| Terminology mode | Needs a terminology service |
 | CDA mode | Needs a CDA `ModelProvider` |
 | Lenient polymorphics | Profile-dependent mode that this engine does not offer |
 | R5-only elements | The package currently ships an R4 model |
