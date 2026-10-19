@@ -69,9 +69,10 @@ import { r4Model } from 'fhirpath-ts/r4'
 const server = 'https://tx.example.org/fhir'
 
 /**
- * POST a FHIR operation. Servers answer an unknown value set or code system with
- * a 4xx OperationOutcome (400, 404, or 422): that is `undefined`, an answer the
- * service cannot give. Authentication and server failures stay errors.
+ * POST a FHIR operation. Servers answer an unknown value set, code system, or
+ * concept with 400, 404, or 422: that is `undefined`, an answer the service
+ * cannot give. Any other failure, such as rate limiting, stays an error, so it
+ * cannot read as "not a member".
  */
 async function operation(path: string, parameter: object[]): Promise<unknown> {
   const response = await fetch(`${server}/${path}`, {
@@ -79,10 +80,9 @@ async function operation(path: string, parameter: object[]): Promise<unknown> {
     headers: { 'Content-Type': 'application/fhir+json' },
     body: JSON.stringify({ resourceType: 'Parameters', parameter }),
   })
-  if (response.status === 401 || response.status === 403 || response.status >= 500) {
-    throw new Error(`Terminology server answered ${response.status}`)
-  }
-  return response.ok ? response.json() : undefined
+  if ([400, 404, 422].includes(response.status)) return undefined
+  if (!response.ok) throw new Error(`Terminology server answered ${response.status}`)
+  return response.json()
 }
 
 const terminology: TerminologyProvider = {
