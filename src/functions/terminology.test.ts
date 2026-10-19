@@ -171,6 +171,13 @@ describe('memberOf', () => {
     expect(provider.calls).toHaveLength(2)
   })
 
+  it('refuses a provider passed to sync evaluate()', () => {
+    const untyped = asyncOptions(stubProvider()) as Parameters<typeof evaluate>[2]
+    expect(() => evaluate('Observation.code.memberOf(%vs)', observation, untyped)).toThrow(
+      'options.terminology is only accepted by evaluateAsync() and evaluateTypedAsync()'
+    )
+  })
+
   it('fails under sync evaluate() or without a provider with a pointer to evaluateAsync()', async () => {
     const options = { model: r4Model, env: { vs: VS_VITALS } }
     const message = 'memberOf() needs evaluateAsync() with options.terminology'

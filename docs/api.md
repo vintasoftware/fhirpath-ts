@@ -53,8 +53,9 @@ A supplied empty, plural, or wrongly typed service argument returns empty
 without calling the provider. Omit the trailing parameter string or pass `''`
 when no additional parameters are needed.
 Only the asynchronous entry points take `terminology` and `resolver`: they belong
-to `AsyncEvaluateOptions`, not to `EvaluateOptions` or engine options. A function
-that needs the provider under `evaluate()`, or without one, raises an error
+to `AsyncEvaluateOptions`, not to `EvaluateOptions` or engine options. A sync
+evaluation given either raises an error naming the asynchronous entry points.
+A function that needs the provider under `evaluate()`, or without one, raises an error
 naming `evaluateAsync()` with `options.terminology`. A provider without the
 requested method also raises an error.
 
@@ -80,21 +81,30 @@ service, while strict runtime evaluation supplies that declaration automatically
 
 ### External references
 
-`options.resolver` is a `ReferenceResolver`: `(reference: string) => Promise<unknown>`.
-Independent references, such as the items of one `resolve()` call, are requested together.
+`options.resolver` is a `ReferenceResolver`:
+`(reference: string, base: string | undefined) => Promise<unknown>`.
 `resolve()` first searches the originating resource and available Bundle. Only
 unresolved external references reach the callback; `#fragment` misses stay empty.
-The engine passes relative and absolute references unchanged. The host chooses
-how to resolve them, including the server base, credentials, and request policy.
+Independent references, such as the items of one `resolve()` call, are requested together.
+
+The engine passes the reference unchanged. For a relative reference, `base` is
+the server base of the resource that holds it, when known: from its Bundle entry
+`fullUrl`, or from the absolute reference that fetched it (or the base that one
+was resolved against). FHIR resolves a relative reference against that base.
+A reference in the input with no `fullUrl`, or a string literal, has no base.
+The host chooses how to resolve it, including the default server base,
+credentials, and request policy.
 
 Return a FHIR resource as plain JSON, or `undefined` if it cannot be resolved.
 Answers without a string `resourceType` are ignored. Provider rejections propagate.
-Each reference is requested once per asynchronous evaluation. A returned resource
-becomes the owner for subsequent navigation, so its contained references resolve
-locally and its other references go to the resolver, never to the input Bundle. The same options and cache remain available for further external hops.
+Each reference and base pair is requested once per asynchronous evaluation. A
+returned resource becomes the owner for subsequent navigation, so its contained
+references resolve locally and its other references go to the resolver, never to
+the input Bundle. The same options and cache remain available for further
+external hops.
 
-Without a resolver, external misses remain empty. That includes the synchronous
-`evaluate()`, which takes no resolver; local resolution works there as usual.
+Without a resolver, external misses remain empty, including under the
+synchronous `evaluate()`, which refuses one; local resolution works there as usual.
 
 ### Strict evaluation
 

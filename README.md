@@ -233,7 +233,8 @@ Bundle the expression runs on. Fragment references in an entry resolve within
 that resource; references from a contained resource can reach its siblings and
 container. With `evaluateAsync()`, `options.resolver` handles unresolved external
 references. Fragment misses stay local. The resolver receives the reference
-unchanged and owns server-base handling, authentication, and network requests.
+unchanged, plus the server base of the resource that holds a relative one when
+known, and owns authentication and network requests.
 
 ```ts
 r4.evaluate(

@@ -248,9 +248,14 @@ describe('external references via options.resolver', () => {
     }
   })
 
-  it('leaves external references empty under sync evaluate(), which takes no resolver', () => {
+  it('leaves external references empty under sync evaluate(), which refuses a resolver', () => {
     expect(evaluate('Patient.generalPractitioner.resolve()', subject, options)).toEqual([])
     expect(evaluate('Patient.managingOrganization.resolve().name', patient, options)).toEqual(['ACME'])
+    // The types keep the resolver off sync options; an untyped caller is told where it belongs.
+    const untyped = { ...options, resolver: stubResolver().resolver } as typeof options
+    expect(() => evaluate('Patient.managingOrganization.resolve().name', patient, untyped)).toThrow(
+      'options.resolver is only accepted by evaluateAsync() and evaluateTypedAsync()'
+    )
   })
 
   it('resolver failures propagate', async () => {
@@ -317,6 +322,45 @@ describe('external references via options.resolver', () => {
     await expect(
       evaluateAsync("'Organization/network'.resolve().name", input, { ...options, resolver })
     ).resolves.toEqual(['local network'])
+  })
+
+  it('passes the server base of the resource that holds a relative reference', async () => {
+    const input = {
+      resourceType: 'Bundle',
+      type: 'searchset',
+      entry: [
+        {
+          fullUrl: 'https://local.example/fhir/Patient/1',
+          resource: {
+            resourceType: 'Patient',
+            id: '1',
+            generalPractitioner: [{ reference: 'Practitioner/x' }],
+            managingOrganization: { reference: 'https://remote.example/Patient/p' },
+          },
+        },
+      ],
+    }
+    const calls: [string, string | undefined][] = []
+    const resolver = async (reference: string, base: string | undefined) => {
+      calls.push([reference, base])
+      if (reference === 'https://remote.example/Patient/p')
+        return { resourceType: 'Patient', id: 'p', link: [{ other: { reference: 'Patient/q' } }] }
+      if (reference === 'Patient/q')
+        return { resourceType: 'Patient', id: 'q', link: [{ other: { reference: 'Patient/r' } }] }
+      return undefined
+    }
+    await evaluateAsync(
+      "entry.resource.generalPractitioner.resolve() | entry.resource.managingOrganization.resolve().link.other.resolve().link.other.resolve() | 'Patient/z'.resolve()",
+      input,
+      { ...options, resolver }
+    )
+    expect(calls).toEqual([
+      ['Practitioner/x', 'https://local.example/fhir'],
+      ['https://remote.example/Patient/p', undefined],
+      ['Patient/z', undefined],
+      ['Patient/q', 'https://remote.example'],
+      ['Patient/r', 'https://remote.example'],
+    ])
   })
 
   it('keeps Bundle-contained and Bundle entry resolution local with a resolver configured', async () => {
