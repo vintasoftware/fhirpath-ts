@@ -115,6 +115,7 @@ describe('UCUM special units', () => {
     expect(evaluate("'0 \\'Cel\\''.toQuantity('K')")).toEqual([{ value: 273.15, unit: 'K' }])
     expect(evaluate("'23 \\'Cel\\''.toQuantity('[degF]')")).toEqual([{ value: 73.4, unit: '[degF]' }])
     expect(evaluate("'-40 \\'[degF]\\''.toQuantity('Cel')")).toEqual([{ value: -40, unit: 'Cel' }])
+    expect(evaluate("'80 \\'[degRe]\\''.toQuantity('Cel')")).toEqual([{ value: 100, unit: 'Cel' }])
     expect(evaluate("'1000 \\'mK\\''.toQuantity('K')")).toEqual([{ value: 1, unit: 'K' }])
     expect(evaluate("0 'Cel' = 273.15 'K'")).toEqual([true])
     expect(evaluate("23 'Cel' = 73.4 '[degF]'")).toEqual([true])
@@ -131,6 +132,10 @@ describe('UCUM special units', () => {
       "1 'dB' - 1 'dB'",
       "1 'B' / 2 '1'",
       "2 '[pH]' * 1",
+      "1 'mCel' + 1 'mCel'",
+      "1 '[degRe]' + 1 '[degRe]'",
+      "1 'bit_s' + 1 'bit_s'",
+      "1 '[p\\'diop]' * 2",
       "(1 'Cel' | 2 'Cel').sum()",
     ]) {
       expect(evaluate(expression), expression).toEqual([])

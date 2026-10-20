@@ -302,8 +302,7 @@ export function convertQuantity(quantity: QuantityValue, targetUnit: string): Qu
   if (!(source && target && sameDimensions(source, target))) {
     return undefined
   }
-  const converted = fromBase(toBase(quantity.value, source), target)
-  return converted === undefined ? undefined : { value: converted, unit: targetUnit, calendar: false }
+  return { value: fromBase(toBase(quantity.value, source), target), unit: targetUnit, calendar: false }
 }
 
 function convertCalendar(
@@ -352,7 +351,7 @@ export function alignQuantities(
   a: QuantityValue,
   b: QuantityValue
 ): { left: Decimal; right: Decimal; unit: string; calendar: boolean } | undefined {
-  if ((!a.calendar && isSpecialUnit(a.unit)) || (!b.calendar && isSpecialUnit(b.unit))) {
+  if (isSpecialUnit(a.unit) || isSpecialUnit(b.unit)) {
     return undefined
   }
   if (a.unit === b.unit && a.calendar === b.calendar) {

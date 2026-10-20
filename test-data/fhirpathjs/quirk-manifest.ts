@@ -153,7 +153,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'equivalence-rounding',
     evidence:
-      'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec "~ (Equivalent)" says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding. For quantities it also compares in the more granular unit, while the official suite pins 4 \'g\' ~ 4040 \'mg\' (testQuantity4): compared in the less precise unit, 74 \'[degF]\' (23.3 \'Cel\') is equivalent to 23 \'Cel\'.',
+      'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec "~ (Equivalent)" says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding. For quantities it compares in the more granular unit. This engine converts the right operand into the left operand\'s unit and rounds to the least precise operand, which the official suite pins for 4 \'g\' ~ 4040 \'mg\' (testQuantity4); the same rule makes 23 \'Cel\' ~ 74 \'[degF]\' (74 \'[degF]\' is 23.3 \'Cel\').',
     keys: [
       '6.1_equality.yaml||0.00000011 ~ 0.00000010',
       '6.1_equality.yaml||1.1 ~ 1.0',

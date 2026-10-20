@@ -74,7 +74,7 @@ function quantityArithmetic(operator: ArithmeticOperator, left: QuantityValue, r
   }
   if (operator === '*' || operator === '/') {
     // UCUM special units (temperatures, logarithmic units) do not scale.
-    if ((!left.calendar && isSpecialUnit(left.unit)) || (!right.calendar && isSpecialUnit(right.unit))) {
+    if (isSpecialUnit(left.unit) || isSpecialUnit(right.unit)) {
       return []
     }
     if (left.calendar || right.calendar) {
