@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import { ANALYZER_SKIP_MANIFEST } from '../../test-data/official/analyzer-skip-manifest.ts'
-import { PHASE_OVERRIDES, SKIP_MANIFEST } from '../../test-data/official/skip-manifest.ts'
+import { SKIP_MANIFEST } from '../../test-data/official/skip-manifest.ts'
 import { r4Model } from '../r4/index.ts'
 import {
   casesMatching,
+  expectedPhase,
   findSkipReason,
   fixtureResourceType,
   loadOfficialSuite,
@@ -66,13 +67,7 @@ for (const suite of ['r4', 'r5'] as const) {
           }
           if (test.invalid === 'execution') {
             it(title, () => {
-              const rejectedByGrammar = PHASE_OVERRIDES.some(
-                entry =>
-                  entry.suite === suite &&
-                  entry.group === group.name &&
-                  entry.test === test.name &&
-                  entry.throws === 'syntax'
-              )
+              const rejectedByGrammar = expectedPhase(suite, group.name, test) === 'syntax'
               const diagnostics = analyzeCase(suite, test)
               expect(
                 diagnostics.some(d => d.code === 'syntax'),
