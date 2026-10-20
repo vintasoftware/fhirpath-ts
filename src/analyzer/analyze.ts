@@ -204,6 +204,11 @@ export interface AnalyzerRoot {
   ordered: boolean | undefined
   /** Canonical runtime types in focus order; an empty array means an exactly empty focus. */
   exactTypes?: string[]
+  /**
+   * The types of `%resource` and `%rootResource` when typed input names them
+   * by its ancestry. A missing entry means the input has no owning resource.
+   */
+  resources?: { resource?: string[]; rootResource?: string[] }
 }
 
 /**
@@ -435,6 +440,32 @@ class Analyzer {
     }
   }
 
+  /**
+   * `%resource` or `%rootResource`. A resource root is its own resource. For
+   * another root, the runtime reads them from the input's ancestry: a backbone
+   * element's `%resource` is the resource its type path starts with, and the
+   * container of a contained resource can be any resource, so `%rootResource`
+   * is unknown.
+   */
+  private resourceState(name: 'resource' | 'rootResource'): StaticState {
+    const resources = this.root.resources
+    if (resources !== undefined) {
+      const types = resources[name]
+      return types === undefined ? singleState(undefined) : singleState(types)
+    }
+    const model = this.model
+    const types = this.root.types
+    if (model === undefined || types === undefined) return this.rootState()
+    const resource = `${model.namespace}.Resource`
+    if (types.every(type => model.isSubtypeOf(type, resource))) return this.rootState()
+    if (name === 'rootResource') return singleState(undefined)
+    const owners = types.map(type => {
+      const owner = model.resolveType(type.slice(model.namespace.length + 1).split('.')[0] as string)
+      return owner !== undefined && model.isSubtypeOf(owner, resource) ? owner : undefined
+    })
+    return owners.every(owner => owner !== undefined) ? singleState([...new Set(owners)]) : singleState(undefined)
+  }
+
   walk(node: AstNode, input: StaticState, scope: VariableScope): StaticState {
     switch (node.kind) {
       case 'null':
@@ -513,10 +544,10 @@ class Analyzer {
     }
     switch (node.name) {
       case 'context':
+        return this.rootState()
       case 'resource':
       case 'rootResource':
-        // Contained-resource re-rooting is a later refinement, mirroring the runtime.
-        return this.rootState()
+        return this.resourceState(node.name)
       case 'ucum':
       case 'sct':
       case 'loinc':

@@ -77,7 +77,15 @@ function inferAnalyzerType(type: string, model: ModelProvider | undefined): stri
   if (type === OBJECT_TYPE) {
     return undefined
   }
-  return type.startsWith('System.') ? type : model?.resolveType(typeLocalName(type))
+  if (type.startsWith('System.')) {
+    return type
+  }
+  if (model === undefined) {
+    return undefined
+  }
+  // Keep the whole name after the namespace: a backbone type is `QuestionnaireResponse.item`.
+  const prefix = `${model.namespace}.`
+  return model.resolveType(type.startsWith(prefix) ? type.slice(prefix.length) : typeLocalName(type))
 }
 
 /** Declare every runtime value name and add explicit type information. */

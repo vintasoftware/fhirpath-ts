@@ -12,6 +12,7 @@ import {
 } from '../analyzer/declarations.ts'
 import { normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
+import { isTypedValue, owningResource, rootResourceOf } from '../fhir/element-origin.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
@@ -110,9 +111,28 @@ function runtimeRoot(
   inputType: string | undefined
 ): AnalyzerRoot {
   const variable = runtimeAnalyzerVariable(root, model)
-  return inputType === undefined
-    ? { types: variable.types, single: variable.single, ordered: variable.ordered, exactTypes: variable.exactTypes }
-    : { types: [model?.resolveType(inputType) ?? inputType], single: variable.single, ordered: variable.ordered }
+  const resources = typedResources(root, model)
+  return {
+    ...(inputType === undefined
+      ? { types: variable.types, single: variable.single, ordered: variable.ordered, exactTypes: variable.exactTypes }
+      : { types: [model?.resolveType(inputType) ?? inputType], single: variable.single, ordered: variable.ordered }),
+    ...(resources !== undefined && { resources }),
+  }
+}
+
+/** The types of `%resource` and `%rootResource` that typed input reads from its ancestry. */
+function typedResources(root: TypedValue[], model: ModelProvider | undefined): AnalyzerRoot['resources'] {
+  const [first] = root
+  if (first === undefined || !isTypedValue(first)) return undefined
+  const resource = owningResource(first)
+  if (resource === undefined) return {}
+  const typesOf = (value: TypedValue) => runtimeAnalyzerVariable([value], model).types
+  const resourceTypes = typesOf(resource)
+  const rootResourceTypes = typesOf(rootResourceOf(resource))
+  return {
+    ...(resourceTypes !== undefined && { resource: resourceTypes }),
+    ...(rootResourceTypes !== undefined && { rootResource: rootResourceTypes }),
+  }
 }
 
 function isResolvedCollection(value: AnyExpression | readonly TypedValue[]): value is readonly TypedValue[] {

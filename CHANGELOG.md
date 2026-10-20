@@ -83,8 +83,30 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   does not check the input, so prefer `compile(expression, type)`.
   `CompiledExpression.inputType` holds the declared type, and the static
   checkers analyze `new CompiledExpression('...')` calls.
+- Typed element contexts
+  ([#119](https://github.com/vintasoftware/fhirpath-ts/issues/119)):
+  - `evaluate()`, `first()`, `test()`, `evaluateTyped()`, and their compiled
+    and async forms take `evaluateTyped()` results as input and run at those
+    elements. `%resource` is the nearest resource in the input's ancestry, so a
+    Bundle entry's resource; `%rootResource` is the container of a contained
+    one. An `env` value still overrides both.
+  - `engine.toTyped(value, type, { in: resource })` types a JSON value found
+    inside its resource, keeping its ancestry. Without `in`, the value has no
+    owning resource and `%resource` throws when read.
+  - A declared root (`compile(expression, type)`) checks typed input against
+    its type.
+  - `fhirpath-ts/sdc` gives SDC's `%questionnaire` and `%qitem`, and
+    `sdcContexts()` walks a QuestionnaireResponse's item contexts in SDC
+    order.
 
 ### Changed
+
+- With a declared backbone root such as `QuestionnaireResponse.item`, the type
+  layer and analyzer type `%resource` as the resource the path starts with and
+  `%rootResource` as unknown, matching the typed-input runtime. A datatype root
+  types neither. They were typed as the root itself.
+- `pathname()` paths start at `%rootResource`, as the FHIRPath STU text defines
+  them. This changes nothing for JSON input.
 
 - **Breaking:** `sort()` puts an empty key before every value, as FHIRPath
   3.0.0 says, so it comes first ascending and last descending. It came last
@@ -186,6 +208,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Fixed
 
+- Strict evaluation and the analyzer read a typed `vars` value of a backbone
+  type, such as `FHIR.QuestionnaireResponse.item`, as that type. They read it
+  as untyped.
 - Type inference gives an integer literal of ten or more digits, such as
   `2147483648`, `unknown[]` instead of `number[]`. The runtime reads one
   outside the 32-bit Integer range as a Long (`bigint`) or a Decimal.

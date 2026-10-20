@@ -5,7 +5,7 @@ import { SYSTEM_STRING, type TypedValue } from '../values/typed-value.ts'
 import { argAt, booleanArgument, registerFunction } from './registry.ts'
 
 /**
- * pathname([short]): the path of each input item inside the input resource,
+ * pathname([short]): the path of each input item inside `%rootResource`,
  * written with element names and indexers only, such as
  * `Observation.component[0].code[0].coding[0]`. Every element gets an indexer
  * unless `short` is true; then an element that is not an array, in the
@@ -19,10 +19,9 @@ registerFunction('pathname', {
   evaluate: (context, input, args, evaluateNode) => {
     const short =
       args.length === 1 && booleanArgument('pathname', evaluateNode(argAt(args, 0), context, input)) === true
-    const roots = new Set(context.root)
     const result: TypedValue[] = []
     for (const item of input) {
-      const path = pathOf(context, roots, item, short)
+      const path = pathOf(context, context.pathAnchors, item, short)
       if (path !== undefined) {
         result.push({ type: SYSTEM_STRING, value: path })
       }
@@ -33,20 +32,20 @@ registerFunction('pathname', {
 
 function pathOf(
   context: EvaluationContext,
-  roots: ReadonlySet<TypedValue>,
+  anchors: ReadonlySet<TypedValue>,
   item: TypedValue,
   short: boolean
 ): string | undefined {
   const segments: string[] = []
   let current = item
   let origin = elementOrigin(current)
-  while (origin !== undefined) {
+  while (origin !== undefined && !anchors.has(current)) {
     const { parent, name, index } = origin
     segments.push(printIdentifier(name) + indexer(context, parent, name, index, short))
     current = parent
     origin = elementOrigin(current)
   }
-  if (!roots.has(current)) {
+  if (!anchors.has(current)) {
     return undefined
   }
   const resourceType = (current.value as { resourceType?: unknown } | null | undefined)?.resourceType

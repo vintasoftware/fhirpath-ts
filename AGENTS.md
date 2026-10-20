@@ -270,6 +270,31 @@ and array index of each value navigation reads. `resolve()`, `weight()`, and
 - Stamp each wrapper once, where it is built; a second stamp on the same
   object throws.
 
+## Typed element contexts
+
+Typed values are evaluation input (`docs/adr/0004`). Keep these rules
+together:
+
+- The `#origin` stamp is also the brand: `isTypedValue` tells a typed value
+  from JSON of the same shape (`Identifier` has `type` and `value`). A `null`
+  stamp marks a value with no parent. `brandTyped` stamps what
+  `evaluateTyped()` returns that navigation did not stamp, so computed results
+  and the root are input too. Never detect typed input by shape.
+- `contextResources` in `src/engine/context.ts` is the one place that derives
+  `%resource`, `%rootResource`, and the `pathname()` anchors. `resolve()` and
+  `weight()` read the same `owningResource` and `rootResourceOf` helpers.
+  JSON input keeps all three at the root.
+- The declared root checks typed input only (`assertDeclaredRoot`). It never
+  converts JSON. It refuses a contained resource under a resource root,
+  because the analyzer and the type layer type `%rootResource` as the root.
+  That check is cheaper than a flag in the type state.
+- The analyzer (`resourceState`) and the type layer (`ResourceVariableState`)
+  type `%resource` for a backbone root as its path's resource, and
+  `%rootResource` as unknown for any non-resource root. Strict evaluation passes
+  the runtime owner types through `AnalyzerRoot.resources`.
+- `filter()`, `project()`, `checkConstraints()`, and DTO `from()` take JSON
+  only.
+
 ## Criteria booleans
 
 A `this.criteria()` column registers a function with `criteria: true`. The evaluator applies

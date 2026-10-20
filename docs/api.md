@@ -12,6 +12,7 @@ common behavior that affects application code.
 | `fhirpath-ts/analyzer` | Static analyzer APIs |
 | `fhirpath-ts/eslint` | ESLint plugin |
 | `fhirpath-ts/sites` | TypeScript AST expression-site finder |
+| `fhirpath-ts/sdc` | SDC `%questionnaire`, `%qitem`, and item contexts |
 
 Use the bound R4 engine for most application code:
 
@@ -412,22 +413,127 @@ such as a FHIR constraint.
 r4.compile('given', 'HumanName').evaluate(name) // ['Peter', 'James']
 ```
 
-Evaluation doesn't use the declared type to read the data, so a choice element
+Evaluation doesn't use the declared type to read JSON, so a choice element
 such as an extension's `value` is empty on an Extension passed on its own. Read
-it from its resource instead:
+it from its resource, or type it first with
+[`toTyped()`](#element-contexts):
 
 ```ts
 // nickname is { url: 'http://example.org/nickname', valueString: 'Pete' }, also in patient.extension
 r4.compile('value', 'Extension').evaluate(nickname) // []
 r4.compile("extension('http://example.org/nickname').value", 'Patient').evaluate(patient) // ['Pete']
+r4.compile('value', 'Extension').evaluate(r4.toTyped(nickname, 'Extension', { in: patient })) // ['Pete']
 ```
+
+A declared root does check [typed input](#element-contexts), which states its
+type: a value of another type throws. So does a contained resource under a
+resource root, because its `%rootResource` is its container while the static
+types read `%rootResource` as the root.
 
 ### `evaluateTyped()`
 
 Returns internal `TypedValue[]` values instead of unwrapped JavaScript values.
 Each item includes its FHIRPath type. Decimal, Quantity, date, time, and dateTime
 values keep their internal exact representations. The input is typed as for
-`evaluate()`.
+`evaluate()`. Each item also keeps its ancestry: where it was read, up to the
+resource. The results can be the input of a later call; see
+[Element contexts](#element-contexts).
+
+### Element contexts
+
+`evaluate()`, `first()`, `test()`, `evaluateTyped()`, their async forms, and
+compiled expressions take typed values as input. The expression then runs at
+those elements:
+
+```ts
+const [group] = r4.evaluateTyped("QuestionnaireResponse.item.where(linkId = 'meds')", response)
+r4.evaluate('item.answer.value', [group]) // choice elements and `_field` metadata resolve
+r4.evaluate('%resource.status', [group]) // the QuestionnaireResponse
+```
+
+JSON input loses this: `evaluate()` results are plain values with no type or
+ancestry, and a raw `QuestionnaireResponse.item` object reads as an untyped
+object, so `answer.value` is empty. Keep `evaluateTyped()` results when the
+next expression runs at them.
+
+With typed input:
+
+- `$this` and `%context` are the input items.
+- `%resource` is their owning resource: the nearest resource in their
+  ancestry. Inside a Bundle that is the entry's resource, not the Bundle.
+- `%rootResource` is the container of a contained owning resource, and
+  otherwise `%resource`.
+- `resolve()`, `weight()`, and `pathname()` read the same ancestry.
+- Items with different owning resources, or typed values mixed with JSON,
+  throw. Evaluate them one at a time.
+- An `env` value for `resource`, `rootResource`, or `context` still overrides
+  the derived one.
+
+JSON input is its own `%resource` and `%rootResource`, as before.
+
+`toTyped()` types a JSON value the host found itself. With `{ in: resource }`
+it finds the value inside that resource by object identity, so the value keeps
+its ancestry. It throws when the value is not of the given type, is not in the
+resource, appears there more than once, or is a primitive:
+
+```ts
+const item = response.item[0] // JSON
+r4.evaluate('answer.value', r4.toTyped(item, 'QuestionnaireResponse.item', { in: response }))
+```
+
+Without `in`, the value is unattached: it is typed, so choice elements resolve,
+but it has no owning resource. Reading `%resource` or `%rootResource` then
+throws, unless `env` sets them, and `pathname()` paths start at the value.
+
+At the type level, typed input has no known root, so a relative expression
+infers `unknown[]`. Declare the root to type it; a declared root also checks
+the input's types at runtime (see
+[Type name or declared root](#type-name-or-declared-root)):
+
+```ts
+const answers = r4.compile('answer.value', 'QuestionnaireResponse.item')
+answers.evaluate(items)
+```
+
+For a backbone root such as `QuestionnaireResponse.item`, `%resource` is typed
+as the resource its path starts with, and `%rootResource` is untyped, since a
+contained resource's container can be any resource. A datatype root types
+neither.
+
+`filter()`, `project()`, `checkConstraints()`, and DTO `from()` take JSON only.
+
+#### Structured Data Capture
+
+`fhirpath-ts/sdc` gives the
+[variables SDC defines](https://build.fhir.org/ig/HL7/sdc/en/expressions.html#fhirpath-supplements)
+for expressions in a Questionnaire. `sdcContexts()` walks a
+QuestionnaireResponse in SDC evaluation order: the response, then each item
+instance depth-first, including items under answers. Each context comes with
+`%questionnaire` and, inside an item, `%qitem`, the Questionnaire item with the
+same linkId:
+
+```ts
+import { sdcContexts, sdcVars } from 'fhirpath-ts/sdc'
+
+for (const { context, vars } of sdcContexts(r4, response, questionnaire)) {
+  r4.evaluate(calculatedExpression, context, { vars: { ...vars, ...namedVariables } })
+}
+```
+
+`sdcVars(engine, questionnaire, context)` gives the same variables for one
+context, such as each result of a `templateExtractContext` expression:
+
+```ts
+for (const medication of r4.evaluateTyped("item.where(linkId = 'meds')", root)) {
+  const context = [medication]
+  const vars = sdcVars(r4, questionnaire, context)
+  r4.first("item.where(linkId = 'name').answer.value", context, { vars })
+}
+```
+
+Both throw when a response item's linkId is not in the Questionnaire. Named
+`variable` extensions and launch contexts are the host's: evaluate them and
+pass the results through `vars`.
 
 ## Stateless API
 
@@ -610,7 +716,7 @@ values are without the values, trace their paths: `trace('missing', pathname())`
 
 ### Element paths
 
-`pathname()` returns the path of each input item inside the input resource,
+`pathname()` returns the path of each input item inside `%rootResource`,
 written with element names and indexers, such as
 `Observation.component[0].code[0].coding[0]`. Every element gets an indexer.
 `pathname(true)` leaves the indexer out when an element is not an array in the
@@ -626,6 +732,10 @@ data or in the model: `Observation.component[0].code.coding[0]`.
   `Bundle.entry[3].resource[0].contained[1]`.
 - When the input has no `resourceType`, paths start at its elements, such as
   `given[0]`, and the input itself has no path.
+- For [typed input](#element-contexts), paths start at the derived
+  `%rootResource`, so a typed item of a Bundle entry gives
+  `QuestionnaireResponse.item[0]`. An `env` override of `%rootResource` doesn't
+  change where paths start. Paths of unattached input start at the input.
 - With a model, a choice element uses its FHIRPath name (`value`). Without one,
   it uses the JSON key (`valueQuantity`).
 
@@ -1109,6 +1219,9 @@ A search Bundle may include resources of several types through `_include` and
 `_revinclude`. Read one type out of it with `Bundle.entry.resource.ofType(Patient)`
 before projecting a DTO; see [Inputs](#inputs). To keep only search matches,
 read entries where `search.mode = 'match'`.
+
+Typed values read from a Bundle entry have the entry's resource as their
+`%resource`; see [Element contexts](#element-contexts).
 
 ## What throws errors and what doesn't?
 

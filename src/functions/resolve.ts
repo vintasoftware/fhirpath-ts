@@ -1,5 +1,5 @@
 import { forEachCollecting, requestAsync } from '../engine/async.ts'
-import { ancestors, childValue, elementOrigin } from '../fhir/element-origin.ts'
+import { ancestors, childValue, owningResource, rootResourceOf } from '../fhir/element-origin.ts'
 import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
@@ -52,19 +52,11 @@ registerFunction('resolve', {
   },
 })
 
-function resourceOf(item: TypedValue): TypedValue | undefined {
-  for (const node of ancestors(item)) {
-    if (typeof record(node.value)?.['resourceType'] === 'string') return node
-  }
-  return undefined
-}
-
 function resolveFragment(reference: string, item: TypedValue, root: TypedValue | undefined): TypedValue | undefined {
-  let scope = resourceOf(item) ?? root
-  if (scope === undefined) return undefined
+  const owner = owningResource(item)
   // References from contained resources address their container or siblings.
-  const origin = elementOrigin(scope)
-  if (origin?.name === 'contained') scope = origin.parent
+  const scope = owner === undefined ? root : rootResourceOf(owner)
+  if (scope === undefined) return undefined
   if (reference === '#') return scope
   const contained = record(scope.value)?.['contained']
   if (!Array.isArray(contained)) return undefined

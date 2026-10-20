@@ -278,6 +278,26 @@ also throws without a model, which it needs to recognize answers and Codings.
 A Coding without a `system` names no CodeSystem, so an unweighted one gives
 empty. See the [SDC FHIRPath supplements](https://build.fhir.org/ig/HL7/sdc/en/expressions.html#fhirpath-supplements).
 
+### Evaluate at questionnaire items
+
+SDC expressions run at a QuestionnaireResponse item, with `%context` as the
+item and `%resource` as the response. `evaluateTyped()` results keep their
+type and ancestry, so they can be the input of the next call;
+`fhirpath-ts/sdc` walks every item context and gives `%questionnaire` and
+`%qitem`:
+
+```ts
+import { sdcContexts } from 'fhirpath-ts/sdc'
+
+for (const { context, vars } of sdcContexts(r4, response, questionnaire)) {
+  r4.evaluate('answer.value', context, { vars })
+}
+```
+
+`r4.toTyped(item, 'QuestionnaireResponse.item', { in: response })` types a
+JSON item found by the host. See
+[Element contexts](docs/api.md#element-contexts).
+
 ### Walk nested structures
 
 `repeat(item)` follows every nested `item` collection and returns the items at
@@ -483,7 +503,6 @@ These features are deferred and fail with a clear error today:
 | `%factory` | Demand for the current R5 draft API; [instance selectors](#build-values) already build FHIR values |
 | CDA mode | A CDA `ModelProvider` |
 | Full UCUM | A full UCUM implementation behind the current interface |
-| Typed element context (fhirpath.js `{base, expression}`) | A public way to type raw input as a backbone element (#119) |
 | R5 model package | Generated R5 definitions and types |
 
 `union()`, `|`, and `combine()` keep the order of their sources, where 3.0.0

@@ -1,4 +1,5 @@
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { ancestors, isTypedValue, owningResource, rootResourceOf } from '../fhir/element-origin.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
@@ -138,6 +139,12 @@ export interface EvaluationContext {
   async: AsyncServices | undefined
   /** The original input node: `%context`. */
   root: TypedValue[]
+  /**
+   * Where `pathname()` paths start: the derived `%rootResource` for typed
+   * input, and the input items otherwise. An `env` override of
+   * `%rootResource` does not move it.
+   */
+  pathAnchors: ReadonlySet<TypedValue>
   /** Environment variables by name (without the `%`). Values are collections. */
   env: ReadonlyMap<string, TypedValue[]>
   model: ModelProvider | undefined
@@ -244,10 +251,12 @@ export function createContext(options: {
   for (const [name, url] of BUILTIN_CONSTANTS) {
     env.set(name, [{ type: SYSTEM_STRING, value: url }])
   }
+  const resources = contextResources(options.root)
   env.set('context', options.root)
-  // FHIR-defined variables; contained-resource re-rooting is a later refinement.
-  env.set('resource', options.root)
-  env.set('rootResource', options.root)
+  if (resources.owner !== undefined) {
+    env.set('resource', resources.owner.resource)
+    env.set('rootResource', resources.owner.rootResource)
+  }
   for (const [name, value] of envCollections(options.env)) {
     env.set(name, value)
   }
@@ -266,6 +275,7 @@ export function createContext(options: {
   }
   return {
     root: options.root,
+    pathAnchors: resources.anchors,
     async: options.async,
     env,
     model: options.model,
@@ -278,6 +288,42 @@ export function createContext(options: {
     narrativeSanitizer: options.narrativeSanitizer,
     frame: { parent: undefined, thisValue: options.root, index: undefined, total: undefined },
   }
+}
+
+/**
+ * `%resource` and `%rootResource` for an input. JSON input is its own
+ * resource. Typed input reads them from its ancestry: `%resource` is the
+ * owning resource, so a Bundle entry's resource and not the Bundle, and
+ * `%rootResource` is the container of a contained one. Unattached typed input
+ * has neither.
+ */
+function contextResources(root: TypedValue[]): {
+  owner: { resource: TypedValue[]; rootResource: TypedValue[] } | undefined
+  anchors: ReadonlySet<TypedValue>
+} {
+  const typed = root.filter(isTypedValue)
+  if (typed.length === 0) {
+    return { owner: { resource: root, rootResource: root }, anchors: new Set(root) }
+  }
+  if (typed.length !== root.length) {
+    throw new FhirPathTypeError('The input mixes typed values and JSON; pass one or the other')
+  }
+  const owners = root.map(owningResource)
+  const owner = owners[0]
+  if (owners.every(found => found === undefined)) {
+    return { owner: undefined, anchors: new Set(root.map(topAncestor)) }
+  }
+  if (owner === undefined || owners.some(found => found?.value !== owner.value)) {
+    throw new FhirPathTypeError('The typed input items have different owning resources; evaluate each one separately')
+  }
+  const rootResource = rootResourceOf(owner)
+  return { owner: { resource: [owner], rootResource: [rootResource] }, anchors: new Set([rootResource]) }
+}
+
+function topAncestor(value: TypedValue): TypedValue {
+  let top = value
+  for (const node of ancestors(value)) top = node
+  return top
 }
 
 /**
@@ -321,6 +367,12 @@ export function resolveEnvironmentVariable(context: EvaluationContext, name: str
   }
   if (name.startsWith('ext-')) {
     return [{ type: SYSTEM_STRING, value: `http://hl7.org/fhir/StructureDefinition/${name.slice(4)}` }]
+  }
+  if (name === 'resource' || name === 'rootResource') {
+    throw new FhirPathTypeError(
+      `%${name} is not available: the input is an unattached typed value with no owning resource. ` +
+        "Type it with toTyped(value, type, { in: resource }), or set it in 'env'"
+    )
   }
   // Only a provider binds the spec's terminology service (see createContext).
   if (name === 'terminologies') {

@@ -65,6 +65,7 @@ const documentation: readonly DocumentExpectation[] = [
         "%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()"
       ),
       valid('Bundle.entry.resource.ofType(Observation).subject.resolve().name.family'),
+      valid('answer.value'),
       valid('Questionnaire.repeat(item).linkId'),
       valid("Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })"),
       valid(
@@ -103,7 +104,12 @@ const documentation: readonly DocumentExpectation[] = [
       valid('clinicalStatus.coding.first().code'),
       valid('Patient.name.family', 'name.family'),
       valid('given'),
-      valid('value', "extension('http://example.org/nickname').value"),
+      valid('value', "extension('http://example.org/nickname').value", 'value'),
+      valid("QuestionnaireResponse.item.where(linkId = 'meds')", 'item.answer.value', '%resource.status'),
+      valid('answer.value'),
+      valid('answer.value'),
+      valid(),
+      valid("item.where(linkId = 'meds')", "item.where(linkId = 'name').answer.value"),
       valid('Patient.name.given', 'Patient.name.given', 'Patient.name.given', 'Patient.name.given'),
       valid(),
       valid('%report.status'),

@@ -341,14 +341,7 @@ export const MODEL_DIFFERENCES: QuirkFamily[] = [
  * Features the README defers, with the corpus cases that need them. Each entry
  * names the feature; the cases run once it ships.
  */
-export const DEFERRED_FEATURES: QuirkFamily[] = [
-  {
-    name: 'typed-element-context',
-    evidence:
-      "fhirpath.js's {base, expression} form evaluates the expression with the raw input typed as the base path (here a QuestionnaireResponse.item), so answer.value resolves its choice type. This engine has no public way to type raw input as a backbone element yet: issue #119.",
-    keys: ['simple.yaml||answer.value = 2 year'],
-  },
-]
+export const DEFERRED_FEATURES: QuirkFamily[] = []
 
 /** FHIR versions the engine does not ship a model for; their cases are skipped with this reason. */
 export const SKIPPED_MODELS: Readonly<Record<string, string>> = {
