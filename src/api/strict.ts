@@ -10,9 +10,8 @@ import {
   runtimeAnalyzerEnvironmentVariables,
   runtimeAnalyzerVariable,
 } from '../analyzer/declarations.ts'
-import { normalizeEnvKeys } from '../engine/context.ts'
+import { contextResources, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
-import { isTypedValue, owningResource, rootResourceOf } from '../fhir/element-origin.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
@@ -111,27 +110,18 @@ function runtimeRoot(
   inputType: string | undefined
 ): AnalyzerRoot {
   const variable = runtimeAnalyzerVariable(root, model)
-  const resources = typedResources(root, model)
+  // %resource and %rootResource are the values the evaluation binds, so their types come from the data too.
+  const { owner } = contextResources(root)
+  const stateOf = (values: TypedValue[]) => {
+    const { types, single, ordered } = runtimeAnalyzerVariable(values, model)
+    return { types, single, ordered }
+  }
   return {
     ...(inputType === undefined
       ? { types: variable.types, single: variable.single, ordered: variable.ordered, exactTypes: variable.exactTypes }
       : { types: [model?.resolveType(inputType) ?? inputType], single: variable.single, ordered: variable.ordered }),
-    ...(resources !== undefined && { resources }),
-  }
-}
-
-/** The types of `%resource` and `%rootResource` that typed input reads from its ancestry. */
-function typedResources(root: TypedValue[], model: ModelProvider | undefined): AnalyzerRoot['resources'] {
-  const [first] = root
-  if (first === undefined || !isTypedValue(first)) return undefined
-  const resource = owningResource(first)
-  if (resource === undefined) return {}
-  const typesOf = (value: TypedValue) => runtimeAnalyzerVariable([value], model).types
-  const resourceTypes = typesOf(resource)
-  const rootResourceTypes = typesOf(rootResourceOf(resource))
-  return {
-    ...(resourceTypes !== undefined && { resource: resourceTypes }),
-    ...(rootResourceTypes !== undefined && { rootResource: rootResourceTypes }),
+    resources:
+      owner === undefined ? {} : { resource: stateOf(owner.resource), rootResource: stateOf(owner.rootResource) },
   }
 }
 

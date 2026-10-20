@@ -196,6 +196,15 @@ export const BUILTIN_ENV_VARIABLE_NAMES: ReadonlySet<string> = new Set([
   'rootResource',
 ])
 
+/**
+ * True for a name a variable cannot take: a bound environment value or a
+ * built-in name, which stays reserved when unattached input leaves
+ * `%resource` and `%rootResource` unbound.
+ */
+export function isReservedVariableName(context: EvaluationContext, name: string): boolean {
+  return context.env.has(name) || BUILTIN_ENV_VARIABLE_NAMES.has(name)
+}
+
 /** The canonical key used for environment and variable maps. */
 export function bareEnvironmentName(name: string): string {
   return name.startsWith('%') ? name.slice(1) : name
@@ -291,22 +300,18 @@ export function createContext(options: {
 }
 
 /**
- * `%resource` and `%rootResource` for an input. JSON input is its own
- * resource. Typed input reads them from its ancestry: `%resource` is the
- * owning resource, so a Bundle entry's resource and not the Bundle, and
- * `%rootResource` is the container of a contained one. Unattached typed input
- * has neither.
+ * `%resource` and `%rootResource` for an input, which is all typed values or
+ * all JSON. JSON input is its own resource. Typed input reads them from its
+ * ancestry: `%resource` is the owning resource, so a Bundle entry's resource
+ * and not the Bundle, and `%rootResource` is the container of a contained one.
+ * Unattached typed input has neither. Strict evaluation reads the same answer.
  */
-function contextResources(root: TypedValue[]): {
+export function contextResources(root: TypedValue[]): {
   owner: { resource: TypedValue[]; rootResource: TypedValue[] } | undefined
   anchors: ReadonlySet<TypedValue>
 } {
-  const typed = root.filter(isTypedValue)
-  if (typed.length === 0) {
+  if (!root.some(isTypedValue)) {
     return { owner: { resource: root, rootResource: root }, anchors: new Set(root) }
-  }
-  if (typed.length !== root.length) {
-    throw new FhirPathTypeError('The input mixes typed values and JSON; pass one or the other')
   }
   const owners = root.map(owningResource)
   const owner = owners[0]

@@ -2,13 +2,13 @@ import { mergeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type {
+  DeclaredRootInput,
   EmptyFhirpathTypeContext,
   FhirpathInput,
   FhirpathResultForContext,
   FhirpathRootOf,
   FhirpathTypeContextOf,
   FhirTypeName,
-  InputOf,
   MergeFhirpathTypeContexts,
 } from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
@@ -108,7 +108,7 @@ type EngineCallInput<Expr extends string, Root extends string> = Root extends 'o
   : RootedInput<DeclaredInput<Root>>
 
 /** The input a declared root allows. */
-type DeclaredInput<Root extends string> = Root extends FhirTypeName ? InputOf<Root> : never
+type DeclaredInput<Root extends string> = Root extends FhirTypeName ? DeclaredRootInput<Root> : never
 
 /**
  * One item `filter()` tests: what the expression's declared root allows, or
@@ -440,7 +440,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   compile<const Expr extends string, const Root extends FhirTypeName>(
     expression: Expr,
     inputType: Root
-  ): RootedBoundExpression<Expr, Defaults, Root, InputOf<Root>>
+  ): RootedBoundExpression<Expr, Defaults, Root, DeclaredRootInput<Root>>
   compile<const Expr extends string>(expression: Expr): BoundExpression<Expr, Defaults>
   compile(expression: string, inputType?: FhirTypeName): BoundExpression<string, Defaults> {
     // One runtime BoundExpression serves both overloads. A rooted expression's

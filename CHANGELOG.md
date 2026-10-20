@@ -95,12 +95,17 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     owning resource and `%resource` throws when read.
   - A declared root (`compile(expression, type)`) checks typed input against
     its type.
-  - `fhirpath-ts/sdc` gives SDC's `%questionnaire` and `%qitem`, and
-    `sdcContexts()` walks a QuestionnaireResponse's item contexts in SDC
-    order.
+  - `fhirpath-ts/sdc`: `sdcScope(engine, questionnaire)` gives SDC's
+    `%questionnaire` and `%qitem` for a context, and walks a
+    QuestionnaireResponse's item contexts in SDC order.
 
 ### Changed
 
+- **Breaking:** a declared root other than a resource, such as
+  `compile('given', 'HumanName')` or `compile(expr, 'QuestionnaireResponse.item')`,
+  takes typed values only, in TypeScript and at runtime. Type JSON with
+  `toTyped(value, type, { in: resource })`. JSON there has no owning resource,
+  and it read a choice element such as `answer.value` as empty.
 - With a declared backbone root such as `QuestionnaireResponse.item`, the type
   layer and analyzer type `%resource` as the resource the path starts with and
   `%rootResource` as unknown, matching the typed-input runtime. A datatype root

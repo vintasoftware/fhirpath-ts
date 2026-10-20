@@ -1,4 +1,4 @@
-import { withFrame } from '../engine/context.ts'
+import { isReservedVariableName, withFrame } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import { singleton } from '../values/collection.ts'
 import { SYSTEM_STRING, systemTypeOf, type TypedValue } from '../values/typed-value.ts'
@@ -18,7 +18,7 @@ registerFunction('defineVariable', {
       throw new FhirPathTypeError('defineVariable() expects a String name')
     }
     const name = nameValue.value as string
-    if (context.env.has(name)) {
+    if (isReservedVariableName(context, name)) {
       throw new FhirPathTypeError(`Cannot override the environment variable %${name}`)
     }
     if (context.variables.has(name)) {

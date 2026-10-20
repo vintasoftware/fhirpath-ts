@@ -284,10 +284,17 @@ together:
   `%resource`, `%rootResource`, and the `pathname()` anchors. `resolve()` and
   `weight()` read the same `owningResource` and `rootResourceOf` helpers.
   JSON input keeps all three at the root.
-- The declared root checks typed input only (`assertDeclaredRoot`). It never
-  converts JSON. It refuses a contained resource under a resource root,
-  because the analyzer and the type layer type `%rootResource` as the root.
-  That check is cheaper than a flag in the type state.
+- The declared root checks typed input (`assertDeclaredRoot`) and never
+  converts JSON. A root other than a resource refuses JSON, as
+  `DeclaredRootInput` does in the types, because the analyzer and the type
+  layer type `%resource` from the root's path. A resource root refuses a
+  contained resource, because they type `%rootResource` as the root. These
+  checks are cheaper than a flag in the type state.
+- Mixed typed and JSON input is refused once, in `inputCollection`. Strict
+  evaluation reads `%resource` and `%rootResource` from `contextResources`,
+  never from a second derivation.
+- `isReservedVariableName` decides which names `vars` and `defineVariable()`
+  cannot take.
 - The analyzer (`resourceState`) and the type layer (`ResourceVariableState`)
   type `%resource` for a backbone root as its path's resource, and
   `%rootResource` as unknown for any non-resource root. Strict evaluation passes

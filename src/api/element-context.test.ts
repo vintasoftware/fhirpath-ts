@@ -158,10 +158,16 @@ describe('a declared root with typed input', () => {
     expect(r4.compile('id', 'Resource').evaluate(r4.evaluateTyped('$this', observation))).toEqual([])
   })
 
-  it('reads a choice element of a typed datatype root', () => {
+  it('refuses JSON under a root other than a resource', () => {
     const nickname = { url: 'http://example.org/nickname', valueString: 'Pete' }
     const patient = { resourceType: 'Patient' as const, extension: [nickname] }
-    expect(r4.compile('value', 'Extension').evaluate(nickname)).toEqual([])
+    // @ts-expect-error JSON has no owning resource for %resource
+    expect(() => r4.compile('value', 'Extension').evaluate(nickname)).toThrow("toTyped(value, 'Extension'")
+    // @ts-expect-error a backbone root too
+    expect(() => r4.compile('linkId', 'QuestionnaireResponse.item').evaluate({ linkId: 'q' })).toThrow(
+      'takes typed input'
+    )
+    expect(r4.compile('value', 'Extension').evaluate([])).toEqual([])
     expect(r4.compile('value', 'Extension').evaluate(r4.toTyped(nickname, 'Extension', { in: patient }))).toEqual([
       'Pete',
     ])
@@ -192,6 +198,7 @@ describe('toTyped()', () => {
     expect(() => r4.evaluate('%resource', typed)).toThrow('%resource is not available')
     expect(() => r4.evaluate('%rootResource', typed)).toThrow('%rootResource is not available')
     expect(() => r4.evaluate('linkId', typed, { vars: { resource: typed } })).toThrow('Cannot override')
+    expect(() => r4.evaluate("defineVariable('resource', 'x').select(%resource)", typed)).toThrow('Cannot override')
     expect(r4.evaluate('%resource.linkId', typed, { env: { resource: { linkId: 'host' } } })).toEqual(['host'])
   })
 

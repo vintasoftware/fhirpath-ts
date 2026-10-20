@@ -30,7 +30,7 @@ import type {
   ServiceRequest,
 } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
-import { sdcContexts, sdcVars } from '../sdc/index.ts'
+import { sdcScope } from '../sdc/index.ts'
 import { createSiteFinder } from '../sites/index.ts'
 
 /**
@@ -364,7 +364,8 @@ describe('README usage recipes', () => {
       status: 'completed',
       item: [{ linkId: 'meds', item: [{ linkId: 'name', answer: [{ valueString: 'Aspirin' }] }] }],
     }
-    const answers = [...sdcContexts(r4, response, questionnaire)].map(({ context, vars }) =>
+    const scope = sdcScope(r4, questionnaire)
+    const answers = [...scope.contexts(response)].map(({ context, vars }) =>
       r4.evaluate('answer.value', context, { vars })
     )
     expect(answers).toEqual([[], [], ['Aspirin']])
@@ -383,8 +384,7 @@ describe('README usage recipes', () => {
     const root = r4.evaluateTyped('$this', response)
     const names = r4.evaluateTyped("item.where(linkId = 'meds')", root).map(medication => {
       const context = [medication]
-      const vars = sdcVars(r4, questionnaire, context)
-      return r4.first("item.where(linkId = 'name').answer.value", context, { vars })
+      return r4.first("item.where(linkId = 'name').answer.value", context, { vars: scope.vars(context) })
     })
     expect(names).toEqual(['Aspirin'])
   })
@@ -592,12 +592,11 @@ describe('README usage recipes', () => {
     )
 
     const name: HumanName = { given: ['Peter', 'James'] }
-    expect(r4.compile('given', 'HumanName').evaluate(name)).toEqual(['Peter', 'James'])
+    expect(r4.compile('given', 'HumanName').evaluate(r4.toTyped(name, 'HumanName'))).toEqual(['Peter', 'James'])
     expect(r4.evaluate('HumanName.given', name)).toEqual([])
 
     const nickname: Extension = { url: 'http://example.org/nickname', valueString: 'Pete' }
     const patient: Patient = { resourceType: 'Patient', extension: [nickname] }
-    expect(r4.compile('value', 'Extension').evaluate(nickname)).toEqual([])
     expect(r4.compile("extension('http://example.org/nickname').value", 'Patient').evaluate(patient)).toEqual(['Pete'])
     expect(r4.compile('value', 'Extension').evaluate(r4.toTyped(nickname, 'Extension', { in: patient }))).toEqual([
       'Pete',

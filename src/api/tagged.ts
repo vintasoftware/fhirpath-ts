@@ -1,5 +1,5 @@
 import { FhirPathError } from '../errors.ts'
-import type { FhirpathInput, FhirTypeName, InputOf } from '../typed/infer.ts'
+import type { DeclaredRootInput, FhirpathInput, FhirTypeName } from '../typed/infer.ts'
 import { CompiledExpression, type InferredExpressionResult } from './compile.ts'
 
 /**
@@ -13,7 +13,7 @@ export function fhirpath<
   const Expr extends string,
   const Root extends FhirTypeName,
   TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
->(expression: Expr, inputType: Root): CompiledExpression<Expr, InputOf<Root>, TResult, Root>
+>(expression: Expr, inputType: Root): CompiledExpression<Expr, DeclaredRootInput<Root>, TResult, Root>
 export function fhirpath<
   const Expr extends string,
   TInput = FhirpathInput<Expr>,

@@ -32,38 +32,41 @@ export interface SdcContext {
   vars: SdcVars
 }
 
-/**
- * `%questionnaire` and `%qitem` for `context`, a QuestionnaireResponse or one
- * of its items as typed values. `%qitem` is the Questionnaire item with the
- * context item's linkId, at any depth. Throws when the linkId is not in the
- * Questionnaire. For many contexts, `sdcContexts()` reads the Questionnaire
- * once.
- */
-export function sdcVars(engine: SdcEngine, questionnaire: unknown, context: readonly TypedValue[]): SdcVars {
-  const typed = engine.evaluateTyped('$this', questionnaire)
-  return varsFor(context, typed, questionnaireItems(engine, typed))
+/** One Questionnaire's SDC variables, read once for every context of its responses. */
+export interface SdcScope {
+  /**
+   * `%questionnaire` and `%qitem` for `context`, a QuestionnaireResponse or
+   * one of its items as typed values, such as a `templateExtractContext`
+   * result. `%qitem` is the Questionnaire item with the context item's linkId,
+   * at any depth. Throws when the linkId is not in the Questionnaire.
+   */
+  vars(context: readonly TypedValue[]): SdcVars
+  /**
+   * Every context of a QuestionnaireResponse in SDC evaluation order: the
+   * response itself, then each item depth-first, including items nested under
+   * answers. Each instance of a repeated item is its own context, so its
+   * answers and nested items stay apart from the other instances'.
+   */
+  contexts(questionnaireResponse: unknown): Generator<SdcContext>
 }
 
-/**
- * Every context of a QuestionnaireResponse in SDC evaluation order: the
- * response itself, then each item depth-first, including items nested under
- * answers. Each instance of a repeated item is its own context, so its answers
- * and nested items stay apart from the other instances'.
- */
-export function* sdcContexts(
-  engine: SdcEngine,
-  questionnaireResponse: unknown,
-  questionnaire: unknown
-): Generator<SdcContext> {
+/** Read a Questionnaire's items once, for the variables of every context of its responses. */
+export function sdcScope(engine: SdcEngine, questionnaire: unknown): SdcScope {
   const typed = engine.evaluateTyped('$this', questionnaire)
   const items = questionnaireItems(engine, typed)
-  const root = engine.evaluateTyped('$this', questionnaireResponse)
-  yield { context: root, vars: { questionnaire: typed } }
-  const pending = engine.evaluateTyped('item.combine(answer.item)', root).reverse()
-  for (let item = pending.pop(); item !== undefined; item = pending.pop()) {
-    const context = [item]
-    yield { context, vars: varsFor(context, typed, items) }
-    pending.push(...engine.evaluateTyped('item.combine(answer.item)', context).reverse())
+  const vars = (context: readonly TypedValue[]) => varsFor(context, typed, items)
+  return {
+    vars,
+    *contexts(questionnaireResponse) {
+      const root = engine.evaluateTyped('$this', questionnaireResponse)
+      yield { context: root, vars: vars(root) }
+      const pending = engine.evaluateTyped('item.combine(answer.item)', root).reverse()
+      for (let item = pending.pop(); item !== undefined; item = pending.pop()) {
+        const context = [item]
+        yield { context, vars: vars(context) }
+        pending.push(...engine.evaluateTyped('item.combine(answer.item)', context).reverse())
+      }
+    },
   }
 }
 

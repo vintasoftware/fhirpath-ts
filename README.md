@@ -287,9 +287,9 @@ type and ancestry, so they can be the input of the next call;
 `%qitem`:
 
 ```ts
-import { sdcContexts } from 'fhirpath-ts/sdc'
+import { sdcScope } from 'fhirpath-ts/sdc'
 
-for (const { context, vars } of sdcContexts(r4, response, questionnaire)) {
+for (const { context, vars } of sdcScope(r4, questionnaire).contexts(response)) {
   r4.evaluate('answer.value', context, { vars })
 }
 ```

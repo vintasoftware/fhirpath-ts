@@ -197,6 +197,8 @@ export interface AnalysisDetails {
   elementDependencies: string[]
 }
 
+type ResourceState = Pick<AnalyzerRoot, 'types' | 'single' | 'ordered'>
+
 /** Runtime-known input state used by strict evaluation. Not part of the public analyzer API. */
 export interface AnalyzerRoot {
   types: string[] | undefined
@@ -205,10 +207,10 @@ export interface AnalyzerRoot {
   /** Canonical runtime types in focus order; an empty array means an exactly empty focus. */
   exactTypes?: string[]
   /**
-   * The types of `%resource` and `%rootResource` when typed input names them
-   * by its ancestry. A missing entry means the input has no owning resource.
+   * `%resource` and `%rootResource` as the evaluation binds them, read from
+   * the data. A missing entry means the input has no owning resource.
    */
-  resources?: { resource?: string[]; rootResource?: string[] }
+  resources?: { resource?: ResourceState; rootResource?: ResourceState }
 }
 
 /**
@@ -450,8 +452,7 @@ class Analyzer {
   private resourceState(name: 'resource' | 'rootResource'): StaticState {
     const resources = this.root.resources
     if (resources !== undefined) {
-      const types = resources[name]
-      return types === undefined ? singleState(undefined) : singleState(types)
+      return resources[name] ?? singleState(undefined)
     }
     const model = this.model
     const types = this.root.types

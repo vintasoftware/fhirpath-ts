@@ -1,7 +1,6 @@
 import type { CustomFunctionSignature } from '../analyzer/signatures.ts'
 import { type AsyncServices, resolveSuspensions } from '../engine/async.ts'
 import {
-  BUILTIN_ENV_VARIABLE_NAMES,
   createContext,
   envCollections,
   type EvaluationContext,
@@ -10,6 +9,7 @@ import {
   type HostFunction,
   type HostNativeFunction,
   type HostSingleFunction,
+  isReservedVariableName,
   type NarrativeSanitizer,
   normalizeEnvKeys,
   type RegexEngine,
@@ -25,13 +25,13 @@ import { printExpression } from '../parser/printer.ts'
 import type { TerminologyProvider } from '../terminology/provider.ts'
 import type {
   CheckedFhirpathOptionValues,
+  DeclaredRootInput,
   EmptyFhirpathTypeContext,
   FhirpathInput,
   FhirpathResultForContext,
   FhirpathTypeContextOf,
   FhirpathTypeDeclarations,
   FhirTypeName,
-  InputOf,
 } from '../typed/infer.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
@@ -293,7 +293,7 @@ export function compile<
   const Expr extends string,
   const Root extends FhirTypeName,
   TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
->(expression: Expr, inputType: Root): CompiledExpression<Expr, InputOf<Root>, TResult, Root>
+>(expression: Expr, inputType: Root): CompiledExpression<Expr, DeclaredRootInput<Root>, TResult, Root>
 export function compile<
   const Expr extends string,
   TInput = FhirpathInput<Expr>,
@@ -316,24 +316,33 @@ export type AnyExpression = string | CompiledExpression<any, any, any, any>
  */
 function inputCollection(input: unknown): TypedValue[] {
   if (isTypedValue(input)) return [input]
-  if (Array.isArray(input) && input.some(isTypedValue)) {
-    return input.flatMap(item => (isTypedValue(item) ? [item] : toCollection(item)))
+  if (!Array.isArray(input) || !input.some(isTypedValue)) return toCollection(input)
+  if (!input.every(isTypedValue)) {
+    throw new FhirPathTypeError('The input mixes typed values and JSON; pass one or the other')
   }
-  return toCollection(input)
+  return [...input]
 }
 
 /**
  * A declared root checks typed input, which states its type, and never
- * JSON, which it does not convert. A contained resource is refused under a
- * resource root: its `%rootResource` is its container, while the static types
- * read `%rootResource` as the root.
+ * converts JSON. A root other than a resource refuses JSON: the static types
+ * read `%resource` from the root's path, while JSON has no owning resource. A
+ * contained resource is refused under a resource root: its `%rootResource` is
+ * its container, while the static types read `%rootResource` as the root.
  */
 function assertDeclaredRoot(root: TypedValue[], inputType: string, model: ModelProvider | undefined): void {
   const declared = model?.resolveType(inputType)
   if (model === undefined || declared === undefined) return
   const resourceRoot = model.isSubtypeOf(declared, `${model.namespace}.Resource`)
+  if (!root.some(isTypedValue)) {
+    if (root.length > 0 && !resourceRoot) {
+      throw new FhirPathTypeError(
+        `A ${declared} root takes typed input, which knows its owning resource; type the value with toTyped(value, '${inputType}', { in: resource })`
+      )
+    }
+    return
+  }
   for (const item of root) {
-    if (!isTypedValue(item)) continue
     if (!model.isSubtypeOf(item.type, declared)) {
       throw new FhirPathTypeError(`The input is ${item.type}, but the expression declares its root as ${declared}`)
     }
@@ -353,8 +362,7 @@ function isResolvedCollection<T>(value: T | readonly TypedValue[]): value is rea
 /** Bind planned vars into a fresh context (see contextFactory for the scoping rules). */
 function bindVars(context: EvaluationContext, vars: readonly PlannedVar[]): void {
   for (const [name, value] of vars) {
-    // %resource and %rootResource stay reserved when unattached input leaves them unbound.
-    if (context.env.has(name) || BUILTIN_ENV_VARIABLE_NAMES.has(name)) {
+    if (isReservedVariableName(context, name)) {
       throw new FhirPathTypeError(`Cannot override the environment variable %${name} with a var`)
     }
     context.variables.set(

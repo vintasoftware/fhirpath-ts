@@ -368,8 +368,9 @@ const visible = r4.compile("(status in ('entered-in-error' | 'draft')).not()", '
 
 The result is inferred against the declared type, even when the input's static
 type names no resource, such as parsed JSON. The input must be that type or an
-array of it. Static checkers and strict evaluation analyze the expression
-against the declared type.
+array of it; for a root other than a resource, typed values of it (see
+[Type name or declared root](#type-name-or-declared-root)). Static checkers and
+strict evaluation analyze the expression against the declared type.
 
 Engine methods type any compiled expression that declares its type, whether
 it comes from `compile(expression, type)`, `fhirpath(expression, type)`,
@@ -409,26 +410,23 @@ since a type name at the root matches only a resource; data without a
 `resourceType`; or an expression written relative to its resource or datatype,
 such as a FHIR constraint.
 
-```ts
-r4.compile('given', 'HumanName').evaluate(name) // ['Peter', 'James']
-```
-
-Evaluation doesn't use the declared type to read JSON, so a choice element
-such as an extension's `value` is empty on an Extension passed on its own. Read
-it from its resource, or type it first with
-[`toTyped()`](#element-contexts):
+A root other than a resource takes [typed input](#element-contexts) only, in
+TypeScript and at runtime: JSON has no owning resource, while the static types
+read `%resource` from the root's path. Type the value with `toTyped()`, inside
+its resource when it has one, so choice elements such as an extension's
+`value` resolve:
 
 ```ts
+r4.compile('given', 'HumanName').evaluate(r4.toTyped(name, 'HumanName')) // ['Peter', 'James']
 // nickname is { url: 'http://example.org/nickname', valueString: 'Pete' }, also in patient.extension
-r4.compile('value', 'Extension').evaluate(nickname) // []
 r4.compile("extension('http://example.org/nickname').value", 'Patient').evaluate(patient) // ['Pete']
 r4.compile('value', 'Extension').evaluate(r4.toTyped(nickname, 'Extension', { in: patient })) // ['Pete']
 ```
 
-A declared root does check [typed input](#element-contexts), which states its
-type: a value of another type throws. So does a contained resource under a
-resource root, because its `%rootResource` is its container while the static
-types read `%rootResource` as the root.
+A declared root checks typed input, which states its type: a value of another
+type throws. So does a contained resource under a resource root, because its
+`%rootResource` is its container while the static types read `%rootResource`
+as the root. JSON under a resource root is not checked.
 
 ### `evaluateTyped()`
 
@@ -506,28 +504,29 @@ neither.
 
 `fhirpath-ts/sdc` gives the
 [variables SDC defines](https://build.fhir.org/ig/HL7/sdc/en/expressions.html#fhirpath-supplements)
-for expressions in a Questionnaire. `sdcContexts()` walks a
+for expressions in a Questionnaire. `sdcScope(engine, questionnaire)` reads
+the Questionnaire's items once. Its `contexts(response)` walks a
 QuestionnaireResponse in SDC evaluation order: the response, then each item
 instance depth-first, including items under answers. Each context comes with
 `%questionnaire` and, inside an item, `%qitem`, the Questionnaire item with the
 same linkId:
 
 ```ts
-import { sdcContexts, sdcVars } from 'fhirpath-ts/sdc'
+import { sdcScope } from 'fhirpath-ts/sdc'
 
-for (const { context, vars } of sdcContexts(r4, response, questionnaire)) {
+const scope = sdcScope(r4, questionnaire)
+for (const { context, vars } of scope.contexts(response)) {
   r4.evaluate(calculatedExpression, context, { vars: { ...vars, ...namedVariables } })
 }
 ```
 
-`sdcVars(engine, questionnaire, context)` gives the same variables for one
-context, such as each result of a `templateExtractContext` expression:
+`scope.vars(context)` gives the same variables for one context, such as each
+result of a `templateExtractContext` expression:
 
 ```ts
 for (const medication of r4.evaluateTyped("item.where(linkId = 'meds')", root)) {
   const context = [medication]
-  const vars = sdcVars(r4, questionnaire, context)
-  r4.first("item.where(linkId = 'name').answer.value", context, { vars })
+  r4.first("item.where(linkId = 'name').answer.value", context, { vars: scope.vars(context) })
 }
 ```
 

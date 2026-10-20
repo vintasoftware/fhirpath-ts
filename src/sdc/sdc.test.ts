@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { r4 } from '../r4/index.ts'
-import { sdcContexts, sdcVars } from './index.ts'
+import { sdcScope } from './index.ts'
 
 const ordinal = (valueDecimal: number) => [
   { url: 'http://hl7.org/fhir/StructureDefinition/ordinalValue', valueDecimal },
@@ -54,9 +54,9 @@ const response = {
   ],
 }
 
-describe('sdcContexts()', () => {
+describe('sdcScope().contexts()', () => {
   it('visits the response, then each item instance depth-first, with %qitem', () => {
-    const visited = [...sdcContexts(r4, response, questionnaire)].map(({ context, vars }) => [
+    const visited = [...sdcScope(r4, questionnaire).contexts(response)].map(({ context, vars }) => [
       r4.evaluate("iif(%context is QuestionnaireResponse, 'root', linkId)", context, { vars }),
       vars.qitem === undefined ? [] : r4.evaluate('%qitem.text', context, { vars }),
     ])
@@ -73,7 +73,7 @@ describe('sdcContexts()', () => {
   })
 
   it('binds %questionnaire for weight() at each item', () => {
-    const pain = [...sdcContexts(r4, response, questionnaire)].find(
+    const pain = [...sdcScope(r4, questionnaire).contexts(response)].find(
       ({ context }) => r4.first("linkId = 'pain'", context) === true
     )
     expect(r4.evaluate('answer.value.weight()', pain!.context, { vars: pain!.vars })).toEqual([4])
@@ -84,11 +84,12 @@ describe('sdcContexts()', () => {
 describe('template extraction through typed contexts', () => {
   // templateExtractContext selects the contexts; each value expression runs at one of them.
   it('builds one resource per repeated group instance', () => {
-    const [root] = sdcContexts(r4, response, questionnaire)
+    const scope = sdcScope(r4, questionnaire)
+    const [root] = scope.contexts(response)
     const medications = r4.evaluateTyped("item.where(linkId = 'medication')", root!.context)
     const statements = medications.map(medication => {
       const context = [medication]
-      const vars = sdcVars(r4, questionnaire, context)
+      const vars = scope.vars(context)
       return {
         resourceType: 'MedicationStatement',
         subject: r4.first('%resource.subject', context, { vars }),
@@ -116,19 +117,19 @@ describe('template extraction through typed contexts', () => {
   })
 })
 
-describe('sdcVars()', () => {
+describe('sdcScope().vars()', () => {
   it('gives only %questionnaire at the response root', () => {
     const root = r4.evaluateTyped('$this', response)
-    expect(Object.keys(sdcVars(r4, questionnaire, root))).toEqual(['questionnaire'])
+    expect(Object.keys(sdcScope(r4, questionnaire).vars(root))).toEqual(['questionnaire'])
   })
 
   it('refuses an item the Questionnaire does not define', () => {
     const items = r4.toTyped({ linkId: 'unknown' }, 'QuestionnaireResponse.item')
-    expect(() => sdcVars(r4, questionnaire, items)).toThrow("no item with linkId 'unknown'")
+    expect(() => sdcScope(r4, questionnaire).vars(items)).toThrow("no item with linkId 'unknown'")
   })
 
   it('refuses a context that mixes linkIds', () => {
     const items = r4.evaluateTyped('item', response)
-    expect(() => sdcVars(r4, questionnaire, items)).toThrow('one linkId')
+    expect(() => sdcScope(r4, questionnaire).vars(items)).toThrow('one linkId')
   })
 })
