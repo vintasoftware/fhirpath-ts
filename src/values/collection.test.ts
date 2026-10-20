@@ -12,7 +12,7 @@ import {
   toCollection,
   toTypedValue,
   typeLocalName,
-  unwrap,
+  unwrapAll,
 } from './typed-value.ts'
 
 describe('toTypedValue', () => {
@@ -50,15 +50,19 @@ describe('toCollection', () => {
   })
 })
 
-describe('unwrap', () => {
+describe('unwrapAll', () => {
   it('unwraps Decimal to number', () => {
-    expect(unwrap(toTypedValue(2.5))).toBe(2.5)
+    expect(unwrapAll([toTypedValue(2.5)])).toEqual([2.5])
   })
 
   it('passes plain values through', () => {
-    expect(unwrap({ type: SYSTEM_STRING, value: 'x' })).toBe('x')
     const resource = { resourceType: 'Patient' }
-    expect(unwrap(toTypedValue(resource))).toBe(resource)
+    expect(unwrapAll([{ type: SYSTEM_STRING, value: 'x' }, toTypedValue(resource)])).toEqual(['x', resource])
+  })
+
+  it('gives no item for a primitive with only extensions', () => {
+    const extensionOnly = { type: 'FHIR.date', value: undefined, primitiveElement: { extension: [] } }
+    expect(unwrapAll([extensionOnly, { type: SYSTEM_STRING, value: 'x' }])).toEqual(['x'])
   })
 })
 

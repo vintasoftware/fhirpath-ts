@@ -28,7 +28,7 @@ export interface HostNativeFunction {
    * The implementation. `input` is the unwrapped input collection; each
    * argument is eagerly evaluated against `$this` — the enclosing context
    * item, like built-in value arguments — and arrives as an unwrapped
-   * collection. Return a plain value, an array of plain values, or undefined
+   * collection. Neither holds a primitive with only an id or extension. Return a plain value, an array of plain values, or undefined
    * for empty — the engine converts back to its typed representation.
    */
   fn: (input: unknown[], ...args: unknown[][]) => unknown

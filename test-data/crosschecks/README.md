@@ -34,3 +34,6 @@ An expectation is one of:
   FHIRPath error);
 - `analyzer`: whether `analyzeExpressionDetailed()` reports an error, and the
   result types it must include.
+
+`typed: true` compares `evaluateTyped()` results, for an upstream test that
+reads fhirpath.js's internal nodes (`resolveInternalTypes: false`).

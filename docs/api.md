@@ -240,6 +240,13 @@ Literal expressions infer their result and input types.
 r4.evaluate('Patient.name.given', patient) // string[]
 ```
 
+A FHIR primitive with only an `id` or extensions, such as a masked
+`_birthDate` without `birthDate`, has no plain value and gives no item. The
+element still exists in the expression: `birthDate.count()` is `1`,
+`birthDate.hasValue()` is `false`, and `birthDate.extension` reads its
+extensions. [`evaluateTyped()`](#evaluatetyped) returns the element itself,
+with an `undefined` value.
+
 ### `first()`
 
 Returns the first result, or `undefined` for an empty collection.
@@ -760,7 +767,8 @@ const functions = {
 ```
 
 Arguments are evaluated before `fn` is called. Plain JavaScript values cross the
-function boundary. Built-in names cannot be replaced.
+function boundary, as in [`evaluate()`](#evaluate), so a primitive with only
+extensions is not in `input`. Built-in names cannot be replaced.
 
 The native signature's result supplies both analyzer and TypeScript inference.
 Set the result's `ordered` when a collection result has a defined or undefined
