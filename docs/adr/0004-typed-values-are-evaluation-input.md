@@ -20,7 +20,7 @@ it throws. Without `in`, the element is typed with no ancestry, and then
 `%resource` and `%rootResource` throw when they are read. A declared root
 (`compile(expr, type)`) checks the types of typed input and throws on a
 conflict. It never converts raw input, and a root other than a resource
-refuses JSON, in TypeScript and at runtime: the static types read `%resource`
+refuses JSON, in TypeScript and, with a model, at runtime: the static types read `%resource`
 from the root's path, while JSON has no owning resource.
 
 ## Considered options

@@ -103,7 +103,7 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 - **Breaking:** a declared root other than a resource, such as
   `compile('given', 'HumanName')` or `compile(expr, 'QuestionnaireResponse.item')`,
-  takes typed values only, in TypeScript and at runtime. Type JSON with
+  takes typed values only, in TypeScript and, on an engine with a model, at runtime. Type JSON with
   `toTyped(value, type, { in: resource })`. JSON there has no owning resource,
   and it read a choice element such as `answer.value` as empty.
 - With a declared backbone root such as `QuestionnaireResponse.item`, the type

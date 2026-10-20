@@ -411,10 +411,10 @@ since a type name at the root matches only a resource; data without a
 such as a FHIR constraint.
 
 A root other than a resource takes [typed input](#element-contexts) only, in
-TypeScript and at runtime: JSON has no owning resource, while the static types
-read `%resource` from the root's path. Type the value with `toTyped()`, inside
-its resource when it has one, so choice elements such as an extension's
-`value` resolve:
+TypeScript and, on an engine with a model, at runtime: JSON has no owning
+resource, while the static types read `%resource` from the root's path. Type
+the value with `toTyped()`, inside its resource when it has one, so choice
+elements such as an extension's `value` resolve:
 
 ```ts
 r4.compile('given', 'HumanName').evaluate(r4.toTyped(name, 'HumanName')) // ['Peter', 'James']
