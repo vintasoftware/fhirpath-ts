@@ -67,6 +67,11 @@ const documentation: readonly DocumentExpectation[] = [
       valid('Bundle.entry.resource.ofType(Observation).subject.resolve().name.family'),
       valid('answer.value'),
       valid('Questionnaire.repeat(item).linkId'),
+      valid(
+        'Patient.birthDate',
+        'Patient.birthDate.exists() and Patient.birthDate.hasValue().not()',
+        "Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/data-absent-reason').value"
+      ),
       valid("Patient.select(Coding { system: 'http://hl7.org/fhir/administrative-gender', code: gender })"),
       valid(
         "Observation { status: 'final', code: CodeableConcept { text: 'BP' }, component: BackboneElement { code: CodeableConcept { text: 'Systolic' }, value: 120 'mm[Hg]' } }"

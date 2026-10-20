@@ -346,6 +346,28 @@ describe('README usage recipes', () => {
     expect(r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)).toEqual(['g1', 'q1', 'g2', 'q2'])
   })
 
+  it('read missing-data reasons', () => {
+    const patient = {
+      resourceType: 'Patient' as const,
+      _birthDate: {
+        extension: [{ url: 'http://hl7.org/fhir/StructureDefinition/data-absent-reason', valueCode: 'unknown' }],
+      },
+      _gender: {
+        extension: [{ url: 'http://hl7.org/fhir/StructureDefinition/data-absent-reason', valueCode: 'masked' }],
+      },
+    }
+    expect(r4.evaluate('Patient.birthDate', patient)).toEqual([])
+    expect(r4.evaluate('Patient.birthDate.exists() and Patient.birthDate.hasValue().not()', patient)).toEqual([true])
+    expect(
+      r4.evaluate(
+        "Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/data-absent-reason').value",
+        patient
+      )
+    ).toEqual(['unknown'])
+    expect(r4.evaluate("Patient.gender = 'male'", patient)).toEqual([false])
+    expect(r4.evaluate("Patient.gender != 'male'", patient)).toEqual([true])
+  })
+
   it('evaluate at questionnaire items', () => {
     const questionnaire: Questionnaire = {
       resourceType: 'Questionnaire',

@@ -307,6 +307,25 @@ all depths, so this reads each questionnaire item's `linkId`.
 r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)
 ```
 
+### Read missing-data reasons
+
+Some profiles, such as the
+[International Patient Summary](https://build.fhir.org/ig/HL7/fhir-ips/en/Empty-Sections-and-Missing-Data.html),
+require a primitive like `Patient.birthDate` and ask for a
+[data-absent-reason](https://hl7.org/fhir/R4/extension-data-absent-reason.html)
+extension when the value is unknown or withheld. The JSON then has only
+`_birthDate`. `evaluate()` returns no value for that element, but FHIRPath
+still sees it, so read the reason from it:
+
+```ts
+r4.evaluate('Patient.birthDate', patient) // []
+r4.evaluate('Patient.birthDate.exists() and Patient.birthDate.hasValue().not()', patient) // [true]
+r4.evaluate(
+  "Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/data-absent-reason').value",
+  patient,
+) // ['unknown']
+```
+
 ### Build values
 
 An instance selector builds one FHIR value from the current item. An element
@@ -384,6 +403,10 @@ r4.evaluate('Patient.name.where(family.empty()).pathname()', patient)
   `Bundle.entry.resource`. `filter()`,
   `project()`, `checkConstraints()`, and DTO `from()` read a Bundle as its entry
   resources.
+- An element with only extensions, such as a `_gender` that holds a
+  data-absent-reason, is not equal to any value: `gender = 'male'` is `false`
+  and `gender != 'male'` is `true`. Test `hasValue()` first when the reason
+  matters. See [Read missing-data reasons](#read-missing-data-reasons).
 - Inside `where()`, the focus is the item being scanned. Use `%context` or a
   `%var` when a join condition needs the outer resource.
 - `env` contains plain host values. `vars` contains FHIRPath expressions evaluated
