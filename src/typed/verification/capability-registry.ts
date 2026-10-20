@@ -292,7 +292,7 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(5 / 2).toString()',
   },
   'operator.div': {
-    source: { corpusId: 'fhirpathjs:fhir-r4.yaml:764:0' },
+    source: { corpusId: 'official:r4:testDiv:testDiv5' },
     expectedType: 'number[]',
     compositionType: 'string[]',
     runtime: true,
@@ -301,7 +301,7 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(5 div 2).toString()',
   },
   'operator.mod': {
-    source: { corpusId: 'fhirpathjs:fhir-r4.yaml:769:0' },
+    source: { corpusId: 'official:r4:testMod:testMod5' },
     expectedType: 'number[]',
     compositionType: 'string[]',
     runtime: true,
@@ -382,7 +382,7 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 >= 2).toString()',
   },
   'operator.equal': {
-    source: { corpusId: 'fhirpathjs:fhir-r4.yaml:442:0' },
+    source: { corpusId: 'official:r4:testEquality:testEquality1' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
     runtime: true,
@@ -391,7 +391,7 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 = 1).toString()',
   },
   'operator.equivalent': {
-    source: { corpusId: 'fhirpathjs:fhir-r4.yaml:494:0' },
+    source: { corpusId: 'official:r4:testEquivalent:testEquivalent1' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
     runtime: true,
@@ -400,7 +400,7 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 ~ 1).toString()',
   },
   'operator.not-equal': {
-    source: { corpusId: 'fhirpathjs:fhir-r4.yaml:470:0' },
+    source: { corpusId: 'official:r4:testNEquality:testNEquality1' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
     runtime: true,
@@ -409,7 +409,7 @@ export const INFERENCE_CAPABILITIES = {
     composition: '(1 != 2).toString()',
   },
   'operator.not-equivalent': {
-    source: { corpusId: 'fhirpathjs:fhir-r4.yaml:518:0' },
+    source: { corpusId: 'official:r4:testNotEquivalent:testNotEquivalent1' },
     expectedType: 'boolean[]',
     compositionType: 'string[]',
     runtime: true,

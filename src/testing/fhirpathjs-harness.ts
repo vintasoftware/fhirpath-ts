@@ -1,11 +1,14 @@
 import { readFileSync } from 'node:fs'
 
 import {
+  DEFERRED_FEATURES,
+  MODEL_DIFFERENCES,
   OFFICIAL_SUITE_COPIES,
   QUIRK_FAMILIES,
   type QuirkFamily,
   SKIPPED_MODELS,
 } from '../../test-data/fhirpathjs/quirk-manifest.ts'
+import { SKIP_CATEGORY_LABELS, type SkipCategory } from '../../test-data/official/skip-manifest.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate } from '../api/evaluate.ts'
 import { r4Model } from '../r4/index.ts'
@@ -49,36 +52,87 @@ function loadResource(name: string): unknown {
   return structuredClone(resourceCache.get(name))
 }
 
-/** Why a corpus case is skipped: a quirk family with the manifest key that names the case, or another reason. */
-export type CaseSkip = { kind: 'quirk'; family: QuirkFamily; key: string } | { kind: 'other'; reason: string }
+/**
+ * One corpus case in scope. The corpus's copies of the official suites are out
+ * of scope: official.test.ts runs those suites directly, with their modes and
+ * predicates.
+ */
+export interface CorpusCase {
+  file: string
+  data: CorpusFile
+  test: CorpusTest
+  testIndex: number
+  expression: string
+  expressionIndex: number
+}
+
+/** The in-scope cases of one vendored corpus, in file and test order. */
+export function corpusCases(name: 'cases' | 'cases-py-extras'): CorpusCase[] {
+  const cases: CorpusCase[] = []
+  for (const [file, data] of Object.entries(loadCorpus(name))) {
+    if (OFFICIAL_SUITE_COPIES.includes(file)) {
+      continue
+    }
+    data.tests.forEach((test, testIndex) => {
+      expressionsOf(test).forEach((expression, expressionIndex) => {
+        cases.push({ file, data, test, testIndex, expression, expressionIndex })
+      })
+    })
+  }
+  return cases
+}
+
+/**
+ * A case's expressions. fhirpath.js's `{ base, expression }` form evaluates
+ * `expression` with the input typed as the `base` path; the deferred-feature
+ * manifest names those cases by `expression`.
+ */
+export function expressionsOf(test: CorpusTest): string[] {
+  if (typeof test.expression === 'string') {
+    return [test.expression]
+  }
+  if (Array.isArray(test.expression)) {
+    return test.expression.filter((entry): entry is string => typeof entry === 'string')
+  }
+  const { expression } = test.expression as { expression?: unknown }
+  return typeof expression === 'string' ? [expression] : []
+}
+
+/**
+ * Why a corpus case is not run, by skip category. `reason` is the model's
+ * reason or the manifest family's name; `key` is the manifest key that names
+ * the case, absent for a model skip.
+ */
+export interface CaseSkip {
+  kind: SkipCategory
+  reason: string
+  key?: string
+}
 
 export function classifyCase(test: CorpusTest, expression: string, file: string): CaseSkip | undefined {
-  if ((test.disable === true || test.inheritedDisable === true) && OFFICIAL_SUITE_COPIES.includes(file)) {
-    return { kind: 'other', reason: 'disabled upstream; official.test.ts runs this official-suite case' }
-  }
-  if (typeof test.expression === 'object' && !Array.isArray(test.expression)) {
-    return { kind: 'other', reason: 'non-string expression (fhirpath.js internal AST form)' }
-  }
   if (test.model !== undefined && test.model !== 'r4') {
-    return { kind: 'other', reason: SKIPPED_MODELS[test.model] ?? `unknown model ${test.model}` }
+    return { kind: 'model', reason: SKIPPED_MODELS[test.model] ?? `unknown model ${test.model}` }
   }
-  const quirk = matchQuirk(file, test, expression)
-  return quirk === undefined ? undefined : { kind: 'quirk', ...quirk }
+  const match = matchQuirk(file, test, expression)
+  return match === undefined ? undefined : { kind: match.kind, reason: match.family.name, key: match.key }
 }
 
 /** Why a case is skipped, or undefined when it should run. */
 export function skipReason(test: CorpusTest, expression: string, file: string): string | undefined {
   const skip = classifyCase(test, expression, file)
-  if (skip === undefined) {
-    return undefined
-  }
-  return skip.kind === 'quirk' ? `intentional divergence: ${skip.family.name}` : skip.reason
+  return skip === undefined ? undefined : `${SKIP_CATEGORY_LABELS[skip.kind]}: ${skip.reason}`
 }
 
-const QUIRK_INDEX = new Map<string, QuirkFamily>()
-for (const family of QUIRK_FAMILIES) {
-  for (const key of family.keys) {
-    QUIRK_INDEX.set(key, family)
+const FAMILY_INDEX = new Map<string, { kind: SkipCategory; family: QuirkFamily }>()
+for (const [kind, families] of [
+  ['model', MODEL_DIFFERENCES],
+  ['quirk', QUIRK_FAMILIES],
+  ['deferred', DEFERRED_FEATURES],
+] as const) {
+  for (const family of families) {
+    for (const key of family.keys) {
+      FAMILY_INDEX.set(key, { kind, family })
+    }
   }
 }
 
@@ -91,15 +145,16 @@ function caseKeys(file: string, test: CorpusTest, expression: string): string[] 
   return keys
 }
 
+/** The manifest family (model difference, quirk, or deferred feature) whose key names this case. */
 export function matchQuirk(
   file: string,
   test: CorpusTest,
   expression: string
-): { family: QuirkFamily; key: string } | undefined {
+): { kind: SkipCategory; family: QuirkFamily; key: string } | undefined {
   for (const key of caseKeys(file, test, expression)) {
-    const family = QUIRK_INDEX.get(key)
-    if (family !== undefined) {
-      return { family, key }
+    const entry = FAMILY_INDEX.get(key)
+    if (entry !== undefined) {
+      return { ...entry, key }
     }
   }
   return undefined

@@ -51,8 +51,6 @@ describe('corpus harness comparator', () => {
 
 describe('corpus skip logic', () => {
   it('covers each skip shape', () => {
-    expect(skipReason({ expression: 'a', disable: true }, 'a', 'fhir-r4.yaml')).toContain('official.test.ts')
-    expect(skipReason({ expression: 'a', inheritedDisable: true }, 'a', 'fhir-r5.yaml')).toContain('official.test.ts')
     expect(skipReason({ expression: 'a', disable: true }, 'a', 'f.yaml')).toBeUndefined()
     expect(
       skipReason(
@@ -64,8 +62,16 @@ describe('corpus skip logic', () => {
     expect(
       skipReason({ expression: 'a <= h', desc: 'other', disable: true }, 'a <= h', '6.2_comparision.yaml')
     ).toBeUndefined()
-    expect(skipReason({ expression: { dsl: true } }, '<non-string expression>', 'f.yaml')).toContain('non-string')
-    expect(skipReason({ expression: 'a', model: 'r5' }, 'a', 'f.yaml')).toContain('R5 model')
+    expect(
+      skipReason(
+        { expression: { base: 'QuestionnaireResponse.item', expression: 'answer.value = 2 year' }, model: 'r4' },
+        'answer.value = 2 year',
+        'simple.yaml'
+      )
+    ).toBe('deferred feature: typed-element-context')
+    expect(skipReason({ expression: 'a', model: 'r5' }, 'a', 'f.yaml')).toBe(
+      'different FHIR version or model: needs the R5 model package (deferred; the R4 model ships first)'
+    )
     expect(skipReason({ expression: 'a', model: 'r99' }, 'a', 'f.yaml')).toContain('unknown model')
     expect(skipReason({ expression: 'a', model: 'r4' }, 'a', 'f.yaml')).toBeUndefined()
     const [quirkFile, quirkExpression] = ((QUIRK_FAMILIES[0] as { keys: string[] }).keys[0] as string).split('||') as [

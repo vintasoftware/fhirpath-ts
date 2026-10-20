@@ -2,8 +2,23 @@
  * Official-suite cases this engine does not run, each with a reason. The harness
  * fails if an entry matches nothing, so stale entries cannot linger.
  */
+/**
+ * Why a case does not run: another FHIR version or model (R5, STU3, DSTU2,
+ * CDA), a documented divergence from the suite (quirk), or a feature the
+ * README defers.
+ */
+export type SkipCategory = 'model' | 'quirk' | 'deferred'
+
+/** How skipped test titles name each category, in both the official suites and the corpora. */
+export const SKIP_CATEGORY_LABELS: Readonly<Record<SkipCategory, string>> = {
+  model: 'different FHIR version or model',
+  quirk: 'intentional divergence',
+  deferred: 'deferred feature',
+}
+
 export interface SkipEntry {
   suite: 'r4' | 'r5'
+  category: SkipCategory
   /** Group name, exact. */
   group?: string
   /** Test name, exact. */
@@ -73,22 +88,27 @@ export const PHASE_OVERRIDES: PhaseOverride[] = [
 
 export const SKIP_MANIFEST: SkipEntry[] = [
   {
+    category: 'model',
     suite: 'r5',
     mode: 'cda',
-    reason: 'CDA documents need a CDA ModelInfo; out of scope for v1 (README: deferred features)',
+    reason: 'CDA documents need a CDA model; this package ships the FHIR R4 model',
   },
   {
+    category: 'quirk',
     suite: 'r5',
     mode: 'lenient/polymorphics',
-    reason: 'lenient polymorphic access is profile-dependent behavior this engine does not offer',
+    reason:
+      'FHIRPath reads a choice element by its base name; the suite itself pins suffixed keys such as valueQuantity as errors outside lenient mode (testPolymorphismB)',
   },
   {
+    category: 'model',
     suite: 'r5',
     group: 'miscEngineTests',
     test: 'testMultipleResolve',
     reason: 'uses the R5-only DiagnosticReport.composition element; this package ships the R4 model',
   },
   {
+    category: 'quirk',
     suite: 'r4',
     group: 'LowBoundary',
     test: 'LowBoundaryDecimal15',
@@ -96,6 +116,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     reason: 'suite expects -0.0, but the mathematical lower bound floored at precision 1 is -0.1',
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'LowBoundary',
     test: 'LowBoundaryDecimal15',
@@ -103,6 +124,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     reason: 'suite expects -0.0, but the mathematical lower bound floored at precision 1 is -0.1',
   },
   {
+    category: 'quirk',
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal15',
@@ -110,6 +132,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     reason: 'suite expects 0.0, but the mathematical upper bound ceiled at precision 1 is 0.1',
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal15',
@@ -117,6 +140,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     reason: 'suite expects 0.0, but the mathematical upper bound ceiled at precision 1 is 0.1',
   },
   {
+    category: 'quirk',
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal16',
@@ -125,6 +149,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
       'the expression -0.0034.highBoundary(1) negates the boundary of 0.0034 by precedence; the suite expects 0.0',
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDecimal16',
@@ -133,6 +158,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
       'the expression -0.0034.highBoundary(1) negates the boundary of 0.0034 by precedence; the suite expects 0.0',
   },
   {
+    category: 'quirk',
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond1',
@@ -141,6 +167,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond1',
@@ -149,6 +176,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
   {
+    category: 'quirk',
     suite: 'r4',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond3',
@@ -157,6 +185,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'HighBoundary',
     test: 'HighBoundaryDateTimeMillisecond3',
@@ -165,12 +194,14 @@ export const SKIP_MANIFEST: SkipEntry[] = [
       'suite fills minutes with 00 in a high boundary (T08:00:59.999); the latest moment of hour 08 is T08:59:59.999',
   },
   {
+    category: 'model',
     suite: 'r5',
     group: 'defineVariable',
     test: 'dvConceptMapExample',
     reason: 'uses the R5-only ConceptMap ... target.relationship element; this package ships the R4 model',
   },
   {
+    category: 'model',
     suite: 'r4',
     group: 'testPlus',
     test: 'testPlusDate19',
@@ -179,6 +210,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
       'R4 expected fractional seconds to truncate; R5 revised them to add as milliseconds, which this engine follows',
   },
   {
+    category: 'quirk',
     suite: 'r4',
     group: 'testSort',
     test: 'testSort10',
@@ -187,6 +219,7 @@ export const SKIP_MANIFEST: SkipEntry[] = [
       "suite sorts the name without a family first under -family; FHIRPath 3.0.0 makes an empty key lower than every value, so it sorts last descending and the first name is 'maiden'",
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'testSort',
     test: 'testSort10',

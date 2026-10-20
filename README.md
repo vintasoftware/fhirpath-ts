@@ -407,7 +407,8 @@ sites, DTO discovery, and cases where source-only checks stay quiet.
 
 The engine passes every non-skipped case in the vendored official R4 and R5
 FHIRPath suites. It also runs the fhirpath.js and fhirpath-py corpora. Each skip
-and intentional difference has a checked manifest entry with its reason.
+has a checked manifest entry with its reason and category: a different FHIR
+version or model, an intentional difference, or a deferred feature.
 
 Property tests cover parser round trips, decimal arithmetic, and temporal
 comparisons. Generated expressions are also compared with fhirpath.js. A weekly
@@ -476,6 +477,7 @@ These features are deferred and fail with a clear error today:
 | `%factory` | Demand for the current R5 draft API; [instance selectors](#build-values) already build FHIR values |
 | CDA mode | A CDA `ModelProvider` |
 | Full UCUM | A full UCUM implementation behind the current interface |
+| Typed element context (fhirpath.js `{base, expression}`) | A public way to type raw input as a backbone element (#119) |
 | R5 model package | Generated R5 definitions and types |
 
 `union()`, `|`, and `combine()` keep the order of their sources, where 3.0.0

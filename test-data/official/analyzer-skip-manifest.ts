@@ -10,6 +10,7 @@ import type { SkipEntry } from './skip-manifest.ts'
 export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
   // --- deliberate strictness: the analyzer flags these valid cases on purpose ---
   {
+    category: 'quirk',
     suite: 'r4',
     group: 'testIif',
     test: 'testIif3',
@@ -17,6 +18,7 @@ export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
       'singleton misuse inside a lazily-untaken iif() branch: the branch never runs here, but evaluating it would error, and a static checker reads all branches',
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'testIif',
     test: 'testIif3',
@@ -24,6 +26,7 @@ export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
       'singleton misuse inside a lazily-untaken iif() branch: the branch never runs here, but evaluating it would error, and a static checker reads all branches',
   },
   {
+    category: 'quirk',
     suite: 'r4',
     group: 'testIif',
     test: 'testIif4',
@@ -31,6 +34,7 @@ export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
       'singleton misuse inside a lazily-untaken iif() branch: the branch never runs here, but evaluating it would error, and a static checker reads all branches',
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'testIif',
     test: 'testIif4',
@@ -38,6 +42,7 @@ export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
       'singleton misuse inside a lazily-untaken iif() branch: the branch never runs here, but evaluating it would error, and a static checker reads all branches',
   },
   {
+    category: 'quirk',
     suite: 'r4',
     group: 'testType',
     test: 'testType22',
@@ -45,6 +50,7 @@ export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
       "the suite evaluates is(System.Patient) to false at runtime; statically, naming a type that doesn't exist is exactly what unknown-type is for",
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'testType',
     test: 'testType22',
@@ -52,6 +58,7 @@ export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
       "the suite evaluates is(System.Patient) to false at runtime; statically, naming a type that doesn't exist is exactly what unknown-type is for",
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'defineVariable',
     test: 'defineVariable13',
@@ -59,6 +66,7 @@ export const ANALYZER_SKIP_MANIFEST: SkipEntry[] = [
       "typed defineVariable() bindings surface that %n2.given may hold several items, so '+' gets a singleton diagnostic; the fixture happens to hold one given (strict evaluation)",
   },
   {
+    category: 'quirk',
     suite: 'r5',
     group: 'defineVariable',
     test: 'defineVariable14',
