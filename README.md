@@ -157,7 +157,13 @@ result.toOperationOutcome() // { resourceType: 'OperationOutcome', issue: [{ sev
 ### Convert quantities
 
 Known [UCUM](https://ucum.org/ucum) units compare and convert automatically.
-Unknown units can still compare with the same unit.
+Unknown units can still compare with the same unit. Celsius, Fahrenheit, and
+Réaumur convert to kelvin with their offsets (`23 'Cel' = 73.4 '[degF]'`). They
+and the other UCUM special units (the bel and decibel, neper, pH, and others)
+are not ratio scales, so they take no arithmetic: `1 'Cel' + 1 'Cel'` is empty.
+The non-temperature special units, and prefixed Celsius, compare only with the
+same unit. Units are UCUM codes, so `kB`, `MB`, and `GB` are kilo-, mega-, and
+gigabels; write data sizes in bytes as `kBy`, `MBy`, and `GBy`.
 
 ```ts
 r4.filter(observations, "value.ofType(Quantity) > 140 'mm[Hg]'")

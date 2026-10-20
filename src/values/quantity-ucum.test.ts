@@ -109,3 +109,69 @@ describe('cross-unit quantity semantics', () => {
     expect(evaluate("2 weeks.toQuantity('d')")).toEqual([{ value: 14, unit: 'd' }])
   })
 })
+
+describe('UCUM special units', () => {
+  it('converts Celsius, Fahrenheit, and kelvin exactly through their offsets', () => {
+    expect(evaluate("'0 \\'Cel\\''.toQuantity('K')")).toEqual([{ value: 273.15, unit: 'K' }])
+    expect(evaluate("'23 \\'Cel\\''.toQuantity('[degF]')")).toEqual([{ value: 73.4, unit: '[degF]' }])
+    expect(evaluate("'-40 \\'[degF]\\''.toQuantity('Cel')")).toEqual([{ value: -40, unit: 'Cel' }])
+    expect(evaluate("'80 \\'[degRe]\\''.toQuantity('Cel')")).toEqual([{ value: 100, unit: 'Cel' }])
+    expect(evaluate("'1000 \\'mK\\''.toQuantity('K')")).toEqual([{ value: 1, unit: 'K' }])
+    expect(evaluate("0 'Cel' = 273.15 'K'")).toEqual([true])
+    expect(evaluate("23 'Cel' = 73.4 '[degF]'")).toEqual([true])
+    expect(evaluate("(23 'Cel' | 73.4 '[degF]').count()")).toEqual([1])
+    expect(evaluate("23 'Cel' > 72 '[degF]'")).toEqual([true])
+    expect(evaluate("-1 'Cel' < 32 '[degF]'")).toEqual([true])
+  })
+
+  it('takes no arithmetic or sums, temperatures and logarithmic units alike', () => {
+    for (const expression of [
+      "1 'Cel' + 1 'Cel'",
+      "1 'Cel' + 1 'K'",
+      "2 'Cel' * 2",
+      "1 'dB' - 1 'dB'",
+      "1 'B' / 2 '1'",
+      "2 '[pH]' * 1",
+      "1 'mCel' + 1 'mCel'",
+      "1 '[degRe]' + 1 '[degRe]'",
+      "1 'bit_s' + 1 'bit_s'",
+      "1 '[p\\'diop]' * 2",
+      "(1 'Cel' | 2 'Cel').sum()",
+    ]) {
+      expect(evaluate(expression), expression).toEqual([])
+    }
+    expect(evaluate("1 'K' + 1 'K'")).toEqual([{ value: 2, unit: 'K' }])
+  })
+
+  it('compares logarithmic units only with the same unit', () => {
+    expect(evaluate("1 'B' = 1 'B'")).toEqual([true])
+    expect(evaluate("1 'B' < 2 'B'")).toEqual([true])
+    expect(evaluate("1 'B' = 10 'dB'")).toEqual([])
+    expect(evaluate("'1 \\'B\\''.toQuantity('dB')")).toEqual([])
+  })
+
+  it('rounds ~ to the least precise operand, whichever side it is on', () => {
+    for (const [left, right, equivalent] of [
+      ["4 'g'", "4040 'mg'", true],
+      ["4040 'mg'", "4.0409 'g'", false],
+      ["4040 'mg'", "4.0404 'g'", true],
+      ["4 'g'", "4600 'mg'", false],
+      ["23 'Cel'", "73.4 '[degF]'", true],
+      ["23 'Cel'", "74 '[degF]'", true],
+      ["23.0 'Cel'", "74 '[degF]'", false],
+      ['1 year', "1 'a'", true],
+      ["1 'B'", "1.0 'B'", true],
+      ["1 'g'", "1 's'", false],
+    ] as const) {
+      expect(evaluate(`${left} ~ ${right}`), `${left} ~ ${right}`).toEqual([equivalent])
+      expect(evaluate(`${right} ~ ${left}`), `${right} ~ ${left}`).toEqual([equivalent])
+    }
+  })
+
+  it('keeps offset units whole: no powers, compounds, or prefixes', () => {
+    for (const unit of ['Cel2', 'Cel/s', 'g.Cel', 'mCel']) {
+      expect(canonicalizeUnit(unit), unit).toBeUndefined()
+    }
+    expect(canonicalizeUnit('K/s')?.dimensions).toEqual({ K: 1, s: -1 })
+  })
+})

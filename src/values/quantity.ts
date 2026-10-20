@@ -1,7 +1,7 @@
 import { Decimal } from './decimal.ts'
 import { asNumeric } from './numeric.ts'
 import { type QuantityValue, SYSTEM_QUANTITY, type TypedValue, typeLocalName } from './typed-value.ts'
-import { canonicalizeUnit, sameDimensions } from './ucum.ts'
+import { canonicalizeUnit, type CanonicalUnit, fromBase, isSpecialUnit, sameDimensions, toBase } from './ucum.ts'
 
 /** FHIR Quantity and its specializations coerce to System.Quantity for comparison. */
 const FHIR_QUANTITY_TYPES = new Set([
@@ -223,7 +223,7 @@ export function quantityEqualityKey(quantity: QuantityValue): string {
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([dimension, exponent]) => `${dimension}${exponent}`)
     .join('.')
-  return `U${dimensions}|${decimalKey(quantity.value.multiply(canonical.factor))}`
+  return `U${dimensions}|${decimalKey(toBase(quantity.value, canonical))}`
 }
 
 function decimalKey(value: Decimal): string {
@@ -240,23 +240,37 @@ function compareUcum(a: QuantityValue, b: QuantityValue): -1 | 0 | 1 | undefined
   if (!(canonicalA && canonicalB && sameDimensions(canonicalA, canonicalB))) {
     return undefined
   }
-  return a.value.multiply(canonicalA.factor).compare(b.value.multiply(canonicalB.factor))
+  return toBase(a.value, canonicalA).compare(toBase(b.value, canonicalB))
 }
 
 /**
  * Equivalence: calendar durations match their UCUM twins (`1 year ~ 1 'a'`), and
- * values compare after conversion, rounded to the least precise operand
- * (`4 'g' ~ 4040 'mg'` is true: 4.04 g rounds to 4 at scale 0).
+ * values compare rounded to the least precise operand: the one whose last digit
+ * is worth more in base units. The other converts into its unit and both round
+ * to its scale, so `4 'g' ~ 4040 'mg'` and `4040 'mg' ~ 4 'g'` are both true
+ * (4.04 g rounds to 4), while `4040 'mg' ~ 4.0409 'g'` is false (4040.9 mg
+ * rounds to 4041).
  */
 export function quantitiesEquivalent(a: QuantityValue, b: QuantityValue): boolean {
   const ucumA = asUcum(a)
   const ucumB = asUcum(b)
-  const scale = Math.max(Math.min(a.value.scale, b.value.scale), 0)
-  const converted = convertQuantity(ucumB, ucumA.unit)
-  if (converted !== undefined) {
-    return ucumA.value.round(scale).equals(converted.value.round(scale))
+  const canonicalA = canonicalizeUnit(ucumA.unit)
+  const canonicalB = canonicalizeUnit(ucumB.unit)
+  if (canonicalA && canonicalB && sameDimensions(canonicalA, canonicalB)) {
+    const aIsCoarse = lastDigitWorth(ucumA.value, canonicalA).compare(lastDigitWorth(ucumB.value, canonicalB)) >= 0
+    const [coarse, coarseUnit, fine, fineUnit] = aIsCoarse
+      ? [ucumA.value, canonicalA, ucumB.value, canonicalB]
+      : [ucumB.value, canonicalB, ucumA.value, canonicalA]
+    const scale = Math.max(coarse.scale, 0)
+    return coarse.round(scale).equals(fromBase(toBase(fine, fineUnit), coarseUnit).round(scale))
   }
+  const scale = Math.max(Math.min(a.value.scale, b.value.scale), 0)
   return compareUcum({ ...ucumA, value: ucumA.value.round(scale) }, { ...ucumB, value: ucumB.value.round(scale) }) === 0
+}
+
+/** What one unit in a value's last place is worth in base units: 10^-scale × the unit's factor. */
+function lastDigitWorth(value: Decimal, unit: CanonicalUnit): Decimal {
+  return new Decimal(1n, value.scale).multiply(unit.factor)
 }
 
 /** A calendar duration as its loose UCUM twin (`1 year` → `1 'a'`); UCUM passes through. */
@@ -302,8 +316,7 @@ export function convertQuantity(quantity: QuantityValue, targetUnit: string): Qu
   if (!(source && target && sameDimensions(source, target))) {
     return undefined
   }
-  const converted = quantity.value.multiply(source.factor).divide(target.factor)
-  return converted === undefined ? undefined : { value: converted, unit: targetUnit, calendar: false }
+  return { value: fromBase(toBase(quantity.value, source), target), unit: targetUnit, calendar: false }
 }
 
 function convertCalendar(
@@ -345,12 +358,16 @@ function convertCalendar(
 
 /**
  * Bring two quantities to a shared unit for + and -; the spec picks the more
- * granular (smaller) unit of the two. Undefined when they cannot be converted.
+ * granular (smaller) unit of the two. Undefined when they cannot be converted,
+ * or when either has a UCUM special unit, whose values do not add.
  */
 export function alignQuantities(
   a: QuantityValue,
   b: QuantityValue
 ): { left: Decimal; right: Decimal; unit: string; calendar: boolean } | undefined {
+  if (isSpecialUnit(a.unit) || isSpecialUnit(b.unit)) {
+    return undefined
+  }
   if (a.unit === b.unit && a.calendar === b.calendar) {
     return { left: a.value, right: b.value, unit: a.unit, calendar: a.calendar }
   }

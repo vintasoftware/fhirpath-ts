@@ -24,8 +24,8 @@ license (beda.software) and covers `cases-py-extras.json`.
   **different FHIR version or model** (this package ships the R4 model).
 - Other cases disabled upstream run; the ones whose expected result is wrong
   are quirk families like any other divergence.
-- Cases that need a feature the README defers (UCUM special units, typed
-  element contexts) are skipped as **deferred features**, listed in
+- Cases that need a feature the README defers (typed element contexts) are
+  skipped as **deferred features**, listed in
   `DEFERRED_FEATURES`. Every family list in `quirk-manifest.ts` uses the same
   key forms and hygiene checks.
 - Cases listed in `QUIRK_FAMILIES` are skipped as **intentional divergences**:
