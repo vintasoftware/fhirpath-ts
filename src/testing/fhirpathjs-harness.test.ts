@@ -51,8 +51,6 @@ describe('corpus harness comparator', () => {
 
 describe('corpus skip logic', () => {
   it('covers each skip shape', () => {
-    expect(skipReason({ expression: 'a', disable: true }, 'a', 'fhir-r4.yaml')).toContain('official.test.ts')
-    expect(skipReason({ expression: 'a', inheritedDisable: true }, 'a', 'fhir-r5.yaml')).toContain('official.test.ts')
     expect(skipReason({ expression: 'a', disable: true }, 'a', 'f.yaml')).toBeUndefined()
     expect(
       skipReason(

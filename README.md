@@ -472,6 +472,7 @@ These features are deferred and fail with a clear error today:
 | `%factory` | Demand for the current R5 draft API; [instance selectors](#build-values) already build FHIR values |
 | CDA mode | A CDA `ModelProvider` |
 | Full UCUM | A full UCUM implementation behind the current interface |
+| Typed element context (fhirpath.js `{base, expression}`) | A public way to type raw input as a backbone element (#119) |
 | R5 model package | Generated R5 definitions and types |
 
 `union()`, `|`, and `combine()` keep the order of their sources, where 3.0.0

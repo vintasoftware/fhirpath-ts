@@ -53,37 +53,74 @@ function loadResource(name: string): unknown {
 }
 
 /**
- * Why a corpus case is not run, by skip category: a case run with another
- * model, or a manifest family's case. `official-copy` marks a case of a file
- * `official.test.ts` runs instead; the corpus test leaves those files out, so
- * it never reports one as skipped.
+ * One corpus case in scope. The corpus's copies of the official suites are out
+ * of scope: official.test.ts runs those suites directly, with their modes and
+ * predicates.
  */
-export type CaseSkip =
-  | { kind: 'model'; reason: string }
-  | { kind: SkipCategory; family: QuirkFamily; key: string }
-  | { kind: 'official-copy'; reason: string }
+export interface CorpusCase {
+  file: string
+  data: CorpusFile
+  test: CorpusTest
+  testIndex: number
+  expression: string
+  expressionIndex: number
+}
 
-export function isOfficialSuiteCopy(file: string): boolean {
-  return OFFICIAL_SUITE_COPIES.includes(file)
+/** The in-scope cases of one vendored corpus, in file and test order. */
+export function corpusCases(name: 'cases' | 'cases-py-extras'): CorpusCase[] {
+  const cases: CorpusCase[] = []
+  for (const [file, data] of Object.entries(loadCorpus(name))) {
+    if (OFFICIAL_SUITE_COPIES.includes(file)) {
+      continue
+    }
+    data.tests.forEach((test, testIndex) => {
+      expressionsOf(test).forEach((expression, expressionIndex) => {
+        cases.push({ file, data, test, testIndex, expression, expressionIndex })
+      })
+    })
+  }
+  return cases
+}
+
+/**
+ * A case's expressions. fhirpath.js's `{ base, expression }` form evaluates
+ * `expression` with the input typed as the `base` path; the deferred-feature
+ * manifest names those cases by `expression`.
+ */
+export function expressionsOf(test: CorpusTest): string[] {
+  if (typeof test.expression === 'string') {
+    return [test.expression]
+  }
+  if (Array.isArray(test.expression)) {
+    return test.expression.filter((entry): entry is string => typeof entry === 'string')
+  }
+  const { expression } = test.expression as { expression?: unknown }
+  return typeof expression === 'string' ? [expression] : []
+}
+
+/**
+ * Why a corpus case is not run, by skip category. `reason` is the model's
+ * reason or the manifest family's name; `key` is the manifest key that names
+ * the case, absent for a model skip.
+ */
+export interface CaseSkip {
+  kind: SkipCategory
+  reason: string
+  key?: string
 }
 
 export function classifyCase(test: CorpusTest, expression: string, file: string): CaseSkip | undefined {
-  if ((test.disable === true || test.inheritedDisable === true) && isOfficialSuiteCopy(file)) {
-    return { kind: 'official-copy', reason: 'disabled upstream; official.test.ts runs this official-suite case' }
-  }
   if (test.model !== undefined && test.model !== 'r4') {
     return { kind: 'model', reason: SKIPPED_MODELS[test.model] ?? `unknown model ${test.model}` }
   }
-  return matchQuirk(file, test, expression)
+  const match = matchQuirk(file, test, expression)
+  return match === undefined ? undefined : { kind: match.kind, reason: match.family.name, key: match.key }
 }
 
 /** Why a case is skipped, or undefined when it should run. */
 export function skipReason(test: CorpusTest, expression: string, file: string): string | undefined {
   const skip = classifyCase(test, expression, file)
-  if (skip === undefined || skip.kind === 'official-copy') {
-    return skip?.reason
-  }
-  return `${SKIP_CATEGORY_LABELS[skip.kind]}: ${'family' in skip ? skip.family.name : skip.reason}`
+  return skip === undefined ? undefined : `${SKIP_CATEGORY_LABELS[skip.kind]}: ${skip.reason}`
 }
 
 const FAMILY_INDEX = new Map<string, { kind: SkipCategory; family: QuirkFamily }>()

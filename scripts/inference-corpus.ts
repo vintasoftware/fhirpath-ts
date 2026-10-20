@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { skipReason } from '../src/testing/fhirpathjs-harness.ts'
+import { corpusCases, skipReason } from '../src/testing/fhirpathjs-harness.ts'
 
 interface OfficialTest {
   name: string
@@ -13,20 +13,6 @@ interface OfficialTest {
 interface OfficialGroup {
   name: string
   tests: OfficialTest[]
-}
-
-interface CorpusTest {
-  expression: string | string[] | object
-  error?: boolean | boolean[]
-  disable?: boolean
-  inheritedDisable?: boolean
-  model?: string
-  inputfile?: string
-}
-
-interface CorpusFile {
-  subject?: unknown
-  tests: CorpusTest[]
 }
 
 export interface InventoryCase {
@@ -78,37 +64,25 @@ export function loadInferenceInventory(): InventoryCase[] {
     ['cases', 'fhirpathjs'],
     ['cases-py-extras', 'fhirpath-py'],
   ] as const) {
-    const corpus = data(`fhirpathjs/${name}.json`) as Record<string, CorpusFile>
-    for (const [file, content] of Object.entries(corpus)) {
-      for (let testIndex = 0; testIndex < content.tests.length; testIndex++) {
-        const test = content.tests[testIndex] as CorpusTest
-        const expressions =
-          typeof test.expression === 'string'
-            ? [test.expression]
-            : Array.isArray(test.expression)
-              ? test.expression.filter((entry): entry is string => typeof entry === 'string')
-              : []
-        for (let expressionIndex = 0; expressionIndex < expressions.length; expressionIndex++) {
-          const expression = expressions[expressionIndex] as string
-          if (skipReason(test, expression, file) !== undefined) continue
-          const inputType =
-            resourceType(test.inputfile === undefined ? undefined : `fhirpathjs/resources/${test.inputfile}`) ??
-            resourceTypeOf(test.inputfile === undefined ? content.subject : undefined)
-          cases.push({
-            id: `${source}:${file}:${testIndex}:${expressionIndex}`,
-            expression,
-            source,
-            reference: {
-              kind: 'fhirpathjs',
-              corpus: name,
-              file,
-              testIndex,
-              expressionIndex,
-            },
-            ...(inputType !== undefined && { inputType }),
-          })
-        }
-      }
+    // The corpus's official-suite copies are out of scope: the loop above reads the official suites.
+    for (const { file, data: content, test, testIndex, expression, expressionIndex } of corpusCases(name)) {
+      if (skipReason(test, expression, file) !== undefined) continue
+      const inputType =
+        resourceType(test.inputfile === undefined ? undefined : `fhirpathjs/resources/${test.inputfile}`) ??
+        resourceTypeOf(test.inputfile === undefined ? content.subject : undefined)
+      cases.push({
+        id: `${source}:${file}:${testIndex}:${expressionIndex}`,
+        expression,
+        source,
+        reference: {
+          kind: 'fhirpathjs',
+          corpus: name,
+          file,
+          testIndex,
+          expressionIndex,
+        },
+        ...(inputType !== undefined && { inputType }),
+      })
     }
   }
   return cases

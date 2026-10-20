@@ -115,7 +115,7 @@ const PHASE_ERROR_CLASSES: Record<PhaseName, (error: FhirPathError) => boolean> 
   execution: error => error instanceof FhirPathRuntimeError || error instanceof FhirPathTypeError,
 }
 
-function expectedPhase(suite: SuiteName, groupName: string, test: OfficialTest): PhaseName | undefined {
+export function expectedPhase(suite: SuiteName, groupName: string, test: OfficialTest): PhaseName | undefined {
   const override = PHASE_OVERRIDES.find(
     entry => entry.suite === suite && entry.group === groupName && entry.test === test.name
   )
