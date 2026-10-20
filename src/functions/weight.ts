@@ -2,7 +2,7 @@ import { forEachCollecting } from '../engine/async.ts'
 import { type EvaluationContext, lookupEnvironmentVariable } from '../engine/context.ts'
 import { pairEquals, pairEquivalent } from '../engine/operators/equality.ts'
 import { FhirPathRuntimeError } from '../errors.ts'
-import { ancestors, elementOrigin } from '../fhir/element-origin.ts'
+import { elementOrigin, owningResource, rootResourceOf } from '../fhir/element-origin.ts'
 import { extensionArraysOf } from '../fhir/extensions.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
 import type { ModelProvider } from '../model/provider.ts'
@@ -244,12 +244,8 @@ function matches(model: ModelProvider, item: TypedValue, system: string, code: s
 
 /** The resource whose contained resources a value can use: its own, or its container's when it is contained. */
 function ownerOf(value: TypedValue): TypedValue | undefined {
-  for (const node of ancestors(value)) {
-    if (typeof (node.value as { resourceType?: unknown } | null)?.resourceType !== 'string') continue
-    const origin = elementOrigin(node)
-    return origin?.name === 'contained' ? origin.parent : node
-  }
-  return undefined
+  const resource = owningResource(value)
+  return resource === undefined ? undefined : rootResourceOf(resource)
 }
 
 /** A $lookup property part value, e.g. the itemWeight ordinal. */

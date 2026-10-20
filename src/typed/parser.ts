@@ -1950,14 +1950,32 @@ type SpecialState<Name extends 'this' | 'index' | 'total', Context extends Infer
 type ExternalState<Name extends string, Context extends InferenceState> =
   LookupBinding<BindingsOf<Context>, Name> extends infer Found
     ? [Found] extends [never]
-      ? Name extends 'context' | 'resource' | 'rootResource'
+      ? Name extends 'context'
         ? CopyEnvironment<[RootTypesOf<Context>, RootTargetsOf<Context>], Context>
-        : Name extends 'ucum' | 'sct' | 'loinc' | `vs-${string}` | `ext-${string}`
-          ? CopyEnvironment<['System.String', never], Context>
-          : HostVariableState<Name, Context>
+        : Name extends 'resource' | 'rootResource'
+          ? ResourceVariableState<Name, Context>
+          : Name extends 'ucum' | 'sct' | 'loinc' | `vs-${string}` | `ext-${string}`
+            ? CopyEnvironment<['System.String', never], Context>
+            : HostVariableState<Name, Context>
       : Found extends InferenceState
         ? CopyEnvironment<Found, Context>
         : CopyEnvironment<UnknownState, Context>
+    : CopyEnvironment<UnknownState, Context>
+
+/**
+ * `%resource` / `%rootResource`: a resource root is its own resource. For a
+ * backbone root the runtime reads them from the input's ancestry, so
+ * `%resource` is the resource the root's path starts with, and the container
+ * of a contained resource can be any resource, so `%rootResource` is unknown.
+ */
+type ResourceVariableState<Name extends string, Context extends InferenceState> = [RootTypesOf<Context>] extends [
+  keyof R4Resources | 'opaque' | 'unknown',
+]
+  ? CopyEnvironment<[RootTypesOf<Context>, RootTargetsOf<Context>], Context>
+  : Name extends 'resource'
+    ? RootTypesOf<Context> extends `${infer Owner extends keyof R4Resources & string}.${string}`
+      ? CopyEnvironment<[Owner, never], Context>
+      : CopyEnvironment<UnknownState, Context>
     : CopyEnvironment<UnknownState, Context>
 
 type HostVariableState<Name extends string, Context extends InferenceState> =

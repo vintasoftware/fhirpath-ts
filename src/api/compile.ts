@@ -9,12 +9,14 @@ import {
   type HostFunction,
   type HostNativeFunction,
   type HostSingleFunction,
+  isReservedVariableName,
   type NarrativeSanitizer,
   normalizeEnvKeys,
   type RegexEngine,
 } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathTypeError } from '../errors.ts'
+import { brandTyped, elementOrigin, isTypedValue } from '../fhir/element-origin.ts'
 import type { ReferenceResolver } from '../fhir/reference-resolver.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
@@ -23,13 +25,13 @@ import { printExpression } from '../parser/printer.ts'
 import type { TerminologyProvider } from '../terminology/provider.ts'
 import type {
   CheckedFhirpathOptionValues,
+  DeclaredRootInput,
   EmptyFhirpathTypeContext,
   FhirpathInput,
   FhirpathResultForContext,
   FhirpathTypeContextOf,
   FhirpathTypeDeclarations,
   FhirTypeName,
-  InputOf,
 } from '../typed/infer.ts'
 import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
@@ -212,22 +214,25 @@ export class CompiledExpression<
 
   /** Evaluate and unwrap results to plain JS values. */
   evaluate<const Options extends object = EmptyFhirpathTypeContext>(
-    input?: TInput,
+    input?: TInput | readonly TypedValue[],
     options?: Declaring<Options>
   ): CompiledExpressionResult<Expr, TResult, Root, Options> {
     return this.evaluateTyped(input, options).map(unwrap) as CompiledExpressionResult<Expr, TResult, Root, Options>
   }
 
-  /** Evaluate keeping the internal typed representation (types, Decimal, Temporal). */
-  evaluateTyped(input?: TInput, options?: EvaluateOptions): TypedValue[] {
-    const root = toCollection(input)
-    assertStrictExpression(this.ast, root, options, this.inputType)
-    return evaluateNode(this.ast, contextFactory(options)(root), root)
+  /**
+   * Evaluate keeping the internal typed representation (types, Decimal,
+   * Temporal) and each value's ancestry. The results are valid input for a
+   * later evaluation, which then runs at those elements.
+   */
+  evaluateTyped(input?: TInput | readonly TypedValue[], options?: EvaluateOptions): TypedValue[] {
+    const root = this.root(input, options)
+    return brandTyped(evaluateNode(this.ast, contextFactory(options)(root), root))
   }
 
   /** Evaluate with asynchronous services and unwrap the result. */
   async evaluateAsync<const Options extends object = EmptyFhirpathTypeContext>(
-    input?: TInput,
+    input?: TInput | readonly TypedValue[],
     options?: Declaring<Options, AsyncEvaluateOptions>
   ): Promise<CompiledExpressionResult<Expr, TResult, Root, Options>> {
     return (await this.evaluateTypedAsync(input, options)).map(unwrap) as CompiledExpressionResult<
@@ -239,9 +244,11 @@ export class CompiledExpression<
   }
 
   /** Retain FHIR types while awaiting provider results. */
-  async evaluateTypedAsync(input?: TInput, options?: AsyncEvaluateOptions): Promise<TypedValue[]> {
-    const root = toCollection(input)
-    assertStrictExpression(this.ast, root, options, this.inputType)
+  async evaluateTypedAsync(
+    input?: TInput | readonly TypedValue[],
+    options?: AsyncEvaluateOptions
+  ): Promise<TypedValue[]> {
+    const root = this.root(input, options)
     let traces: [string, TypedValue[]][] = []
     const contextFor = contextFactory({
       ...options,
@@ -259,7 +266,15 @@ export class CompiledExpression<
       )
     })
     for (const [name, values] of traces) options?.trace?.(name, values)
-    return result
+    return brandTyped(result)
+  }
+
+  /** The input as the root collection, checked against the declared root and, under `strict`, analyzed. */
+  private root(input: unknown, options: AsyncEvaluateOptions | undefined): TypedValue[] {
+    const root = inputCollection(input)
+    if (this.inputType !== undefined) assertDeclaredRoot(root, this.inputType, options?.model)
+    assertStrictExpression(this.ast, root, options, this.inputType)
+    return root
   }
 
   /** The canonical form of the expression. */
@@ -278,7 +293,7 @@ export function compile<
   const Expr extends string,
   const Root extends FhirTypeName,
   TResult extends unknown[] | InferredExpressionResult = InferredExpressionResult,
->(expression: Expr, inputType: Root): CompiledExpression<Expr, InputOf<Root>, TResult, Root>
+>(expression: Expr, inputType: Root): CompiledExpression<Expr, DeclaredRootInput<Root>, TResult, Root>
 export function compile<
   const Expr extends string,
   TInput = FhirpathInput<Expr>,
@@ -295,6 +310,50 @@ export function compile(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts every CompiledExpression specialization
 export type AnyExpression = string | CompiledExpression<any, any, any, any>
 
+/**
+ * The root collection for an input: typed values as they are, JSON wrapped.
+ * Keeping typed values keeps their FHIR types and ancestry.
+ */
+function inputCollection(input: unknown): TypedValue[] {
+  if (isTypedValue(input)) return [input]
+  if (!Array.isArray(input) || !input.some(isTypedValue)) return toCollection(input)
+  if (!input.every(isTypedValue)) {
+    throw new FhirPathTypeError('The input mixes typed values and JSON; pass one or the other')
+  }
+  return [...input]
+}
+
+/**
+ * A declared root checks typed input, which states its type, and never
+ * converts JSON. A root other than a resource refuses JSON: the static types
+ * read `%resource` from the root's path, while JSON has no owning resource. A
+ * contained resource is refused under a resource root: its `%rootResource` is
+ * its container, while the static types read `%rootResource` as the root.
+ */
+function assertDeclaredRoot(root: TypedValue[], inputType: string, model: ModelProvider | undefined): void {
+  const declared = model?.resolveType(inputType)
+  if (model === undefined || declared === undefined) return
+  const resourceRoot = model.isSubtypeOf(declared, `${model.namespace}.Resource`)
+  if (!root.some(isTypedValue)) {
+    if (root.length > 0 && !resourceRoot) {
+      throw new FhirPathTypeError(
+        `A ${declared} root takes typed input, which knows its owning resource; type the value with toTyped(value, '${inputType}', { in: resource })`
+      )
+    }
+    return
+  }
+  for (const item of root) {
+    if (!model.isSubtypeOf(item.type, declared)) {
+      throw new FhirPathTypeError(`The input is ${item.type}, but the expression declares its root as ${declared}`)
+    }
+    if (resourceRoot && elementOrigin(item)?.name === 'contained') {
+      throw new FhirPathTypeError(
+        `The input is a contained resource, whose %rootResource is its container, but the expression declares its root as ${declared}`
+      )
+    }
+  }
+}
+
 /** A pre-resolved `vars` value; Array.isArray alone cannot exclude readonly arrays for the checker. */
 function isResolvedCollection<T>(value: T | readonly TypedValue[]): value is readonly TypedValue[] {
   return Array.isArray(value)
@@ -303,7 +362,7 @@ function isResolvedCollection<T>(value: T | readonly TypedValue[]): value is rea
 /** Bind planned vars into a fresh context (see contextFactory for the scoping rules). */
 function bindVars(context: EvaluationContext, vars: readonly PlannedVar[]): void {
   for (const [name, value] of vars) {
-    if (context.env.has(name)) {
+    if (isReservedVariableName(context, name)) {
       throw new FhirPathTypeError(`Cannot override the environment variable %${name} with a var`)
     }
     context.variables.set(

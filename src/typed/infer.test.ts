@@ -10,9 +10,11 @@ import type {
   Patient,
   PatientContact,
   Quantity,
+  QuestionnaireResponse,
   SystemQuantity,
 } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
+import type { TypedValue } from '../values/typed-value.ts'
 import { type FhirpathInput, type FhirpathResult, type InputOf, type LenientResource } from './infer.ts'
 
 const patient: Patient = {
@@ -361,9 +363,29 @@ describe('a declared root types a relative expression', () => {
     const status = compile('status', 'MedicationRequest')
     expectTypeOf(status.evaluate).returns.toEqualTypeOf<MedicationRequest['status'][]>()
     // The declared root is also the input type, rather than one guessed from the path.
-    expectTypeOf(status.evaluate).parameter(0).toEqualTypeOf<InputOf<'MedicationRequest'> | undefined>()
+    expectTypeOf(status.evaluate)
+      .parameter(0)
+      .toEqualTypeOf<InputOf<'MedicationRequest'> | readonly TypedValue[] | undefined>()
     // Without a root, a relative expression degrades as before.
     expectTypeOf(fhirpath('status').evaluate).returns.toEqualTypeOf<unknown[]>()
+  })
+})
+
+describe('%resource and %rootResource on a declared root', () => {
+  it('reads a backbone root as part of the resource its path starts with', () => {
+    expectTypeOf(compile('%resource.status', 'QuestionnaireResponse.item').evaluate).returns.toEqualTypeOf<
+      QuestionnaireResponse['status'][]
+    >()
+    expectTypeOf(compile('%rootResource.status', 'QuestionnaireResponse.item').evaluate).returns.toEqualTypeOf<
+      unknown[]
+    >()
+    expectTypeOf(compile('%resource', 'CodeableConcept').evaluate).returns.toEqualTypeOf<unknown[]>()
+  })
+
+  it('keeps a resource root as its own resource', () => {
+    expectTypeOf(compile('%rootResource.status', 'MedicationRequest').evaluate).returns.toEqualTypeOf<
+      MedicationRequest['status'][]
+    >()
   })
 })
 

@@ -2,13 +2,13 @@ import { mergeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type {
+  DeclaredRootInput,
   EmptyFhirpathTypeContext,
   FhirpathInput,
   FhirpathResultForContext,
   FhirpathRootOf,
   FhirpathTypeContextOf,
   FhirTypeName,
-  InputOf,
   MergeFhirpathTypeContexts,
 } from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
@@ -49,6 +49,7 @@ import {
   withDtos,
 } from './dto.ts'
 import { type Projection, type ProjectionColumns, projectRows } from './project.ts'
+import { toTyped, type ToTypedOptions } from './to-typed.ts'
 
 /**
  * What `evaluate()` and its siblings accept as input: one value, which an
@@ -107,7 +108,7 @@ type EngineCallInput<Expr extends string, Root extends string> = Root extends 'o
   : RootedInput<DeclaredInput<Root>>
 
 /** The input a declared root allows. */
-type DeclaredInput<Root extends string> = Root extends FhirTypeName ? InputOf<Root> : never
+type DeclaredInput<Root extends string> = Root extends FhirTypeName ? DeclaredRootInput<Root> : never
 
 /**
  * One item `filter()` tests: what the expression's declared root allows, or
@@ -135,7 +136,7 @@ type EngineCallResult<Expr extends string, Root extends string, Input, Defaults,
 >
 
 /** What an expression with a declared root accepts: a value of its input type, or an array of them. */
-export type RootedInput<Input> = Input | readonly Input[]
+export type RootedInput<Input> = Input | readonly Input[] | readonly TypedValue[]
 
 /**
  * What `engine.compile(expression, type)` returns: the same `BoundExpression`,
@@ -416,6 +417,19 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   }
 
   /**
+   * Type a JSON value as `type` for use as an element context: pass the result
+   * as the input of `evaluate()` and its siblings. With `{ in: resource }`, the
+   * value is found by object identity inside that resource and keeps its
+   * ancestry, so `%resource`, `resolve()`, `weight()`, and `pathname()` see the
+   * resource around it. Without it, `%resource` and `%rootResource` throw when
+   * read. Throws when the value is not of `type`, or is missing from or
+   * repeated in the resource.
+   */
+  toTyped(value: unknown, type: FhirTypeName, options?: ToTypedOptions): TypedValue[] {
+    return toTyped(value, type, this.defaults.model, options)
+  }
+
+  /**
    * Parse once for reuse, with this engine's defaults bound. Does not touch the
    * parse cache. A second argument declares the type the expression runs
    * against, as for the package-root `compile()`: a relative expression infers
@@ -426,7 +440,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   compile<const Expr extends string, const Root extends FhirTypeName>(
     expression: Expr,
     inputType: Root
-  ): RootedBoundExpression<Expr, Defaults, Root, InputOf<Root>>
+  ): RootedBoundExpression<Expr, Defaults, Root, DeclaredRootInput<Root>>
   compile<const Expr extends string>(expression: Expr): BoundExpression<Expr, Defaults>
   compile(expression: string, inputType?: FhirTypeName): BoundExpression<string, Defaults> {
     // One runtime BoundExpression serves both overloads. A rooted expression's

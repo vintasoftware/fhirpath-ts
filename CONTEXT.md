@@ -21,6 +21,31 @@ _Avoid_: subject, source, payload
 Reading an input through a DTO or view into one row per resource.
 _Avoid_: mapping, hydrating, constructing, building
 
+**Typed value**:
+A value an evaluation reads or returns that keeps its FHIR type, its primitive
+metadata, and its ancestry. Typed values can be the input of a later evaluation.
+_Avoid_: node, wrapped value, boxed value
+
+**Ancestry**:
+The chain of parents, element names, and indexes from a typed value up to the
+value it was read from.
+_Avoid_: path (a FHIRPath expression), provenance, lineage
+
+**Attached / unattached**:
+A typed value is attached when its ancestry reaches the resource it came from,
+and unattached when it was typed on its own.
+
+**Element context**:
+Typed values used as an evaluation's input, so `$this` and `%context` are those
+values instead of a whole resource.
+_Avoid_: base, focus resource, sub-context
+
+**Owning resource**:
+The nearest resource in a typed value's ancestry, which `%resource` refers to.
+`%rootResource` is the container of a contained owning resource, and otherwise
+the owning resource itself.
+_Avoid_: parent resource, root (a different term)
+
 **Defining engine**:
 The engine a DTO or view was defined on. A DTO projects on it, or on an engine
 derived from it.

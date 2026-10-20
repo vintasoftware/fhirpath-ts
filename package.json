@@ -42,6 +42,7 @@
     "./analyzer": "./src/analyzer/index.ts",
     "./eslint": "./src/eslint/index.ts",
     "./sites": "./src/sites/index.ts",
+    "./sdc": "./src/sdc/index.ts",
     "./package.json": "./package.json"
   },
   "bin": {
@@ -82,6 +83,10 @@
       "./sites": {
         "types": "./dist/sites/index.d.ts",
         "default": "./dist/sites/index.js"
+      },
+      "./sdc": {
+        "types": "./dist/sdc/index.d.ts",
+        "default": "./dist/sdc/index.js"
       },
       "./package.json": "./package.json"
     },

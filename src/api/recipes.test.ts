@@ -26,9 +26,11 @@ import type {
   Observation,
   Patient,
   Questionnaire,
+  QuestionnaireResponse,
   ServiceRequest,
 } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
+import { sdcScope } from '../sdc/index.ts'
 import { createSiteFinder } from '../sites/index.ts'
 
 /**
@@ -344,6 +346,49 @@ describe('README usage recipes', () => {
     expect(r4.evaluate('Questionnaire.repeat(item).linkId', questionnaire)).toEqual(['g1', 'q1', 'g2', 'q2'])
   })
 
+  it('evaluate at questionnaire items', () => {
+    const questionnaire: Questionnaire = {
+      resourceType: 'Questionnaire',
+      status: 'active',
+      item: [
+        {
+          linkId: 'meds',
+          type: 'group',
+          repeats: true,
+          item: [{ linkId: 'name', type: 'string' }],
+        },
+      ],
+    }
+    const response: QuestionnaireResponse = {
+      resourceType: 'QuestionnaireResponse',
+      status: 'completed',
+      item: [{ linkId: 'meds', item: [{ linkId: 'name', answer: [{ valueString: 'Aspirin' }] }] }],
+    }
+    const scope = sdcScope(r4, questionnaire)
+    const answers = [...scope.contexts(response)].map(({ context, vars }) =>
+      r4.evaluate('answer.value', context, { vars })
+    )
+    expect(answers).toEqual([[], [], ['Aspirin']])
+
+    const [group] = r4.evaluateTyped("QuestionnaireResponse.item.where(linkId = 'meds')", response)
+    expect(r4.evaluate('item.answer.value', [group!])).toEqual(['Aspirin'])
+    expect(r4.evaluate('%resource.status', [group!])).toEqual(['completed'])
+
+    const item = response.item![0]!.item![0]!
+    expect(r4.evaluate('answer.value', r4.toTyped(item, 'QuestionnaireResponse.item', { in: response }))).toEqual([
+      'Aspirin',
+    ])
+    const declared = r4.compile('answer.value', 'QuestionnaireResponse.item')
+    expect(declared.evaluate(r4.evaluateTyped('item.item', response))).toEqual(['Aspirin'])
+
+    const root = r4.evaluateTyped('$this', response)
+    const names = r4.evaluateTyped("item.where(linkId = 'meds')", root).map(medication => {
+      const context = [medication]
+      return r4.first("item.where(linkId = 'name').answer.value", context, { vars: scope.vars(context) })
+    })
+    expect(names).toEqual(['Aspirin'])
+  })
+
   it('build values', () => {
     const patient: Patient = { resourceType: 'Patient', gender: 'female' }
     const codings = r4.evaluate(
@@ -547,13 +592,15 @@ describe('README usage recipes', () => {
     )
 
     const name: HumanName = { given: ['Peter', 'James'] }
-    expect(r4.compile('given', 'HumanName').evaluate(name)).toEqual(['Peter', 'James'])
+    expect(r4.compile('given', 'HumanName').evaluate(r4.toTyped(name, 'HumanName'))).toEqual(['Peter', 'James'])
     expect(r4.evaluate('HumanName.given', name)).toEqual([])
 
     const nickname: Extension = { url: 'http://example.org/nickname', valueString: 'Pete' }
     const patient: Patient = { resourceType: 'Patient', extension: [nickname] }
-    expect(r4.compile('value', 'Extension').evaluate(nickname)).toEqual([])
     expect(r4.compile("extension('http://example.org/nickname').value", 'Patient').evaluate(patient)).toEqual(['Pete'])
+    expect(r4.compile('value', 'Extension').evaluate(r4.toTyped(nickname, 'Extension', { in: patient }))).toEqual([
+      'Pete',
+    ])
   })
 
   it('runs the README and API reference registration examples', () => {

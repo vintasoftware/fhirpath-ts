@@ -11,6 +11,7 @@ import {
 import { SKIP_CATEGORY_LABELS, type SkipCategory } from '../../test-data/official/skip-manifest.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate } from '../api/evaluate.ts'
+import { toTyped } from '../api/to-typed.ts'
 import { r4Model } from '../r4/index.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
@@ -84,8 +85,8 @@ export function corpusCases(name: 'cases' | 'cases-py-extras'): CorpusCase[] {
 
 /**
  * A case's expressions. fhirpath.js's `{ base, expression }` form evaluates
- * `expression` with the input typed as the `base` path; the deferred-feature
- * manifest names those cases by `expression`.
+ * `expression` with the input typed as the `base` path (see `baseOf`); the
+ * manifests name those cases by `expression`.
  */
 export function expressionsOf(test: CorpusTest): string[] {
   if (typeof test.expression === 'string') {
@@ -96,6 +97,13 @@ export function expressionsOf(test: CorpusTest): string[] {
   }
   const { expression } = test.expression as { expression?: unknown }
   return typeof expression === 'string' ? [expression] : []
+}
+
+/** The type fhirpath.js's `{ base, expression }` form gives the input, which `toTyped()` gives it here. */
+function baseOf(test: CorpusTest): string | undefined {
+  if (typeof test.expression !== 'object' || Array.isArray(test.expression)) return undefined
+  const { base } = test.expression as { base?: unknown }
+  return typeof base === 'string' ? base : undefined
 }
 
 /**
@@ -162,9 +170,11 @@ export function matchQuirk(
 
 /** Run one corpus case; returns a failure description or undefined on success. */
 export function runCorpusTest(file: CorpusFile, test: CorpusTest, expression: string): string | undefined {
-  const input = test.inputfile !== undefined ? loadResource(test.inputfile) : structuredClone(file.subject)
+  const data = test.inputfile !== undefined ? loadResource(test.inputfile) : structuredClone(file.subject)
+  const base = baseOf(test)
   const env: { context?: unknown } & Record<string, unknown> = { ...test.variables }
   try {
+    const input = base === undefined ? data : toTyped(data, base, r4Model, undefined)
     if (test.context !== undefined) {
       env.context = evaluate(test.context, input, { model: r4Model, env })[0]
     }

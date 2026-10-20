@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import type { Observation, Patient } from '../r4/generated/type-maps.ts'
-import { r4Model } from '../r4/index.ts'
+import { r4, r4Model } from '../r4/index.ts'
 import { compile, type EvaluateOptions } from './compile.ts'
 import { FhirPathEngine } from './engine.ts'
 
@@ -80,8 +80,8 @@ describe('strict evaluation', () => {
   })
 
   it('analyzes a compiled expression against its declared input type', () => {
-    // The data carries no resourceType, so only the declaration types it.
-    const name = { given: ['Ada'] }
+    // A datatype root takes a typed value; the declaration roots the analysis.
+    const name = r4.toTyped({ given: ['Ada'] }, 'HumanName')
     expect(() => strict.evaluate(compile('givenn', 'HumanName'), name)).toThrow(/\[unknown-element\]/)
     expect(() => compile('givenn', 'HumanName').evaluate(name, { model: r4Model, strict: true })).toThrow(
       /\[unknown-element\]/

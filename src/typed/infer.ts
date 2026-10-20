@@ -186,6 +186,16 @@ export type InputOf<Type extends FhirTypeName> = Type extends keyof R4Resources
   ? LenientResource<Type>
   : Lenient<R4TypeOf[Type]>
 
+/**
+ * The JSON a declared root accepts: a value of a resource root. Any other root
+ * takes typed input only (`toTyped()`), because JSON has no owning resource
+ * for `%resource`, which the static types read from the root's path.
+ */
+export type DeclaredRootInput<Root extends FhirTypeName> = Root extends
+  keyof R4Resources | 'Resource' | 'DomainResource'
+  ? InputOf<Root>
+  : never
+
 /** The expected input resource for a resource-rooted literal expression. */
 export type FhirpathInput<Expression extends string> = string extends Expression
   ? unknown

@@ -68,7 +68,7 @@ describe('corpus skip logic', () => {
         'answer.value = 2 year',
         'simple.yaml'
       )
-    ).toBe('deferred feature: typed-element-context')
+    ).toBeUndefined()
     expect(skipReason({ expression: 'a', model: 'r5' }, 'a', 'f.yaml')).toBe(
       'different FHIR version or model: needs the R5 model package (deferred; the R4 model ships first)'
     )

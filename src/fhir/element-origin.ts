@@ -22,16 +22,24 @@ class Stamp {
 
 // Track wrappers, not JSON objects: the same answer or reference object can be
 // used in several resources. Keeping a result alive keeps its own ancestry.
+// A stamp of `null` marks a typed value with no parent: an evaluation's input
+// or computed result, or an unattached value. The stamp is also the brand that
+// tells a typed value from JSON of the same shape (`Identifier` has `type` and
+// `value` too).
 class Origin extends Stamp {
-  #origin: ElementOrigin
+  #origin: ElementOrigin | null
 
-  constructor(value: TypedValue, origin: ElementOrigin) {
+  constructor(value: TypedValue, origin: ElementOrigin | null) {
     super(value)
     this.#origin = origin
   }
 
   static of(value: TypedValue): ElementOrigin | undefined {
-    return #origin in value ? value.#origin : undefined
+    return #origin in value ? (value.#origin ?? undefined) : undefined
+  }
+
+  static has(value: unknown): value is TypedValue {
+    return typeof value === 'object' && value !== null && #origin in value
   }
 }
 
@@ -39,6 +47,22 @@ class Origin extends Stamp {
 export function childValue(value: TypedValue, parent: TypedValue, name: string, index?: number): TypedValue {
   new Origin(value, { parent, name, index })
   return value
+}
+
+/**
+ * Brand the values an evaluation returns, so a later evaluation takes them as
+ * typed input. A value read by navigation already carries its origin.
+ */
+export function brandTyped(values: TypedValue[]): TypedValue[] {
+  for (const value of values) {
+    if (!Origin.has(value)) new Origin(value, null)
+  }
+  return values
+}
+
+/** True for a value an evaluation returned or `toTyped()` built, never for JSON. */
+export function isTypedValue(value: unknown): value is TypedValue {
+  return Origin.has(value)
 }
 
 export function elementOrigin(value: TypedValue): ElementOrigin | undefined {
@@ -51,4 +75,23 @@ export function* ancestors(value: TypedValue): Generator<TypedValue> {
     yield current
     current = Origin.of(current)?.parent
   }
+}
+
+function isResourceValue(value: TypedValue): boolean {
+  const raw = value.value
+  return typeof raw === 'object' && raw !== null && typeof (raw as { resourceType?: unknown }).resourceType === 'string'
+}
+
+/** The nearest resource in a value's ancestry, the value itself included: what `%resource` refers to. */
+export function owningResource(value: TypedValue): TypedValue | undefined {
+  for (const node of ancestors(value)) {
+    if (isResourceValue(node)) return node
+  }
+  return undefined
+}
+
+/** `%rootResource` for an owning resource: the container of a contained resource, else the resource. */
+export function rootResourceOf(resource: TypedValue): TypedValue {
+  const origin = Origin.of(resource)
+  return origin?.name === 'contained' ? origin.parent : resource
 }

@@ -10,7 +10,7 @@ import {
   runtimeAnalyzerEnvironmentVariables,
   runtimeAnalyzerVariable,
 } from '../analyzer/declarations.ts'
-import { normalizeEnvKeys } from '../engine/context.ts'
+import { contextResources, normalizeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
@@ -110,9 +110,19 @@ function runtimeRoot(
   inputType: string | undefined
 ): AnalyzerRoot {
   const variable = runtimeAnalyzerVariable(root, model)
-  return inputType === undefined
-    ? { types: variable.types, single: variable.single, ordered: variable.ordered, exactTypes: variable.exactTypes }
-    : { types: [model?.resolveType(inputType) ?? inputType], single: variable.single, ordered: variable.ordered }
+  // %resource and %rootResource are the values the evaluation binds, so their types come from the data too.
+  const { owner } = contextResources(root)
+  const stateOf = (values: TypedValue[]) => {
+    const { types, single, ordered } = runtimeAnalyzerVariable(values, model)
+    return { types, single, ordered }
+  }
+  return {
+    ...(inputType === undefined
+      ? { types: variable.types, single: variable.single, ordered: variable.ordered, exactTypes: variable.exactTypes }
+      : { types: [model?.resolveType(inputType) ?? inputType], single: variable.single, ordered: variable.ordered }),
+    resources:
+      owner === undefined ? {} : { resource: stateOf(owner.resource), rootResource: stateOf(owner.rootResource) },
+  }
 }
 
 function isResolvedCollection(value: AnyExpression | readonly TypedValue[]): value is readonly TypedValue[] {
