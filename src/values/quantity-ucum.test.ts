@@ -150,6 +150,24 @@ describe('UCUM special units', () => {
     expect(evaluate("'1 \\'B\\''.toQuantity('dB')")).toEqual([])
   })
 
+  it('rounds ~ to the least precise operand, whichever side it is on', () => {
+    for (const [left, right, equivalent] of [
+      ["4 'g'", "4040 'mg'", true],
+      ["4040 'mg'", "4.0409 'g'", false],
+      ["4040 'mg'", "4.0404 'g'", true],
+      ["4 'g'", "4600 'mg'", false],
+      ["23 'Cel'", "73.4 '[degF]'", true],
+      ["23 'Cel'", "74 '[degF]'", true],
+      ["23.0 'Cel'", "74 '[degF]'", false],
+      ['1 year', "1 'a'", true],
+      ["1 'B'", "1.0 'B'", true],
+      ["1 'g'", "1 's'", false],
+    ] as const) {
+      expect(evaluate(`${left} ~ ${right}`), `${left} ~ ${right}`).toEqual([equivalent])
+      expect(evaluate(`${right} ~ ${left}`), `${right} ~ ${left}`).toEqual([equivalent])
+    }
+  })
+
   it('keeps offset units whole: no powers, compounds, or prefixes', () => {
     for (const unit of ['Cel2', 'Cel/s', 'g.Cel', 'mCel']) {
       expect(canonicalizeUnit(unit), unit).toBeUndefined()

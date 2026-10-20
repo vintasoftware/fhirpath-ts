@@ -153,7 +153,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
   {
     name: 'equivalence-rounding',
     evidence:
-      'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec "~ (Equivalent)" says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding. For quantities it compares in the more granular unit. This engine converts the right operand into the left operand\'s unit and rounds to the least precise operand, which the official suite pins for 4 \'g\' ~ 4040 \'mg\' (testQuantity4); the same rule makes 23 \'Cel\' ~ 74 \'[degF]\' (74 \'[degF]\' is 23.3 \'Cel\').',
+      'fhirpath.js rounds decimal ~ to (least precision \u2212 1) digits; spec "~ (Equivalent)" says "the precision of the least precise operand". Its complex-value ~ inherits the same rounding. For quantities it compares in the more granular unit. This engine rounds to the least precise operand, the one whose last digit is worth more, in either order: the official suite pins 4 \'g\' ~ 4040 \'mg\' (testQuantity4), and the same rule makes 4040 \'mg\' ~ 4 \'g\' and 23 \'Cel\' ~ 74 \'[degF]\' (74 \'[degF]\' is 23.3 \'Cel\').',
     keys: [
       '6.1_equality.yaml||0.00000011 ~ 0.00000010',
       '6.1_equality.yaml||1.1 ~ 1.0',
@@ -161,6 +161,7 @@ export const QUIRK_FAMILIES: QuirkFamily[] = [
       '6.1_equality.yaml||1.10 ~ 1.00',
       '6.1_equality.yaml||1.100 ~ 1.101',
       "6.1_equality.yaml||4 'g' !~ 4040 'mg'",
+      "6.1_equality.yaml||4040 'mg' !~ 4 'g'",
       "6.1_equality.yaml||23 'Cel' !~ 74 '[degF]'",
       '6.1_equality.yaml||Ops.complex ~ Ops.complexsimilar',
     ],

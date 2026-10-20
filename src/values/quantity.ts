@@ -1,7 +1,7 @@
 import { Decimal } from './decimal.ts'
 import { asNumeric } from './numeric.ts'
 import { type QuantityValue, SYSTEM_QUANTITY, type TypedValue, typeLocalName } from './typed-value.ts'
-import { canonicalizeUnit, fromBase, isSpecialUnit, sameDimensions, toBase } from './ucum.ts'
+import { canonicalizeUnit, type CanonicalUnit, fromBase, isSpecialUnit, sameDimensions, toBase } from './ucum.ts'
 
 /** FHIR Quantity and its specializations coerce to System.Quantity for comparison. */
 const FHIR_QUANTITY_TYPES = new Set([
@@ -245,18 +245,32 @@ function compareUcum(a: QuantityValue, b: QuantityValue): -1 | 0 | 1 | undefined
 
 /**
  * Equivalence: calendar durations match their UCUM twins (`1 year ~ 1 'a'`), and
- * values compare after conversion, rounded to the least precise operand
- * (`4 'g' ~ 4040 'mg'` is true: 4.04 g rounds to 4 at scale 0).
+ * values compare rounded to the least precise operand: the one whose last digit
+ * is worth more in base units. The other converts into its unit and both round
+ * to its scale, so `4 'g' ~ 4040 'mg'` and `4040 'mg' ~ 4 'g'` are both true
+ * (4.04 g rounds to 4), while `4040 'mg' ~ 4.0409 'g'` is false (4040.9 mg
+ * rounds to 4041).
  */
 export function quantitiesEquivalent(a: QuantityValue, b: QuantityValue): boolean {
   const ucumA = asUcum(a)
   const ucumB = asUcum(b)
-  const scale = Math.max(Math.min(a.value.scale, b.value.scale), 0)
-  const converted = convertQuantity(ucumB, ucumA.unit)
-  if (converted !== undefined) {
-    return ucumA.value.round(scale).equals(converted.value.round(scale))
+  const canonicalA = canonicalizeUnit(ucumA.unit)
+  const canonicalB = canonicalizeUnit(ucumB.unit)
+  if (canonicalA && canonicalB && sameDimensions(canonicalA, canonicalB)) {
+    const aIsCoarse = lastDigitWorth(ucumA.value, canonicalA).compare(lastDigitWorth(ucumB.value, canonicalB)) >= 0
+    const [coarse, coarseUnit, fine, fineUnit] = aIsCoarse
+      ? [ucumA.value, canonicalA, ucumB.value, canonicalB]
+      : [ucumB.value, canonicalB, ucumA.value, canonicalA]
+    const scale = Math.max(coarse.scale, 0)
+    return coarse.round(scale).equals(fromBase(toBase(fine, fineUnit), coarseUnit).round(scale))
   }
+  const scale = Math.max(Math.min(a.value.scale, b.value.scale), 0)
   return compareUcum({ ...ucumA, value: ucumA.value.round(scale) }, { ...ucumB, value: ucumB.value.round(scale) }) === 0
+}
+
+/** What one unit in a value's last place is worth in base units: 10^-scale × the unit's factor. */
+function lastDigitWorth(value: Decimal, unit: CanonicalUnit): Decimal {
+  return new Decimal(1n, value.scale).multiply(unit.factor)
 }
 
 /** A calendar duration as its loose UCUM twin (`1 year` → `1 'a'`); UCUM passes through. */
