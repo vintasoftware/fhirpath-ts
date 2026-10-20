@@ -259,11 +259,22 @@ in `%questionnaire`, supplied through `env` or `vars`. For example,
 Repeated answers retain their own item context, including across `evaluateTyped()`
 results reused through `vars`. Raw results from `evaluate()` carry no such context.
 
-`evaluateAsync()` can look up a Coding's CodeSystem weight through
-`options.terminology.lookup`. ValueSet and contained terminology lookups remain
-deferred. An unavailable lookup or missing questionnaire item raises an error;
-a completed lookup with no weight returns empty. `weight()` also throws without
-a model, which it needs to recognize answers and Codings.
+Without an answer-option weight, `weight()` follows the item's `answerValueSet`,
+then the Coding's CodeSystem, as SDC orders them:
+
+- A ValueSet contained in the Questionnaire (`#id`, or a matching url and
+  version) is read directly; another one is expanded through
+  `options.terminology.expand`. The concept's weight extension, in the expansion
+  or in `compose.include.concept`, gives the weight.
+- A CodeSystem contained in the resource holding the value (or its container) or
+  in the Questionnaire, with the Coding's url and version, gives the concept's
+  weight extension or its `itemWeight` property. Nested concepts count. Other
+  CodeSystems are looked up through `options.terminology.lookup`.
+
+Provider lookups need `evaluateAsync()`. An unavailable value set, CodeSystem,
+or questionnaire item raises an error, as does a code missing from a complete
+contained CodeSystem; a concept found without a weight returns empty. `weight()`
+also throws without a model, which it needs to recognize answers and Codings.
 A Coding without a `system` names no CodeSystem, so an unweighted one gives
 empty. See the [SDC FHIRPath supplements](https://build.fhir.org/ig/HL7/sdc/en/expressions.html#fhirpath-supplements).
 
@@ -469,7 +480,6 @@ These features are deferred and fail with a clear error today:
 | --- | --- |
 | `conformsTo()` beyond base StructureDefinitions | Profile-aware validation |
 | `slice()`, `elementDefinition()`, `checkModifiers()` | Profile definitions in the model |
-| `weight()` via ValueSets or contained CodeSystems | Additional terminology weight lookup |
 | `%factory` | Demand for the current R5 draft API; [instance selectors](#build-values) already build FHIR values |
 | CDA mode | A CDA `ModelProvider` |
 | Full UCUM | A full UCUM implementation behind the current interface |
