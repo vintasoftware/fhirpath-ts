@@ -43,7 +43,8 @@ methods remain synchronous. Pass the model and context explicitly when using
 the asynchronous entry points, for example `options.model: r4Model`.
 
 Supply `options.terminology`, a `TerminologyProvider`, for `memberOf()`,
-`subsumes()`, `subsumedBy()`, CodeSystem weight lookup, and `%terminologies`.
+`subsumes()`, `subsumedBy()`, `weight()` lookups beyond contained resources
+(`expand` for an answer value set, `lookup` for a CodeSystem), and `%terminologies`.
 Its optional async methods are `expand`, `lookup`, `validateVS`, `validateCS`,
 `subsumes`, and `translate`. They accept plain FHIR JSON and the API's optional
 URL-encoded parameter string. Return FHIR resources for resource operations and
