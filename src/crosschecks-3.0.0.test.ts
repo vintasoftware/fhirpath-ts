@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { analyzeExpressionDetailed } from './analyzer/index.ts'
+import { compile } from './api/compile.ts'
 import { evaluate } from './api/evaluate.ts'
 import { FhirPathError, FhirPathSyntaxError } from './errors.ts'
 import { r4Model } from './r4/index.ts'
@@ -26,6 +27,8 @@ interface CrosscheckCase {
   fixture?: string
   model?: 'r4'
   env?: Record<string, unknown>
+  /** Evaluate with `evaluateTyped()`: the upstream test reads internal nodes. */
+  typed?: boolean
   values?: unknown[]
   contains?: Record<string, unknown>[]
   count?: number
@@ -62,7 +65,10 @@ function run(test: CrosscheckCase): void {
     return
   }
   const options = { ...(test.model === 'r4' && { model: r4Model }), ...(test.env && { env: test.env }) }
-  const evaluateCase = (): unknown[] => evaluate(test.expression, inputOf(test), options)
+  const evaluateCase = (): unknown[] =>
+    test.typed === true
+      ? compile(test.expression).evaluateTyped(inputOf(test), options)
+      : evaluate(test.expression, inputOf(test), options)
   if (test.error !== undefined) {
     expect(evaluateCase).toThrow(ERRORS[test.error])
   } else if (test.contains !== undefined) {

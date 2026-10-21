@@ -4,7 +4,7 @@ import { FhirPathRuntimeError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { EmptyFhirpathTypeContext, FhirpathResultForContext } from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
-import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
+import { toCollection, type TypedValue, unwrapAll } from '../values/typed-value.ts'
 import { toSubjects } from './bundle.ts'
 import { type Compiler, contextFactory, type EvaluateOptions } from './compile.ts'
 import { assertStrictExpression } from './strict.ts'
@@ -233,7 +233,7 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
   return {
     ast: expression.ast,
     read: (root, context, at) => {
-      const values = evaluateNode(expression.ast, forkVariables(context), root).map(unwrap)
+      const values = unwrapAll(evaluateNode(expression.ast, forkVariables(context), root))
       if (spec.collection === true) {
         return applyAs(values)
       }

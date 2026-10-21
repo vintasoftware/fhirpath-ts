@@ -36,7 +36,7 @@ import {
   SCORES_SYSTEM,
 } from '../src/testing/medplum-terminology.ts'
 import { type TxFixtureEntry, type TxFixtureFile, txProvider } from '../src/testing/tx-fixtures.ts'
-import { unwrap } from '../src/values/typed-value.ts'
+import { unwrapAll } from '../src/values/typed-value.ts'
 
 function required(name: string): string {
   const value = process.env[name]
@@ -250,7 +250,7 @@ try {
         terminology,
         env: MEDPLUM_ENV,
       })
-      actual = values.map(unwrap)
+      actual = unwrapAll(values)
     } catch (error) {
       actual = { error: (error as Error).message }
     }

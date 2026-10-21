@@ -33,7 +33,7 @@ import type {
   FhirpathTypeDeclarations,
   FhirTypeName,
 } from '../typed/infer.ts'
-import { toCollection, type TypedValue, unwrap } from '../values/typed-value.ts'
+import { toCollection, type TypedValue, unwrapAll } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
 import { assertStrictExpression } from './strict.ts'
 
@@ -217,7 +217,7 @@ export class CompiledExpression<
     input?: TInput | readonly TypedValue[],
     options?: Declaring<Options>
   ): CompiledExpressionResult<Expr, TResult, Root, Options> {
-    return this.evaluateTyped(input, options).map(unwrap) as CompiledExpressionResult<Expr, TResult, Root, Options>
+    return unwrapAll(this.evaluateTyped(input, options)) as CompiledExpressionResult<Expr, TResult, Root, Options>
   }
 
   /**
@@ -235,7 +235,7 @@ export class CompiledExpression<
     input?: TInput | readonly TypedValue[],
     options?: Declaring<Options, AsyncEvaluateOptions>
   ): Promise<CompiledExpressionResult<Expr, TResult, Root, Options>> {
-    return (await this.evaluateTypedAsync(input, options)).map(unwrap) as CompiledExpressionResult<
+    return unwrapAll(await this.evaluateTypedAsync(input, options)) as CompiledExpressionResult<
       Expr,
       TResult,
       Root,

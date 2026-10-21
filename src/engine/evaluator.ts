@@ -19,7 +19,7 @@ import {
   SYSTEM_TIME,
   toCollection,
   type TypedValue,
-  unwrap,
+  unwrapAll,
 } from '../values/typed-value.ts'
 import { alsoCollecting } from './async.ts'
 import {
@@ -88,8 +88,8 @@ function evaluateHostFunction(
       `Function '${name}' expects ${describeArity(minArity, maxArity)}, got ${args.length} arguments`
     )
   }
-  const argValues = args.map(node => evaluateArgument(node, context, input).map(unwrap))
-  return toCollection(host.fn(input.map(unwrap), ...argValues))
+  const argValues = args.map(node => unwrapAll(evaluateArgument(node, context, input)))
+  return toCollection(host.fn(unwrapAll(input), ...argValues))
 }
 
 /** Evaluate one AST node against an input collection. */

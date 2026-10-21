@@ -1654,6 +1654,7 @@
       "expression": "date { id: 'bd1' }",
       "input": "empty-object",
       "model": "r4",
+      "typed": true,
       "count": 1
     },
     {

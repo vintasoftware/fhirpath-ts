@@ -134,8 +134,17 @@ export function toCollection(value: unknown): TypedValue[] {
   return [toTypedValue(value)]
 }
 
-/** Unwrap for the public API: internal value objects become plain JS values. */
-export function unwrap(typed: TypedValue): unknown {
+/**
+ * Unwrap a collection for the public API. A FHIR primitive with only an id or
+ * extension (`_birthDate` without `birthDate`) has no plain value, so it gives
+ * no item; `evaluateTyped()` keeps it.
+ */
+export function unwrapAll(collection: readonly TypedValue[]): unknown[] {
+  return collection.filter(item => item.value !== undefined).map(unwrap)
+}
+
+/** Unwrap one item: internal value objects become plain JS values. */
+function unwrap(typed: TypedValue): unknown {
   const value = typed.value
   if (value instanceof Decimal) {
     return value.toNumber()

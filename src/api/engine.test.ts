@@ -174,6 +174,31 @@ describe('FhirPathEngine.evaluate', () => {
     expect(engine.evaluate('2.double()')).toEqual([4])
   })
 
+  it('gives plain values no item for a primitive with only extensions', () => {
+    // FHIR JSON aligns `given` and `_given` with null entries, which the generated interfaces leave out.
+    const masked = {
+      resourceType: 'Patient',
+      _birthDate: { extension: [{ url: 'http://example.org/data-absent-reason', valueCode: 'masked' }] },
+      name: [{ given: ['A', null, 'C'], _given: [null, { extension: [{ url: 'http://x' }] }, null] }],
+    } as unknown as Patient
+    expect(r4.evaluate('Patient.birthDate', masked)).toEqual([])
+    expect(r4.first('Patient.birthDate', masked)).toBeUndefined()
+    expect(r4.evaluate('Patient.name.given', masked)).toEqual(['A', 'C'])
+    // The node is still there for FHIRPath and for evaluateTyped().
+    expect(r4.evaluate('Patient.birthDate.count()', masked)).toEqual([1])
+    expect(r4.evaluate('Patient.birthDate.hasValue()', masked)).toEqual([false])
+    expect(r4.evaluate('Patient.birthDate.extension.url', masked)).toEqual(['http://example.org/data-absent-reason'])
+    expect(r4.evaluateTyped('Patient.birthDate', masked)).toMatchObject([{ type: 'FHIR.date', value: undefined }])
+    expect(
+      r4.project(masked, {
+        birthDate: { path: 'Patient.birthDate', default: 'unknown' },
+        given: { path: 'Patient.name.given', collection: true },
+      })
+    ).toEqual({ birthDate: 'unknown', given: ['A', 'C'] })
+    const plain = { fn: (input: unknown[]) => input.length }
+    expect(r4.evaluate('Patient.name.given.plain()', masked, { functions: { plain } })).toEqual([2])
+  })
+
   it('keeps engine-only options out of the bound per-call defaults', () => {
     const engine = new FhirPathEngine({ model: r4Model, cacheSize: 10 })
     expect(engine.defaults).toEqual({ model: r4Model })

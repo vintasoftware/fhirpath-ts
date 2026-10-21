@@ -101,6 +101,13 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Changed
 
+- **Breaking:** `evaluate()`, `first()`, `project()`, their async forms, and
+  custom function `input` and arguments give no item for a FHIR primitive with
+  only an `id` or extensions, such as `_birthDate` without `birthDate`. They
+  gave `undefined`, which the inferred result types did not allow and which
+  looked like a missing element after `JSON.stringify` or a truthiness test.
+  `count()` and `hasValue()` still see the element, and `evaluateTyped()`
+  returns it ([#26](https://github.com/vintasoftware/fhirpath-ts/issues/26)).
 - **Breaking:** a declared root other than a resource, such as
   `compile('given', 'HumanName')` or `compile(expr, 'QuestionnaireResponse.item')`,
   takes typed values only, in TypeScript and, on an engine with a model, at runtime. Type JSON with
