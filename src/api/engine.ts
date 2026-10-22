@@ -28,6 +28,7 @@ import {
 } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
 import {
+  assertInputMatchesDto,
   assertRegistrable,
   type BaseConstraint,
   type BaseFields,
@@ -555,6 +556,10 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
     const { onRowError, ...options } = projectOptions ?? {}
     if (typeof columns === 'function') {
       this.assertProjectable(columns)
+      if (onRowError === undefined) {
+        // Without a handler, a subject of the wrong type fails the call before any option merges or column plans.
+        assertInputMatchesDto(input, columns)
+      }
     }
     const rows =
       typeof columns === 'function'
@@ -563,12 +568,12 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
             dtoDefinition(columns).columns,
             this.merged(dtoCallOptions(columns, options, this.compileCached)),
             this.compileCached,
-            { onRowError, checkSubject: subjectMatchesDto(columns) }
+            onRowError && { onRowError, checkSubject: subjectMatchesDto(columns) }
           )
             // Materialize each row as a class instance, so the DTO's own methods
             // and getters see the projected values.
             .map(row => Object.assign(new columns(), row))
-        : projectRows(input, columns, this.merged(options), this.compileCached, { onRowError })
+        : projectRows(input, columns, this.merged(options), this.compileCached, onRowError && { onRowError })
     return Array.isArray(input) || isBundle(input) ? rows : rows[0]
   }
 

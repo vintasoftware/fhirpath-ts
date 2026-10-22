@@ -266,22 +266,32 @@ export interface ProjectOptions extends EvaluateOptions {
   onRowError?: (error: ProjectionRowError) => RowErrorAction
 }
 
-/** Options a projection of `Input` accepts: `onRowError` needs several rows to skip one of. */
-export type ProjectOptionsFor<Input> = Input extends readonly unknown[] | BundleLike ? ProjectOptions : EvaluateOptions
+/**
+ * Options a projection of `Input` accepts: `onRowError` needs several rows to
+ * skip one of. The tuple keeps a union with a single subject out.
+ */
+export type ProjectOptionsFor<Input> = [Input] extends [readonly unknown[] | BundleLike]
+  ? ProjectOptions
+  : EvaluateOptions
+
+/** How `projectRows` treats a failing row; without it, the row's error throws as it is. */
+export interface RowErrorHandling {
+  onRowError: NonNullable<ProjectOptions['onRowError']>
+  /** Rejects a subject the projection cannot read, as a failure of its row. */
+  checkSubject?: (subject: unknown, index: number) => void
+}
 
 /**
  * Projects one row per input subject. Each row gets one shared context, so
  * variables bind once and every column reads the same values. Runtime
  * `%rowIndex` and `%rowTotal` replace matching environment entries.
- * `checkSubject` runs on every subject before its columns; without
- * `onRowError` it runs on all of them before any row is read.
  */
 export function projectRows(
   input: unknown,
   columns: ProjectionColumns,
   options: EvaluateOptions,
   compile: Compiler,
-  { onRowError, checkSubject }: RowHandling = {}
+  rowErrors?: RowErrorHandling
 ): Record<string, unknown>[] {
   const planned = Object.entries(columns).map(([name, column]) => [name, planColumn(name, column, compile)] as const)
   const makeContext = contextFactory(options)
@@ -290,6 +300,8 @@ export function projectRows(
   // The column a failing row was reading, for its ProjectionRowError.
   let column: string | undefined
   const projectRow = (subject: unknown, index: number): Record<string, unknown> => {
+    column = undefined
+    rowErrors?.checkSubject?.(subject, index)
     const root = toCollection(subject)
     const at: RowPosition = { index, total }
     const rowEnv = { rowIndex: index, rowTotal: total }
@@ -307,28 +319,18 @@ export function projectRows(
     }
     return row
   }
-  if (onRowError === undefined) {
-    subjects.forEach((subject, index) => checkSubject?.(subject.value, index))
+  if (rowErrors === undefined) {
     return subjects.map((subject, index) => projectRow(subject.value, index))
   }
   return subjects.flatMap((subject, index) => {
     try {
-      column = undefined
-      checkSubject?.(subject.value, index)
       return [projectRow(subject.value, index)]
     } catch (cause) {
       const error = new ProjectionRowError(cause, { index, total, column, subject: subject.value })
-      if (onRowError(error) === 'skip') {
+      if (rowErrors.onRowError(error) === 'skip') {
         return []
       }
       throw error
     }
   })
-}
-
-/** How `projectRows` treats a failing row. */
-export interface RowHandling {
-  onRowError?: ProjectOptions['onRowError']
-  /** Rejects a subject the projection cannot read, before its columns run. */
-  checkSubject?: (subject: unknown, index: number) => void
 }

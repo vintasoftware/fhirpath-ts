@@ -1372,6 +1372,22 @@ describe('DTOs registered engine-wide', () => {
     )
     // @ts-expect-error -- one subject has no other rows to keep
     PatientRow.from({ resourceType: 'Patient' }, { onRowError: () => 'skip' })
+    const either = matched as Patient | Patient[]
+    // @ts-expect-error -- the input may be one subject, whose skipped row would come back undefined
+    PatientRow.from(either, { onRowError: () => 'skip' })
+    // @ts-expect-error -- the same input through the engine
+    r4.project(either, PatientRow, { onRowError: () => 'skip' })
+  })
+
+  it('without onRowError, a subject of the wrong type fails before the call options are read', () => {
+    class PatientRow extends r4.defineView('Patient') {
+      id = this.column('id', { default: '' })
+    }
+    const org: Organization = { resourceType: 'Organization' }
+    // @ts-expect-error -- an Organization is not a Patient input
+    expect(() => PatientRow.from([org], { vars: { broken: 'name.(' } })).toThrow(
+      "project(): row 0 is a Organization, but PatientRow declares fhirType 'Patient'"
+    )
   })
 
   it('rejects a column whose name is a built-in function, naming the field', () => {

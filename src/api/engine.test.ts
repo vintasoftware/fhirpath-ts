@@ -645,9 +645,16 @@ describe('project(): onRowError', () => {
 
   it("'stop' throws the row error, and a throwing callback propagates its own error", () => {
     const columns = { given: 'Patient.name.given' }
-    expect(() => r4.project(batch, columns, { onRowError: () => 'stop' })).toThrow(
-      new ProjectionRowError(undefined, { index: 1, total: 3, column: 'given', subject: undefined })
-    )
+    let seen: ProjectionRowError | undefined
+    let thrown: unknown
+    try {
+      r4.project(batch, columns, { onRowError: error => ((seen = error), 'stop') })
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown).toBe(seen)
+    expect(thrown).toBeInstanceOf(ProjectionRowError)
+    expect((thrown as ProjectionRowError).cause).toBeInstanceOf(FhirPathRuntimeError)
     const own = new Error('dead-letter queue is full')
     expect(() =>
       r4.project(batch, columns, {
@@ -713,6 +720,9 @@ describe('project(): onRowError', () => {
   it('accepts onRowError only for an array or a Bundle', () => {
     // @ts-expect-error -- one subject has no other rows to keep; catch its error instead
     r4.project(patient, { id: 'Patient.id' }, { onRowError: () => 'skip' })
+    const either = patient as Patient | Patient[]
+    // @ts-expect-error -- the input may be one subject, whose skipped row would come back undefined
+    r4.project(either, { id: 'Patient.id' }, { onRowError: () => 'skip' })
   })
 })
 

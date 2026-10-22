@@ -15,7 +15,7 @@ import type {
 } from '../typed/infer.ts'
 import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
 import type { TypedValue } from '../values/typed-value.ts'
-import type { BundleLike } from './bundle.ts'
+import { type BundleLike, toSubjects } from './bundle.ts'
 import { columnSignature, criteriaSignature } from './column-signature.ts'
 import {
   type AnyExpression,
@@ -1203,6 +1203,12 @@ export function subjectMatchesDto(dto: DtoClass): (value: unknown, index: number
       )
     }
   }
+}
+
+/** Checks every subject against the DTO type, before any row is projected. */
+export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
+  const check = subjectMatchesDto(dto)
+  toSubjects(input).forEach((subject, index) => check(subject.value, index))
 }
 
 /** A short description of a non-resource value for an error message; never its contents. */
