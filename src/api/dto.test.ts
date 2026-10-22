@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import { analyzeDto, analyzeEngineDtos, analyzeExpression } from '../analyzer/index.ts'
+import { FhirPathTypeError, ProjectionRowError } from '../errors.ts'
 import type {
   Appointment,
   Bundle,
@@ -1332,6 +1333,45 @@ describe('DTOs registered engine-wide', () => {
     const message = 'Expected a collection with at most one item, but found 2'
     expect(() => engine.project(patient, Many)).toThrow(message)
     expect(() => engine.evaluate('hasGiven()', patient)).toThrow(message)
+  })
+
+  it('onRowError leaves a criteria error as the function call raises it', () => {
+    class Many extends r4.defineDto('Patient') {
+      hasGiven = this.criteria('name.given')
+    }
+    const patients: Patient[] = [
+      { resourceType: 'Patient', id: 'one', name: [{ given: ['Peter'] }] },
+      { resourceType: 'Patient', id: 'two', name: [{ given: ['Peter', 'James'] }] },
+    ]
+    const failures: ProjectionRowError[] = []
+    const rows = Many.from(patients, { onRowError: error => (failures.push(error), 'skip') })
+    expect(rows).toEqual([{ hasGiven: true }])
+    expect(failures.map(({ index, column }) => ({ index, column }))).toEqual([{ index: 1, column: 'hasGiven' }])
+    expect((failures[0]?.cause as Error).message).toBe('Expected a collection with at most one item, but found 2')
+  })
+
+  it('onRowError skips a Bundle entry of the wrong resourceType', () => {
+    class PatientRow extends r4.defineView('Patient') {
+      id = this.column('id', { default: '' })
+    }
+    const matched: Patient = { resourceType: 'Patient', id: 'match1' }
+    const included: Organization = { resourceType: 'Organization', id: 'o1' }
+    const searchset: Bundle = {
+      resourceType: 'Bundle',
+      type: 'searchset',
+      entry: [{ resource: matched }, { resource: included }],
+    }
+    const failures: ProjectionRowError[] = []
+    const rows = r4.project(searchset, PatientRow, { onRowError: error => (failures.push(error), 'skip') })
+    expectTypeOf(rows).toEqualTypeOf<PatientRow[]>()
+    expect(rows).toEqual([{ id: 'match1' }])
+    expect(failures[0]).toMatchObject({ index: 1, column: undefined })
+    expect(failures[0]?.cause).toBeInstanceOf(FhirPathTypeError)
+    expect((failures[0]?.cause as Error).message).toBe(
+      "project(): row 1 is a Organization, but PatientRow declares fhirType 'Patient'"
+    )
+    // @ts-expect-error -- one subject has no other rows to keep
+    PatientRow.from({ resourceType: 'Patient' }, { onRowError: () => 'skip' })
   })
 
   it('rejects a column whose name is a built-in function, naming the field', () => {

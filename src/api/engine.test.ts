@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { FhirPathRuntimeError, FhirPathSyntaxError } from '../errors.ts'
+import { FhirPathRuntimeError, FhirPathSyntaxError, ProjectionRowError } from '../errors.ts'
 import type { Bundle, Condition, Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import { compile, CompiledExpression } from './compile.ts'
@@ -599,6 +599,120 @@ describe('FhirPathEngine.project', () => {
     expect(() =>
       r4.project([], { bad: { path: 'Patient.gender', choices: [{ code: 'male', label: 'M' }], pick: 'lable' } })
     ).toThrow("column 'bad' picks 'lable', which no row of its table has")
+  })
+})
+
+describe('project(): onRowError', () => {
+  const twoGiven: Patient = { resourceType: 'Patient', id: 'bad', name: [{ given: ['Peter', 'James'] }] }
+  const batch = [otherPatient, twoGiven, { resourceType: 'Patient', id: 'third' } satisfies Patient]
+
+  it('skips a failing row, returns the others, and describes the failure', () => {
+    const failures: ProjectionRowError[] = []
+    const rows = r4.project(
+      batch,
+      { id: 'Patient.id', given: 'Patient.name.given', total: '%rowTotal' },
+      {
+        onRowError: error => {
+          expectTypeOf(error).toEqualTypeOf<ProjectionRowError>()
+          failures.push(error)
+          return 'skip'
+        },
+      }
+    )
+    expect(rows).toEqual([
+      { id: 'other', given: undefined, total: 3 },
+      { id: 'third', given: undefined, total: 3 },
+    ])
+    expect(failures).toHaveLength(1)
+    const [failure] = failures
+    expect(failure).toBeInstanceOf(ProjectionRowError)
+    expect(failure).toMatchObject({ index: 1, total: 3, column: 'given' })
+    expect(failure?.message).toBe("project(): row 1 failed in column 'given'")
+    // The cause is the error the default path throws, message unchanged.
+    expect(failure?.cause).toBeInstanceOf(FhirPathRuntimeError)
+    expect((failure?.cause as Error).message).toBe(
+      "project(): column 'given' yielded 2 values in row 1; append first() or set collection: true"
+    )
+    expect(failure?.subject).toBe(twoGiven)
+  })
+
+  it('keeps the subject out of enumeration and serialization', () => {
+    let failure: ProjectionRowError | undefined
+    r4.project(batch, { given: 'Patient.name.given' }, { onRowError: error => ((failure = error), 'skip') })
+    expect(Object.keys(failure ?? {})).not.toContain('subject')
+    expect(JSON.stringify(failure)).not.toContain('Peter')
+  })
+
+  it("'stop' throws the row error, and a throwing callback propagates its own error", () => {
+    const columns = { given: 'Patient.name.given' }
+    expect(() => r4.project(batch, columns, { onRowError: () => 'stop' })).toThrow(
+      new ProjectionRowError(undefined, { index: 1, total: 3, column: 'given', subject: undefined })
+    )
+    const own = new Error('dead-letter queue is full')
+    expect(() =>
+      r4.project(batch, columns, {
+        onRowError: () => {
+          throw own
+        },
+      })
+    ).toThrow(own)
+  })
+
+  it('locates errors raised deep in an expression or by a host conversion', () => {
+    const seen: (string | undefined)[] = []
+    const shaperError = new Error('shaper failed')
+    const rows = r4.project(
+      batch,
+      {
+        id: 'Patient.id',
+        greeting: "Patient.name.given & '!'",
+        tag: {
+          path: 'Patient.id',
+          as: (id: unknown) => {
+            if (id === 'third') {
+              throw shaperError
+            }
+            return id
+          },
+        },
+      },
+      { onRowError: error => (seen.push(`${error.index}:${error.column}`), 'skip') }
+    )
+    expect(rows).toEqual([{ id: 'other', greeting: '!', tag: 'other' }])
+    expect(seen).toEqual(['1:greeting', '2:tag'])
+  })
+
+  it('reports a failure before any column with no column name', () => {
+    let failure: ProjectionRowError | undefined
+    const rows = r4.project(
+      [patient],
+      { id: 'Patient.id' },
+      { env: { loinc: 'x' }, vars: { loinc: "'y'" }, onRowError: error => ((failure = error), 'skip') }
+    )
+    expect(rows).toEqual([])
+    expect(failure?.column).toBeUndefined()
+    expect(failure?.message).toBe('project(): row 0 failed')
+  })
+
+  it('numbers Bundle rows as %rowIndex does', () => {
+    const bundle: Bundle = {
+      resourceType: 'Bundle',
+      type: 'collection',
+      entry: [{}, { resource: twoGiven }, { resource: otherPatient }],
+    }
+    const indexes: number[] = []
+    const rows = r4.project(
+      bundle,
+      { given: 'Patient.name.given', index: '%rowIndex' },
+      { onRowError: error => (indexes.push(error.index), 'skip') }
+    )
+    expect(rows).toEqual([{ given: undefined, index: 1 }])
+    expect(indexes).toEqual([0])
+  })
+
+  it('accepts onRowError only for an array or a Bundle', () => {
+    // @ts-expect-error -- one subject has no other rows to keep; catch its error instead
+    r4.project(patient, { id: 'Patient.id' }, { onRowError: () => 'skip' })
   })
 })
 

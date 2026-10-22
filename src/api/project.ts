@@ -1,11 +1,11 @@
 import { type EvaluationContext, forkVariables } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
-import { FhirPathRuntimeError } from '../errors.ts'
+import { FhirPathRuntimeError, ProjectionRowError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { EmptyFhirpathTypeContext, FhirpathResultForContext } from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
 import { toCollection, type TypedValue, unwrapAll } from '../values/typed-value.ts'
-import { toSubjects } from './bundle.ts'
+import { type BundleLike, toSubjects } from './bundle.ts'
 import { type Compiler, contextFactory, type EvaluateOptions } from './compile.ts'
 import { assertStrictExpression } from './strict.ts'
 
@@ -252,33 +252,83 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
   }
 }
 
+/** What `onRowError` returns: `'skip'` drops the row and continues, `'stop'` throws the error it received. */
+export type RowErrorAction = 'skip' | 'stop'
+
+/** `project()` and DTO `from()` options for an array or a Bundle. */
+export interface ProjectOptions extends EvaluateOptions {
+  /**
+   * Called once per failed row with the error, which says where the row failed
+   * and carries the row's subject. Without it, the first row error throws as
+   * it is and no rows come back. Errors that do not depend on a row, such as a
+   * column that does not compile, still throw before any row is read.
+   */
+  onRowError?: (error: ProjectionRowError) => RowErrorAction
+}
+
+/** Options a projection of `Input` accepts: `onRowError` needs several rows to skip one of. */
+export type ProjectOptionsFor<Input> = Input extends readonly unknown[] | BundleLike ? ProjectOptions : EvaluateOptions
+
 /**
  * Projects one row per input subject. Each row gets one shared context, so
  * variables bind once and every column reads the same values. Runtime
  * `%rowIndex` and `%rowTotal` replace matching environment entries.
+ * `checkSubject` runs on every subject before its columns; without
+ * `onRowError` it runs on all of them before any row is read.
  */
 export function projectRows(
   input: unknown,
   columns: ProjectionColumns,
   options: EvaluateOptions,
-  compile: Compiler
+  compile: Compiler,
+  { onRowError, checkSubject }: RowHandling = {}
 ): Record<string, unknown>[] {
   const planned = Object.entries(columns).map(([name, column]) => [name, planColumn(name, column, compile)] as const)
   const makeContext = contextFactory(options)
   const subjects = toSubjects(input)
-  return subjects.map((subject, index) => {
-    const root = toCollection(subject.value)
-    const at: RowPosition = { index, total: subjects.length }
-    const rowEnv = { rowIndex: index, rowTotal: subjects.length }
+  const total = subjects.length
+  // The column a failing row was reading, for its ProjectionRowError.
+  let column: string | undefined
+  const projectRow = (subject: unknown, index: number): Record<string, unknown> => {
+    const root = toCollection(subject)
+    const at: RowPosition = { index, total }
+    const rowEnv = { rowIndex: index, rowTotal: total }
     const strictOptions = options.strict === true ? { ...options, env: { ...options.env, ...rowEnv } } : options
-    for (const [, column] of planned) {
-      assertStrictExpression(column.ast, root, strictOptions)
+    for (const [name, plannedColumn] of planned) {
+      column = name
+      assertStrictExpression(plannedColumn.ast, root, strictOptions)
     }
+    column = undefined
     const context = makeContext(root, rowEnv)
     const row: Record<string, unknown> = {}
-    for (const [name, column] of planned) {
-      row[name] = column.read(root, context, at)
+    for (const [name, plannedColumn] of planned) {
+      column = name
+      row[name] = plannedColumn.read(root, context, at)
     }
     return row
+  }
+  if (onRowError === undefined) {
+    subjects.forEach((subject, index) => checkSubject?.(subject.value, index))
+    return subjects.map((subject, index) => projectRow(subject.value, index))
+  }
+  return subjects.flatMap((subject, index) => {
+    try {
+      column = undefined
+      checkSubject?.(subject.value, index)
+      return [projectRow(subject.value, index)]
+    } catch (cause) {
+      const error = new ProjectionRowError(cause, { index, total, column, subject: subject.value })
+      if (onRowError(error) === 'skip') {
+        return []
+      }
+      throw error
+    }
   })
+}
+
+/** How `projectRows` treats a failing row. */
+export interface RowHandling {
+  onRowError?: ProjectOptions['onRowError']
+  /** Rejects a subject the projection cannot read, before its columns run. */
+  checkSubject?: (subject: unknown, index: number) => void
 }

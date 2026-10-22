@@ -15,7 +15,7 @@ import type {
 } from '../typed/infer.ts'
 import { canonicalFocusType, typesOverlap } from '../values/type-compat.ts'
 import type { TypedValue } from '../values/typed-value.ts'
-import { type BundleLike, toSubjects } from './bundle.ts'
+import type { BundleLike } from './bundle.ts'
 import { columnSignature, criteriaSignature } from './column-signature.ts'
 import {
   type AnyExpression,
@@ -27,7 +27,7 @@ import {
   type SingleCustomFunction,
 } from './compile.ts'
 import type { FhirPathEngine } from './engine.ts'
-import type { ColumnOptions, ColumnResult, ProjectionColumn } from './project.ts'
+import type { ColumnOptions, ColumnResult, ProjectionColumn, ProjectOptions, ProjectOptionsFor } from './project.ts'
 
 /** The object forms of ProjectionColumn: what `this.column()` and `this.criteria()` record. */
 export type ColumnSpec = Exclude<ProjectionColumn, string>
@@ -526,7 +526,7 @@ export type DtoBaseClass<
   from<This extends DtoClass, const Input extends DtoProjectionInput<This>>(
     this: This,
     input: Input,
-    options?: EvaluateOptions
+    options?: ProjectOptionsFor<Input>
   ): DtoProjection<This, Input>
 }
 
@@ -738,8 +738,9 @@ export function createDtoBase(
   // so its columns are collected with the subclass's own.
   const parent = (options.base ?? DtoBase) as typeof DtoBase
   const base = class extends parent {
-    static from(this: DtoClass, input: unknown, options?: EvaluateOptions): unknown {
-      return engine.project(input as never, this, options)
+    static from(this: DtoClass, input: unknown, options?: ProjectOptions): unknown {
+      // The batch form accepts every option; the runtime reads the input shape itself.
+      return engine.project(input as readonly never[], this, options)
     }
   }
   // A readable name for project()/registration errors; a subclass replaces it.
@@ -1171,17 +1172,16 @@ function columnFunction(
 }
 
 /**
- * Checks each subject against the DTO type before projection. Without this
- * check, a wrong value could produce a typed row filled with defaults. A
- * resource root demands an object carrying its `resourceType`; a datatype root
- * has no `resourceType` to check, and without a model only a present
- * `resourceType` is compared.
+ * Checks one subject against the DTO type before its row is projected.
+ * Without this check, a wrong value could produce a typed row filled with
+ * defaults. A resource root demands an object carrying its `resourceType`; a
+ * datatype root has no `resourceType` to check, and without a model only a
+ * present `resourceType` is compared.
  */
-export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
+export function subjectMatchesDto(dto: DtoClass): (value: unknown, index: number) => void {
   const { fhirType, resource, engine } = dtoDefinition(dto)
   const { model } = engine.defaults
-  toSubjects(input).forEach((subject, index) => {
-    const { value } = subject
+  return (value, index) => {
     const resourceType =
       typeof value === 'object' && value !== null ? (value as { resourceType?: unknown }).resourceType : undefined
     if (typeof resourceType === 'string' && !derivesFrom(model, resourceType, fhirType)) {
@@ -1202,7 +1202,7 @@ export function assertInputMatchesDto(input: unknown, dto: DtoClass): void {
         `project(): row ${index} has no resourceType, but ${dto.name} declares fhirType '${fhirType}'`
       )
     }
-  })
+  }
 }
 
 /** A short description of a non-resource value for an error message; never its contents. */
