@@ -1,11 +1,11 @@
 import { type EvaluationContext, forkVariables } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
-import { FhirPathRuntimeError } from '../errors.ts'
+import { FhirPathRuntimeError, ProjectionRowError } from '../errors.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type { EmptyFhirpathTypeContext, FhirpathResultForContext } from '../typed/infer.ts'
 import { criteriaBoolean } from '../values/collection.ts'
 import { toCollection, type TypedValue, unwrapAll } from '../values/typed-value.ts'
-import { toSubjects } from './bundle.ts'
+import { type BundleLike, toSubjects } from './bundle.ts'
 import { type Compiler, contextFactory, type EvaluateOptions } from './compile.ts'
 import { assertStrictExpression } from './strict.ts'
 
@@ -252,6 +252,35 @@ function planColumn(name: string, column: ProjectionColumn, compile: Compiler): 
   }
 }
 
+/** What `onRowError` returns: `'skip'` drops the row and continues, `'stop'` throws the error it received. */
+export type RowErrorAction = 'skip' | 'stop'
+
+/** `project()` and DTO `from()` options for an array or a Bundle. */
+export interface ProjectOptions extends EvaluateOptions {
+  /**
+   * Called once per failed row with the error, which says where the row failed
+   * and carries the row's subject. Without it, the first row error throws as
+   * it is and no rows come back. Errors that do not depend on a row, such as a
+   * column that does not compile, still throw before any row is read.
+   */
+  onRowError?: (error: ProjectionRowError) => RowErrorAction
+}
+
+/**
+ * Options a projection of `Input` accepts: `onRowError` needs several rows to
+ * skip one of. The tuple keeps a union with a single subject out.
+ */
+export type ProjectOptionsFor<Input> = [Input] extends [readonly unknown[] | BundleLike]
+  ? ProjectOptions
+  : EvaluateOptions
+
+/** How `projectRows` treats a failing row; without it, the row's error throws as it is. */
+export interface RowErrorHandling {
+  onRowError: NonNullable<ProjectOptions['onRowError']>
+  /** Rejects a subject the projection cannot read, as a failure of its row. */
+  checkSubject?: (subject: unknown, index: number) => void
+}
+
 /**
  * Projects one row per input subject. Each row gets one shared context, so
  * variables bind once and every column reads the same values. Runtime
@@ -261,24 +290,47 @@ export function projectRows(
   input: unknown,
   columns: ProjectionColumns,
   options: EvaluateOptions,
-  compile: Compiler
+  compile: Compiler,
+  rowErrors?: RowErrorHandling
 ): Record<string, unknown>[] {
   const planned = Object.entries(columns).map(([name, column]) => [name, planColumn(name, column, compile)] as const)
   const makeContext = contextFactory(options)
   const subjects = toSubjects(input)
-  return subjects.map((subject, index) => {
-    const root = toCollection(subject.value)
-    const at: RowPosition = { index, total: subjects.length }
-    const rowEnv = { rowIndex: index, rowTotal: subjects.length }
+  const total = subjects.length
+  // The column a failing row was reading, for its ProjectionRowError.
+  let column: string | undefined
+  const projectRow = (subject: unknown, index: number): Record<string, unknown> => {
+    column = undefined
+    rowErrors?.checkSubject?.(subject, index)
+    const root = toCollection(subject)
+    const at: RowPosition = { index, total }
+    const rowEnv = { rowIndex: index, rowTotal: total }
     const strictOptions = options.strict === true ? { ...options, env: { ...options.env, ...rowEnv } } : options
-    for (const [, column] of planned) {
-      assertStrictExpression(column.ast, root, strictOptions)
+    for (const [name, plannedColumn] of planned) {
+      column = name
+      assertStrictExpression(plannedColumn.ast, root, strictOptions)
     }
+    column = undefined
     const context = makeContext(root, rowEnv)
     const row: Record<string, unknown> = {}
-    for (const [name, column] of planned) {
-      row[name] = column.read(root, context, at)
+    for (const [name, plannedColumn] of planned) {
+      column = name
+      row[name] = plannedColumn.read(root, context, at)
     }
     return row
+  }
+  if (rowErrors === undefined) {
+    return subjects.map((subject, index) => projectRow(subject.value, index))
+  }
+  return subjects.flatMap((subject, index) => {
+    try {
+      return [projectRow(subject.value, index)]
+    } catch (cause) {
+      const error = new ProjectionRowError(cause, { index, total, column, subject: subject.value })
+      if (rowErrors.onRowError(error) === 'skip') {
+        return []
+      }
+      throw error
+    }
   })
 }

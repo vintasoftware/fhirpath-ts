@@ -52,12 +52,27 @@ export type {
 } from './api/engine.ts'
 export { BoundExpression, FhirPathEngine, recordEngines } from './api/engine.ts'
 export { evaluate, evaluateAsync } from './api/evaluate.ts'
-export type { ColumnOptions, ColumnResult, Projection, ProjectionColumn, ProjectionColumns } from './api/project.ts'
+export type {
+  ColumnOptions,
+  ColumnResult,
+  Projection,
+  ProjectionColumn,
+  ProjectionColumns,
+  ProjectOptions,
+  ProjectOptionsFor,
+  RowErrorAction,
+} from './api/project.ts'
 export { fhirpath } from './api/tagged.ts'
 export type { ToTypedOptions } from './api/to-typed.ts'
 export type { HostNativeFunction, NarrativeSanitizer, RegexEngine } from './engine/context.ts'
 export type { SourceSpan } from './errors.ts'
-export { FhirPathError, FhirPathRuntimeError, FhirPathSyntaxError, FhirPathTypeError } from './errors.ts'
+export {
+  FhirPathError,
+  FhirPathRuntimeError,
+  FhirPathSyntaxError,
+  FhirPathTypeError,
+  ProjectionRowError,
+} from './errors.ts'
 export { type DomPurifyLike, domPurifySanitizer } from './fhir/narrative-sanitizer.ts'
 export type { ReferenceResolver } from './fhir/reference-resolver.ts'
 export type { ElementInfo, ModelProvider } from './model/provider.ts'

@@ -46,9 +46,16 @@ import {
   isDtoClass,
   type RegisteredDtoClass,
   type RegisteredOptions,
+  subjectMatchesDto,
   withDtos,
 } from './dto.ts'
-import { type Projection, type ProjectionColumns, projectRows } from './project.ts'
+import {
+  type Projection,
+  type ProjectionColumns,
+  type ProjectOptions,
+  type ProjectOptionsFor,
+  projectRows,
+} from './project.ts'
 import { toTyped, type ToTypedOptions } from './to-typed.ts'
 
 /**
@@ -529,22 +536,30 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   project<C extends DtoClass, const Input extends DtoProjectionInput<C>>(
     input: Input,
     dto: C,
-    options?: EvaluateOptions
+    options?: ProjectOptionsFor<Input>
   ): DtoProjection<C, Input>
   project<
     const Input extends readonly unknown[] | BundleLike,
     const Columns extends ProjectionColumns,
     const Options extends object = EmptyFhirpathTypeContext,
-  >(input: Input, columns: Columns, options?: Declaring<Options>): EngineProjection<Columns, Input, Defaults, Options>[]
+  >(
+    input: Input,
+    columns: Columns,
+    options?: Declaring<Options, ProjectOptions>
+  ): EngineProjection<Columns, Input, Defaults, Options>[]
   project<
     const Input,
     const Columns extends ProjectionColumns,
     const Options extends object = EmptyFhirpathTypeContext,
   >(input: Input, columns: Columns, options?: Declaring<Options>): EngineProjection<Columns, Input, Defaults, Options>
-  project(input: unknown, columns: ProjectionColumns | DtoClass, options?: EvaluateOptions): unknown {
+  project(input: unknown, columns: ProjectionColumns | DtoClass, projectOptions?: ProjectOptions): unknown {
+    const { onRowError, ...options } = projectOptions ?? {}
     if (typeof columns === 'function') {
       this.assertProjectable(columns)
-      assertInputMatchesDto(input, columns)
+      if (onRowError === undefined) {
+        // Without a handler, a subject of the wrong type fails the call before any option merges or column plans.
+        assertInputMatchesDto(input, columns)
+      }
     }
     const rows =
       typeof columns === 'function'
@@ -552,12 +567,13 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
             input,
             dtoDefinition(columns).columns,
             this.merged(dtoCallOptions(columns, options, this.compileCached)),
-            this.compileCached
+            this.compileCached,
+            onRowError && { onRowError, checkSubject: subjectMatchesDto(columns) }
           )
             // Materialize each row as a class instance, so the DTO's own methods
             // and getters see the projected values.
             .map(row => Object.assign(new columns(), row))
-        : projectRows(input, columns, this.merged(options), this.compileCached)
+        : projectRows(input, columns, this.merged(options), this.compileCached, onRowError && { onRowError })
     return Array.isArray(input) || isBundle(input) ? rows : rows[0]
   }
 

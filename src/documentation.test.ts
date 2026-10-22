@@ -104,6 +104,7 @@ const documentation: readonly DocumentExpectation[] = [
         'Patient.gender',
         'Patient.active = true'
       ),
+      valid(),
       valid('Patient.name.given'),
       valid("(status in ('entered-in-error' | 'draft')).not()"),
       valid('clinicalStatus.coding.first().code'),

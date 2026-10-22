@@ -349,6 +349,37 @@ subset.
 Each row evaluates with `%rowIndex` and `%rowTotal`. Indexes are zero-based. A
 single resource gets index `0` and total `1`.
 
+#### Row errors
+
+By default, the first row that fails throws its error unchanged and no rows are
+returned. For an array or a Bundle, `onRowError` decides per row instead. It
+receives a `ProjectionRowError` and returns `'skip'` to drop the row and go on,
+or `'stop'` to throw that error:
+
+```ts
+const failures: ProjectionRowError[] = []
+const rows = r4.project(patients, columns, {
+  onRowError: error => {
+    failures.push(error)
+    return 'skip'
+  },
+})
+```
+
+| Field | Meaning |
+| --- | --- |
+| `index` | The row's `%rowIndex`; for a Bundle, its position among entries that have a resource |
+| `total` | The batch's `%rowTotal`, skipped rows included |
+| `column` | The column being read, or `undefined` when the row failed first, as with a wrong `resourceType` or a `vars` error |
+| `cause` | The error the default path would throw, unchanged |
+| `subject` | The input resource |
+
+The error's message names only the row and column. `subject` is not
+enumerable, so logging or serializing the error leaves the resource out; the
+engine never logs or keeps it. Errors that do not depend on a row, such as a
+column that does not compile, still throw before any row is read. DTO `from()`
+takes the same option.
+
 `project()` creates application data. Structure-to-structure transformation is
 the job of StructureMap and the FHIR Mapping Language.
 
@@ -1260,6 +1291,7 @@ Engine-generated failures use these exported `FhirPathError` subclasses:
 | `FhirPathTypeError` | `r4.evaluate('Patient.children().skip(1)', patient, { strict: true })` | `children()` has undefined order, so strict analysis rejects the order-dependent `skip()`. |
 | `FhirPathRuntimeError` | `r4.evaluate('(1 \| 2).single()')` | The operation requires at most one item, but the data contains two. |
 | `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. |
+| `ProjectionRowError` | `r4.project(patients, columns, { onRowError })` | Passed to `onRowError` when a row fails; thrown when it returns `'stop'`. See [Row errors](#row-errors). |
 
 This follows FHIRPath's
 [empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/STU3/en/index.html#singleton-evaluation-of-collections)
