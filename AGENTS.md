@@ -314,7 +314,10 @@ unversioned or `*` listing stands in for any version, and a Coding without a
 version takes only a weight the listings agree on. A conflict throws; it must
 not pick the first match. ValueSet listings, contained CodeSystems, and the
 Medplum provider's CodeSystem fallback all go through it, and the module has
-no side effects so the `fhirpath-ts/medplum` entry can import it.
+no side effects so the `fhirpath-ts/medplum` entry can import it. Scoring
+errors name the CodeSystem, ValueSet, or element, never the code or version
+being scored: those come from the response, and hosts such as
+sdc-extractor-ts forward engine messages to their callers.
 
 A sync evaluation that needs a host service throws
 `FhirPathAsyncRequiredError`. That class is the contract fhirpath.js-style

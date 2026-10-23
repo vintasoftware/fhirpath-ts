@@ -91,7 +91,7 @@ Each has a regression test.
 | Defect | Class | Reproducer | Commit |
 | --- | --- | --- | --- |
 | Medplum's `$subsumes` rejects `codingA`/`codingB` (400 `invalid`), which the provider read as "no answer", so Coding subsumption returned empty | Medplum provider | `%a.subsumes(%b)` on two v3-ActCode Codings returned `[]` | `b92c911` |
-| A CodeSystem loaded with `CodeSystem/$import` is a `complete` resource without concepts, so `weight()` failed for concepts the server has | Engine rule, applied to a server resource | `weight()` of an imported concept without `itemWeight` threw "cannot find code" | `b92c911` |
+| A CodeSystem loaded with `CodeSystem/$import` is a `complete` resource without concepts, so `weight()` failed for concepts the server has | Engine rule, applied to a server resource | `weight()` of an imported concept without `itemWeight` threw instead of scoring empty | `b92c911` |
 | Medplum's `$lookup` and `$validate-code` take the version only from the `version` parameter, so a Coding's version was ignored | Medplum provider | `weight()` of a Coding with a version Medplum lacks returned `[]`, a lower score | `2fde810` |
 | `ordinal()`, the SDC name before `weight()`, was an unknown function | Engine | sdc-extractor-ts's `ordinal()` tests on the built-in `weight()` | `b7d3a0a` |
 | The adapter sent `$expand` and `$lookup` again for every remote-scored answer on every recalculation | Adapter | Rapid edits with 1.5 s latency took 29.5 s to settle (fhirpath.js: 0.6 s) | `5c7e6fd` |

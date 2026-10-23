@@ -236,9 +236,7 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
       )
       const versions = new Set([codeA?.version, codeB?.version].filter(version => version !== undefined))
       if (versions.size > 1) {
-        throw new Error(
-          `Medplum's $subsumes compares codes of one version of ${system}, not ${[...versions].join(' and ')}`
-        )
+        throw new Error(`Medplum's $subsumes compares codes of one version of ${system}; the Codings name two`)
       }
       const answer = (await operation('CodeSystem', '$subsumes', [
         { name: 'system', valueUri: system },

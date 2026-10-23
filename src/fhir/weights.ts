@@ -44,7 +44,12 @@ function applicable<T extends { version: unknown }>(listings: T[], version: unkn
   return named.length > 0 ? named : listings.filter(listing => listing.version === undefined || listing.version === '*')
 }
 
-/** The one weight the applicable listings agree on; a conflict fails the call rather than choosing a score. */
+/**
+ * The one weight the applicable listings agree on; a conflict fails the call
+ * rather than choosing a score. `where` names the CodeSystem or ValueSet only:
+ * the code and its version come from the data being scored, which an error
+ * message must not carry.
+ */
 export function versionedWeight(listings: VersionedWeight[], version: unknown, where: string): Decimal | undefined {
   const weights: Decimal[] = []
   for (const { weight } of applicable(listings, version)) {
@@ -52,8 +57,8 @@ export function versionedWeight(listings: VersionedWeight[], version: unknown, w
   }
   if (weights.length > 1) {
     const reason =
-      version === undefined ? 'across code system versions; the Coding names none' : `for version ${String(version)}`
-    throw new FhirPathRuntimeError(`weight() finds different weights for ${where} ${reason}`)
+      version === undefined ? 'across code system versions; the Coding names none' : "for the Coding's version"
+    throw new FhirPathRuntimeError(`weight() finds different weights for a code in ${where} ${reason}`)
   }
   return weights[0]
 }
@@ -121,7 +126,7 @@ export function codeSystemWeight(codeSystems: unknown[], { system, code, version
     if (concept !== undefined) listings.push({ version: listed, weight: conceptWeight(codeSystem, concept) })
   }
   if (listings.length > 0) {
-    return { listed: true, weight: versionedWeight(listings, version, `code '${code}' in CodeSystem ${system}`) }
+    return { listed: true, weight: versionedWeight(listings, version, `CodeSystem ${system}`) }
   }
   return { listed: false, complete: selected.some(({ codeSystem }) => codeSystem['content'] === 'complete') }
 }

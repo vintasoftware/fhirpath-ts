@@ -94,7 +94,7 @@ function weightOf(context: EvaluationContext, model: ModelProvider, item: TypedV
   const contained = codeSystemWeight(containedCodeSystems(model, [ownerOf(value), questionnaire]), concept)
   if (contained.listed) return contained.weight
   if (contained.complete) {
-    throw new FhirPathRuntimeError(`weight() cannot find code '${concept.code}' in CodeSystem ${concept.system}`)
+    throw new FhirPathRuntimeError(`weight() cannot find a code in CodeSystem ${concept.system}`)
   }
   const coding = value.type === 'FHIR.Coding' ? value.value : { system: concept.system, code: concept.code }
   const response = parameterList(callProvider(context, 'weight()', 'lookup', [coding, 'property=itemWeight']))
@@ -161,7 +161,7 @@ function valueSetWeight(
         .filter(item => children(model, item, 'code')[0]?.value === code)
         .map(item => ({ version: children(model, include, 'version')[0]?.value, weight: embeddedWeight(item) }))
     )
-  const where = `code '${code}' in ValueSet ${canonical}`
+  const where = `ValueSet ${canonical}`
   return versionedWeight(entries, version, where) ?? versionedWeight(concepts, version, where)
 }
 

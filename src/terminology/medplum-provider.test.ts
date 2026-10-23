@@ -157,7 +157,7 @@ describe('medplumTerminology()', () => {
         { system: 'urn:cs', version: '1', code: 'a' },
         { system: 'urn:cs', version: '2', code: 'b' }
       )
-    ).rejects.toThrow('one version of urn:cs, not 1 and 2')
+    ).rejects.toThrow("Medplum's $subsumes compares codes of one version of urn:cs; the Codings name two")
   })
 
   it('leaves existence to $lookup when the CodeSystem resource lists no concepts, as an imported one does', async () => {

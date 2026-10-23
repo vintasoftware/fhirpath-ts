@@ -447,8 +447,9 @@ describe('SDC weight()', () => {
         item: [item()],
         contained: [codeSystem([scored('a', 1)], { content })],
       })
+      // The message names the CodeSystem, never the answered code.
       expect(() => run(q('complete'), reply(coding('missing')))).toThrow(
-        "weight() cannot find code 'missing' in CodeSystem urn:scores"
+        new FhirPathRuntimeError('weight() cannot find a code in CodeSystem urn:scores')
       )
       expect(() => run(q('fragment'), reply(coding('missing')))).toThrow(
         'weight() needs evaluateAsync() with options.terminology'
@@ -476,9 +477,17 @@ describe('SDC weight()', () => {
       expect(run(q(['1', 2], ['2', 5]), reply({ ...coding('a'), version: '2' }))).toEqual([5])
       expect(run(q(['1', 2], [undefined, 5]), reply({ ...coding('a'), version: '9' }))).toEqual([5])
       expect(() => run(q(['1', 2], ['2', 5]), reply(coding('a')))).toThrow(
-        "weight() finds different weights for code 'a' in CodeSystem urn:scores across code system versions"
+        new FhirPathRuntimeError(
+          'weight() finds different weights for a code in CodeSystem urn:scores across code system versions; the Coding names none'
+        )
       )
       expect(run(q(['1', 3], ['2', 3]), reply(coding('a')))).toEqual([3])
+      // Two listings of the Coding's own version that disagree; neither the code nor the version is named.
+      expect(() => run(q(['2', 2], ['2', 5]), reply({ ...coding('a'), version: '2' }))).toThrow(
+        new FhirPathRuntimeError(
+          "weight() finds different weights for a code in CodeSystem urn:scores for the Coding's version"
+        )
+      )
     })
 
     it('fails on a malformed contained CodeSystem weight instead of dropping the score', () => {
@@ -601,7 +610,7 @@ describe('weight() across code system versions', () => {
   })
 
   it('refuses to choose between conflicting weights for a Coding without a version', () => {
-    const conflict = /different weights for code 'yes' in ValueSet #vs across code system versions/
+    const conflict = /^weight\(\) finds different weights for a code in ValueSet #vs across code system versions/
     expect(() => run(composed)).toThrow(conflict)
     expect(() => run(expanded)).toThrow(conflict)
     expect(() => run({ compose: { include: [include(3), include(5, 'v2')] } })).toThrow(conflict)
@@ -651,7 +660,7 @@ describe('weight() on a bare code', () => {
     expect(evaluate('%gender.weight()', {}, { ...options, vars: { gender: typed } })).toEqual([4])
     expect(evaluate('gender.weight()', patient([codeSystem([{ code: 'female' }])]), options)).toEqual([])
     expect(() => evaluate('gender.weight()', patient([scored], 'other'), options)).toThrow(
-      `weight() cannot find code 'other' in CodeSystem ${genderSystem}`
+      new FhirPathRuntimeError(`weight() cannot find a code in CodeSystem ${genderSystem}`)
     )
   })
 
