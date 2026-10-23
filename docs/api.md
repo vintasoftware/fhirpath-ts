@@ -143,7 +143,8 @@ and `medplumResolver(client)` reads referenced resources from the client's
 FHIR base. Only a literal `Type/id` or `Type/id/_history/vid` read on that base
 is sent; a reference to another server, or a search or operation URL, resolves
 to nothing, because the client sends its credentials with every request.
-`subsumes` sends `system`, `codeA`, and `codeB`, the form Medplum's `$subsumes`
+`lookup` and `validateCS` send a Coding's version as the `version` parameter,
+where Medplum reads it. `subsumes` sends `system`, `codeA`, and `codeB`, the form Medplum's `$subsumes`
 accepts, with the Codings' version as `version`; Codings naming two different
 versions fail the call. `fhirClient(baseUrl, headers)`
 is the same client shape over plain `fetch`, for a terminology server without

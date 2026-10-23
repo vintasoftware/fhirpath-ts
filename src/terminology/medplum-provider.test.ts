@@ -270,6 +270,30 @@ describe('medplumTerminology()', () => {
     expect(calls.filter(call => call.method === 'GET').map(call => call.url)).toEqual([
       `https://medplum.test/fhir/R4/CodeSystem?url=${encodeURIComponent(scores)}`,
     ])
+    // Medplum selects the code system version from the `version` parameter only.
+    expect(calls.find(call => call.method === 'POST')?.body).toEqual({
+      resourceType: 'Parameters',
+      parameter: [
+        { name: 'coding', valueCoding: { system: scores, code: 'often', version: '2' } },
+        { name: 'version', valueString: '2' },
+        { name: 'property', valueCode: 'itemWeight' },
+      ],
+    })
+  })
+
+  it('sends a Coding version as the version parameter of CodeSystem $validate-code', async () => {
+    const { client, calls } = fakeClient({
+      'POST CodeSystem/$validate-code': {
+        resourceType: 'Parameters',
+        parameter: [{ name: 'result', valueBoolean: true }],
+      },
+    })
+    await medplumTerminology(client).validateCS?.(scores, { system: scores, code: 'often', version: '2' })
+    await medplumTerminology(client).validateCS?.(scores, { system: scores, code: 'often', version: '2' }, 'version=3')
+    expect(calls.map(call => (call.body as { parameter: unknown[] }).parameter.slice(2))).toEqual([
+      [{ name: 'version', valueString: '2' }],
+      [{ name: 'version', valueString: '3' }],
+    ])
   })
 
   it('selects the CodeSystem version $lookup answered with for a Coding without one', async () => {

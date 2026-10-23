@@ -82,6 +82,17 @@ function codedParameter(coded: unknown): Parameter {
     : { name: 'coding', valueCoding: coded }
 }
 
+/**
+ * A Coding's version as the operation's `version` parameter. Medplum's
+ * CodeSystem `$lookup` and `$validate-code` select the code system version
+ * from that parameter only, so a version left in the Coding would be ignored.
+ */
+function versionParameter(coded: unknown, params: string | undefined): Parameter[] {
+  const version = typeof coded === 'object' && coded !== null ? (coded as Coding).version : undefined
+  if (typeof version !== 'string' || new URLSearchParams(params ?? '').has('version')) return []
+  return [{ name: 'version', valueString: version }]
+}
+
 /** The API's URL-encoded parameter string as Parameters entries. */
 const extra = (params: string | undefined): Parameter[] =>
   [...new URLSearchParams(params ?? '')].map(([name, value]) =>
@@ -119,7 +130,8 @@ function hasProperty(answer: Parameters | undefined, code: string): boolean {
  * provider only after the contained CodeSystems of the input and the
  * Questionnaire, so local scores never reach the network.
  *
- * `subsumes` sends `system`, `codeA`, and `codeB`, the only form Medplum's
+ * `lookup` and `validateCS` send a Coding's version as `version`, the
+ * parameter Medplum reads it from. `subsumes` sends `system`, `codeA`, and `codeB`, the only form Medplum's
  * `$subsumes` accepts, with the Codings' version as `version`. Codings that name
  * two different versions fail the call rather than compare across versions.
  */
@@ -194,7 +206,11 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
     expand: (valueSet, params) =>
       operation('ValueSet', '$expand', [resourceParameter('valueSet', valueSet), ...extra(params)]),
     lookup: async (coded, params) => {
-      const answer = await operation('CodeSystem', '$lookup', [codedParameter(coded), ...extra(params)])
+      const answer = await operation('CodeSystem', '$lookup', [
+        codedParameter(coded),
+        ...versionParameter(coded, params),
+        ...extra(params),
+      ])
       const wantsWeight = new URLSearchParams(params ?? '').getAll('property').includes('itemWeight')
       if (!wantsWeight || typeof coded === 'string' || hasProperty(answer as Parameters | undefined, 'itemWeight')) {
         return answer
@@ -211,6 +227,7 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
       operation('CodeSystem', '$validate-code', [
         resourceParameter('codeSystem', codeSystem),
         codedParameter(coded),
+        ...versionParameter(coded, params),
         ...extra(params),
       ]),
     subsumes: async (system, coded1, coded2, params) => {
