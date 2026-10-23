@@ -236,21 +236,19 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
 }
 
 /**
- * A `ReferenceResolver` that reads resources from the client's server. An
- * absolute reference is fetched as written, so a reference into another
- * server goes there; a relative `Type/id` reference is read from the client's
- * FHIR base, or from `base` when the resource holding it names one. A
- * resource the server does not have resolves to nothing.
+ * A `ReferenceResolver` that reads resources from the client's server only. A
+ * relative `Type/id` reference is read from the client's FHIR base, or from
+ * `base` when the resource holding it names one. A reference that lands
+ * outside the client's FHIR base resolves to nothing: the client sends its
+ * credentials with every request, and the reference comes from the data. A
+ * resource the server does not have also resolves to nothing.
  */
 export function medplumResolver(client: MedplumClientLike): ReferenceResolver {
+  const own = client.fhirUrl().href.replace(/\/?$/, '/')
   return (reference, base) => {
-    const url =
-      reference.includes('://') || reference.startsWith('urn:')
-        ? reference
-        : base === undefined
-          ? client.fhirUrl(...reference.split('/'))
-          : new URL(reference, `${base.replace(/\/$/, '')}/`).href
-    return answerOf(client.get(url))
+    if (reference.startsWith('urn:')) return Promise.resolve(undefined)
+    const url = new URL(reference, base === undefined ? own : `${base.replace(/\/$/, '')}/`).href
+    return url.startsWith(own) ? answerOf(client.get(url)) : Promise.resolve(undefined)
   }
 }
 
@@ -264,6 +262,8 @@ export function medplumResolver(client: MedplumClientLike): ReferenceResolver {
 export function fhirClient(baseUrl: string, headers: Record<string, string> = {}): MedplumClientLike {
   const base = `${baseUrl.replace(/\/$/, '')}/`
   async function request(url: URL | string, init: RequestInit): Promise<unknown> {
+    // The headers may carry credentials, so they go to this server only.
+    if (!String(url).startsWith(base)) throw new Error(`${String(url)} is outside the FHIR base ${base}`)
     const response = await fetch(url, {
       ...init,
       headers: { Accept: FHIR_JSON, ...headers, ...(init.headers as Record<string, string> | undefined) },

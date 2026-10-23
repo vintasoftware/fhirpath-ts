@@ -140,7 +140,8 @@ service, while strict runtime evaluation supplies that declaration automatically
 any object with its `fhirUrl()`, `get()`, and `post()` methods:
 `medplumTerminology(client)` posts the six operations as Parameters resources,
 and `medplumResolver(client)` reads referenced resources from the client's
-server, or from the base a Bundle entry names. `fhirClient(baseUrl, headers)`
+FHIR base; a reference to any other server resolves to nothing, because the
+client sends its credentials with every request. `fhirClient(baseUrl, headers)`
 is the same client shape over plain `fetch`, for a terminology server without
 a Medplum session. A failure whose body is an OperationOutcome with only
 `not-found` or `invalid` issues is an answer the server cannot give; any other

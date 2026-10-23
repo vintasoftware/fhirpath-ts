@@ -236,6 +236,8 @@ describe('fhirClient()', () => {
       'https://tx.test/fhir/Patient/missing',
     ])
     expect((fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>)['Authorization']).toBe('Bearer token')
+    await expect(client.get('https://tx.test.other.test/fhir/Patient/p')).rejects.toThrow(/outside the FHIR base/)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
 

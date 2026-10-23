@@ -273,27 +273,25 @@ describe('medplumTerminology()', () => {
 })
 
 describe('medplumResolver()', () => {
-  it('reads relative references from the client server or the holding resource base, and absolute ones as written', async () => {
+  it('reads references on the client server and resolves references to other servers to nothing', async () => {
     const patient = { resourceType: 'Patient', id: 'p', name: [{ given: ['Ada'] }] }
     const { client, calls } = fakeClient({
       'GET Patient/p': patient,
-      'GET https://other.test/fhir/Patient/p': { ...patient, name: [{ given: ['Other'] }] },
-      'GET https://third.test/fhir/Patient/p': { ...patient, name: [{ given: ['Third'] }] },
       'GET Patient/missing': notFound,
     })
     const resolver = medplumResolver(client)
     await expect(resolver('Patient/p', undefined)).resolves.toEqual(patient)
-    await expect(resolver('Patient/p', 'https://other.test/fhir')).resolves.toMatchObject({
-      name: [{ given: ['Other'] }],
-    })
-    await expect(resolver('https://third.test/fhir/Patient/p', 'https://other.test/fhir')).resolves.toMatchObject({
-      name: [{ given: ['Third'] }],
-    })
+    await expect(resolver('Patient/p', 'https://medplum.test/fhir/R4')).resolves.toEqual(patient)
+    await expect(resolver('https://medplum.test/fhir/R4/Patient/p', undefined)).resolves.toEqual(patient)
     await expect(resolver('Patient/missing', undefined)).resolves.toBeUndefined()
+    await expect(resolver('Patient/p', 'https://other.test/fhir')).resolves.toBeUndefined()
+    await expect(resolver('https://other.test/fhir/Patient/p', undefined)).resolves.toBeUndefined()
+    await expect(resolver('https://medplum.test.other.test/fhir/R4/Patient/p', undefined)).resolves.toBeUndefined()
+    await expect(resolver('urn:uuid:5d1b9c2e-0000-4000-8000-000000000000', undefined)).resolves.toBeUndefined()
     expect(calls.map(call => call.url)).toEqual([
       'https://medplum.test/fhir/R4/Patient/p',
-      'https://other.test/fhir/Patient/p',
-      'https://third.test/fhir/Patient/p',
+      'https://medplum.test/fhir/R4/Patient/p',
+      'https://medplum.test/fhir/R4/Patient/p',
       'https://medplum.test/fhir/R4/Patient/missing',
     ])
     const input = { resourceType: 'Observation', subject: { reference: 'Patient/p' } }
