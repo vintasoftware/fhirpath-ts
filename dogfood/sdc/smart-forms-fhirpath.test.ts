@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TerminologyProvider } from '../../src/index.ts'
 import type { MedplumClientLike } from '../../src/terminology/medplum.ts'
 import { fhirClient } from '../../src/terminology/medplum.ts'
-import { evaluate, medplumServices, smartFormsFhirpath } from './smart-forms-fhirpath.ts'
+import { cachedTerminology, evaluate, medplumServices, smartFormsFhirpath } from './smart-forms-fhirpath.ts'
 import { readTemplatePath } from './template-path.ts'
 
 const response = {
@@ -205,6 +205,25 @@ describe('Medplum services', () => {
       `https://api.medplum.test/fhir/R4/CodeSystem?url=${encodeURIComponent(scores)}`,
       'https://api.medplum.test/fhir/R4/Patient/p',
     ])
+    // The renderer re-runs the score on every answer change; the same lookup is asked once.
+    await expect(
+      engine.evaluate(qr, 'item.answer.value.weight()', { questionnaire }, undefined, options)
+    ).resolves.toEqual([3])
+    expect(vi.mocked(client.post)).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks a failed terminology request again', async () => {
+    let calls = 0
+    const provider = cachedTerminology({
+      lookup: async () => (++calls === 1 ? Promise.reject(new Error('503')) : { resourceType: 'Parameters' }),
+    })
+    const coding = { system: scores, code: 'often' }
+    await expect(provider.lookup?.(coding, 'property=itemWeight')).rejects.toThrow('503')
+    await expect(provider.lookup?.(coding, 'property=itemWeight')).resolves.toEqual({ resourceType: 'Parameters' })
+    await expect(provider.lookup?.(coding, 'property=itemWeight')).resolves.toEqual({ resourceType: 'Parameters' })
+    await expect(provider.lookup?.(coding)).resolves.toEqual({ resourceType: 'Parameters' })
+    expect(calls).toBe(3)
+    expect(provider.expand).toBeUndefined()
   })
 })
 

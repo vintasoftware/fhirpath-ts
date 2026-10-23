@@ -165,6 +165,34 @@ export function smartFormsFhirpath(services: ServicesFor): SmartFormsFhirpath {
   }
 }
 
+const TERMINOLOGY_OPERATIONS = ['expand', 'lookup', 'validateVS', 'validateCS', 'subsumes', 'translate'] as const
+
+/**
+ * A provider that answers each request once, as fhirpath.js's fetch cache
+ * does. The renderer re-runs every calculated expression on each answer
+ * change and awaits them in turn, so without it each change repeats the same
+ * terminology requests. A failed request is not kept and is sent again.
+ */
+export function cachedTerminology(provider: TerminologyProvider): TerminologyProvider {
+  const answers = new Map<string, Promise<unknown>>()
+  const cached: TerminologyProvider = {}
+  for (const name of TERMINOLOGY_OPERATIONS) {
+    const operation = provider[name] as ((...args: unknown[]) => Promise<unknown>) | undefined
+    if (operation === undefined) continue
+    cached[name] = ((...args: unknown[]) => {
+      const key = JSON.stringify([name, args])
+      let answer = answers.get(key)
+      if (answer === undefined) {
+        answer = operation.apply(provider, args)
+        answers.set(key, answer)
+        answer.catch(() => answers.delete(key))
+      }
+      return answer
+    }) as never
+  }
+  return cached
+}
+
 /** Services from fhirpath.js's URL options, each over plain fetch, one per URL so their caches last. */
 export const fetchServices: ServicesFor = (() => {
   const terminologies = new Map<string, TerminologyProvider>()
@@ -175,7 +203,9 @@ export const fetchServices: ServicesFor = (() => {
     return cache.get(url)
   }
   return options => ({
-    terminology: memo(terminologies, options.terminologyUrl, url => medplumTerminology(fhirClient(url))),
+    terminology: memo(terminologies, options.terminologyUrl, url =>
+      cachedTerminology(medplumTerminology(fhirClient(url)))
+    ),
     resolver: memo(resolvers, options.fhirServerUrl, url => medplumResolver(fhirClient(url))),
   })
 })()
@@ -186,7 +216,7 @@ export const fetchServices: ServicesFor = (() => {
  * requests.
  */
 export const medplumServices = (client: MedplumClientLike): ServicesFor => {
-  const services = { terminology: medplumTerminology(client), resolver: medplumResolver(client) }
+  const services = { terminology: cachedTerminology(medplumTerminology(client)), resolver: medplumResolver(client) }
   return () => services
 }
 
