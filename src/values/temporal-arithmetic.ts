@@ -26,6 +26,8 @@ const UCUM_TIME_UNITS: Readonly<Record<string, { level: number; multiplier: numb
   ms: { level: 6, multiplier: 1 },
 }
 
+const RESERVED_UCUM_UNITS: ReadonlySet<string> = new Set(['a', 'mo'])
+
 const MS_PER_LEVEL: Readonly<Record<number, number>> = {
   2: 86400000,
   3: 3600000,
@@ -61,9 +63,12 @@ function resolveDuration(quantity: QuantityValue): Duration {
   const ucum = UCUM_TIME_UNITS[quantity.unit]
   if (!ucum) {
     // The spec reserves UCUM 'a' and 'mo' (definite 365/30-day durations) as errors
-    // for calendar arithmetic; calendar words must be used instead.
+    // for calendar arithmetic; calendar words must be used instead. Any other unit
+    // may be free text from the data, so the message does not repeat it.
     throw new FhirPathRuntimeError(
-      `Cannot use UCUM unit '${quantity.unit}' for date/time arithmetic; use a calendar duration keyword`
+      RESERVED_UCUM_UNITS.has(quantity.unit)
+        ? `Cannot use UCUM unit '${quantity.unit}' for date/time arithmetic; use a calendar duration keyword`
+        : 'Date/time arithmetic needs a calendar duration keyword or a UCUM time unit'
     )
   }
   const amount = ucum.level >= 5 ? value * ucum.multiplier : wholeAmount * ucum.multiplier

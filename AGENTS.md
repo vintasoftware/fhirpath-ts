@@ -316,8 +316,7 @@ not pick the first match. ValueSet listings, contained CodeSystems, and the
 Medplum provider's CodeSystem fallback all go through it, and the module has
 no side effects so the `fhirpath-ts/medplum` entry can import it. Scoring
 errors name the CodeSystem, ValueSet, or element, never the code or version
-being scored: those come from the response, and hosts such as
-sdc-extractor-ts forward engine messages to their callers.
+being scored ([Error messages](#error-messages)).
 
 A sync evaluation that needs a host service throws
 `FhirPathAsyncRequiredError`. That class is the contract fhirpath.js-style
@@ -336,6 +335,16 @@ re-runs every calculated expression on each answer change and awaits them in
 turn, so without it each change repeats the requests. The core provider caches
 only CodeSystem searches, because a long-lived server process must see
 terminology updates.
+
+## Error messages
+
+An engine error message may name types, functions, variables, elements,
+counts, and expression text, and form identifiers such as a CodeSystem URL or
+a linkId. It must not repeat a value read from the evaluated data: a code, a
+version, a string, or a free-text Quantity unit. Hosts such as
+sdc-extractor-ts forward these messages, and `docs/api.md` promises this. A
+value that must reach the caller goes on a non-enumerable property, as
+`ProjectionRowError.subject` does.
 
 ## Criteria booleans
 

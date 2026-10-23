@@ -1356,6 +1356,12 @@ throw their own errors; the engine does not swallow them. Use
 [static checking](static-checking.md) to catch wrong paths and other expression
 errors before runtime.
 
+Engine error messages name types, functions, variables, elements, and text from
+the expression, never a value read from the data, so an application can log or
+show them. Errors from callbacks and terminology services, such as an
+OperationOutcome a server returns, pass through unchanged and carry whatever
+their source put in them.
+
 ## Parse caching
 
 Each engine has a private LRU parse cache. The default capacity is
