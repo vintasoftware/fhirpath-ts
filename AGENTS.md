@@ -327,7 +327,12 @@ surface. It implements the call shapes Smart Forms uses and nothing else; a
 build alias redirects the import. Medplum transport stays in
 `src/terminology/medplum.ts`, behind the `MedplumClientLike` interface, so the
 core never imports a Medplum package. Typed results are recognized by
-identity, never by shape.
+identity, never by shape. The adapter's services answer each terminology
+request once (`cachedTerminology`) and send a failed one again: Smart Forms
+re-runs every calculated expression on each answer change and awaits them in
+turn, so without it each change repeats the requests. The core provider caches
+only CodeSystem searches, because a long-lived server process must see
+terminology updates.
 
 ## Criteria booleans
 
