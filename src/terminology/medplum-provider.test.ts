@@ -93,12 +93,16 @@ describe('medplumTerminology()', () => {
     await expect(provider.validateCS?.('urn:cs', 'a')).resolves.toMatchObject({
       parameter: [{ name: 'result', valueBoolean: false }],
     })
-    await expect(provider.subsumes?.('urn:cs', { system: 'urn:cs', code: 'parent' }, 'child')).resolves.toBe('subsumes')
+    // A Coding keeps its version; a code within the system is sent as a Coding of that system beside it.
+    await expect(
+      provider.subsumes?.('urn:cs', { system: 'urn:cs', version: '2', code: 'parent' }, 'child')
+    ).resolves.toBe('subsumes')
     await expect(
       provider.translate?.({ resourceType: 'ConceptMap' }, { coding: [{ code: 'a' }] })
     ).resolves.toMatchObject({
       resourceType: 'Parameters',
     })
+    await expect(provider.subsumes?.('urn:cs', 'parent', 'child')).resolves.toBe('subsumes')
     expect(calls.map(call => call.body)).toEqual([
       {
         resourceType: 'Parameters',
@@ -124,9 +128,8 @@ describe('medplumTerminology()', () => {
       {
         resourceType: 'Parameters',
         parameter: [
-          { name: 'system', valueUri: 'urn:cs' },
-          { name: 'codeA', valueCode: 'parent' },
-          { name: 'codeB', valueCode: 'child' },
+          { name: 'codingA', valueCoding: { system: 'urn:cs', version: '2', code: 'parent' } },
+          { name: 'codingB', valueCoding: { system: 'urn:cs', code: 'child' } },
         ],
       },
       {
@@ -134,6 +137,14 @@ describe('medplumTerminology()', () => {
         parameter: [
           { name: 'conceptMap', resource: { resourceType: 'ConceptMap' } },
           { name: 'codeableConcept', valueCodeableConcept: { coding: [{ code: 'a' }] } },
+        ],
+      },
+      {
+        resourceType: 'Parameters',
+        parameter: [
+          { name: 'system', valueUri: 'urn:cs' },
+          { name: 'codeA', valueCode: 'parent' },
+          { name: 'codeB', valueCode: 'child' },
         ],
       },
     ])
@@ -192,18 +203,17 @@ describe('medplumTerminology()', () => {
     expect(calls.filter(call => call.method === 'GET')).toHaveLength(1)
   })
 
-  it('builds the answer from the resource when $lookup does not know the concept, and passes the version on', async () => {
+  it('builds the answer from the resource when $lookup does not know the concept, by the Coding version', async () => {
     const { client, calls } = fakeClient({
       'POST CodeSystem/$lookup': notFound,
-      [`GET CodeSystem?url=${encodeURIComponent(scores)}&version=2`]: codeSystemBundle('2'),
-      [`GET CodeSystem?url=${encodeURIComponent(scores)}&version=3`]: { resourceType: 'Bundle' },
+      [`GET CodeSystem?url=${encodeURIComponent(scores)}`]: codeSystemBundle('2'),
     })
     const provider = medplumTerminology(client)
     await expect(
       provider.lookup?.({ system: scores, code: 'often', version: '2' }, 'property=itemWeight')
     ).resolves.toEqual({
       resourceType: 'Parameters',
-      parameter: [{ name: 'name', valueString: scores }, { name: 'display', valueString: 'Often' }, weightProperty(3)],
+      parameter: [{ name: 'name', valueString: scores }, weightProperty(3)],
     })
     await expect(
       provider.lookup?.({ system: scores, code: 'unscored', version: '2' }, 'property=itemWeight')
@@ -211,18 +221,80 @@ describe('medplumTerminology()', () => {
       resourceType: 'Parameters',
       parameter: [{ name: 'name', valueString: scores }],
     })
-    // Neither $lookup nor the resource knows the concept or the version: the lookup is unavailable.
+    // A complete CodeSystem without the code fails, as a contained one does.
     await expect(
       provider.lookup?.({ system: scores, code: 'absent', version: '2' }, 'property=itemWeight')
-    ).resolves.toBeUndefined()
+    ).rejects.toThrow(`weight() cannot find code 'absent' in CodeSystem ${scores}`)
+    // Neither $lookup nor the resource knows the version: the lookup is unavailable.
     await expect(
       provider.lookup?.({ system: scores, code: 'often', version: '3' }, 'property=itemWeight')
     ).resolves.toBeUndefined()
     await expect(provider.lookup?.('often', 'property=itemWeight')).resolves.toBeUndefined()
     expect(calls.filter(call => call.method === 'GET').map(call => call.url)).toEqual([
-      `https://medplum.test/fhir/R4/CodeSystem?url=${encodeURIComponent(scores)}&version=2`,
-      `https://medplum.test/fhir/R4/CodeSystem?url=${encodeURIComponent(scores)}&version=3`,
+      `https://medplum.test/fhir/R4/CodeSystem?url=${encodeURIComponent(scores)}`,
     ])
+  })
+
+  it('selects the CodeSystem version $lookup answered with for a Coding without one', async () => {
+    const versions = {
+      resourceType: 'Bundle',
+      entry: [1, 5].map(weight => ({
+        resource: {
+          resourceType: 'CodeSystem',
+          url: scores,
+          version: `v${weight}`,
+          status: 'active',
+          content: 'complete',
+          concept: [{ code: 'often', extension: ordinal(weight) }],
+        },
+      })),
+    }
+    const search = `GET CodeSystem?url=${encodeURIComponent(scores)}`
+    const answered = fakeClient({
+      'POST CodeSystem/$lookup': { resourceType: 'Parameters', parameter: [{ name: 'version', valueString: 'v5' }] },
+      [search]: versions,
+    })
+    await expect(
+      medplumTerminology(answered.client).lookup?.({ system: scores, code: 'often' }, 'property=itemWeight')
+    ).resolves.toMatchObject({ parameter: [{ name: 'version', valueString: 'v5' }, weightProperty(5)] })
+    const unanswered = fakeClient({
+      'POST CodeSystem/$lookup': { resourceType: 'Parameters', parameter: [] },
+      [search]: versions,
+    })
+    await expect(
+      medplumTerminology(unanswered.client).lookup?.({ system: scores, code: 'often' }, 'property=itemWeight')
+    ).rejects.toThrow('finds different weights')
+  })
+
+  it('fails on a malformed CodeSystem weight instead of dropping the score', async () => {
+    const malformed = codeSystemBundle()
+    const resource = malformed.entry[0]?.resource as { concept: { extension?: unknown }[] }
+    resource.concept[0] = {
+      ...resource.concept[0],
+      extension: [{ url: 'http://hl7.org/fhir/StructureDefinition/ordinalValue', valueString: '3' }],
+    }
+    const { client } = fakeClient({
+      'POST CodeSystem/$lookup': { resourceType: 'Parameters', parameter: [] },
+      [`GET CodeSystem?url=${encodeURIComponent(scores)}`]: malformed,
+    })
+    await expect(
+      medplumTerminology(client).lookup?.({ system: scores, code: 'often' }, 'property=itemWeight')
+    ).rejects.toThrow('weight() requires a numeric valueDecimal')
+  })
+
+  it('reads the CodeSystem again after a failed read', async () => {
+    let reads = 0
+    const client: MedplumClientLike = {
+      fhirUrl: (...path) => new URL(path.join('/'), 'https://medplum.test/fhir/R4/'),
+      get: () => (++reads === 1 ? Promise.reject(new Error('503')) : Promise.resolve(codeSystemBundle())),
+      post: () => Promise.resolve({ resourceType: 'Parameters', parameter: [] }),
+    }
+    const provider = medplumTerminology(client)
+    const lookup = () => provider.lookup?.({ system: scores, code: 'often' }, 'property=itemWeight')
+    await expect(lookup()).rejects.toThrow('503')
+    await expect(lookup()).resolves.toMatchObject({ parameter: [weightProperty(3)] })
+    await expect(lookup()).resolves.toMatchObject({ parameter: [weightProperty(3)] })
+    expect(reads).toBe(2)
   })
 
   it('scores Codings through weight() with contained CodeSystems ahead of the server', async () => {
@@ -288,6 +360,9 @@ describe('medplumResolver()', () => {
     await expect(resolver('https://other.test/fhir/Patient/p', undefined)).resolves.toBeUndefined()
     await expect(resolver('https://medplum.test.other.test/fhir/R4/Patient/p', undefined)).resolves.toBeUndefined()
     await expect(resolver('urn:uuid:5d1b9c2e-0000-4000-8000-000000000000', undefined)).resolves.toBeUndefined()
+    // Only literal reads: no search or operation URL built from the data.
+    await expect(resolver('Patient?identifier=urn:mrn|123', undefined)).resolves.toBeUndefined()
+    await expect(resolver('Patient/p/$everything', undefined)).resolves.toBeUndefined()
     expect(calls.map(call => call.url)).toEqual([
       'https://medplum.test/fhir/R4/Patient/p',
       'https://medplum.test/fhir/R4/Patient/p',

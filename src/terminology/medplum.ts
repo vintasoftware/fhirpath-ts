@@ -1,4 +1,5 @@
-import type { ReferenceResolver } from '../fhir/reference-resolver.ts'
+import { type ReferenceResolver, serverBase } from '../fhir/reference-resolver.ts'
+import { codeSystemWeight } from '../fhir/weights.ts'
 import type { TerminologyProvider } from './provider.ts'
 
 /**
@@ -24,12 +25,6 @@ const CANNOT_ANSWER = new Set(['not-found', 'invalid'])
 
 const FHIR_JSON = 'application/fhir+json'
 
-/** The weight extensions an R4 CodeSystem concept may carry, in FHIR's and SDC's spellings. */
-const WEIGHT_EXTENSION_URLS = new Set([
-  'http://hl7.org/fhir/StructureDefinition/ordinalValue',
-  'http://hl7.org/fhir/StructureDefinition/itemWeight',
-])
-
 interface Coding {
   system?: unknown
   version?: unknown
@@ -45,21 +40,6 @@ interface Parameter {
 interface Parameters {
   resourceType?: unknown
   parameter?: Parameter[]
-}
-
-interface Concept {
-  code?: unknown
-  display?: unknown
-  extension?: { url?: unknown; valueDecimal?: unknown }[]
-  concept?: Concept[]
-}
-
-interface CodeSystem {
-  resourceType?: unknown
-  url?: unknown
-  version?: unknown
-  content?: unknown
-  concept?: Concept[]
 }
 
 /**
@@ -97,8 +77,6 @@ function codedParameter(coded: unknown): Parameter {
     : { name: 'coding', valueCoding: coded }
 }
 
-const codeOf = (coded: unknown): unknown => (typeof coded === 'string' ? coded : (coded as Coding).code)
-
 /** The API's URL-encoded parameter string as Parameters entries. */
 const extra = (params: string | undefined): Parameter[] =>
   [...new URLSearchParams(params ?? '')].map(([name, value]) =>
@@ -113,17 +91,6 @@ function hasProperty(answer: Parameters | undefined, code: string): boolean {
   )
 }
 
-function* concepts(list: Concept[] | undefined): Generator<Concept> {
-  for (const concept of list ?? []) {
-    yield concept
-    yield* concepts(concept.concept)
-  }
-}
-
-function extensionWeight(concept: Concept): unknown {
-  return concept.extension?.find(extension => WEIGHT_EXTENSION_URLS.has(String(extension.url)))?.valueDecimal
-}
-
 /**
  * A `TerminologyProvider` over Medplum's terminology operations: `ValueSet/$expand`,
  * `CodeSystem/$lookup`, `ValueSet/$validate-code`, `CodeSystem/$validate-code`,
@@ -134,32 +101,37 @@ function extensionWeight(concept: Concept): unknown {
  * `lookup` with `property=itemWeight` also reads R4 scores. Medplum's `$lookup`
  * reports concept properties, which `CodeSystem/$import` loads, and not the
  * `ordinalValue` extensions an R4 CodeSystem resource carries on its concepts.
- * When the answer has no `itemWeight` property, the provider reads the
- * CodeSystem resource with the coding's system and version and reports the
- * concept's weight extension as that property. A concept found without one is
- * a confirmed absence, which `weight()` reads as empty; a CodeSystem or concept
- * the server does not have is `undefined`, which `weight()` reports as an
- * error. The engine asks the provider only after the contained CodeSystems of
- * the input and the Questionnaire, so local scores never reach the network.
+ * When the answer has no `itemWeight` property, the provider reads every
+ * version of the CodeSystem resource and reports the concept's weight as that
+ * property, by the rules `weight()` applies to contained CodeSystems: the
+ * Coding's version, or else the version `$lookup` answered with, selects the
+ * resource, and versions that disagree on an unversioned Coding fail the
+ * lookup. A concept found without a weight is a confirmed absence, which
+ * `weight()` reads as empty; a CodeSystem or concept the server does not have
+ * is `undefined`, which `weight()` reports as an error. The engine asks the
+ * provider only after the contained CodeSystems of the input and the
+ * Questionnaire, so local scores never reach the network.
+ *
+ * `subsumes` sends codes within the system as `codeA`/`codeB`, and Codings as
+ * `codingA`/`codingB` so their versions reach the server.
  */
 export function medplumTerminology(client: MedplumClientLike): TerminologyProvider {
-  const codeSystems = new Map<string, Promise<CodeSystem | undefined>>()
+  const codeSystems = new Map<string, Promise<unknown[]>>()
 
   const operation = (type: string, name: string, parameter: Parameter[]): Promise<unknown> =>
     answerOf(client.post(client.fhirUrl(type, name), { resourceType: 'Parameters', parameter }, FHIR_JSON))
 
-  /** The CodeSystem resource for a system and version, read once per provider. */
-  function codeSystem(system: string, version: unknown): Promise<CodeSystem | undefined> {
-    const key = JSON.stringify([system, version])
-    let pending = codeSystems.get(key)
+  /** Every version of the CodeSystem resource for a system, read once per provider; a failed read is retried. */
+  function codeSystemVersions(system: string): Promise<unknown[]> {
+    let pending = codeSystems.get(system)
     if (pending === undefined) {
       const url = client.fhirUrl('CodeSystem')
       url.searchParams.set('url', system)
-      if (typeof version === 'string') url.searchParams.set('version', version)
-      pending = answerOf<{ entry?: { resource?: CodeSystem }[] }>(client.get(url)).then(
-        bundle => bundle?.entry?.find(entry => entry.resource?.resourceType === 'CodeSystem')?.resource
+      pending = answerOf<{ entry?: { resource?: unknown }[] }>(client.get(url)).then(
+        bundle => bundle?.entry?.map(entry => entry.resource) ?? []
       )
-      codeSystems.set(key, pending)
+      codeSystems.set(system, pending)
+      pending.catch(() => codeSystems.delete(system))
     }
     return pending
   }
@@ -167,27 +139,28 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
   /** The `$lookup` answer with the weight an R4 CodeSystem resource carries as a concept extension. */
   async function withResourceWeight(coding: Coding, answer: Parameters | undefined): Promise<unknown> {
     if (typeof coding.system !== 'string' || typeof coding.code !== 'string') return answer
-    const resource = await codeSystem(coding.system, coding.version)
-    const concept = [...concepts(resource?.concept)].find(candidate => candidate.code === coding.code)
-    if (concept === undefined) return answer
-    const found: Parameters = answer ?? {
+    const version =
+      coding.version ?? answer?.parameter?.find(parameter => parameter.name === 'version')?.['valueString']
+    const found = codeSystemWeight(await codeSystemVersions(coding.system), {
+      system: coding.system,
+      code: coding.code,
+      version,
+    })
+    if (found === undefined) return answer
+    const base: Parameters = answer ?? {
       resourceType: 'Parameters',
-      parameter: [
-        { name: 'name', valueString: coding.system },
-        ...(typeof concept.display === 'string' ? [{ name: 'display', valueString: concept.display }] : []),
-      ],
+      parameter: [{ name: 'name', valueString: coding.system }],
     }
-    const weight = extensionWeight(concept)
-    if (typeof weight !== 'number') return found
+    if (found.weight === undefined) return base
     return {
-      ...found,
+      ...base,
       parameter: [
-        ...(found.parameter ?? []),
+        ...(base.parameter ?? []),
         {
           name: 'property',
           part: [
             { name: 'code', valueCode: 'itemWeight' },
-            { name: 'value', valueDecimal: weight },
+            { name: 'value', valueDecimal: found.weight.toNumber() },
           ],
         },
       ],
@@ -218,12 +191,19 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
         ...extra(params),
       ]),
     subsumes: async (system, coded1, coded2, params) => {
-      const answer = (await operation('CodeSystem', '$subsumes', [
-        { name: 'system', valueUri: system },
-        { name: 'codeA', valueCode: codeOf(coded1) },
-        { name: 'codeB', valueCode: codeOf(coded2) },
-        ...extra(params),
-      ])) as Parameters | undefined
+      const coding = (coded: unknown): unknown => (typeof coded === 'string' ? { system, code: coded } : coded)
+      const pair: Parameter[] =
+        typeof coded1 === 'string' && typeof coded2 === 'string'
+          ? [
+              { name: 'system', valueUri: system },
+              { name: 'codeA', valueCode: coded1 },
+              { name: 'codeB', valueCode: coded2 },
+            ]
+          : [
+              { name: 'codingA', valueCoding: coding(coded1) },
+              { name: 'codingB', valueCoding: coding(coded2) },
+            ]
+      const answer = (await operation('CodeSystem', '$subsumes', [...pair, ...extra(params)])) as Parameters | undefined
       return answer?.parameter?.find(parameter => parameter.name === 'outcome')?.['valueCode']
     },
     translate: (conceptMap, coded, params) =>
@@ -238,17 +218,19 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
 /**
  * A `ReferenceResolver` that reads resources from the client's server only. A
  * relative `Type/id` reference is read from the client's FHIR base, or from
- * `base` when the resource holding it names one. A reference that lands
- * outside the client's FHIR base resolves to nothing: the client sends its
- * credentials with every request, and the reference comes from the data. A
- * resource the server does not have also resolves to nothing.
+ * `base` when the resource holding it names one. Anything but a literal
+ * `Type/id` or `Type/id/_history/vid` read on the client's FHIR base resolves
+ * to nothing: the client sends its credentials with every request, and the
+ * reference comes from the data. A resource the server does not have also
+ * resolves to nothing.
  */
 export function medplumResolver(client: MedplumClientLike): ReferenceResolver {
-  const own = client.fhirUrl().href.replace(/\/?$/, '/')
+  const own = client.fhirUrl().href.replace(/\/$/, '')
   return (reference, base) => {
     if (reference.startsWith('urn:')) return Promise.resolve(undefined)
-    const url = new URL(reference, base === undefined ? own : `${base.replace(/\/$/, '')}/`).href
-    return url.startsWith(own) ? answerOf(client.get(url)) : Promise.resolve(undefined)
+    const url = new URL(reference, `${(base ?? own).replace(/\/$/, '')}/`).href
+    // Only a literal `Type/id[/_history/vid]` read on the client's own base.
+    return serverBase(url) === own ? answerOf(client.get(url)) : Promise.resolve(undefined)
   }
 }
 
@@ -260,11 +242,13 @@ export function medplumResolver(client: MedplumClientLike): ReferenceResolver {
  * set, code system, or concept as an answer the server cannot give.
  */
 export function fhirClient(baseUrl: string, headers: Record<string, string> = {}): MedplumClientLike {
-  const base = `${baseUrl.replace(/\/$/, '')}/`
+  const base = new URL(`${baseUrl.replace(/\/$/, '')}/`).href
   async function request(url: URL | string, init: RequestInit): Promise<unknown> {
+    const target = new URL(url)
     // The headers may carry credentials, so they go to this server only.
-    if (!String(url).startsWith(base)) throw new Error(`${String(url)} is outside the FHIR base ${base}`)
-    const response = await fetch(url, {
+    if (!target.href.startsWith(base))
+      throw new Error(`${target.origin}${target.pathname} is outside the FHIR base ${base}`)
+    const response = await fetch(target, {
       ...init,
       headers: { Accept: FHIR_JSON, ...headers, ...(init.headers as Record<string, string> | undefined) },
     })
@@ -272,7 +256,8 @@ export function fhirClient(baseUrl: string, headers: Record<string, string> = {}
     if (response.ok) return body
     const outcome =
       (body as { resourceType?: unknown } | undefined)?.resourceType === 'OperationOutcome' ? body : undefined
-    throw Object.assign(new Error(`FHIR request to ${String(url)} failed: ${response.status}`), { outcome })
+    // The path names the operation or resource; the query, which may carry search values, stays out.
+    throw Object.assign(new Error(`FHIR request to ${target.pathname} failed: ${response.status}`), { outcome })
   }
   return {
     fhirUrl: (...path) => new URL(path.join('/'), base),

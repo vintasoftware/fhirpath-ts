@@ -104,9 +104,10 @@ without a version may be any listing, so their weights must agree; a conflict
 such as `v1` scoring 2 and `v2` scoring 5 throws rather than choosing one. A
 version the value set does not list leaves the lookup to the CodeSystem, as
 before. Expansion listings keep precedence over compose listings for the version
-they list. ValueSet canonical versions (`url|version`) and contained CodeSystem
-version selection are unchanged and still pass their probes; fhirpath.js fails
-both.
+they list. Contained CodeSystems follow the same rules, by `CodeSystem.version`, and so
+does the Medplum provider's CodeSystem resource fallback, which also takes the
+version `$lookup` answered with for a Coding without one. ValueSet canonical
+versions (`url|version`) are unchanged; fhirpath.js fails both version probes.
 
 ### UCUM
 
@@ -182,12 +183,13 @@ shape Smart Forms calls. In one place it:
   them through `vars` so they keep their types and resource scope;
 - keeps the `async` contract: `false` is synchronous and a service need throws;
   `true` evaluates synchronously and returns a Promise only when the engine
-  raises `FhirPathAsyncRequiredError` or the expression calls `resolve()` with a
-  FHIR server configured; `'always'` returns a Promise. The renderer caches
+  raises `FhirPathAsyncRequiredError` or the expression calls `resolve()` and the
+  services supply a resolver; `'always'` returns a Promise. The renderer caches
   Promise results by expression, so a local `weight()` must stay synchronous;
 - maps `terminologyUrl` and `fhirServerUrl` to providers through the `services`
-  function: `fetchServices` over plain fetch, or `medplumServices(client)`, which
-  uses one authenticated client and ignores the URLs.
+  function: `fetchServices` over plain fetch, one provider per URL, or
+  `medplumServices(client)`, which uses one authenticated client and ignores the
+  URLs.
 
 A build alias (`resolve.alias: { fhirpath: '<adapter>', 'fhirpath/fhir-context/r4': '<any module>' }`)
 redirects every call site; the assessment runner wires it this way for the

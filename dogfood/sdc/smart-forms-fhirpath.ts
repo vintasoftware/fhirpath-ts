@@ -7,9 +7,9 @@
  * replaces the engine without touching the call sites; the Smart Forms edits
  * that remain are listed in docs/sdc-readiness.md.
  */
+import { createCachedCompiler } from '../../src/api/compile.ts'
 import {
   type AstNode,
-  compile,
   FhirPathAsyncRequiredError,
   type FhirTypeName,
   type ReferenceResolver,
@@ -73,7 +73,19 @@ function hasCall(node: AstNode, name: string): boolean {
     case 'unary':
     case 'typeOp':
       return hasCall(node.operand, name)
-    default:
+    case 'instance':
+      return node.elements.some(element => hasCall(element.value, name))
+    case 'null':
+    case 'boolean':
+    case 'string':
+    case 'number':
+    case 'date':
+    case 'dateTime':
+    case 'time':
+    case 'quantity':
+    case 'identifier':
+    case 'special':
+    case 'external':
       return false
   }
 }
@@ -84,6 +96,8 @@ function hasCall(node: AstNode, name: string): boolean {
  * resources and Bundle entries cannot answer.
  */
 export function smartFormsFhirpath(services: ServicesFor): SmartFormsFhirpath {
+  // The renderer evaluates the same expressions on every answer change.
+  const parse = createCachedCompiler()
   // Typed results this adapter returned. They are recognized by identity, never by shape.
   const typedResults = new WeakSet<object>()
   const isTyped = (value: unknown): value is TypedValue =>
@@ -118,23 +132,20 @@ export function smartFormsFhirpath(services: ServicesFor): SmartFormsFhirpath {
 
   return {
     evaluate(fhirData, path, envVars = {}, _model, options = {}) {
-      const text = typeof path === 'string' ? path : path.expression
-      const compiled = compile(text)
+      const compiled = parse(typeof path === 'string' ? path : path.expression)
       const context = input(fhirData, path)
-      const { env, vars } = environment(envVars)
+      const base = { model: r4Model, ...environment(envVars) }
       const typed = options.resolveInternalTypes === false
-      const sync = () =>
-        typed
-          ? keep(compiled.evaluateTyped(context, { model: r4Model, env, vars }))
-          : compiled.evaluate(context, { model: r4Model, env, vars })
+      const sync = () => (typed ? keep(compiled.evaluateTyped(context, base)) : compiled.evaluate(context, base))
+      // The services are asked for only when the evaluation may use them.
+      let host: HostServices | undefined
+      const hostServices = () => (host ??= services(options))
       const async = () => {
-        const host = services(options)
+        const { terminology, resolver } = hostServices()
         const asyncOptions = {
-          model: r4Model,
-          env,
-          vars,
-          ...(host.terminology && { terminology: host.terminology }),
-          ...(host.resolver && { resolver: host.resolver }),
+          ...base,
+          ...(terminology && { terminology }),
+          ...(resolver && { resolver }),
         }
         return typed
           ? compiled.evaluateTypedAsync(context, asyncOptions).then(keep)
@@ -143,7 +154,7 @@ export function smartFormsFhirpath(services: ServicesFor): SmartFormsFhirpath {
       if (options.async === 'always') return async()
       if (!options.async) return sync()
       // A synchronous evaluation returns empty for an external reference; only the async one resolves it.
-      if (options.fhirServerUrl && hasCall(compiled.ast, 'resolve')) return async()
+      if (hasCall(compiled.ast, 'resolve') && hostServices().resolver) return async()
       try {
         return sync()
       } catch (error) {
@@ -154,11 +165,20 @@ export function smartFormsFhirpath(services: ServicesFor): SmartFormsFhirpath {
   }
 }
 
-/** Services from fhirpath.js's URL options, each over plain fetch. */
-export const fetchServices: ServicesFor = options => ({
-  terminology: options.terminologyUrl ? medplumTerminology(fhirClient(options.terminologyUrl)) : undefined,
-  resolver: options.fhirServerUrl ? medplumResolver(fhirClient(options.fhirServerUrl)) : undefined,
-})
+/** Services from fhirpath.js's URL options, each over plain fetch, one per URL so their caches last. */
+export const fetchServices: ServicesFor = (() => {
+  const terminologies = new Map<string, TerminologyProvider>()
+  const resolvers = new Map<string, ReferenceResolver>()
+  const memo = <T>(cache: Map<string, T>, url: string | undefined, build: (url: string) => T): T | undefined => {
+    if (url === undefined) return undefined
+    if (!cache.has(url)) cache.set(url, build(url))
+    return cache.get(url)
+  }
+  return options => ({
+    terminology: memo(terminologies, options.terminologyUrl, url => medplumTerminology(fhirClient(url))),
+    resolver: memo(resolvers, options.fhirServerUrl, url => medplumResolver(fhirClient(url))),
+  })
+})()
 
 /** Services over one authenticated Medplum client, whatever URLs the call names. */
 export const medplumServices = (client: MedplumClientLike): ServicesFor => {

@@ -274,9 +274,10 @@ then the Coding's CodeSystem, as SDC orders them:
   another concept. A Coding without a version takes the weight the listings
   agree on, and conflicting weights are an error rather than a guess.
 - A CodeSystem contained in the resource holding the value (or its container) or
-  in the Questionnaire, with the Coding's url and version, gives the concept's
-  weight extension or its `itemWeight` property. Nested concepts count. Other
-  CodeSystems are looked up through `options.terminology.lookup`.
+  in the Questionnaire, with the Coding's url, gives the concept's weight
+  extension or its `itemWeight` property. Nested concepts count. Its `version`
+  is selected by the same rules as a value set listing's. Other CodeSystems are
+  looked up through `options.terminology.lookup`.
 - A bare `code`, such as `Patient.gender`, names its CodeSystem through the
   required binding of the element it was read from, which the R4 model knows
   for a binding over one code system. It then follows the CodeSystem steps. A

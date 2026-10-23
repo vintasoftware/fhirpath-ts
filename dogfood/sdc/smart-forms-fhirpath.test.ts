@@ -110,7 +110,7 @@ describe('synchronous and Promise results', () => {
     expect(() => sync(observation, "code.coding.memberOf('urn:vs')")).toThrow(/evaluateAsync/)
   })
 
-  it('returns a Promise for resolve() when a FHIR server is configured, and resolves contained references locally', async () => {
+  it('returns a Promise for resolve() when a resolver is configured, and resolves contained references locally', async () => {
     const resolver = vi.fn(async (reference: string) => ({
       resourceType: 'Patient',
       id: reference.split('/')[1],
@@ -118,10 +118,8 @@ describe('synchronous and Promise results', () => {
     }))
     const engine = smartFormsFhirpath(() => ({ resolver }))
     const remote = { resourceType: 'Observation', subject: { reference: 'Patient/p' } }
-    const result = engine.evaluate(remote, 'subject.resolve().name.given', {}, undefined, {
-      async: true,
-      fhirServerUrl: 'https://fhir.test',
-    })
+    // The services decide; a call without fhirServerUrl still resolves through a configured resolver.
+    const result = engine.evaluate(remote, 'subject.resolve().name.given', {}, undefined, { async: true })
     expect(result).toBeInstanceOf(Promise)
     await expect(result).resolves.toEqual(['Ada'])
     expect(resolver).toHaveBeenCalledWith('Patient/p', undefined)
@@ -131,14 +129,16 @@ describe('synchronous and Promise results', () => {
       contained: [{ resourceType: 'Patient', id: 'p', name: [{ given: ['Bo'] }] }],
     }
     await expect(
-      engine.evaluate(contained, 'subject.resolve().name.given', {}, undefined, {
-        async: true,
-        fhirServerUrl: 'https://fhir.test',
-      })
+      engine.evaluate(contained, 'subject.resolve().name.given', {}, undefined, { async: true })
     ).resolves.toEqual(['Bo'])
     expect(resolver).toHaveBeenCalledTimes(1)
-    // Without a server, resolve() stays synchronous and external references are empty.
-    expect(engine.evaluate(remote, 'subject.resolve().name.given', {}, undefined, { async: true })).toEqual([])
+    // Without a resolver, resolve() stays synchronous and external references are empty.
+    const local = smartFormsFhirpath(() => ({}))
+    expect(local.evaluate(remote, 'subject.resolve().name.given', {}, undefined, { async: true })).toEqual([])
+    // resolve() inside an instance selector is found too.
+    await expect(
+      engine.evaluate(remote, 'Coding { code: subject.resolve().id }.code', {}, undefined, { async: true })
+    ).resolves.toEqual(['p'])
   })
 
   it('returns typed results from an asynchronous evaluation too', async () => {
@@ -196,7 +196,7 @@ describe('Medplum services', () => {
       subject: { reference: 'Patient/p' },
       item: [{ linkId: 'q', answer: [{ valueCoding: { system: scores, code: 'often' } }] }],
     }
-    const options = { async: true, terminologyUrl: 'https://ignored.test', fhirServerUrl: 'https://ignored.test' }
+    const options = { async: true, terminologyUrl: 'https://ignored.test' }
     await expect(
       engine.evaluate(qr, 'item.answer.value.weight()', { questionnaire }, undefined, options)
     ).resolves.toEqual([3])
@@ -238,6 +238,11 @@ describe('fhirClient()', () => {
     expect((fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>)['Authorization']).toBe('Bearer token')
     await expect(client.get('https://tx.test.other.test/fhir/Patient/p')).rejects.toThrow(/outside the FHIR base/)
     expect(fetchMock).toHaveBeenCalledTimes(2)
+    // The base is compared after URL normalization; a failure message leaves the query out.
+    const upper = fhirClient('HTTPS://TX.test:443/fhir')
+    await expect(upper.get('https://tx.test/fhir/Patient?identifier=urn:mrn|123')).rejects.toThrow(
+      'FHIR request to /fhir/Patient failed: 404'
+    )
   })
 })
 

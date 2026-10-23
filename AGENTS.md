@@ -308,16 +308,19 @@ together:
 which the R4 model reads from the generated `s` index into
 `src/r4/generated/code-systems-data.ts`. The generator records a binding only
 when it is required and resolves to exactly one code system; it never derives
-a system from a ValueSet URL. Keep the version rules in one place,
-`versionedWeight` in `src/functions/weight.ts`: a listing that names the
-Coding's version wins, an unversioned or `*` listing stands in for any
-version, and a Coding without a version takes only a weight the listings
-agree on. A conflict throws; it must not pick the first match.
+a system from a ValueSet URL. Keep the weight rules in one place,
+`src/fhir/weights.ts`: a listing that names the Coding's version wins, an
+unversioned or `*` listing stands in for any version, and a Coding without a
+version takes only a weight the listings agree on. A conflict throws; it must
+not pick the first match. ValueSet listings, contained CodeSystems, and the
+Medplum provider's CodeSystem fallback all go through it, and the module has
+no side effects so the `fhirpath-ts/medplum` entry can import it.
 
 A sync evaluation that needs a host service throws
 `FhirPathAsyncRequiredError`. That class is the contract fhirpath.js-style
 hosts use to retry asynchronously; keep every "needs evaluateAsync()" site on
-it, and never retry inside the engine.
+`missingTerminology` in `src/engine/context.ts`, which throws it only for a
+sync evaluation, and never retry inside the engine.
 
 `dogfood/sdc/smart-forms-fhirpath.ts` is the only fhirpath.js compatibility
 surface. It implements the call shapes Smart Forms uses and nothing else; a

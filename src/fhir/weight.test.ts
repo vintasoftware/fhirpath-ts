@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { analyzeExpressionDetailed } from '../analyzer/analyze.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate, evaluateAsync } from '../api/evaluate.ts'
-import { FhirPathAsyncRequiredError } from '../errors.ts'
+import { FhirPathAsyncRequiredError, FhirPathRuntimeError } from '../errors.ts'
 import { r4Model } from '../r4/index.ts'
 import type { TerminologyProvider } from '../terminology/provider.ts'
 
@@ -218,6 +218,18 @@ describe('SDC weight()', () => {
     expect(() => evaluate('gender.weight()', { resourceType: 'Patient', gender: 'male' }, options)).toThrow(
       FhirPathAsyncRequiredError
     )
+  })
+
+  it('reports a missing provider in an async evaluation as configuration, not as a need for evaluateAsync()', async () => {
+    const patient = { resourceType: 'Patient', gender: 'male' }
+    const failure = await evaluateAsync('gender.weight()', patient, options).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(FhirPathRuntimeError)
+    expect(failure).not.toBeInstanceOf(FhirPathAsyncRequiredError)
+    expect((failure as Error).message).toBe('weight() needs options.terminology')
+    await expect(evaluateAsync('%terminologies', patient, options)).rejects.toThrow(
+      '%terminologies needs options.terminology'
+    )
+    expect(() => evaluate('%terminologies', patient, options)).toThrow(FhirPathAsyncRequiredError)
   })
 
   it('rejects an invalid weight instead of turning it into a zero score', () => {
@@ -437,10 +449,41 @@ describe('SDC weight()', () => {
       expect(() => run(q('fragment'), reply(coding('missing')))).toThrow(
         'weight() needs evaluateAsync() with options.terminology'
       )
-      // A Coding version the contained CodeSystem does not have also goes to the provider.
-      expect(() => run(q('complete'), reply({ ...coding('a'), version: '9' }))).toThrow(
+      // An unversioned CodeSystem stands in for any version; one with another version goes to the provider.
+      expect(run(q('complete'), reply({ ...coding('a'), version: '9' }))).toEqual([1])
+      const versioned = {
+        resourceType: 'Questionnaire',
+        item: [item()],
+        contained: [codeSystem([scored('a', 1)], { version: '1' })],
+      }
+      expect(() => run(versioned, reply({ ...coding('a'), version: '9' }))).toThrow(
         'weight() needs evaluateAsync() with options.terminology'
       )
+    })
+
+    it('applies the version rules across contained CodeSystems', () => {
+      const q = (...versions: [string | undefined, number][]) => ({
+        resourceType: 'Questionnaire',
+        item: [item()],
+        contained: versions.map(([version, weight], index) =>
+          codeSystem([scored('a', weight)], { id: `cs${index}`, ...(version && { version }) })
+        ),
+      })
+      expect(run(q(['1', 2], ['2', 5]), reply({ ...coding('a'), version: '2' }))).toEqual([5])
+      expect(run(q(['1', 2], [undefined, 5]), reply({ ...coding('a'), version: '9' }))).toEqual([5])
+      expect(() => run(q(['1', 2], ['2', 5]), reply(coding('a')))).toThrow(
+        "weight() finds different weights for code 'a' in CodeSystem urn:scores across code system versions"
+      )
+      expect(run(q(['1', 3], ['2', 3]), reply(coding('a')))).toEqual([3])
+    })
+
+    it('fails on a malformed contained CodeSystem weight instead of dropping the score', () => {
+      const q = {
+        resourceType: 'Questionnaire',
+        item: [item()],
+        contained: [codeSystem([{ code: 'a', extension: [{ url: ordinalUrl, valueString: '3' }] }])],
+      }
+      expect(() => run(q, reply(coding('a')))).toThrow('weight() requires a numeric valueDecimal')
     })
 
     it('fails the whole collection when one answer needs an unavailable lookup', () => {

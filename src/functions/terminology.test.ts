@@ -178,11 +178,14 @@ describe('memberOf', () => {
     expect(() => compile('1').evaluate(observation, untyped)).toThrow(message)
   })
 
-  it('fails under sync evaluate() or without a provider with a pointer to evaluateAsync()', async () => {
+  it('points sync evaluate() to evaluateAsync(), and an async evaluation without a provider to options.terminology', async () => {
     const options = { model: r4Model, env: { vs: VS_VITALS } }
-    const message = 'memberOf() needs evaluateAsync() with options.terminology'
-    expect(() => evaluate('Observation.code.memberOf(%vs)', observation, options)).toThrow(message)
-    await expect(evaluateAsync('Observation.code.memberOf(%vs)', observation, options)).rejects.toThrow(message)
+    expect(() => evaluate('Observation.code.memberOf(%vs)', observation, options)).toThrow(
+      'memberOf() needs evaluateAsync() with options.terminology'
+    )
+    await expect(evaluateAsync('Observation.code.memberOf(%vs)', observation, options)).rejects.toThrow(
+      'memberOf() needs options.terminology'
+    )
   })
 
   it('fails when the provider lacks the operation', async () => {
@@ -429,11 +432,12 @@ describe('%terminologies API', () => {
     ).rejects.toThrow('lookup() is only available on %terminologies')
   })
 
-  it('%terminologies points to evaluateAsync() without a provider', async () => {
-    const message = '%terminologies needs evaluateAsync() with options.terminology'
-    expect(() => evaluate("%terminologies.expand('urn:vs')", observation, { model: r4Model })).toThrow(message)
+  it('%terminologies without a provider points to evaluateAsync() or to options.terminology', async () => {
+    expect(() => evaluate("%terminologies.expand('urn:vs')", observation, { model: r4Model })).toThrow(
+      '%terminologies needs evaluateAsync() with options.terminology'
+    )
     await expect(evaluateAsync("%terminologies.expand('urn:vs')", observation, { model: r4Model })).rejects.toThrow(
-      message
+      '%terminologies needs options.terminology'
     )
   })
 })

@@ -140,8 +140,11 @@ service, while strict runtime evaluation supplies that declaration automatically
 any object with its `fhirUrl()`, `get()`, and `post()` methods:
 `medplumTerminology(client)` posts the six operations as Parameters resources,
 and `medplumResolver(client)` reads referenced resources from the client's
-FHIR base; a reference to any other server resolves to nothing, because the
-client sends its credentials with every request. `fhirClient(baseUrl, headers)`
+FHIR base. Only a literal `Type/id` or `Type/id/_history/vid` read on that base
+is sent; a reference to another server, or a search or operation URL, resolves
+to nothing, because the client sends its credentials with every request.
+`subsumes` sends Codings as `codingA`/`codingB` so their versions reach the
+server. `fhirClient(baseUrl, headers)`
 is the same client shape over plain `fetch`, for a terminology server without
 a Medplum session. A failure whose body is an OperationOutcome with only
 `not-found` or `invalid` issues is an answer the server cannot give; any other
@@ -163,10 +166,13 @@ await evaluateAsync('Observation.code.coding.where(memberOf(%vitals)).code', obs
 `weight()` asks `lookup(coding, 'property=itemWeight')`. Medplum's `$lookup`
 reports the concept properties that `CodeSystem/$import` loaded, not the
 `ordinalValue` extensions an R4 CodeSystem resource carries on its concepts,
-so when the answer has no `itemWeight` property the provider reads the
-CodeSystem resource with the coding's system and version and reports the
-concept's extension as that property. A concept found without one is empty; a
-code system or concept the server does not have is an error. The engine reads
+so when the answer has no `itemWeight` property the provider reads every
+version of the CodeSystem resource and reports the concept's weight as that
+property. It selects the version as `weight()` does for contained CodeSystems,
+using the Coding's version or else the one `$lookup` answered with, and a
+malformed weight or a conflict between versions is an error. A concept found
+without a weight is empty; a code system or concept the server does not have is
+an error. A failed read is retried on the next lookup. The engine reads
 contained CodeSystems before it asks the provider. The provider's request
 shapes are the ones `pnpm record:tx:medplum` records against a live Medplum
 server; the extension fallback is covered by unit tests with a stand-in client.
@@ -174,7 +180,9 @@ server; the extension fallback is covered by unit tests with a stand-in client.
 A synchronous evaluation that reaches a service throws
 `FhirPathAsyncRequiredError`, a `FhirPathRuntimeError`. A host that offers
 both modes, as fhirpath.js's `async: true` option does, catches it and
-evaluates again with `evaluateAsync()`.
+evaluates again with `evaluateAsync()`. An asynchronous evaluation without
+`options.terminology` throws a plain `FhirPathRuntimeError`, since a retry
+cannot help.
 
 ### External references
 

@@ -1,4 +1,4 @@
-import { FhirPathAsyncRequiredError, FhirPathTypeError } from '../errors.ts'
+import { FhirPathAsyncRequiredError, FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { ancestors, isTypedValue, owningResource, rootResourceOf } from '../fhir/element-origin.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
@@ -380,10 +380,19 @@ export function resolveEnvironmentVariable(context: EvaluationContext, name: str
     )
   }
   // Only a provider binds the spec's terminology service (see createContext).
-  if (name === 'terminologies') {
-    throw new FhirPathAsyncRequiredError('%terminologies needs evaluateAsync() with options.terminology')
-  }
+  if (name === 'terminologies') throw missingTerminology(context, '%terminologies')
   throw new FhirPathTypeError(`Undefined environment variable %${name}`)
+}
+
+/**
+ * The error for a terminology need without a provider: a synchronous
+ * evaluation needs `evaluateAsync()`, which a host may retry with; an
+ * asynchronous one needs `options.terminology`, which no retry supplies.
+ */
+export function missingTerminology(context: EvaluationContext, what: string): FhirPathRuntimeError {
+  return context.async === undefined
+    ? new FhirPathAsyncRequiredError(`${what} needs evaluateAsync() with options.terminology`)
+    : new FhirPathRuntimeError(`${what} needs options.terminology`)
 }
 
 /** Run `body` with a frame binding `$this` (and optionally `$index` / `$total`, or hiding `$index`). */
