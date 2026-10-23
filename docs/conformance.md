@@ -132,6 +132,16 @@ qualifiers; the official R4 and R5 suites use the `-key` form. With a qualifier,
 
 ## Property and differential tests
 
+The [SDC readiness assessment](sdc-readiness.md) runs actual Smart Forms extraction
+tests with both engines and ports selected LHC-Forms extraction and calculation
+cases. Both engines pass all 76 extraction-package tests after application
+adaptations for model paths and typed contexts. The broader run includes 209
+population tests, 28 renderer checks, a spec-based population oracle, and nine
+service/resolution/scoring probes. It records real engine calls and whole-output
+differences, including reference-engine date omissions. Run the offline probes
+with `pnpm exec vitest run dogfood/sdc`; the Smart Forms comparison runner stays
+outside the repository.
+
 Generated tests cover behavior that a fixed example list may miss:
 
 - parser and printer round trips over generated ASTs;

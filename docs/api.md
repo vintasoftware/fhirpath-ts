@@ -13,6 +13,7 @@ common behavior that affects application code.
 | `fhirpath-ts/eslint` | ESLint plugin |
 | `fhirpath-ts/sites` | TypeScript AST expression-site finder |
 | `fhirpath-ts/sdc` | SDC `%questionnaire`, `%qitem`, and item contexts |
+| `fhirpath-ts/medplum` | Terminology provider and reference resolver over a Medplum client |
 
 Use the bound R4 engine for most application code:
 
@@ -132,6 +133,47 @@ Coding pair establishes the relationship. A configured provider
 reserves `%terminologies`; applications must not replace it through `env` or
 `vars`. Static analysis accepts an explicit variable declaration for this host
 service, while strict runtime evaluation supplies that declaration automatically.
+
+#### Medplum
+
+`fhirpath-ts/medplum` has providers over an authenticated `MedplumClient`, or
+any object with its `fhirUrl()`, `get()`, and `post()` methods:
+`medplumTerminology(client)` posts the six operations as Parameters resources,
+and `medplumResolver(client)` reads referenced resources from the client's
+server, or from the base a Bundle entry names. `fhirClient(baseUrl, headers)`
+is the same client shape over plain `fetch`, for a terminology server without
+a Medplum session. A failure whose body is an OperationOutcome with only
+`not-found` or `invalid` issues is an answer the server cannot give; any other
+failure is an error.
+
+```ts
+import { evaluateAsync } from 'fhirpath-ts'
+import { medplumResolver, medplumTerminology } from 'fhirpath-ts/medplum'
+import { r4Model } from 'fhirpath-ts/r4'
+
+await evaluateAsync('Observation.code.coding.where(memberOf(%vitals)).code', observation, {
+  model: r4Model,
+  terminology: medplumTerminology(medplum),
+  resolver: medplumResolver(medplum),
+  env: { vitals: 'http://hl7.org/fhir/ValueSet/observation-vitalsignresult' },
+})
+```
+
+`weight()` asks `lookup(coding, 'property=itemWeight')`. Medplum's `$lookup`
+reports the concept properties that `CodeSystem/$import` loaded, not the
+`ordinalValue` extensions an R4 CodeSystem resource carries on its concepts,
+so when the answer has no `itemWeight` property the provider reads the
+CodeSystem resource with the coding's system and version and reports the
+concept's extension as that property. A concept found without one is empty; a
+code system or concept the server does not have is an error. The engine reads
+contained CodeSystems before it asks the provider. The provider's request
+shapes are the ones `pnpm record:tx:medplum` records against a live Medplum
+server; the extension fallback is covered by unit tests with a stand-in client.
+
+A synchronous evaluation that reaches a service throws
+`FhirPathAsyncRequiredError`, a `FhirPathRuntimeError`. A host that offers
+both modes, as fhirpath.js's `async: true` option does, catches it and
+evaluates again with `evaluateAsync()`.
 
 ### External references
 

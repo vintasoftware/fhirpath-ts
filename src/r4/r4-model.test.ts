@@ -88,6 +88,27 @@ describe('r4Model element lookup', () => {
   })
 })
 
+describe('r4Model bound code systems', () => {
+  it('names the one code system of a required code binding, through inherited and backbone elements', () => {
+    expect(r4Model.boundCodeSystem?.('FHIR.Patient', 'gender')).toBe('http://hl7.org/fhir/administrative-gender')
+    expect(r4Model.boundCodeSystem?.('Patient.contact', 'gender')).toBe('http://hl7.org/fhir/administrative-gender')
+    expect(r4Model.boundCodeSystem?.('FHIR.QuestionnaireResponse', 'status')).toBe(
+      'http://hl7.org/fhir/questionnaire-answers-status'
+    )
+    expect(r4Model.boundCodeSystem?.('FHIR.Observation', 'status')).toBe('http://hl7.org/fhir/observation-status')
+    expect(r4Model.boundCodeSystem?.('FHIR.Timing.repeat', 'durationUnit')).toBe('http://unitsofmeasure.org')
+  })
+
+  it('gives none for a binding over several code systems, a non-code element, or an unknown one', () => {
+    // task-intent includes request-intent as well.
+    expect(r4Model.boundCodeSystem?.('FHIR.Task', 'intent')).toBeUndefined()
+    expect(r4Model.boundCodeSystem?.('FHIR.Patient', 'birthDate')).toBeUndefined()
+    expect(r4Model.boundCodeSystem?.('FHIR.Patient', 'maritalStatus')).toBeUndefined()
+    expect(r4Model.boundCodeSystem?.('FHIR.Patient', 'nothing')).toBeUndefined()
+    expect(r4Model.boundCodeSystem?.('FHIR.Nothing', 'status')).toBeUndefined()
+  })
+})
+
 describe('model-aware evaluation', () => {
   const patient = { resourceType: 'Patient', id: 'p', name: [{ given: ['Ann'] }] }
 

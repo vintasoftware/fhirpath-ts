@@ -88,6 +88,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid('Patient.name.given', 'Patient.name.family'),
       valid(),
       valid('Observation.code.coding.where(memberOf(%vitals)).code'),
+      valid('Observation.code.coding.where(memberOf(%vitals)).code'),
       valid('Observation.subject.resolve().name.given'),
       invalid('Patient', ['unknown-element'], 'Patient.name.givenn'),
       invalid('Patient', ['unknown-element', 'unknown-element'], 'Patient.name.givenn', 'Patient.name.givenn'),
@@ -164,6 +165,7 @@ const documentation: readonly DocumentExpectation[] = [
     ],
   },
   { path: 'docs/conformance.md', fences: [] },
+  { path: 'docs/sdc-readiness.md', fences: [] },
   { path: 'docs/engine-comparison.md', fences: [] },
   { path: 'demo/README.md', fences: [valid('Patient.name.given')] },
 ]

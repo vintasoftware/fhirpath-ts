@@ -92,27 +92,50 @@ function weightOf(context: EvaluationContext, model: ModelProvider, item: TypedV
       if (score !== undefined) return score
     }
   }
-  // A code's CodeSystem comes from its binding and a Coding's from its system.
-  // A Coding without a system names no CodeSystem, so it has no weight.
+  const concept = conceptOf(model, value)
+  if (concept === undefined) return undefined
+  const questionnaire = answer === undefined ? undefined : lookupEnvironmentVariable(context, 'questionnaire')?.[0]
+  const contained = containedCodeSystemWeight(model, [ownerOf(value), questionnaire], concept)
+  if (contained !== undefined) return contained.weight
+  const coding = value.type === 'FHIR.Coding' ? value.value : { system: concept.system, code: concept.code }
+  const response = parameterList(callProvider(context, 'weight()', 'lookup', [coding, 'property=itemWeight']))
+  if (response === undefined) throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem')
+  const weight = lookupProperty(response, 'itemWeight')
+  return weight === undefined ? undefined : numericWeight(weight)
+}
+
+/** The concept a value names in a CodeSystem, by system, code, and the version the value declares. */
+interface ConceptKey {
+  system: string
+  code: string
+  version: unknown
+}
+
+/**
+ * A Coding names its CodeSystem through `system`; a bare `code` through the
+ * required binding of the element it was read from, which the model knows
+ * for a binding over one code system. A Coding without a system names no
+ * CodeSystem, so it has no weight; a code whose binding cannot be resolved
+ * fails the call, so a required score is never silently dropped.
+ */
+function conceptOf(model: ModelProvider, value: TypedValue): ConceptKey | undefined {
   if (value.type === 'FHIR.code') {
-    throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem binding of a code')
-  }
-  const system = value.type === 'FHIR.Coding' ? children(model, value, 'system')[0]?.value : undefined
-  if (typeof system === 'string') {
-    const code = children(model, value, 'code')[0]?.value
-    if (typeof code !== 'string') {
-      throw new FhirPathRuntimeError('weight() needs a Coding with a code for CodeSystem lookup')
+    const origin = elementOrigin(value)
+    const system = origin === undefined ? undefined : model.boundCodeSystem?.(origin.parent.type, origin.name)
+    if (system === undefined) {
+      const where = origin === undefined ? '' : ` of ${origin.parent.type}.${origin.name}`
+      throw new FhirPathRuntimeError(`weight() cannot resolve the CodeSystem binding${where} of a code`)
     }
-    const version = children(model, value, 'version')[0]?.value
-    const questionnaire = answer === undefined ? undefined : lookupEnvironmentVariable(context, 'questionnaire')?.[0]
-    const contained = containedCodeSystemWeight(model, [ownerOf(value), questionnaire], system, code, version)
-    if (contained !== undefined) return contained.weight
-    const response = parameterList(callProvider(context, 'weight()', 'lookup', [value.value, 'property=itemWeight']))
-    if (response === undefined) throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem')
-    const weight = lookupProperty(response, 'itemWeight')
-    return weight === undefined ? undefined : numericWeight(weight)
+    return typeof value.value === 'string' ? { system, code: value.value, version: undefined } : undefined
   }
-  return undefined
+  if (value.type !== 'FHIR.Coding') return undefined
+  const system = children(model, value, 'system')[0]?.value
+  if (typeof system !== 'string') return undefined
+  const code = children(model, value, 'code')[0]?.value
+  if (typeof code !== 'string') {
+    throw new FhirPathRuntimeError('weight() needs a Coding with a code for CodeSystem lookup')
+  }
+  return { system, code, version: children(model, value, 'version')[0]?.value }
 }
 
 /**
@@ -133,16 +156,53 @@ function valueSetWeight(
   const system = children(model, value, 'system')[0]?.value
   const code = children(model, value, 'code')[0]?.value
   if (value.type !== 'FHIR.Coding' || typeof system !== 'string' || typeof code !== 'string') return undefined
+  const version = children(model, value, 'version')[0]?.value
   const valueSet = containedValueSet(model, questionnaire, canonical) ?? expandedValueSet(context, canonical)
-  const entry = nested(model, children(model, valueSet, 'expansion'), 'contains').find(item =>
-    matches(model, item, system, code)
-  )
-  const concept = children(model, valueSet, 'compose')
+  const entries = nested(model, children(model, valueSet, 'expansion'), 'contains')
+    .filter(item => matches(model, item, system, code))
+    .map(item => ({ version: children(model, item, 'version')[0]?.value, weight: embeddedWeight(item) }))
+  const concepts = children(model, valueSet, 'compose')
     .flatMap(compose => children(model, compose, 'include'))
     .filter(include => children(model, include, 'system')[0]?.value === system)
-    .flatMap(include => children(model, include, 'concept'))
-    .find(item => children(model, item, 'code')[0]?.value === code)
-  return embeddedWeight(entry) ?? embeddedWeight(concept)
+    .flatMap(include =>
+      children(model, include, 'concept')
+        .filter(item => children(model, item, 'code')[0]?.value === code)
+        .map(item => ({ version: children(model, include, 'version')[0]?.value, weight: embeddedWeight(item) }))
+    )
+  const where = `code '${code}' in ValueSet ${canonical}`
+  return versionedWeight(entries, version, where) ?? versionedWeight(concepts, version, where)
+}
+
+/** One listing of a concept in a value set: the code system version it selects, and its weight. */
+interface VersionedWeight {
+  version: unknown
+  weight: Decimal | undefined
+}
+
+/**
+ * The weight of the listings that apply to the Coding's version. A listing
+ * with that version is the concept the Coding names. A listing without a
+ * version, or with the `*` wildcard, selects every version, and stands in when
+ * none names the Coding's version. A listing with another version is another
+ * concept. A Coding without a version may be any listing, so the listings'
+ * weights must agree; a conflict fails the call rather than choosing a score.
+ */
+function versionedWeight(listings: VersionedWeight[], version: unknown, where: string): Decimal | undefined {
+  const named = listings.filter(listing => listing.version === version)
+  const anyVersion = listings.filter(listing => listing.version === undefined || listing.version === '*')
+  const applicable = version === undefined ? listings : named.length > 0 ? named : anyVersion
+  const weights: Decimal[] = []
+  for (const listing of applicable) {
+    if (listing.weight !== undefined && !weights.some(weight => weight.equals(listing.weight as Decimal))) {
+      weights.push(listing.weight)
+    }
+  }
+  if (weights.length > 1) {
+    throw new FhirPathRuntimeError(
+      `weight() finds different weights for ${where} across code system versions; the Coding names none`
+    )
+  }
+  return weights[0]
 }
 
 function containedValueSet(model: ModelProvider, questionnaire: TypedValue, canonical: string): TypedValue | undefined {
@@ -178,9 +238,7 @@ function expandedValueSet(context: EvaluationContext, canonical: string): TypedV
 function containedCodeSystemWeight(
   model: ModelProvider,
   scopes: (TypedValue | undefined)[],
-  system: string,
-  code: string,
-  version: unknown
+  { system, code, version }: ConceptKey
 ): { weight: Decimal | undefined } | undefined {
   for (const scope of scopes) {
     if (scope === undefined) continue

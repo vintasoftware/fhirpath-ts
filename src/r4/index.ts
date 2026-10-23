@@ -1,5 +1,6 @@
 import { FhirPathEngine } from '../api/engine.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
+import { R4_CODE_SYSTEMS } from './generated/code-systems-data.ts'
 import { R4_PRIMITIVE_PATTERNS } from './generated/primitive-patterns.ts'
 import { R4_RESOURCES_COMPACT } from './generated/resources-data.ts'
 import { R4_DATA_TYPES_COMPACT } from './generated/types-data.ts'
@@ -100,6 +101,11 @@ export const r4Model: ModelProvider = {
   valuePattern(type: string): string | undefined {
     const name = localName(type)
     return Object.hasOwn(R4_PRIMITIVE_PATTERNS, name) ? R4_PRIMITIVE_PATTERNS[name] : undefined
+  },
+
+  boundCodeSystem(type: string, element: string): string | undefined {
+    const index = findElement(localName(type), element)?.s
+    return index === undefined ? undefined : R4_CODE_SYSTEMS[index]
   },
 
   isSubtypeOf(type: string, base: string): boolean {

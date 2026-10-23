@@ -67,6 +67,7 @@ export type { ToTypedOptions } from './api/to-typed.ts'
 export type { HostNativeFunction, NarrativeSanitizer, RegexEngine } from './engine/context.ts'
 export type { SourceSpan } from './errors.ts'
 export {
+  FhirPathAsyncRequiredError,
   FhirPathError,
   FhirPathRuntimeError,
   FhirPathSyntaxError,

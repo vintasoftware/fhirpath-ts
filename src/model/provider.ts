@@ -41,4 +41,11 @@ export interface ModelProvider {
    * primitives they build against it.
    */
   valuePattern?(type: string): string | undefined
+  /**
+   * The code system a `code` element's required binding draws from, or
+   * undefined when the element has no such binding, the binding admits
+   * several code systems, or the model does not know. `weight()` reads it to
+   * find the CodeSystem of a bare code.
+   */
+  boundCodeSystem?(type: string, element: string): string | undefined
 }

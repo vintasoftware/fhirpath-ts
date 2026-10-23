@@ -32,8 +32,32 @@ describe('unit canonicalization', () => {
     expect(canonicalizeUnit('1')?.dimensions).toEqual({})
   })
 
+  it('reduces derived force and pressure units through their UCUM definitions', () => {
+    expect(canonicalizeUnit('N')).toEqual({
+      factor: canonicalizeUnit('kg.m/s2')?.factor,
+      dimensions: { g: 1, m: 1, s: -2 },
+    })
+    expect(canonicalizeUnit('kPa')?.dimensions).toEqual({ g: 1, m: -1, s: -2 })
+    expect(canonicalizeUnit('kPa')?.factor.toString()).toBe('1000000')
+    // UCUM defines the meter of mercury column as 133.3220 kPa; the milli prefix applies to it.
+    // Base units are grams, so a pascal is 1000 g/(m.s2).
+    expect(canonicalizeUnit('mm[Hg]')?.factor.toNumber()).toBe(133.322 * 1000)
+    expect(canonicalizeUnit('cm[Hg]')?.factor.toNumber()).toBe(1333.22 * 1000)
+    expect(canonicalizeUnit('m[Hg]2')?.dimensions).toEqual({ g: 2, m: -2, s: -4 })
+  })
+
+  it('reads annotations as unity and a missing numerator as one', () => {
+    expect(canonicalizeUnit('{beats}/min')).toEqual(canonicalizeUnit('/min'))
+    expect(canonicalizeUnit('/min')?.dimensions).toEqual({ s: -1 })
+    expect(canonicalizeUnit('{tablet}')?.dimensions).toEqual({})
+    expect(canonicalizeUnit('mg{total}')).toEqual(canonicalizeUnit('mg'))
+    expect(canonicalizeUnit('')).toBeUndefined()
+  })
+
   it('unknown units stay opaque', () => {
     expect(canonicalizeUnit('[s]')).toBeUndefined()
+    expect(canonicalizeUnit('breaths/min')).toBeUndefined()
+    expect(canonicalizeUnit('mN[Hg]')).toBeUndefined()
     expect(canonicalizeUnit('bananas')).toBeUndefined()
     expect(canonicalizeUnit('g/bananas')).toBeUndefined()
   })
@@ -107,6 +131,18 @@ describe('cross-unit quantity semantics', () => {
   it('toQuantity converts across comparable units', () => {
     expect(evaluate("1 '[in_i]'.toQuantity('cm')")).toEqual([{ value: 2.54, unit: 'cm' }])
     expect(evaluate("2 weeks.toQuantity('d')")).toEqual([{ value: 14, unit: 'd' }])
+  })
+
+  it('converts blood pressure between millimeters of mercury and kilopascals exactly', () => {
+    expect(evaluate("(1 'mm[Hg]').toQuantity('kPa').toString()")).toEqual(["0.133322 'kPa'"])
+    expect(evaluate("(120 'mm[Hg]').toQuantity('kPa').value")).toEqual([15.99864])
+    expect(evaluate("(13.3322 'kPa').toQuantity('mm[Hg]').value")).toEqual([100])
+    expect(evaluate("120 'mm[Hg]' > 15 'kPa'")).toEqual([true])
+    expect(evaluate("1 'Pa' = 1 'N/m2'")).toEqual([true])
+    expect(evaluate("1 'N' = 1 'kg.m/s2'")).toEqual([true])
+    expect(evaluate("(72 '{beats}/min') = 72 '/min'")).toEqual([true])
+    expect(evaluate("(60 '/min').toQuantity('/s').value")).toEqual([1])
+    expect(evaluate("(120 'mm[Hg]').convertsToQuantity('bar')")).toEqual([false])
   })
 })
 

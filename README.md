@@ -156,7 +156,10 @@ result.toOperationOutcome() // { resourceType: 'OperationOutcome', issue: [{ sev
 
 ### Convert quantities
 
-Known [UCUM](https://ucum.org/ucum) units compare and convert automatically.
+Known [UCUM](https://ucum.org/ucum) units compare and convert automatically:
+the base units with their prefixes, time, the common volumes and customary
+units, and the force and pressure units of blood pressure (`mm[Hg]` to
+`kPa`). An annotation in braces is unity, so `{beats}/min` is `/min`.
 Unknown units can still compare with the same unit. Celsius, Fahrenheit, and
 Réaumur convert to kelvin with their offsets (`23 'Cel' = 73.4 '[degF]'`). They
 and the other UCUM special units (the bel and decibel, neper, pH, and others)
@@ -265,11 +268,20 @@ then the Coding's CodeSystem, as SDC orders them:
 - A ValueSet contained in the Questionnaire (`#id`, or a matching url and
   version) is read directly; another one is expanded through
   `options.terminology.expand`. The concept's weight extension, in the expansion
-  or in `compose.include.concept`, gives the weight.
+  or in `compose.include.concept`, gives the weight. A listing with the
+  Coding's `version` is the concept it names; one without a version, or with
+  the `*` wildcard, stands in for any version; one with another version is
+  another concept. A Coding without a version takes the weight the listings
+  agree on, and conflicting weights are an error rather than a guess.
 - A CodeSystem contained in the resource holding the value (or its container) or
   in the Questionnaire, with the Coding's url and version, gives the concept's
   weight extension or its `itemWeight` property. Nested concepts count. Other
   CodeSystems are looked up through `options.terminology.lookup`.
+- A bare `code`, such as `Patient.gender`, names its CodeSystem through the
+  required binding of the element it was read from, which the R4 model knows
+  for a binding over one code system. It then follows the CodeSystem steps. A
+  binding over several code systems, such as `Task.intent`, or a code outside
+  any element is an error.
 
 Provider lookups need `evaluateAsync()`. An unavailable value set, CodeSystem,
 or questionnaire item raises an error, as does a code missing from a complete

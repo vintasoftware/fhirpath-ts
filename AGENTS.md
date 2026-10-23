@@ -302,6 +302,30 @@ together:
 - `filter()`, `project()`, `checkConstraints()`, and DTO `from()` take JSON
   only.
 
+## SDC scoring and the Smart Forms adapter
+
+`weight()` resolves a bare `code` through `ModelProvider.boundCodeSystem()`,
+which the R4 model reads from the generated `s` index into
+`src/r4/generated/code-systems-data.ts`. The generator records a binding only
+when it is required and resolves to exactly one code system; it never derives
+a system from a ValueSet URL. Keep the version rules in one place,
+`versionedWeight` in `src/functions/weight.ts`: a listing that names the
+Coding's version wins, an unversioned or `*` listing stands in for any
+version, and a Coding without a version takes only a weight the listings
+agree on. A conflict throws; it must not pick the first match.
+
+A sync evaluation that needs a host service throws
+`FhirPathAsyncRequiredError`. That class is the contract fhirpath.js-style
+hosts use to retry asynchronously; keep every "needs evaluateAsync()" site on
+it, and never retry inside the engine.
+
+`dogfood/sdc/smart-forms-fhirpath.ts` is the only fhirpath.js compatibility
+surface. It implements the call shapes Smart Forms uses and nothing else; a
+build alias redirects the import. Medplum transport stays in
+`src/terminology/medplum.ts`, behind the `MedplumClientLike` interface, so the
+core never imports a Medplum package. Typed results are recognized by
+identity, never by shape.
+
 ## Criteria booleans
 
 A `this.criteria()` column registers a function with `criteria: true`. The evaluator applies
