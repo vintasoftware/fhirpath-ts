@@ -14,8 +14,12 @@ import { callProvider, isObject, type ParameterEntry, parameterList, parameterVa
 
 const ANSWER_TYPE = 'FHIR.QuestionnaireResponse.item.answer'
 
-/** SDC local scores; unresolved terminology must not silently lower a total. */
-registerFunction('weight', {
+/**
+ * SDC local scores; unresolved terminology must not silently lower a total.
+ * `ordinal()` is the name SDC used before `weight()`, which R4-era
+ * questionnaires and fhirpath.js still accept.
+ */
+const weight: Parameters<typeof registerFunction>[1] = {
   minArity: 0,
   maxArity: 0,
   evaluate: (context, input) => {
@@ -33,7 +37,9 @@ registerFunction('weight', {
     })
     return weights
   },
-})
+}
+registerFunction('weight', weight)
+registerFunction('ordinal', weight)
 
 function embeddedWeight(item: TypedValue | undefined): Decimal | undefined {
   if (item === undefined) return undefined

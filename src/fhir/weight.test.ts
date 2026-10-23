@@ -49,6 +49,8 @@ describe('SDC weight()', () => {
     expect(evaluate('item.item.answer.value.weight().sum()', response, options)).toEqual([5])
     expect(evaluate('repeat(item).answer.value.weight().sum()', response, options)).toEqual([5])
     expect(evaluate('descendants().ofType(Coding).weight().sum()', response, options)).toEqual([5])
+    // ordinal() is the SDC name before weight(), still used by R4-era questionnaires.
+    expect(evaluate('item.item.answer.ordinal()', response, options)).toEqual([0, 2.5, 2.5])
   })
 
   it('keeps answer context in saved typed variables', () => {
@@ -244,10 +246,12 @@ describe('SDC weight()', () => {
   })
 
   it('declares a Decimal collection to the analyzer', () => {
-    const result = analyzeExpressionDetailed('QuestionnaireResponse.item.answer.value.weight()', { model: r4Model })
-    expect(result.diagnostics).toEqual([])
-    expect(result.result.types).toEqual(['System.Decimal'])
-    expect(result.result.single).toBe(false)
+    for (const name of ['weight', 'ordinal']) {
+      const result = analyzeExpressionDetailed(`QuestionnaireResponse.item.answer.value.${name}()`, { model: r4Model })
+      expect(result.diagnostics).toEqual([])
+      expect(result.result.types).toEqual(['System.Decimal'])
+      expect(result.result.single).toBe(false)
+    }
   })
 
   describe('ValueSet and CodeSystem lookup', () => {

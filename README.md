@@ -259,6 +259,7 @@ With the R4 model, the SDC supplement `weight()` reads `itemWeight` and R4
 exists, it matches the answer to an `answerOption` on the corresponding item
 in `%questionnaire`, supplied through `env` or `vars`. For example,
 `item.answer.value.weight().sum()` totals the weights of those answers.
+`ordinal()`, the SDC name before `weight()`, is the same function.
 Repeated answers retain their own item context, including across `evaluateTyped()`
 results reused through `vars`. Raw results from `evaluate()` carry no such context.
 
