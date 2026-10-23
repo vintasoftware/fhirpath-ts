@@ -86,7 +86,10 @@ function weightOf(context: EvaluationContext, model: ModelProvider, item: TypedV
   if (concept === undefined) return undefined
   const questionnaire = answer === undefined ? undefined : lookupEnvironmentVariable(context, 'questionnaire')?.[0]
   const contained = codeSystemWeight(containedCodeSystems(model, [ownerOf(value), questionnaire]), concept)
-  if (contained !== undefined) return contained.weight
+  if (contained.listed) return contained.weight
+  if (contained.complete) {
+    throw new FhirPathRuntimeError(`weight() cannot find code '${concept.code}' in CodeSystem ${concept.system}`)
+  }
   const coding = value.type === 'FHIR.Coding' ? value.value : { system: concept.system, code: concept.code }
   const response = parameterList(callProvider(context, 'weight()', 'lookup', [coding, 'property=itemWeight']))
   if (response === undefined) throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem')

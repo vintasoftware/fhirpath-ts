@@ -93,7 +93,7 @@ describe('medplumTerminology()', () => {
     await expect(provider.validateCS?.('urn:cs', 'a')).resolves.toMatchObject({
       parameter: [{ name: 'result', valueBoolean: false }],
     })
-    // A Coding keeps its version; a code within the system is sent as a Coding of that system beside it.
+    // Medplum's $subsumes takes codes only; a Coding's version goes in `version`.
     await expect(
       provider.subsumes?.('urn:cs', { system: 'urn:cs', version: '2', code: 'parent' }, 'child')
     ).resolves.toBe('subsumes')
@@ -128,8 +128,10 @@ describe('medplumTerminology()', () => {
       {
         resourceType: 'Parameters',
         parameter: [
-          { name: 'codingA', valueCoding: { system: 'urn:cs', version: '2', code: 'parent' } },
-          { name: 'codingB', valueCoding: { system: 'urn:cs', code: 'child' } },
+          { name: 'system', valueUri: 'urn:cs' },
+          { name: 'version', valueString: '2' },
+          { name: 'codeA', valueCode: 'parent' },
+          { name: 'codeB', valueCode: 'child' },
         ],
       },
       {
@@ -149,6 +151,41 @@ describe('medplumTerminology()', () => {
       },
     ])
     expect(calls.every(call => call.url.startsWith('https://medplum.test/fhir/R4/'))).toBe(true)
+    await expect(
+      provider.subsumes?.(
+        'urn:cs',
+        { system: 'urn:cs', version: '1', code: 'a' },
+        { system: 'urn:cs', version: '2', code: 'b' }
+      )
+    ).rejects.toThrow('one version of urn:cs, not 1 and 2')
+  })
+
+  it('leaves existence to $lookup when the CodeSystem resource lists no concepts, as an imported one does', async () => {
+    const imported = {
+      resourceType: 'Bundle',
+      entry: [{ resource: { resourceType: 'CodeSystem', url: scores, content: 'complete' } }],
+    }
+    const { client } = fakeClient({
+      'POST CodeSystem/$lookup': {
+        resourceType: 'Parameters',
+        parameter: [{ name: 'display', valueString: 'Unscored' }],
+      },
+      [`GET CodeSystem?url=${encodeURIComponent(scores)}`]: imported,
+    })
+    const options = { model: r4Model, terminology: medplumTerminology(client) }
+    await expect(
+      evaluateAsync('code.coding.weight()', observation({ system: scores, code: 'unscored' }), options)
+    ).resolves.toEqual([])
+    const missing = fakeClient({
+      'POST CodeSystem/$lookup': notFound,
+      [`GET CodeSystem?url=${encodeURIComponent(scores)}`]: imported,
+    })
+    await expect(
+      evaluateAsync('code.coding.weight()', observation({ system: scores, code: 'missing' }), {
+        model: r4Model,
+        terminology: medplumTerminology(missing.client),
+      })
+    ).rejects.toThrow('weight() cannot resolve the CodeSystem')
   })
 
   it('answers undefined for what the server does not have, and keeps other failures', async () => {
@@ -221,10 +258,10 @@ describe('medplumTerminology()', () => {
       resourceType: 'Parameters',
       parameter: [{ name: 'name', valueString: scores }],
     })
-    // A complete CodeSystem without the code fails, as a contained one does.
+    // A code neither $lookup nor the resource knows is unavailable, which weight() reports as an error.
     await expect(
       provider.lookup?.({ system: scores, code: 'absent', version: '2' }, 'property=itemWeight')
-    ).rejects.toThrow(`weight() cannot find code 'absent' in CodeSystem ${scores}`)
+    ).resolves.toBeUndefined()
     // Neither $lookup nor the resource knows the version: the lookup is unavailable.
     await expect(
       provider.lookup?.({ system: scores, code: 'often', version: '3' }, 'property=itemWeight')

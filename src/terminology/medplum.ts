@@ -111,14 +111,17 @@ function hasProperty(answer: Parameters | undefined, code: string): boolean {
  * property, by the rules `weight()` applies to contained CodeSystems: the
  * Coding's version, or else the version `$lookup` answered with, selects the
  * resource, and versions that disagree on an unversioned Coding fail the
- * lookup. A concept found without a weight is a confirmed absence, which
- * `weight()` reads as empty; a CodeSystem or concept the server does not have
- * is `undefined`, which `weight()` reports as an error. The engine asks the
+ * lookup. Whether the concept exists is `$lookup`'s answer, since a resource
+ * whose concepts were imported lists none: a concept it finds without a
+ * weight in either place is a confirmed absence, which `weight()` reads as
+ * empty; a CodeSystem or concept the server does not have is `undefined`,
+ * which `weight()` reports as an error. The engine asks the
  * provider only after the contained CodeSystems of the input and the
  * Questionnaire, so local scores never reach the network.
  *
- * `subsumes` sends codes within the system as `codeA`/`codeB`, and Codings as
- * `codingA`/`codingB` so their versions reach the server.
+ * `subsumes` sends `system`, `codeA`, and `codeB`, the only form Medplum's
+ * `$subsumes` accepts, with the Codings' version as `version`. Codings that name
+ * two different versions fail the call rather than compare across versions.
  */
 export function medplumTerminology(client: MedplumClientLike): TerminologyProvider {
   const codeSystems = new Map<string, Promise<unknown[]>>()
@@ -166,7 +169,7 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
       code: coding.code,
       version,
     })
-    if (found === undefined) return answer
+    if (!found.listed) return answer
     const base: Parameters = answer ?? {
       resourceType: 'Parameters',
       parameter: [{ name: 'name', valueString: coding.system }],
@@ -211,19 +214,22 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
         ...extra(params),
       ]),
     subsumes: async (system, coded1, coded2, params) => {
-      const coding = (coded: unknown): unknown => (typeof coded === 'string' ? { system, code: coded } : coded)
-      const pair: Parameter[] =
-        typeof coded1 === 'string' && typeof coded2 === 'string'
-          ? [
-              { name: 'system', valueUri: system },
-              { name: 'codeA', valueCode: coded1 },
-              { name: 'codeB', valueCode: coded2 },
-            ]
-          : [
-              { name: 'codingA', valueCoding: coding(coded1) },
-              { name: 'codingB', valueCoding: coding(coded2) },
-            ]
-      const answer = (await operation('CodeSystem', '$subsumes', [...pair, ...extra(params)])) as Parameters | undefined
+      const [codeA, codeB] = [coded1, coded2].map(coded =>
+        typeof coded === 'string' ? { code: coded } : (coded as Coding)
+      )
+      const versions = new Set([codeA?.version, codeB?.version].filter(version => version !== undefined))
+      if (versions.size > 1) {
+        throw new Error(
+          `Medplum's $subsumes compares codes of one version of ${system}, not ${[...versions].join(' and ')}`
+        )
+      }
+      const answer = (await operation('CodeSystem', '$subsumes', [
+        { name: 'system', valueUri: system },
+        ...[...versions].map(version => ({ name: 'version', valueString: version })),
+        { name: 'codeA', valueCode: codeA?.code },
+        { name: 'codeB', valueCode: codeB?.code },
+        ...extra(params),
+      ])) as Parameters | undefined
       return answer?.parameter?.find(parameter => parameter.name === 'outcome')?.['valueCode']
     },
     translate: (conceptMap, coded, params) =>

@@ -97,17 +97,19 @@ function conceptWeight(codeSystem: Json, concept: Json): Decimal | undefined {
   return numericWeight(valueKey === undefined ? undefined : property[valueKey], 'CodeSystem itemWeight')
 }
 
+/** What CodeSystem resources say about a concept: its listing, or whether a complete CodeSystem omits it. */
+export type CodeSystemListing = { listed: true; weight: Decimal | undefined } | { listed: false; complete: boolean }
+
 /**
  * A concept's weight from CodeSystem resources (JSON), by the version rules
- * of `versionedWeight`. The result is undefined when no applicable CodeSystem
- * lists the code and none of them lists all its codes, so the caller asks
- * elsewhere; `{ weight: undefined }` is a concept found without a weight. A
- * complete CodeSystem without the code fails the call.
+ * of `versionedWeight`. `listed: true` with no weight is a concept found
+ * without one. When no applicable CodeSystem lists the code, `complete` says
+ * whether one of them claims to list all its codes. A contained CodeSystem is
+ * the whole answer, so `weight()` fails on such a code; a server's CodeSystem
+ * resource may hold its concepts elsewhere (`CodeSystem/$import`), so a
+ * provider leaves existence to `$lookup`.
  */
-export function codeSystemWeight(
-  codeSystems: unknown[],
-  { system, code, version }: ConceptKey
-): { weight: Decimal | undefined } | undefined {
+export function codeSystemWeight(codeSystems: unknown[], { system, code, version }: ConceptKey): CodeSystemListing {
   const candidates = codeSystems
     .filter(isJson)
     .filter(codeSystem => codeSystem['resourceType'] === 'CodeSystem' && codeSystem['url'] === system)
@@ -118,10 +120,8 @@ export function codeSystemWeight(
     const concept = concepts(codeSystem).find(item => item['code'] === code)
     if (concept !== undefined) listings.push({ version: listed, weight: conceptWeight(codeSystem, concept) })
   }
-  if (listings.length > 0)
-    return { weight: versionedWeight(listings, version, `code '${code}' in CodeSystem ${system}`) }
-  if (selected.some(({ codeSystem }) => codeSystem['content'] === 'complete')) {
-    throw new FhirPathRuntimeError(`weight() cannot find code '${code}' in CodeSystem ${system}`)
+  if (listings.length > 0) {
+    return { listed: true, weight: versionedWeight(listings, version, `code '${code}' in CodeSystem ${system}`) }
   }
-  return undefined
+  return { listed: false, complete: selected.some(({ codeSystem }) => codeSystem['content'] === 'complete') }
 }
