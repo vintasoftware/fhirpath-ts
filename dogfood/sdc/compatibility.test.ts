@@ -7,7 +7,6 @@ import { describe, expect, it } from 'vitest'
 
 import { compile, evaluate, type TypedValue } from '../../src/index.ts'
 import { r4Model } from '../../src/r4/index.ts'
-import { evaluateFocus, responseFocus } from './focus.ts'
 
 function fixture(name: string): Questionnaire {
   return JSON.parse(readFileSync(new URL(`../../test-data/sdc/lforms/${name}.json`, import.meta.url), 'utf8'))
@@ -56,11 +55,14 @@ describe('minimal SDC integration differences', () => {
     expect(fhirpathjs.evaluate(referenceFragment, 'answer.value', {}, referenceModel)).toEqual(['Ada'])
     expect(reference(fragment, 'answer.value')).toEqual([])
     expect(evaluate('answer.value', fragment, { model: r4Model })).toEqual([])
-    const root = responseFocus(qr, {})
-    const focus = { ...root, values: evaluateFocus('item', root) }
-    expect(evaluateFocus('answer.value', focus).map(value => value.value)).toEqual(['Ada'])
-    expect(evaluateFocus('%context.answer.value', focus).map(value => value.value)).toEqual(['Ada'])
-    expect(evaluateFocus("'%context'", focus).map(value => value.value)).toEqual(['%context'])
+    const item = compile('item').evaluateTyped(qr, { model: r4Model })
+    const values = (expression: string) =>
+      compile(expression)
+        .evaluateTyped(item, { model: r4Model })
+        .map(value => value.value)
+    expect(values('answer.value')).toEqual(['Ada'])
+    expect(values('%context.answer.value')).toEqual(['Ada'])
+    expect(values("'%context'")).toEqual(['%context'])
   })
 
   it('compile(expression, rootType) does not give raw fragments a runtime type', () => {

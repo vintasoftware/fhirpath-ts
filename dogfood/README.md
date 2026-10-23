@@ -26,7 +26,6 @@ the fixed R4 model, `{ base, expression }` fragment types, typed results
 carried between calls, and the `async`, `terminologyUrl`, and `fhirServerUrl`
 options into the native API and the `fhirpath-ts/medplum` providers.
 `template-path.ts` reads generated template JSON addresses, which are not
-FHIRPath. `extract.ts` is an offline template-extraction prototype over pinned
-LHC-Forms questionnaires, not a complete `$extract` implementation. The
+FHIRPath. The
 [SDC readiness report](../docs/sdc-readiness.md) lists the Smart Forms changes
 that remain.

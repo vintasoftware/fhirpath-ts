@@ -180,7 +180,11 @@ export const fetchServices: ServicesFor = (() => {
   })
 })()
 
-/** Services over one authenticated Medplum client, whatever URLs the call names. */
+/**
+ * Services over one authenticated Medplum client, whatever URLs the call names:
+ * the host chose its server, and a URL from a form never redirects credentialed
+ * requests.
+ */
 export const medplumServices = (client: MedplumClientLike): ServicesFor => {
   const services = { terminology: medplumTerminology(client), resolver: medplumResolver(client) }
   return () => services

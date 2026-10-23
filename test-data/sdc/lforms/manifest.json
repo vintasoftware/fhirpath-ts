@@ -3,31 +3,6 @@
   "commit": "433f80008bfe5f3d03b08269a6dc83f5a5f3c226",
   "files": [
     {
-      "file": "questionnaire-extract-complex-template.json",
-      "source": "test/data/R4/questionnaire-extract-complex-template.json",
-      "sha256": "3e28c655553ea6553c6896a45d0e8bc67da78364a8898fc0613ac50bc8b13847"
-    },
-    {
-      "file": "questionnaire-extract-complex-template-bundle.json",
-      "source": "test/data/R4/questionnaire-extract-complex-template-bundle.json",
-      "sha256": "21352eeb948d9fc4272491c687e19904c3011a664802386517f752d5fd28cec9"
-    },
-    {
-      "file": "questionnaire-extract-template-root-level.json",
-      "source": "test/data/R4/questionnaire-extract-template-root-level.json",
-      "sha256": "ffd841f7e8a3a35e87e2fa03453389858cd021b05e983ec4997d26c2be8d9e94"
-    },
-    {
-      "file": "questionnaire-extract-template-with-allocateId-on-repeating-item.json",
-      "source": "test/data/R4/questionnaire-extract-template-with-allocateId-on-repeating-item.json",
-      "sha256": "14b2f562ad8d089ac4789fb86dc568c854b10c1ed84c2190da0d74f087b309ae"
-    },
-    {
-      "file": "questionnaire-extract-template-with-subextensions.json",
-      "source": "test/data/R4/questionnaire-extract-template-with-subextensions.json",
-      "sha256": "c5c1d4cf9198ccf6c124448cc080822a8af4122924f05f72c22ab2d5eab96916"
-    },
-    {
       "file": "phq9-with-the-weight-function.json",
       "source": "test/data/R4/calc-weight/phq9-with-the-weight-function.json",
       "sha256": "3ddd4531e1c60cbaec6393c730b3bbe55548568bdf01537387a02c3f18c77989"
