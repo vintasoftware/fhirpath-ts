@@ -307,6 +307,17 @@ describe('medplumTerminology()', () => {
     await expect(
       medplumTerminology(elsewhere.client).lookup?.({ system: scores, code: 'often' }, 'property=itemWeight')
     ).rejects.toThrow('outside the FHIR base')
+    const answers: Record<string, unknown> = {
+      'POST CodeSystem/$lookup': { resourceType: 'Parameters', parameter: [{ name: 'version', valueString: 'v5' }] },
+      ...pages,
+      [`GET ${search}&_offset=1`]: notFound,
+    }
+    const recovering = medplumTerminology(fakeClient(answers).client)
+    const options = { model: r4Model, terminology: recovering }
+    const often = observation({ system: scores, code: 'often' })
+    await expect(evaluateAsync('code.coding.weight()', often, options)).rejects.toThrow('outcome')
+    answers[`GET ${search}&_offset=1`] = page(5)
+    await expect(evaluateAsync('code.coding.weight()', often, options)).resolves.toEqual([5])
   })
 
   it('fails on a malformed CodeSystem weight instead of dropping the score', async () => {

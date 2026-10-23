@@ -126,13 +126,17 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
   const operation = (type: string, name: string, parameter: Parameter[]): Promise<unknown> =>
     answerOf(client.post(client.fhirUrl(type, name), { resourceType: 'Parameters', parameter }, FHIR_JSON))
 
-  /** Every resource a search finds, following its `next` pages on the client's server. */
+  /**
+   * Every resource a search finds, following its `next` pages on the client's
+   * server. A search with no match answers an empty Bundle, so any failed page
+   * fails the whole search rather than leaving it incomplete.
+   */
   async function searchAll(url: URL): Promise<unknown[]> {
     const own = client.fhirUrl().href
     const resources: unknown[] = []
     for (let next: string | undefined = url.href; next !== undefined;) {
       if (!next.startsWith(own)) throw new Error(`the search page ${new URL(next).pathname} is outside the FHIR base`)
-      const page: SearchBundle | undefined = await answerOf<SearchBundle>(client.get(next))
+      const page = (await client.get(next)) as SearchBundle | undefined
       resources.push(...(page?.entry ?? []).map(entry => entry.resource))
       next = page?.link?.find(link => link.relation === 'next')?.url
     }
