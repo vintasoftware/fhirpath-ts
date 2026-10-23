@@ -266,6 +266,49 @@ describe('medplumTerminology()', () => {
     ).rejects.toThrow('finds different weights')
   })
 
+  it('reads every search page before selecting a version', async () => {
+    const page = (weight: number, next?: string) => ({
+      resourceType: 'Bundle',
+      entry: [
+        {
+          resource: {
+            resourceType: 'CodeSystem',
+            url: scores,
+            version: `v${weight}`,
+            status: 'active',
+            content: 'complete',
+            concept: [{ code: 'often', extension: ordinal(weight) }],
+          },
+        },
+      ],
+      ...(next && { link: [{ relation: 'next', url: `https://medplum.test/fhir/R4/${next}` }] }),
+    })
+    const search = `CodeSystem?url=${encodeURIComponent(scores)}`
+    const pages = { [`GET ${search}`]: page(1, `${search}&_offset=1`), [`GET ${search}&_offset=1`]: page(5) }
+    const answered = fakeClient({
+      'POST CodeSystem/$lookup': { resourceType: 'Parameters', parameter: [{ name: 'version', valueString: 'v5' }] },
+      ...pages,
+    })
+    await expect(
+      medplumTerminology(answered.client).lookup?.({ system: scores, code: 'often' }, 'property=itemWeight')
+    ).resolves.toMatchObject({ parameter: [{ name: 'version', valueString: 'v5' }, weightProperty(5)] })
+    expect(answered.calls.filter(call => call.method === 'GET')).toHaveLength(2)
+    const unanswered = fakeClient({
+      'POST CodeSystem/$lookup': { resourceType: 'Parameters', parameter: [] },
+      ...pages,
+    })
+    await expect(
+      medplumTerminology(unanswered.client).lookup?.({ system: scores, code: 'often' }, 'property=itemWeight')
+    ).rejects.toThrow('finds different weights')
+    const elsewhere = fakeClient({
+      'POST CodeSystem/$lookup': { resourceType: 'Parameters', parameter: [] },
+      [`GET ${search}`]: { ...page(1), link: [{ relation: 'next', url: 'https://other.test/fhir/CodeSystem?page=2' }] },
+    })
+    await expect(
+      medplumTerminology(elsewhere.client).lookup?.({ system: scores, code: 'often' }, 'property=itemWeight')
+    ).rejects.toThrow('outside the FHIR base')
+  })
+
   it('fails on a malformed CodeSystem weight instead of dropping the score', async () => {
     const malformed = codeSystemBundle()
     const resource = malformed.entry[0]?.resource as { concept: { extension?: unknown }[] }

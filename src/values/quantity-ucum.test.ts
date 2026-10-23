@@ -51,6 +51,13 @@ describe('unit canonicalization', () => {
     expect(canonicalizeUnit('/min')?.dimensions).toEqual({ s: -1 })
     expect(canonicalizeUnit('{tablet}')?.dimensions).toEqual({})
     expect(canonicalizeUnit('mg{total}')).toEqual(canonicalizeUnit('mg'))
+    // An annotation standing as its own term is unity, wherever it stands.
+    expect(canonicalizeUnit('mg.{tablet}')).toEqual(canonicalizeUnit('mg'))
+    expect(canonicalizeUnit('mg/{tablet}')).toEqual(canonicalizeUnit('mg'))
+    expect(evaluate("(5 'mg/{tablet}').toQuantity('mg')")).toEqual([{ value: 5, unit: 'mg' }])
+    expect(evaluate("(5 'mg.{tablet}').toQuantity('mg')")).toEqual([{ value: 5, unit: 'mg' }])
+    // An annotated Celsius still converts, and is still a special unit.
+    expect(evaluate("'0 \\'Cel{body}\\''.toQuantity('K')")).toEqual([{ value: 273.15, unit: 'K' }])
     expect(canonicalizeUnit('')).toBeUndefined()
   })
 
@@ -173,6 +180,7 @@ describe('UCUM special units', () => {
       "1 'bit_s' + 1 'bit_s'",
       "1 '[p\\'diop]' * 2",
       "(1 'Cel' | 2 'Cel').sum()",
+      "1 'Cel{body}' + 2 'Cel{body}'",
     ]) {
       expect(evaluate(expression), expression).toEqual([])
     }

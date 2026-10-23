@@ -37,6 +37,11 @@ interface Parameter {
   [valueX: string]: unknown
 }
 
+interface SearchBundle {
+  entry?: { resource?: unknown }[]
+  link?: { relation?: unknown; url?: string }[]
+}
+
 interface Parameters {
   resourceType?: unknown
   parameter?: Parameter[]
@@ -102,7 +107,7 @@ function hasProperty(answer: Parameters | undefined, code: string): boolean {
  * reports concept properties, which `CodeSystem/$import` loads, and not the
  * `ordinalValue` extensions an R4 CodeSystem resource carries on its concepts.
  * When the answer has no `itemWeight` property, the provider reads every
- * version of the CodeSystem resource and reports the concept's weight as that
+ * version of the CodeSystem resource, across all search pages, and reports the concept's weight as that
  * property, by the rules `weight()` applies to contained CodeSystems: the
  * Coding's version, or else the version `$lookup` answered with, selects the
  * resource, and versions that disagree on an unversioned Coding fail the
@@ -121,15 +126,26 @@ export function medplumTerminology(client: MedplumClientLike): TerminologyProvid
   const operation = (type: string, name: string, parameter: Parameter[]): Promise<unknown> =>
     answerOf(client.post(client.fhirUrl(type, name), { resourceType: 'Parameters', parameter }, FHIR_JSON))
 
+  /** Every resource a search finds, following its `next` pages on the client's server. */
+  async function searchAll(url: URL): Promise<unknown[]> {
+    const own = client.fhirUrl().href
+    const resources: unknown[] = []
+    for (let next: string | undefined = url.href; next !== undefined;) {
+      if (!next.startsWith(own)) throw new Error(`the search page ${new URL(next).pathname} is outside the FHIR base`)
+      const page: SearchBundle | undefined = await answerOf<SearchBundle>(client.get(next))
+      resources.push(...(page?.entry ?? []).map(entry => entry.resource))
+      next = page?.link?.find(link => link.relation === 'next')?.url
+    }
+    return resources
+  }
+
   /** Every version of the CodeSystem resource for a system, read once per provider; a failed read is retried. */
   function codeSystemVersions(system: string): Promise<unknown[]> {
     let pending = codeSystems.get(system)
     if (pending === undefined) {
       const url = client.fhirUrl('CodeSystem')
       url.searchParams.set('url', system)
-      pending = answerOf<{ entry?: { resource?: unknown }[] }>(client.get(url)).then(
-        bundle => bundle?.entry?.map(entry => entry.resource) ?? []
-      )
+      pending = searchAll(url)
       codeSystems.set(system, pending)
       pending.catch(() => codeSystems.delete(system))
     }

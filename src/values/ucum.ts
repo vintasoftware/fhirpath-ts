@@ -238,6 +238,15 @@ function powDecimal(base: Decimal, exponent: number): Decimal {
 }
 
 /**
+ * The unit an annotated UCUM expression means. An annotation that stands as a
+ * term of its own (`{tablet}`, `mg/{tablet}`, `{beats}/min`) is unity; one
+ * written after a symbol (`Cel{body}`, `mg{dose}`) is dropped.
+ */
+function withoutAnnotations(unit: string): string {
+  return unit.replace(/(^|[./])\{[^{}]*\}/g, '$11').replace(/\{[^{}]*\}/g, '')
+}
+
+/**
  * Reduce a UCUM expression (`mg`, `m2`, `g/m`, `kg.m/s2`, `/min`, `{beats}/min`)
  * to base dimensions. An annotation in braces means unity, as UCUM defines it,
  * and a term before the first `/` may be absent. Undefined for units outside
@@ -245,8 +254,7 @@ function powDecimal(base: Decimal, exponent: number): Decimal {
  * alone and unprefixed — they stay opaque.
  */
 export function canonicalizeUnit(unit: string): CanonicalUnit | undefined {
-  const stripped = unit.replace(/\{[^{}]*\}/g, '')
-  const expression = stripped === '' && unit !== '' ? '1' : stripped
+  const expression = withoutAnnotations(unit)
   const [numerator = '', ...denominators] = expression.split('/')
   let factor = new Decimal(1n, 0)
   let offset: Decimal | undefined
@@ -304,7 +312,7 @@ export function fromBase(base: Decimal, unit: CanonicalUnit): Decimal {
  * quantity arithmetic and sums give empty.
  */
 export function isSpecialUnit(unit: string): boolean {
-  return SPECIAL_UNITS.has(unit)
+  return SPECIAL_UNITS.has(withoutAnnotations(unit))
 }
 
 export function sameDimensions(a: CanonicalUnit, b: CanonicalUnit): boolean {

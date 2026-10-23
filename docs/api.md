@@ -167,7 +167,7 @@ await evaluateAsync('Observation.code.coding.where(memberOf(%vitals)).code', obs
 reports the concept properties that `CodeSystem/$import` loaded, not the
 `ordinalValue` extensions an R4 CodeSystem resource carries on its concepts,
 so when the answer has no `itemWeight` property the provider reads every
-version of the CodeSystem resource and reports the concept's weight as that
+version of the CodeSystem resource, across all search pages, and reports the concept's weight as that
 property. It selects the version as `weight()` does for contained CodeSystems,
 using the Coding's version or else the one `$lookup` answered with, and a
 malformed weight or a conflict between versions is an error. A concept found
