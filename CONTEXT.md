@@ -47,6 +47,11 @@ The nearest resource in a typed value's ancestry, which `%resource` refers to.
 the owning resource itself.
 _Avoid_: parent resource, root (a different term)
 
+**Writing to an element**:
+Turning a typed value into the FHIR JSON of an element of a known type, checked
+against that type's format and range. It is the reverse of typing JSON.
+_Avoid_: unwrapping (the target-less conversion `evaluate()` does), serializing
+
 **Defining engine**:
 The engine a DTO or view was defined on. A DTO projects on it, or on an engine
 derived from it.

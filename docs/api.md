@@ -681,6 +681,55 @@ Both throw when a response item's linkId is not in the Questionnaire. Named
 `variable` extensions and launch contexts are the host's: evaluate them and
 pass the results through `vars`.
 
+### `toFhirJson()` and `jsonElement()`
+
+`toFhirJson(value, type)` turns a typed value into the FHIR JSON of an element
+of type `type`, the reverse of `toTyped()`. SDC template extraction and
+`$populate` write expression results into resources this way:
+
+```ts
+const [authored] = r4.evaluateTyped('authored', response)
+r4.toFhirJson(authored, 'dateTime') // '2025-09-16T12:34:56.000-07:00'
+const [dose] = r4.evaluateTyped("5.5 'mg'")
+r4.toFhirJson(dose, 'Quantity') // { value: 5.5, unit: 'mg', system: 'http://unitsofmeasure.org', code: 'mg' }
+```
+
+The value must fit the element:
+
+- A string fills a string-like or temporal element when it has that type's
+  format, from `ModelProvider.valuePattern()`. A date also has to exist in the
+  calendar, so `'2023-02-29'` is refused, and a date-time with a time needs a
+  timezone.
+- A date, date-time, or time fills `date`, `dateTime`, `instant`, `time`,
+  `string`, or `markdown` under the same format rules.
+- A boolean fills only `boolean`.
+- A number fills `decimal`, or `integer`, `unsignedInt`, or `positiveInt` when
+  it is a whole number in that type's range. A Decimal becomes a JS number, so
+  it loses the zeros of its scale.
+- A FHIRPath Quantity fills `Quantity` and its profiles (`Age`, `Duration`, and
+  so on) as a UCUM Quantity; a calendar duration takes its UCUM code, `a` for
+  `year`.
+- A FHIR value fills its own type, a supertype, and `Element`; a resource also
+  fills `Resource` and `DomainResource`. It is copied, so the result shares
+  nothing with the data.
+
+A value that does not fit throws a `FhirPathTypeError` naming the types, never
+the value. A primitive's `id` and extensions are not carried; write its `_name`
+sibling from the data if it needs them.
+
+`evaluate()` unwraps results without a target type: a Decimal becomes a number
+and a date-time its text with no check, and a Quantity becomes
+`{ value, unit }` with no UCUM code. Use `evaluate()` to read results and
+`toFhirJson()` to write them into a resource.
+
+`jsonElement(type, key)` finds the element a JSON property is, so a host
+walking FHIR JSON knows the type to convert to. A choice element's key carries
+its type: `r4.jsonElement('Observation', 'effectiveDateTime')` is
+`{ key: 'effectiveDateTime', type: 'dateTime', isCollection: false, isPrimitive: true }`.
+It is undefined for a key the type does not have, including a choice element's
+stem alone. An element the R4 model types as a System type, such as
+`Resource.id`, has its FHIR primitive type, `string`.
+
 ## Stateless API
 
 The package root also exports stateless forms:

@@ -428,6 +428,29 @@ describe('README usage recipes', () => {
     ).toEqual(['m1', 'completed'])
   })
 
+  it('write results back as FHIR JSON', () => {
+    const response: QuestionnaireResponse = {
+      resourceType: 'QuestionnaireResponse',
+      status: 'completed',
+      authored: '2025-09-16T12:34:56.000-07:00',
+    }
+    const [authored] = r4.evaluateTyped('authored', response)
+    expect(r4.toFhirJson(authored!, 'dateTime')).toBe('2025-09-16T12:34:56.000-07:00')
+    const [dose] = r4.evaluateTyped("5.5 'mg'")
+    expect(r4.toFhirJson(dose!, 'Quantity')).toEqual({
+      value: 5.5,
+      unit: 'mg',
+      system: 'http://unitsofmeasure.org',
+      code: 'mg',
+    })
+    expect(r4.jsonElement('Observation', 'effectiveDateTime')).toEqual({
+      key: 'effectiveDateTime',
+      type: 'dateTime',
+      isCollection: false,
+      isPrimitive: true,
+    })
+  })
+
   it('build values', () => {
     const patient: Patient = { resourceType: 'Patient', gender: 'female' }
     const codings = r4.evaluate(

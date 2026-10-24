@@ -11,6 +11,7 @@ import {
   valuePatternMessage,
 } from '../engine/instance-selector.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
+import { choiceElementOfKey } from '../fhir/fhir-json.ts'
 import { compileDateFormat } from '../functions/date-format.ts'
 import { intervalKindsMessage, intervalPrecisionMessage, intervalPrecisions } from '../functions/date-intervals.ts'
 import { describeArity, functions } from '../functions/registry.ts'
@@ -778,25 +779,11 @@ class Analyzer {
 
   /**
    * True for `valueQuantity`-style keys whose stem is a choice element on one of the
-   * input types — the same test the evaluator uses (engine/navigation.ts), so the
-   * static diagnostic and the runtime error carry the same guidance.
+   * input types: the choice-key split `jsonElement()` reads too.
    */
   private isChoiceKeyMisuse(types: string[], name: string): boolean {
-    if (!this.model) {
-      return false
-    }
-    for (const type of types) {
-      for (let position = 1; position < name.length; position++) {
-        if (!/[A-Z]/.test(name[position] as string)) {
-          continue
-        }
-        const stem = name.slice(0, position)
-        if (this.model.getElement(type, stem)?.isChoice === true) {
-          return true
-        }
-      }
-    }
-    return false
+    const model = this.model
+    return model !== undefined && types.some(type => choiceElementOfKey(model, type, name) !== undefined)
   }
 
   /** The subtypes of the input types that define `name`, sorted. */

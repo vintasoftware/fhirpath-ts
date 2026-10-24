@@ -121,6 +121,13 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     [Diagnostic codes](docs/static-checking.md#diagnostic-codes).
   - `ModelProvider.subtypesOf()`, optional, lists the types that derive from
     a type; the R4 model has it.
+  - `engine.toFhirJson(value, type)` writes a typed value as the FHIR JSON of
+    an element of `type`, the reverse of `toTyped()`: it checks the type, the
+    format and calendar day, and integer ranges, gives a FHIRPath Quantity a
+    UCUM code, copies complex values, and throws a `FhirPathTypeError` that
+    names types only. `engine.jsonElement(type, key)` finds the element a JSON
+    property is, `effectiveDateTime` included; see
+    [`toFhirJson()` and `jsonElement()`](docs/api.md#tofhirjson-and-jsonelement).
 
 ### Changed
 

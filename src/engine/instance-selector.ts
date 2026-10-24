@@ -1,4 +1,5 @@
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { matchesValuePattern } from '../fhir/fhir-json.ts'
 import { convertSingle } from '../fhir/model-navigation.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode, InstanceSelectorNode } from '../parser/ast.ts'
@@ -180,8 +181,6 @@ export function acceptingElementType(
   )
 }
 
-const VALUE_PATTERNS = new Map<string, RegExp>()
-
 /**
  * The FHIR primitive whose value pattern a written value must match: the element
  * type that took it, or the selector's own type for a primitive's `value`.
@@ -209,12 +208,7 @@ export function valuePatternMessage(
   if (pattern === undefined || value === undefined || value === null) {
     return undefined
   }
-  let regex = VALUE_PATTERNS.get(pattern)
-  if (regex === undefined) {
-    regex = new RegExp(`^(?:${pattern})$`)
-    VALUE_PATTERNS.set(pattern, regex)
-  }
-  return regex.test(String(value))
+  return matchesValuePattern(model, primitive, String(value))
     ? undefined
     : `Element '${element}' of ${owner} does not match the ${typeLocalName(primitive)} pattern ${pattern}`
 }

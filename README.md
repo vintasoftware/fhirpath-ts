@@ -312,6 +312,13 @@ for (const { context, vars } of sdcScope(r4, questionnaire).contexts(response)) 
 JSON item found by the host. See
 [Element contexts](docs/api.md#element-contexts).
 
+For template extraction, an expression can run on one element while
+`%context` stays another: pass the typed `%context` in `env` (see
+[`%context` apart from the input](docs/api.md#context-apart-from-the-input)).
+`r4.toFhirJson(value, type)` writes a result into a resource as the FHIR JSON
+of the element's type, and refuses a value that does not fit (see
+[`toFhirJson()` and `jsonElement()`](docs/api.md#tofhirjson-and-jsonelement)).
+
 ### Walk nested structures
 
 `repeat(item)` follows every nested `item` collection and returns the items at

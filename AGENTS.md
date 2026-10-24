@@ -264,6 +264,17 @@ directly as an element's value: both walkers pass that element's declared types
 to `resolveInstanceType`. A missing required element is a warning, never a
 runtime error, because the spec lets a selector build a partial value.
 
+## Writing to an element
+
+`toFhirJson` in `src/fhir/fhir-json.ts` writes host results into a resource.
+It lets a string fill a temporal or string-like element when the format fits,
+and a date fill `string`, which instance selectors refuse: a selector follows
+FHIRPath's implicit conversions (`acceptingElementType`). Keep the pieces both
+writers need shared: `matchesValuePattern` for value patterns, `toFhirQuantity`
+for the UCUM form of a Quantity, and `choiceElementOfKey` for the choice-key
+split `jsonElement` and the analyzer's choice-key hint read. Refusals name
+types only ([Error messages](#error-messages)).
+
 ## Element ancestry
 
 `childValue` in `src/fhir/element-origin.ts` records the parent, element name,
