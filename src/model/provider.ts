@@ -30,6 +30,13 @@ export interface ModelProvider {
   /** True when `type` equals or derives from `base` (both canonical). */
   isSubtypeOf(type: string, base: string): boolean
   /**
+   * The canonical types that derive from `type`, directly or not, without
+   * `type` itself. The analyzer reads it to report an element that only a
+   * subtype has, such as `name` read through `Resource`, apart from an element
+   * no data can have. Undefined when the type is unknown to the model.
+   */
+  subtypesOf?(type: string): readonly string[] | undefined
+  /**
    * All element names of a type, own and inherited, in declaration order.
    * Undefined when the type is unknown to the model — navigation then falls back
    * to raw JSON reads instead of strict unknown-element errors.

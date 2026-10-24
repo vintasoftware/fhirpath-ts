@@ -152,6 +152,11 @@ export class CompactTypeTable {
     return type
   }
 
+  /** Every type name in the table. */
+  names(): IterableIterator<string> {
+    return this.lines().keys()
+  }
+
   private lines(): Map<string, string> {
     if (this.index === undefined) {
       this.index = new Map()

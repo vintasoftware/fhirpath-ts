@@ -41,6 +41,7 @@ import {
   isRuntimeAnalyzerVariable,
   runtimeAnalyzerEnvironmentVariables,
 } from './declarations.ts'
+import type { AnalyzerDiagnosticCode } from './diagnostic-codes.ts'
 import { applyOperatorResultRule, applyTypeOperatorResultRule } from './operator-rules.ts'
 import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
@@ -62,7 +63,7 @@ export interface AnalyzerDiagnostic {
   /** Unresolved element, function, or variable name, when the diagnostic has one. */
   name?: string
   /** Stable rule identifier, e.g. `unknown-element` or `singleton-required`. */
-  code: string
+  code: AnalyzerDiagnosticCode
   message: string
   span: SourceSpan
 }
@@ -104,8 +105,12 @@ export type DeclaredFunction = SingleDeclaredFunction | OverloadedDeclaredFuncti
 
 export interface AnalyzeOptions {
   model?: ModelProvider
-  /** Canonical type of the input the expression will run against, e.g. `FHIR.Patient` or `Patient`. */
-  inputType?: string
+  /**
+   * Type of the input the expression will run against, e.g. `FHIR.Patient` or
+   * `Patient`. Several types mean an input of one of them: an element on any
+   * one of them is enough.
+   */
+  inputType?: string | readonly string[]
   /** Host-supplied functions by name — EvaluateOptions.functions can be passed as-is. */
   functions?: Record<string, DeclaredFunction>
   /** Host-supplied environment variables by name (with or without the leading `%`). */
@@ -420,7 +425,11 @@ class Analyzer {
       root ??
       (inputType === undefined
         ? { types: undefined, single: undefined, ordered: true }
-        : singleState([this.model?.resolveType(inputType) ?? inputType]))
+        : singleState(
+            (typeof inputType === 'string' ? [inputType] : [...new Set(inputType)]).map(
+              type => this.model?.resolveType(type) ?? type
+            )
+          ))
     this.customFunctions = new Map(
       Object.entries(options?.functions ?? {}).map(([name, declared]) => [
         name,
@@ -693,7 +702,17 @@ class Analyzer {
       }
     }
     if (found.length === 0) {
-      if (this.model) {
+      const subtypes = this.subtypesWithElement(input.types, node.name)
+      if (subtypes.length > 0) {
+        // The data may hold such a subtype, as a Bundle entry holds a Patient, so this is not definite.
+        this.report(
+          'subtype-element',
+          `Element '${node.name}' is not defined on ${input.types.join(' | ')}, only on subtypes such as ${subtypes.slice(0, 3).join(', ')}; select one with ofType()`,
+          node.span,
+          'error',
+          node.name
+        )
+      } else if (this.model) {
         const hint = this.isChoiceKeyMisuse(input.types, node.name)
           ? '; choice elements use their stem name'
           : didYouMean(node.name, this.elementNames(input.types))
@@ -778,6 +797,21 @@ class Analyzer {
       }
     }
     return false
+  }
+
+  /** The subtypes of the input types that define `name`, sorted. */
+  private subtypesWithElement(types: string[], name: string): string[] {
+    const model = this.model
+    if (model?.subtypesOf === undefined) {
+      return []
+    }
+    const found = new Set<string>()
+    for (const type of types) {
+      for (const subtype of model.subtypesOf(type) ?? []) {
+        if (model.getElement(subtype, name) !== undefined) found.add(subtype)
+      }
+    }
+    return [...found].sort()
   }
 
   /** Every element name the input types can offer, for typo suggestions. */
@@ -1622,7 +1656,7 @@ class Analyzer {
   }
 
   private report(
-    code: string,
+    code: AnalyzerDiagnosticCode,
     message: string,
     span: SourceSpan,
     severity: 'error' | 'warning' = 'error',

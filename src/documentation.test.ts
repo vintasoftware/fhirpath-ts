@@ -169,6 +169,8 @@ const documentation: readonly DocumentExpectation[] = [
       valid("%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()"),
       invalid('Patient', ['unknown-element'], 'name.givenn'),
       valid('%limit < value.count()'),
+      valid('code | %context.linkId'),
+      valid(),
     ],
   },
   { path: 'docs/conformance.md', fences: [] },

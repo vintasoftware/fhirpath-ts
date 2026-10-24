@@ -20,6 +20,14 @@ describe('r4Model type resolution', () => {
     expect(r4Model.isSubtypeOf('FHIR.Quantity', 'FHIR.Element')).toBe(true)
     expect(r4Model.isSubtypeOf('System.Integer', 'FHIR.Resource')).toBe(false)
   })
+
+  it('lists the subtypes of a type', () => {
+    expect(r4Model.subtypesOf?.('FHIR.Resource')).toEqual(expect.arrayContaining(['FHIR.Patient', 'FHIR.Bundle']))
+    expect(r4Model.subtypesOf?.('DomainResource')).not.toContain('FHIR.Bundle')
+    expect(r4Model.subtypesOf?.('Quantity')).toEqual(expect.arrayContaining(['FHIR.Age', 'FHIR.Duration']))
+    expect(r4Model.subtypesOf?.('Patient')).toEqual([])
+    expect(r4Model.subtypesOf?.('Nope')).toBeUndefined()
+  })
 })
 
 describe('r4Model element lookup', () => {

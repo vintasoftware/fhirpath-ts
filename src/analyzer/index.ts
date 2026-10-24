@@ -21,3 +21,8 @@ export {
   analyzeEngineDtos,
   type DtoDiagnostic,
 } from './analyze-dto.ts'
+export {
+  ANALYZER_DIAGNOSTIC_CODES,
+  type AnalyzerDiagnosticCode,
+  DEFINITE_DIAGNOSTIC_CODES,
+} from './diagnostic-codes.ts'

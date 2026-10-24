@@ -507,6 +507,25 @@ describe('README usage recipes', () => {
         env: { limit: 0 },
       })
     ).toBe(true)
+
+    const response: QuestionnaireResponse = {
+      resourceType: 'QuestionnaireResponse',
+      status: 'completed',
+      item: [{ linkId: 'drug', answer: [{ valueCoding: { code: 'm1' } }] }],
+    }
+    const [item] = r4.evaluateTyped('item', r4.toTyped(response, 'QuestionnaireResponse'))
+    const [coding] = r4.evaluateTyped('answer.value', item!)
+    expect(r4.evaluate('code | %context.linkId', coding!, { env: { context: item } })).toEqual(['m1', 'drug'])
+    expect(
+      analyzeExpression('code | %context.linkId', {
+        model: r4Model,
+        inputType: ['Coding', 'Quantity'],
+        variables: {
+          context: { types: ['FHIR.QuestionnaireResponse.item'], single: true },
+          resource: { types: ['FHIR.QuestionnaireResponse'], single: true },
+        },
+      })
+    ).toEqual([])
   })
 
   it('covers API reference expressions in their runtime contexts', () => {

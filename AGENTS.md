@@ -202,6 +202,17 @@ environment, so it should perform the full check. Source analysis must avoid
 false positives; loaded DTO analysis must not omit checks that its context can
 perform.
 
+## Diagnostic codes
+
+`report()` takes an `AnalyzerDiagnosticCode`, so a new code goes into
+`ANALYZER_DIAGNOSTIC_CODES` in `src/analyzer/diagnostic-codes.ts`. Add a code
+to `DEFINITE_DIAGNOSTIC_CODES` only with a case in `diagnostic-codes.test.ts`
+showing that the part it marks throws or is empty with and without the data it
+reads; hosts refuse expressions on that set alone. An element that only a
+subtype of an abstract input type has is `subtype-element`, never
+`unknown-element`, because the data may hold that subtype; the analyzer finds
+those subtypes through `ModelProvider.subtypesOf()`.
+
 ## DTO function dispatch
 
 The public behavior is documented in [DTOs](docs/api.md#dtos). These functions

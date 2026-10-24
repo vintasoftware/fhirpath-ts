@@ -793,6 +793,14 @@ describe('the walkers agree on a site’s context', () => {
       expected: ["unknown-element: Element 'givenn' is not defined on FHIR.HumanName — did you mean 'given'?"],
     },
     {
+      name: "analyzeExpression's several input types leave the source site without a root",
+      code: [
+        "import { analyzeExpression } from 'fhirpath-ts/analyzer'",
+        "analyzeExpression('name.givenn', { model: r4Model, inputType: ['Patient', 'Practitioner'] })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
       name: "new CompiledExpression's second argument fixes the root",
       code: [
         "import { CompiledExpression } from 'fhirpath-ts'",
