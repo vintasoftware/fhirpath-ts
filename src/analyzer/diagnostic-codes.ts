@@ -33,10 +33,10 @@ export type AnalyzerDiagnosticCode = (typeof ANALYZER_DIAGNOSTIC_CODES)[number]
  * they mark throws whenever it runs, or is always empty. The expression is not
  * valid FHIRPath, names an element, function, variable, or type that does not
  * exist, calls a function with the wrong number of arguments, defines a
- * variable whose name is taken, builds an instance selector from a literal its
- * type refuses, or starts at a type name that never matches. Every other error
- * depends on the data, such as a collection that may hold one item or an
- * operand that may be empty.
+ * variable whose name is taken, or builds an instance selector from a literal
+ * its type refuses. Every other error depends on the data, such as a
+ * collection that may hold one item, an operand that may be empty, or a
+ * datatype root that typed input matches.
  */
 export const DEFINITE_DIAGNOSTIC_CODES: ReadonlySet<AnalyzerDiagnosticCode> = new Set([
   'syntax',
@@ -48,5 +48,4 @@ export const DEFINITE_DIAGNOSTIC_CODES: ReadonlySet<AnalyzerDiagnosticCode> = ne
   'variable-override',
   'variable-redefined',
   'invalid-value',
-  'datatype-root',
 ])

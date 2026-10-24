@@ -372,12 +372,12 @@ Each diagnostic has a stable `code`. `ANALYZER_DIAGNOSTIC_CODES` lists them and
 `AnalyzerDiagnosticCode` is their type. `DEFINITE_DIAGNOSTIC_CODES` holds the
 codes of errors that are wrong whatever the data: `syntax`, `unknown-element`,
 `unknown-function`, `unknown-variable`, `unknown-type`, `wrong-arity`,
-`variable-override`, `variable-redefined`, `invalid-value`, and
-`datatype-root`. The part of the expression they mark throws whenever it runs,
+`variable-override`, `variable-redefined`, and `invalid-value`. The part of the expression they mark throws whenever it runs,
 or is always empty. Every other error depends on the data: `singleton-required`
-holds when the collection may have more than one item, and `operand-type`,
+holds when the collection may have more than one item; `operand-type`,
 `input-type`, and `invalid-argument` throw only when the values they read are
-present. A host that refuses only expressions that cannot work on any data
+present; and a `datatype-root` such as `HumanName.family` matches typed input,
+though not JSON. A host that refuses only expressions that cannot work on any data
 filters on both:
 
 ```ts

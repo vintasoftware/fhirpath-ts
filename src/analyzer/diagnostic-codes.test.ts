@@ -34,7 +34,6 @@ describe('DEFINITE_DIAGNOSTIC_CODES', () => {
     ['variable-override', "name.defineVariable('context', 1)", 'Patient', [patient, named]],
     ['variable-redefined', "name.defineVariable('a', 1).defineVariable('a', 2)", 'Patient', [patient, named]],
     ['invalid-value', "Coding { code: 'a  b' }", 'Patient', [patient, named]],
-    ['datatype-root', 'HumanName.family', 'HumanName', [{}, { family: 'Doe' }]],
   ] as const)('%s is wrong whatever the data: %s', (code, expression, inputType, inputs) => {
     expect(DEFINITE_DIAGNOSTIC_CODES.has(code)).toBe(true)
     expect(codes(expression, inputType)).toEqual([code])
@@ -43,6 +42,13 @@ describe('DEFINITE_DIAGNOSTIC_CODES', () => {
         outcome(expression, input)
       )
     }
+  })
+
+  it('datatype-root depends on the data: typed input matches the type name, JSON does not', () => {
+    expect(DEFINITE_DIAGNOSTIC_CODES.has('datatype-root')).toBe(false)
+    expect(codes('HumanName.family', 'HumanName')).toEqual(['datatype-root'])
+    expect(outcome('HumanName.family', r4.toTyped({ family: 'Doe' }, 'HumanName'))).toEqual(['Doe'])
+    expect(outcome('HumanName.family', { family: 'Doe' })).toEqual([])
   })
 
   it.each([
