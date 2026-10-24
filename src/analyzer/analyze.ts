@@ -1,6 +1,6 @@
 import '../functions/install.ts'
 
-import { bareEnvironmentName, BUILTIN_ENV_VARIABLE_NAMES, normalizeEnvKeys } from '../engine/context.ts'
+import { bareEnvironmentName, normalizeEnvKeys, RESERVED_VARIABLE_NAMES } from '../engine/context.ts'
 import {
   acceptingElementType,
   literalValue,
@@ -1274,7 +1274,7 @@ class Analyzer {
       return
     }
     const name = nameNode.value
-    if (BUILTIN_ENV_VARIABLE_NAMES.has(name) || this.declaredVariables.has(name)) {
+    if (RESERVED_VARIABLE_NAMES.has(name) || this.declaredVariables.has(name)) {
       this.report('variable-override', `Cannot override the environment variable %${name}`, nameNode.span)
       return
     }

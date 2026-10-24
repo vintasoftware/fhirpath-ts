@@ -186,13 +186,32 @@ provider against a live Medplum server, and
 fallback included.
 
 A synchronous evaluation that needs a terminology service throws
-`FhirPathAsyncRequiredError`, a `FhirPathRuntimeError`. A host that offers
-both modes, as fhirpath.js's `async: true` option does, catches it and
-evaluates again with `evaluateAsync()`. An asynchronous evaluation without
-`options.terminology` throws a plain `FhirPathRuntimeError`, since a retry
-cannot help. A synchronous `resolve()` of an external reference returns empty
-rather than throwing, so a host with a resolver chooses `evaluateAsync()`
-before evaluating an expression that calls `resolve()`.
+`FhirPathAsyncRequiredError`, a `FhirPathRuntimeError`. An asynchronous
+evaluation without `options.terminology` throws a plain `FhirPathRuntimeError`,
+since a retry cannot help. A synchronous `resolve()` of an external reference
+returns empty rather than throwing.
+
+A host that offers both modes, as fhirpath.js's `async: true` option does,
+passes `syncWhenPossible: true` to `evaluateAsync()` or `evaluateTypedAsync()`.
+The result is then the values themselves when no service answered any part of
+the evaluation, and a Promise when one did, an external `resolve()` included.
+An error of an evaluation that needed no service is thrown, not returned as a
+rejected Promise. Without a service call, the cost is that of `evaluate()`:
+
+```ts
+const result = evaluateAsync('Observation.code.coding.where(memberOf(%vitals)).code', observation, {
+  model: r4Model,
+  terminology,
+  syncWhenPossible: true,
+  env: { vitals: 'http://hl7.org/fhir/ValueSet/observation-vitalsignresult' },
+})
+const codes = result instanceof Promise ? await result : result
+```
+
+The return type is a Promise only when the options cannot set
+`syncWhenPossible`: an options value typed `AsyncEvaluateOptions` gives the
+values or a Promise of them. `PromisedAsyncOptions` names the options that
+keep a Promise.
 
 ### External references
 
@@ -564,7 +583,8 @@ With typed input:
 - Items with different owning resources, or typed values mixed with JSON,
   throw. Evaluate them one at a time.
 - An `env` value for `resource`, `rootResource`, or `context` still overrides
-  the derived one.
+  the derived one, and may be typed (see
+  [`%context` apart from the input](#context-apart-from-the-input)).
 
 JSON input is its own `%resource` and `%rootResource`, as before.
 
@@ -598,6 +618,34 @@ contained resource's container can be any resource. A datatype root types
 neither.
 
 `filter()`, `project()`, `checkConstraints()`, and DTO `from()` take JSON only.
+
+#### `%context` apart from the input
+
+`env` binds typed values as they are, so they keep their types and ancestry.
+An `env` value for `context` makes `%context` that element, while `$this` and
+relative paths start at the input. SDC template extraction needs this: an
+expression runs on each result of a `templateExtractContext`, while
+`%context` stays the QuestionnaireResponse item being extracted. fhirpath.js
+takes `context` from its environment variables the same way.
+
+`%resource` and `%rootResource` still come from the input. Set them in `env`
+too when the input is not inside the resource, such as the Bundle a search
+returned or a copy of an item:
+
+```ts
+const root = r4.toTyped(response, 'QuestionnaireResponse')
+const [meds] = r4.evaluateTyped("item.where(linkId = 'meds')", root)
+const names = r4.evaluateTyped('item', meds)
+r4.evaluate('answer.value | %context.linkId', names, { env: { context: meds } }) // ['Aspirin', 'meds']
+r4.evaluate('entry.resource.id | %resource.status', searchset, {
+  env: { context: meds, resource: root, rootResource: root },
+}) // ['m1', 'completed']
+```
+
+A typed `env` value is recognized as typed values given as the input are, never
+by its shape, and an array that mixes typed values and JSON throws. The
+analyzer takes the type of `%context` as a declared variable, for example
+`variables: { context: { types: ['FHIR.QuestionnaireResponse.item'], single: true } }`.
 
 #### Structured Data Capture
 
@@ -777,8 +825,14 @@ fp.project(observations, columns, {
 ```
 
 Variables are evaluated in declaration order, so a later variable may use an
-earlier one. A variable cannot replace an environment value, including built-in
-values such as `%loinc`.
+earlier one. A variable cannot replace an environment value. Neither `vars`
+nor `defineVariable()` can take a name in `RESERVED_VARIABLE_NAMES`: `context`,
+`resource`, `rootResource`, `ucum`, `sct`, `loinc`, and `terminologies`, the
+last even without a terminology provider.
+
+`env` also takes typed values, such as `evaluateTyped()` results, which keep
+their types and ancestry; see
+[`%context` apart from the input](#context-apart-from-the-input).
 
 TypeScript does not retain object-property declaration order. Type inference
 can use `env`, the input, and explicit declarations while reading a literal

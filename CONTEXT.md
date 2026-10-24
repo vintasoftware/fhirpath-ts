@@ -37,7 +37,8 @@ and unattached when it was typed on its own.
 
 **Element context**:
 Typed values used as an evaluation's input, so `$this` and `%context` are those
-values instead of a whole resource.
+values instead of a whole resource. The environment can bind `%context`,
+`%resource`, or `%rootResource` to other values, typed or not.
 _Avoid_: base, focus resource, sub-context
 
 **Owning resource**:

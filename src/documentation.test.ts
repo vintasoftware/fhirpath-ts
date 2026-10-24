@@ -89,6 +89,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid(),
       valid('Observation.code.coding.where(memberOf(%vitals)).code'),
       valid('Observation.code.coding.where(memberOf(%vitals)).code'),
+      valid('Observation.code.coding.where(memberOf(%vitals)).code'),
       valid('Observation.subject.resolve().name.given'),
       invalid('Patient', ['unknown-element'], 'Patient.name.givenn'),
       invalid('Patient', ['unknown-element', 'unknown-element'], 'Patient.name.givenn', 'Patient.name.givenn'),
@@ -114,6 +115,12 @@ const documentation: readonly DocumentExpectation[] = [
       valid("QuestionnaireResponse.item.where(linkId = 'meds')", 'item.answer.value', '%resource.status'),
       valid('answer.value'),
       valid('answer.value'),
+      valid(
+        "item.where(linkId = 'meds')",
+        'item',
+        'answer.value | %context.linkId',
+        'entry.resource.id | %resource.status'
+      ),
       valid(),
       valid("item.where(linkId = 'meds')", "item.where(linkId = 'name').answer.value"),
       valid('Patient.name.given', 'Patient.name.given', 'Patient.name.given', 'Patient.name.given'),

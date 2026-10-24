@@ -78,6 +78,14 @@ describe('typed results between calls', () => {
     // Plain JSON copies lose the choice type, as they do in fhirpath.js.
     expect(sync({}, '%items.answer.value', { items: structuredClone(items) })).toEqual([])
   })
+
+  it('sets %context apart from the input through envVars, as fhirpath.js does', () => {
+    const [item] = sync(response, 'item', {}, typed)
+    const [answer] = sync(item, 'answer', {}, typed)
+    expect(sync(answer, 'value')).toEqual(['Ada'])
+    expect(sync(answer, '%context.linkId', { context: item })).toEqual(['name'])
+    expect(sync(answer, '%context.answer.count()', { context: item })).toEqual([2])
+  })
 })
 
 describe('synchronous and Promise results', () => {
@@ -102,7 +110,8 @@ describe('synchronous and Promise results', () => {
     const remote = engine.evaluate(observation, "code.coding.memberOf('urn:vs')", {}, undefined, options)
     expect(remote).toBeInstanceOf(Promise)
     await expect(remote).resolves.toEqual([true])
-    expect(calls).toEqual(['services'])
+    // Each asynchronous call takes its services up front; only the second one used them.
+    expect(calls).toEqual(['services', 'services'])
     await expect(engine.evaluate(observation, '1 + 1', {}, undefined, { async: 'always' })).resolves.toEqual([2])
   })
 
@@ -128,9 +137,8 @@ describe('synchronous and Promise results', () => {
       subject: { reference: '#p' },
       contained: [{ resourceType: 'Patient', id: 'p', name: [{ given: ['Bo'] }] }],
     }
-    await expect(
-      engine.evaluate(contained, 'subject.resolve().name.given', {}, undefined, { async: true })
-    ).resolves.toEqual(['Bo'])
+    // A contained reference needs no service, so its result is not a Promise.
+    expect(engine.evaluate(contained, 'subject.resolve().name.given', {}, undefined, { async: true })).toEqual(['Bo'])
     expect(resolver).toHaveBeenCalledTimes(1)
     // Without a resolver, resolve() stays synchronous and external references are empty.
     const local = smartFormsFhirpath(() => ({}))

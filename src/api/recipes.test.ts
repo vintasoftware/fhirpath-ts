@@ -409,6 +409,23 @@ describe('README usage recipes', () => {
       return r4.first("item.where(linkId = 'name').answer.value", context, { vars: scope.vars(context) })
     })
     expect(names).toEqual(['Aspirin'])
+
+    const typedRoot = r4.toTyped(response, 'QuestionnaireResponse')
+    const [meds] = r4.evaluateTyped("item.where(linkId = 'meds')", typedRoot)
+    const items = r4.evaluateTyped('item', meds!)
+    expect(r4.evaluate('answer.value | %context.linkId', items, { env: { context: meds } })).toEqual([
+      'Aspirin',
+      'meds',
+    ])
+    const searchset = r4.toTyped(
+      { resourceType: 'Bundle', type: 'searchset', entry: [{ resource: { resourceType: 'Medication', id: 'm1' } }] },
+      'Bundle'
+    )
+    expect(
+      r4.evaluate('entry.resource.id | %resource.status', searchset, {
+        env: { context: meds, resource: typedRoot, rootResource: typedRoot },
+      })
+    ).toEqual(['m1', 'completed'])
   })
 
   it('build values', () => {

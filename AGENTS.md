@@ -290,11 +290,20 @@ together:
   layer type `%resource` from the root's path. A resource root refuses a
   contained resource, because they type `%rootResource` as the root. These
   checks are cheaper than a flag in the type state.
-- Mixed typed and JSON input is refused once, in `inputCollection`. Strict
-  evaluation reads `%resource` and `%rootResource` from `contextResources`,
-  never from a second derivation.
-- `isReservedVariableName` decides which names `vars` and `defineVariable()`
-  cannot take.
+- `typedOrJsonCollection` reads both the input and each `env` value: typed
+  values by brand, JSON wrapped. Mixed typed and JSON values are refused there
+  once, for the input (`inputCollection`) and for `env` (`envCollection`).
+  Strict evaluation reads `%resource` and `%rootResource` from
+  `contextResources`, never from a second derivation.
+- `%context` apart from the input is an `env` value, as in fhirpath.js and the
+  other engines that allow it (`docs/adr/0005`); there is no `context` option.
+  `%resource` and `%rootResource` follow the input unless `env` sets them. The
+  type layer types an `env` override of the three from the `env` value
+  (`ExternalState`), and a typed `env` value as unknown, since its type is not
+  static.
+- `RESERVED_VARIABLE_NAMES` lists the names `vars` and `defineVariable()` can
+  never take; `isReservedVariableName` adds the names `env` binds. The
+  analyzer's `variable-override` check reads the same set.
 - The analyzer (`resourceState`) and the type layer (`ResourceVariableState`)
   type `%resource` for a backbone root as its path's resource, and
   `%rootResource` as unknown for any non-resource root. Strict evaluation passes
@@ -320,10 +329,14 @@ being scored ([Error messages](#error-messages)).
 
 A sync evaluation that needs a terminology service throws
 `FhirPathAsyncRequiredError`; a sync `resolve()` of an external reference
-returns empty, so the Smart Forms adapter checks for `resolve()` itself. That class is the contract fhirpath.js-style
-hosts use to retry asynchronously; keep every "needs evaluateAsync()" site on
-`missingTerminology` in `src/engine/context.ts`, which throws it only for a
-sync evaluation, and never retry inside the engine.
+returns empty. Keep every "needs evaluateAsync()" site on
+`missingTerminology` in `src/engine/context.ts`, which throws that class only
+for a sync evaluation, and never retry inside the engine. A host that wants a
+Promise only when a service is needed, as fhirpath.js's `async: true` gives,
+uses `syncWhenPossible`: its first pass already runs in async mode, so an
+external `resolve()` and a terminology call both take the async path, and
+`resolveSuspensions` returns the first pass's result as it is. The Smart Forms
+adapter uses it rather than a retry.
 
 `dogfood/sdc/smart-forms-fhirpath.ts` is the only fhirpath.js compatibility
 surface. It implements the call shapes Smart Forms uses and nothing else; a

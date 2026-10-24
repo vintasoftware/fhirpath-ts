@@ -9,6 +9,7 @@ export type {
   EvaluateOptions,
   InferredExpressionResult,
   OverloadedCustomFunction,
+  PromisedAsyncOptions,
   SingleCustomFunction,
 } from './api/compile.ts'
 export { compile, CompiledExpression, DEFAULT_PARSE_CACHE_SIZE } from './api/compile.ts'
@@ -65,6 +66,7 @@ export type {
 export { fhirpath } from './api/tagged.ts'
 export type { ToTypedOptions } from './api/to-typed.ts'
 export type { HostNativeFunction, NarrativeSanitizer, RegexEngine } from './engine/context.ts'
+export { RESERVED_VARIABLE_NAMES } from './engine/context.ts'
 export type { SourceSpan } from './errors.ts'
 export {
   FhirPathAsyncRequiredError,

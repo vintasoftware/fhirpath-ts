@@ -1,6 +1,9 @@
 /** An empty host context that contributes no known keys. */
 export type EmptyContextMap = Record<never, never>
 
+/** The shape of a typed value (`TypedValue`), which binds as the FHIR value it holds. */
+export type TypedValueLike = { readonly type: string; readonly value: unknown }
+
 /** Preserve host values for best-effort type inference without exposing them as declarations. */
 export type HostValueDeclarations<Values> =
   Values extends Readonly<Record<PropertyKey, unknown>>

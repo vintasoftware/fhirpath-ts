@@ -9,8 +9,6 @@
  */
 import { createCachedCompiler } from '../../src/api/compile.ts'
 import {
-  type AstNode,
-  FhirPathAsyncRequiredError,
   type FhirTypeName,
   type ReferenceResolver,
   type TerminologyProvider,
@@ -61,39 +59,10 @@ export interface SmartFormsFhirpath {
 /** What the host has for the service URLs of one call; Medplum ignores the URLs and uses its client. */
 export type ServicesFor = (options: EvaluateOptions) => HostServices
 
-function hasCall(node: AstNode, name: string): boolean {
-  switch (node.kind) {
-    case 'call':
-      return node.name === name || node.args.some(arg => hasCall(arg, name))
-    case 'dot':
-    case 'binary':
-      return hasCall(node.left, name) || hasCall(node.right, name)
-    case 'indexer':
-      return hasCall(node.target, name) || hasCall(node.index, name)
-    case 'unary':
-    case 'typeOp':
-      return hasCall(node.operand, name)
-    case 'instance':
-      return node.elements.some(element => hasCall(element.value, name))
-    case 'null':
-    case 'boolean':
-    case 'string':
-    case 'number':
-    case 'date':
-    case 'dateTime':
-    case 'time':
-    case 'quantity':
-    case 'identifier':
-    case 'special':
-    case 'external':
-      return false
-  }
-}
-
 /**
- * The adapter. `services` supplies the terminology provider and resolver of a
- * call from its options; the engine asks them only for what contained
- * resources and Bundle entries cannot answer.
+ * The adapter. `services` supplies the terminology provider and resolver of an
+ * asynchronous call from its options; the engine asks them only for what
+ * contained resources and Bundle entries cannot answer.
  */
 export function smartFormsFhirpath(services: ServicesFor): SmartFormsFhirpath {
   // The renderer evaluates the same expressions on every answer change.
@@ -110,21 +79,6 @@ export function smartFormsFhirpath(services: ServicesFor): SmartFormsFhirpath {
     return typeof path === 'string' ? fhirData : r4.toTyped(fhirData, path.base as FhirTypeName)
   }
 
-  /** Typed values in the environment keep their types through `vars`; plain JSON stays in `env`. */
-  function environment(envVars: Record<string, unknown>): {
-    env: Record<string, unknown>
-    vars: Record<string, TypedValue[]>
-  } {
-    const env: Record<string, unknown> = {}
-    const vars: Record<string, TypedValue[]> = {}
-    for (const [name, value] of Object.entries(envVars)) {
-      if (isTyped(value)) vars[name] = [value]
-      else if (Array.isArray(value) && value.length > 0 && value.every(isTyped)) vars[name] = value
-      else env[name] = value
-    }
-    return { env, vars }
-  }
-
   function keep(values: TypedValue[]): TypedValue[] {
     for (const value of values) typedResults.add(value)
     return values
@@ -134,33 +88,21 @@ export function smartFormsFhirpath(services: ServicesFor): SmartFormsFhirpath {
     evaluate(fhirData, path, envVars = {}, _model, options = {}) {
       const compiled = parse(typeof path === 'string' ? path : path.expression)
       const context = input(fhirData, path)
-      const base = { model: r4Model, ...environment(envVars) }
+      // Typed values in envVars bind as they are, as fhirpath.js's values with `__path__` do.
+      const base = { model: r4Model, env: envVars }
       const typed = options.resolveInternalTypes === false
-      const sync = () => (typed ? keep(compiled.evaluateTyped(context, base)) : compiled.evaluate(context, base))
-      // The services are asked for only when the evaluation may use them.
-      let host: HostServices | undefined
-      const hostServices = () => (host ??= services(options))
-      const async = () => {
-        const { terminology, resolver } = hostServices()
-        const asyncOptions = {
-          ...base,
-          ...(terminology && { terminology }),
-          ...(resolver && { resolver }),
-        }
-        return typed
-          ? compiled.evaluateTypedAsync(context, asyncOptions).then(keep)
-          : compiled.evaluateAsync(context, asyncOptions)
+      if (!options.async) return typed ? keep(compiled.evaluateTyped(context, base)) : compiled.evaluate(context, base)
+      const { terminology, resolver } = services(options)
+      const asyncOptions = {
+        ...base,
+        ...(terminology && { terminology }),
+        ...(resolver && { resolver }),
+        // `async: true` returns a Promise only when a service answers part of the evaluation.
+        syncWhenPossible: options.async !== 'always',
       }
-      if (options.async === 'always') return async()
-      if (!options.async) return sync()
-      // A synchronous evaluation returns empty for an external reference; only the async one resolves it.
-      if (hasCall(compiled.ast, 'resolve') && hostServices().resolver) return async()
-      try {
-        return sync()
-      } catch (error) {
-        if (error instanceof FhirPathAsyncRequiredError) return async()
-        throw error
-      }
+      if (!typed) return compiled.evaluateAsync(context, asyncOptions)
+      const results = compiled.evaluateTypedAsync(context, asyncOptions)
+      return results instanceof Promise ? results.then(keep) : keep(results)
     },
   }
 }

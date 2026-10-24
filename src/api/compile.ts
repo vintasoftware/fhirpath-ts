@@ -13,6 +13,7 @@ import {
   type NarrativeSanitizer,
   normalizeEnvKeys,
   type RegexEngine,
+  typedOrJsonCollection,
 } from '../engine/context.ts'
 import { evaluateNode } from '../engine/evaluator.ts'
 import { FhirPathTypeError } from '../errors.ts'
@@ -33,7 +34,7 @@ import type {
   FhirpathTypeDeclarations,
   FhirTypeName,
 } from '../typed/infer.ts'
-import { toCollection, type TypedValue, unwrapAll } from '../values/typed-value.ts'
+import { type TypedValue, unwrapAll } from '../values/typed-value.ts'
 import { LruCache } from './cache.ts'
 import { assertStrictExpression } from './strict.ts'
 
@@ -124,7 +125,7 @@ export interface EvaluateOptions {
 }
 
 type AsyncOnlyOption = Exclude<keyof AsyncEvaluateOptions, keyof EvaluateOptions>
-const ASYNC_ONLY_OPTIONS = Object.keys({ terminology: true, resolver: true } satisfies Record<
+const ASYNC_ONLY_OPTIONS = Object.keys({ terminology: true, resolver: true, syncWhenPossible: true } satisfies Record<
   AsyncOnlyOption,
   true
 >) as AsyncOnlyOption[]
@@ -135,7 +136,20 @@ export interface AsyncEvaluateOptions extends EvaluateOptions {
   terminology?: TerminologyProvider
   /** Fallback for references absent from the local resource or Bundle. Fragment misses stay local. */
   resolver?: ReferenceResolver
+  /**
+   * Return the result itself, not a Promise, when the evaluation needs no
+   * service, and throw its error the same way. An evaluation that calls a
+   * service still returns a Promise. Defaults to false.
+   */
+  syncWhenPossible?: boolean
 }
+
+/**
+ * Async options that keep the result a Promise: `syncWhenPossible` absent or
+ * false. Options typed wider, which may hold `true`, give the result or a
+ * Promise of it.
+ */
+export type PromisedAsyncOptions = AsyncEvaluateOptions & { syncWhenPossible?: false }
 
 type CheckedOptionKeys<Options, Accepted> = string extends keyof Options
   ? unknown
@@ -230,24 +244,40 @@ export class CompiledExpression<
     return brandTyped(evaluateNode(this.ast, contextFactory(options)(root), root))
   }
 
-  /** Evaluate with asynchronous services and unwrap the result. */
-  async evaluateAsync<const Options extends object = EmptyFhirpathTypeContext>(
+  /**
+   * Evaluate with asynchronous services and unwrap the result. With
+   * `syncWhenPossible`, an evaluation that needs no service returns its
+   * result directly.
+   */
+  evaluateAsync<const Options extends object = EmptyFhirpathTypeContext>(
+    input?: TInput | readonly TypedValue[],
+    options?: Declaring<Options, PromisedAsyncOptions>
+  ): Promise<CompiledExpressionResult<Expr, TResult, Root, Options>>
+  evaluateAsync<const Options extends object = EmptyFhirpathTypeContext>(
     input?: TInput | readonly TypedValue[],
     options?: Declaring<Options, AsyncEvaluateOptions>
-  ): Promise<CompiledExpressionResult<Expr, TResult, Root, Options>> {
-    return unwrapAll(await this.evaluateTypedAsync(input, options)) as CompiledExpressionResult<
-      Expr,
-      TResult,
-      Root,
-      Options
-    >
+  ):
+    | CompiledExpressionResult<Expr, TResult, Root, Options>
+    | Promise<CompiledExpressionResult<Expr, TResult, Root, Options>>
+  evaluateAsync(input?: unknown, options?: AsyncEvaluateOptions): unknown[] | Promise<unknown[]> {
+    return settle(options, () => mapResult(this.typedAsync(input, options), unwrapAll))
   }
 
   /** Retain FHIR types while awaiting provider results. */
-  async evaluateTypedAsync(
+  evaluateTypedAsync(input?: TInput | readonly TypedValue[], options?: PromisedAsyncOptions): Promise<TypedValue[]>
+  evaluateTypedAsync(
     input?: TInput | readonly TypedValue[],
     options?: AsyncEvaluateOptions
-  ): Promise<TypedValue[]> {
+  ): TypedValue[] | Promise<TypedValue[]>
+  evaluateTypedAsync(input?: unknown, options?: AsyncEvaluateOptions): TypedValue[] | Promise<TypedValue[]> {
+    return settle(options, () => this.typedAsync(input, options))
+  }
+
+  /**
+   * The evaluation with services: the result when no service was needed, a
+   * Promise otherwise. Traces are reported once, after the run that completed.
+   */
+  private typedAsync(input: unknown, options: AsyncEvaluateOptions | undefined): TypedValue[] | Promise<TypedValue[]> {
     const root = this.root(input, options)
     let traces: [string, TypedValue[]][] = []
     const contextFor = contextFactory({
@@ -257,7 +287,7 @@ export class CompiledExpression<
         if (options?.trace) traces.push([name, values])
       },
     })
-    const result = await resolveSuspensions(cache => {
+    const result = resolveSuspensions(cache => {
       traces = []
       return evaluateNode(
         this.ast,
@@ -265,8 +295,10 @@ export class CompiledExpression<
         root
       )
     })
-    for (const [name, values] of traces) options?.trace?.(name, values)
-    return brandTyped(result)
+    return mapResult(result, values => {
+      for (const [name, traced] of traces) options?.trace?.(name, traced)
+      return brandTyped(values)
+    })
   }
 
   /** The input as the root collection, checked against the declared root and, under `strict`, analyzed. */
@@ -306,6 +338,20 @@ export function compile(
   return new CompiledExpression<string, unknown, InferredExpressionResult, string>(expression, inputType)
 }
 
+/** `map` applied to a result now, or once it settles. */
+function mapResult<T, U>(result: T | Promise<T>, map: (value: T) => U): U | Promise<U> {
+  return result instanceof Promise ? result.then(map) : map(result)
+}
+
+/**
+ * An async entry point's result: as `run` gives it under `syncWhenPossible`,
+ * and otherwise always a Promise, which also turns a thrown error into a
+ * rejection.
+ */
+function settle<T>(options: AsyncEvaluateOptions | undefined, run: () => T | Promise<T>): T | Promise<T> {
+  return options?.syncWhenPossible === true ? run() : new Promise<T>(resolve => resolve(run()))
+}
+
 /** An expression as text or already compiled, with any literal, input, result, and root types. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts every CompiledExpression specialization
 export type AnyExpression = string | CompiledExpression<any, any, any, any>
@@ -315,12 +361,11 @@ export type AnyExpression = string | CompiledExpression<any, any, any, any>
  * Keeping typed values keeps their FHIR types and ancestry.
  */
 function inputCollection(input: unknown): TypedValue[] {
-  if (isTypedValue(input)) return [input]
-  if (!Array.isArray(input) || !input.some(isTypedValue)) return toCollection(input)
-  if (!input.every(isTypedValue)) {
+  const collection = typedOrJsonCollection(input)
+  if (collection === undefined) {
     throw new FhirPathTypeError('The input mixes typed values and JSON; pass one or the other')
   }
-  return [...input]
+  return collection
 }
 
 /**
