@@ -202,6 +202,17 @@ environment, so it should perform the full check. Source analysis must avoid
 false positives; loaded DTO analysis must not omit checks that its context can
 perform.
 
+## Diagnostic codes
+
+`report()` takes an `AnalyzerDiagnosticCode`, so a new code goes into
+`ANALYZER_DIAGNOSTIC_CODES` in `src/analyzer/diagnostic-codes.ts`. Add a code
+to `DEFINITE_DIAGNOSTIC_CODES` only with a case in `diagnostic-codes.test.ts`
+showing that the part it marks throws or is empty with and without the data it
+reads; hosts refuse expressions on that set alone. An element that only a
+subtype of an abstract input type has is `subtype-element`, never
+`unknown-element`, because the data may hold that subtype; the analyzer finds
+those subtypes through `ModelProvider.subtypesOf()`.
+
 ## DTO function dispatch
 
 The public behavior is documented in [DTOs](docs/api.md#dtos). These functions
@@ -253,6 +264,17 @@ directly as an element's value: both walkers pass that element's declared types
 to `resolveInstanceType`. A missing required element is a warning, never a
 runtime error, because the spec lets a selector build a partial value.
 
+## Writing to an element
+
+`toFhirJson` in `src/fhir/fhir-json.ts` writes host results into a resource.
+It lets a string fill a temporal or string-like element when the format fits,
+and a date fill `string`, which instance selectors refuse: a selector follows
+FHIRPath's implicit conversions (`acceptingElementType`). Keep the pieces both
+writers need shared: `matchesValuePattern` for value patterns, `toFhirQuantity`
+for the UCUM form of a Quantity, and `choiceElementOfKey` for the choice-key
+split `jsonElement` and the analyzer's choice-key hint read. Refusals name
+types only ([Error messages](#error-messages)).
+
 ## Element ancestry
 
 `childValue` in `src/fhir/element-origin.ts` records the parent, element name,
@@ -290,17 +312,76 @@ together:
   layer type `%resource` from the root's path. A resource root refuses a
   contained resource, because they type `%rootResource` as the root. These
   checks are cheaper than a flag in the type state.
-- Mixed typed and JSON input is refused once, in `inputCollection`. Strict
-  evaluation reads `%resource` and `%rootResource` from `contextResources`,
-  never from a second derivation.
-- `isReservedVariableName` decides which names `vars` and `defineVariable()`
-  cannot take.
+- `typedOrJsonCollection` reads both the input and each `env` value: typed
+  values by brand, JSON wrapped. Mixed typed and JSON values are refused there
+  once, for the input (`inputCollection`) and for `env` (`envCollection`).
+  Strict evaluation reads `%resource` and `%rootResource` from
+  `contextResources`, never from a second derivation.
+- `%context` apart from the input is an `env` value, as in fhirpath.js and the
+  other engines that allow it (`docs/adr/0005`); there is no `context` option.
+  `%resource` and `%rootResource` follow the input unless `env` sets them. The
+  type layer types an `env` override of the three from the `env` value
+  (`ExternalState`), and a typed `env` value as unknown, since its type is not
+  static.
+- `RESERVED_VARIABLE_NAMES` lists the names `vars` and `defineVariable()` can
+  never take; `isReservedVariableName` adds the names `env` binds. The
+  analyzer's `variable-override` check reads the same set.
 - The analyzer (`resourceState`) and the type layer (`ResourceVariableState`)
   type `%resource` for a backbone root as its path's resource, and
   `%rootResource` as unknown for any non-resource root. Strict evaluation passes
   the runtime owner types through `AnalyzerRoot.resources`.
 - `filter()`, `project()`, `checkConstraints()`, and DTO `from()` take JSON
   only.
+
+## SDC scoring and the Smart Forms adapter
+
+`weight()` resolves a bare `code` through `ModelProvider.boundCodeSystem()`,
+which the R4 model reads from the generated `s` index into
+`src/r4/generated/code-systems-data.ts`. The generator records a binding only
+when it is required and resolves to exactly one code system; it never derives
+a system from a ValueSet URL. Keep the weight rules in one place,
+`src/fhir/weights.ts`: a listing that names the Coding's version wins, an
+unversioned or `*` listing stands in for any version, and a Coding without a
+version takes only a weight the listings agree on. A conflict throws; it must
+not pick the first match. ValueSet listings, contained CodeSystems, and the
+Medplum provider's CodeSystem fallback all go through it, and the module has
+no side effects so the `fhirpath-ts/medplum` entry can import it. Scoring
+errors name the CodeSystem, ValueSet, or element, never the code or version
+being scored ([Error messages](#error-messages)).
+
+A sync evaluation that needs a terminology service throws
+`FhirPathAsyncRequiredError`; a sync `resolve()` of an external reference
+returns empty. Keep every "needs evaluateAsync()" site on
+`missingTerminology` in `src/engine/context.ts`, which throws that class only
+for a sync evaluation, and never retry inside the engine. A host that wants a
+Promise only when a service is needed, as fhirpath.js's `async: true` gives,
+uses `syncWhenPossible`: its first pass already runs in async mode, so an
+external `resolve()` and a terminology call both take the async path, and
+`resolveSuspensions` returns the first pass's result as it is. The Smart Forms
+adapter uses it rather than a retry.
+
+`dogfood/sdc/smart-forms-fhirpath.ts` is the only fhirpath.js compatibility
+surface. It implements the call shapes Smart Forms uses and nothing else; a
+build alias redirects the import. Medplum transport stays in
+`src/terminology/medplum.ts`, behind the `MedplumClientLike` interface, so the
+core never imports a Medplum package. Typed results are recognized by
+identity, never by shape. The adapter's services answer each terminology
+request once (`cachedTerminology`) and send a failed one again: Smart Forms
+re-runs every calculated expression on each answer change and awaits them in
+turn, so without it each change repeats the requests. The core provider
+caches only CodeSystem searches, for its own lifetime; a server that must see
+terminology edits creates a provider per request or session, and answer
+caching stays with the host that knows its session.
+
+## Error messages
+
+An engine error message may name types, functions, variables, elements,
+counts, and expression text, and form identifiers such as a CodeSystem URL or
+a linkId. It must not repeat a value read from the evaluated data: a code, a
+version, a string, or a free-text Quantity unit. Hosts such as
+sdc-extractor-ts forward these messages, and `docs/api.md` promises this. A
+value that must reach the caller goes on a non-enumerable property, as
+`ProjectionRowError.subject` does.
 
 ## Criteria booleans
 

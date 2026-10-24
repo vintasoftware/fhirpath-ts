@@ -1,4 +1,4 @@
-import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { FhirPathAsyncRequiredError, FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { ancestors, isTypedValue, owningResource, rootResourceOf } from '../fhir/element-origin.ts'
 import { functions as builtinFunctions } from '../functions/registry.ts'
 import type { ModelProvider } from '../model/provider.ts'
@@ -185,24 +185,24 @@ const BUILTIN_CONSTANTS: ReadonlyMap<string, string> = new Map([
 ])
 
 /**
- * Environment variables every evaluation defines. The static analyzer resolves
- * and protects exactly these names, so keep this list next to the code that
- * seeds them (createContext) — a builtin added here is known there for free.
+ * Names a host variable or `defineVariable()` can never take: the environment
+ * variables createContext seeds, and `%terminologies`, which a terminology
+ * provider binds. They stay reserved when nothing binds them, such as
+ * `%resource` for unattached input or `%terminologies` without a provider. The
+ * static analyzer protects the same names, so keep this list next to the code
+ * that seeds them.
  */
-export const BUILTIN_ENV_VARIABLE_NAMES: ReadonlySet<string> = new Set([
+export const RESERVED_VARIABLE_NAMES: ReadonlySet<string> = new Set([
   ...BUILTIN_CONSTANTS.keys(),
   'context',
   'resource',
   'rootResource',
+  'terminologies',
 ])
 
-/**
- * True for a name a variable cannot take: a bound environment value or a
- * built-in name, which stays reserved when unattached input leaves
- * `%resource` and `%rootResource` unbound.
- */
+/** True for a name a variable cannot take: a bound environment value or a reserved name. */
 export function isReservedVariableName(context: EvaluationContext, name: string): boolean {
-  return context.env.has(name) || BUILTIN_ENV_VARIABLE_NAMES.has(name)
+  return context.env.has(name) || RESERVED_VARIABLE_NAMES.has(name)
 }
 
 /** The canonical key used for environment and variable maps. */
@@ -225,14 +225,35 @@ export function normalizeEnvKeys<T>(env: Readonly<Record<string, T>> | undefined
 }
 
 /**
+ * A value as a collection: typed values as they are, so they keep their FHIR
+ * types and ancestry, and JSON wrapped. Undefined when an array mixes the two;
+ * the caller names the value in its error.
+ */
+export function typedOrJsonCollection(value: unknown): TypedValue[] | undefined {
+  if (isTypedValue(value)) return [value]
+  if (!Array.isArray(value) || !value.some(isTypedValue)) return toCollection(value)
+  return value.every(isTypedValue) ? [...value] : undefined
+}
+
+/** The collection `%name` binds for an env value: typed values as they are, JSON wrapped. */
+export function envCollection(name: string, value: unknown): TypedValue[] {
+  const collection = typedOrJsonCollection(value)
+  if (collection === undefined) {
+    throw new FhirPathTypeError(`The env value %${name} mixes typed values and JSON; pass one or the other`)
+  }
+  return collection
+}
+
+/**
  * An env record as the collections a context binds: names normalized, values
- * wrapped. The one conversion from the host's env shape into the engine's, used
- * both to seed a context and to build a function's own overlay.
+ * as `envCollection` gives them. The one conversion from the host's env shape
+ * into the engine's, used both to seed a context and to build a function's own
+ * overlay.
  */
 export function envCollections(env: Record<string, unknown> | undefined): Map<string, TypedValue[]> {
   const collections = new Map<string, TypedValue[]>()
   for (const [name, value] of Object.entries(normalizeEnvKeys(env))) {
-    collections.set(name, toCollection(value))
+    collections.set(name, envCollection(name, value))
   }
   return collections
 }
@@ -380,10 +401,19 @@ export function resolveEnvironmentVariable(context: EvaluationContext, name: str
     )
   }
   // Only a provider binds the spec's terminology service (see createContext).
-  if (name === 'terminologies') {
-    throw new FhirPathRuntimeError('%terminologies needs evaluateAsync() with options.terminology')
-  }
+  if (name === 'terminologies') throw missingTerminology(context, '%terminologies')
   throw new FhirPathTypeError(`Undefined environment variable %${name}`)
+}
+
+/**
+ * The error for a terminology need without a provider: a synchronous
+ * evaluation needs `evaluateAsync()`, which a host may retry with; an
+ * asynchronous one needs `options.terminology`, which no retry supplies.
+ */
+export function missingTerminology(context: EvaluationContext, what: string): FhirPathRuntimeError {
+  return context.async === undefined
+    ? new FhirPathAsyncRequiredError(`${what} needs evaluateAsync() with options.terminology`)
+    : new FhirPathRuntimeError(`${what} needs options.terminology`)
 }
 
 /** Run `body` with a frame binding `$this` (and optionally `$index` / `$total`, or hiding `$index`). */

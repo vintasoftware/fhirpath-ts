@@ -297,6 +297,7 @@ const FUNCTION_SIGNATURE_DEFINITIONS = {
   // HAPI's TypeDetails.targets); an unconstrained reference stays unknown.
   resolve: { result: { kind: 'reference-targets' } },
   weight: { result: { kind: 'fixed', types: ['System.Decimal'], single: false } },
+  ordinal: { result: { kind: 'fixed', types: ['System.Decimal'], single: false } },
   extension: { args: ['String'], result: UNKNOWN },
   hasValue: { input: { singleton: true }, result: BOOLEAN },
   getValue: { input: { singleton: true }, result: UNKNOWN_ITEM },

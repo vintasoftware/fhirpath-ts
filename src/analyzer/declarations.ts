@@ -1,7 +1,7 @@
-import { normalizeEnvKeys } from '../engine/context.ts'
+import { envCollection, normalizeEnvKeys } from '../engine/context.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { FhirpathTypeDeclaration, FhirpathTypeDeclarations } from '../typed/infer.ts'
-import { OBJECT_TYPE, toCollection, type TypedValue, typeLocalName } from '../values/typed-value.ts'
+import { OBJECT_TYPE, type TypedValue, typeLocalName } from '../values/typed-value.ts'
 
 /** A host variable in the analyzer's canonical collection form. */
 export interface AnalyzerVariable {
@@ -69,8 +69,8 @@ function analyzerVariableFromCollection(
   }
 }
 
-function analyzerVariableFromValue(value: unknown, model: ModelProvider | undefined): AnalyzerVariable {
-  return analyzerVariableFromCollection(toCollection(value), model)
+function analyzerVariableFromValue(name: string, value: unknown, model: ModelProvider | undefined): AnalyzerVariable {
+  return analyzerVariableFromCollection(envCollection(name, value), model)
 }
 
 function inferAnalyzerType(type: string, model: ModelProvider | undefined): string | undefined {
@@ -93,7 +93,7 @@ export function analyzerVariables(
   values: object | undefined,
   declarations: FhirpathTypeDeclarations | undefined
 ): Record<string, AnalyzerVariable> {
-  return collectAnalyzerVariables(values, declarations, (_value, declaration) =>
+  return collectAnalyzerVariables(values, declarations, (_name, _value, declaration) =>
     declaration === undefined ? {} : analyzerVariable(declaration)
   )
 }
@@ -104,8 +104,8 @@ export function analyzerEnvironmentVariables(
   declarations: FhirpathTypeDeclarations | undefined,
   model: ModelProvider | undefined
 ): Record<string, AnalyzerVariable> {
-  return collectAnalyzerVariables(values, declarations, (value, declaration) =>
-    declaration === undefined ? analyzerVariableFromValue(value, model) : analyzerVariable(declaration)
+  return collectAnalyzerVariables(values, declarations, (name, value, declaration) =>
+    declaration === undefined ? analyzerVariableFromValue(name, value, model) : analyzerVariable(declaration)
   )
 }
 
@@ -115,15 +115,15 @@ export function runtimeAnalyzerEnvironmentVariables(
   declarations: FhirpathTypeDeclarations | undefined,
   model: ModelProvider | undefined
 ): Record<string, AnalyzerVariableState> {
-  return collectAnalyzerVariables(values, declarations, (value, declaration) =>
-    runtimeAnalyzerVariable(toCollection(value), model, declaration)
+  return collectAnalyzerVariables(values, declarations, (name, value, declaration) =>
+    runtimeAnalyzerVariable(envCollection(name, value), model, declaration)
   )
 }
 
 function collectAnalyzerVariables(
   values: object | undefined,
   declarations: FhirpathTypeDeclarations | undefined,
-  inferValue: (value: unknown, declaration: FhirpathTypeDeclaration | undefined) => AnalyzerVariable
+  inferValue: (name: string, value: unknown, declaration: FhirpathTypeDeclaration | undefined) => AnalyzerVariable
 ): Record<string, AnalyzerVariable> {
   const normalizedValues = normalizeEnvKeys(values as Readonly<Record<string, unknown>> | undefined)
   const normalizedDeclarations = normalizeEnvKeys(declarations)
@@ -131,7 +131,7 @@ function collectAnalyzerVariables(
   for (const name of new Set([...Object.keys(normalizedValues), ...Object.keys(normalizedDeclarations)])) {
     const declaration = normalizedDeclarations[name]
     if (Object.hasOwn(normalizedValues, name)) {
-      variables[name] = inferValue(normalizedValues[name], declaration)
+      variables[name] = inferValue(name, normalizedValues[name], declaration)
     } else if (declaration !== undefined) {
       variables[name] = analyzerVariable(declaration)
     }

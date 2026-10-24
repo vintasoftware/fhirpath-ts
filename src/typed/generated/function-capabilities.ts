@@ -1096,6 +1096,21 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
     degradation: 'Patient.name.unknownFn()',
     composition: '(Patient.name.ofType(HumanName)).count()',
   },
+  'builtin.ordinal': {
+    source: {
+      expression: 'Patient.name.ordinal()',
+      corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
+    },
+    expectedType: 'number[]',
+    compositionType: 'number[]',
+    runtime: false,
+    analyzer: {
+      types: ['System.Decimal'],
+      single: false,
+    },
+    degradation: 'Patient.name.unknownFn()',
+    composition: '(Patient.name.ordinal()).count()',
+  },
   'builtin.pathname': {
     source: {
       expression: 'Patient.name.pathname(true)',

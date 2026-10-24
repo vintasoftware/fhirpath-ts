@@ -1,0 +1,16 @@
+{
+  "repository": "https://github.com/LHNCBC/lforms",
+  "commit": "433f80008bfe5f3d03b08269a6dc83f5a5f3c226",
+  "files": [
+    {
+      "file": "phq9-with-the-weight-function.json",
+      "source": "test/data/R4/calc-weight/phq9-with-the-weight-function.json",
+      "sha256": "3ddd4531e1c60cbaec6393c730b3bbe55548568bdf01537387a02c3f18c77989"
+    },
+    {
+      "file": "apgar-with-itemWeight-variable.json",
+      "source": "test/data/R4/apgar-with-itemWeight-variable.json",
+      "sha256": "c63e1bb101e38523fcfad794ba65b1fef499597dda2b02272895cf950f69ed02"
+    }
+  ]
+}

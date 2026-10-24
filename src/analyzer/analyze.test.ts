@@ -665,6 +665,50 @@ describe('variable tracking', () => {
   })
 })
 
+describe('several input types and a declared %context', () => {
+  const union = { model: r4Model, inputType: ['FHIR.boolean', 'FHIR.Coding'] }
+
+  it('accepts an element of any one input type', () => {
+    expect(analyzeExpressionDetailed('display', union)).toMatchObject({
+      diagnostics: [],
+      result: { types: ['FHIR.string'], single: true },
+    })
+    expect(messages('family', union)).toEqual(["Element 'family' is not defined on FHIR.boolean | FHIR.Coding"])
+    expect(codes('family', { model: r4Model, inputType: ['HumanName', 'HumanName'] })).toEqual([])
+  })
+
+  it('types %context apart from the input when it is declared', () => {
+    const declared = {
+      model: r4Model,
+      inputType: ['FHIR.Coding'],
+      variables: {
+        context: { types: ['FHIR.QuestionnaireResponse.item'], single: true },
+        resource: { types: ['FHIR.QuestionnaireResponse'], single: true },
+      },
+    }
+    expect(codes('code | %context.linkId | %resource.authored', declared)).toEqual([])
+    expect(codes('%context.lnkId', declared)).toEqual(['unknown-element'])
+  })
+})
+
+describe('elements of subtypes', () => {
+  const bundle = { model: r4Model, inputType: 'Bundle' }
+
+  it('reports an element only a subtype of an abstract type has, apart from unknown ones', () => {
+    expect(messages('entry.resource.name', bundle)).toEqual([
+      "Element 'name' is not defined on FHIR.Resource, only on subtypes such as FHIR.Account, FHIR.ActivityDefinition, FHIR.CapabilityStatement; select one with ofType()",
+    ])
+    expect(codes('entry.resource.name', bundle)).toEqual(['subtype-element'])
+    expect(codes('entry.resource.nmae', bundle)).toEqual(['unknown-element'])
+    expect(codes('entry.resource.ofType(Patient).name', bundle)).toEqual([])
+  })
+
+  it('reports an unknown element for a model that does not list subtypes', () => {
+    const { subtypesOf: _subtypesOf, ...model } = r4Model
+    expect(codes('entry.resource.name', { model, inputType: 'Bundle' })).toEqual(['unknown-element'])
+  })
+})
+
 describe('warnings and details', () => {
   it('a collection passed where a singleton argument is expected is a warning', () => {
     const diagnostics = analyzeExpression('Patient.name.first().family.startsWith(Patient.name.given)', options)

@@ -98,6 +98,36 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   - `fhirpath-ts/sdc`: `sdcScope(engine, questionnaire)` gives SDC's
     `%questionnaire` and `%qitem` for a context, and walks a
     QuestionnaireResponse's item contexts in SDC order.
+- APIs that SDC hosts such as template extraction need:
+  - `env` binds typed values as they are, so they keep their types and
+    ancestry. `env: { context: item }` sets `%context` apart from the input,
+    where `$this` and relative paths start, as fhirpath.js's environment
+    variables do. `%resource` and `%rootResource` still follow the input
+    unless `env` sets them; see
+    [`%context` apart from the input](docs/api.md#context-apart-from-the-input).
+  - `syncWhenPossible: true` on `evaluateAsync()` and `evaluateTypedAsync()`
+    returns the result itself when no service answered any part of the
+    evaluation, and a Promise when one did, an external `resolve()` included,
+    as fhirpath.js's `async: true` does.
+  - `RESERVED_VARIABLE_NAMES` lists the names `vars` and `defineVariable()`
+    cannot take.
+  - The analyzer's `inputType` takes several types, for an input of one of
+    them: an element on any one of them is enough.
+  - `fhirpath-ts/analyzer` exports `ANALYZER_DIAGNOSTIC_CODES`, the
+    `AnalyzerDiagnosticCode` type, and `DEFINITE_DIAGNOSTIC_CODES`: the codes
+    of errors that are wrong whatever the data, such as an unknown element or
+    a wrong argument count, for a host that refuses only expressions that
+    cannot work on any data; see
+    [Diagnostic codes](docs/static-checking.md#diagnostic-codes).
+  - `ModelProvider.subtypesOf()`, optional, lists the types that derive from
+    a type; the R4 model has it.
+  - `engine.toFhirJson(value, type)` writes a typed value as the FHIR JSON of
+    an element of `type`, the reverse of `toTyped()`: it checks the type, the
+    format and calendar day, and integer ranges, gives a FHIRPath Quantity a
+    UCUM code, copies complex values, and throws a `FhirPathTypeError` that
+    names types only. `engine.jsonElement(type, key)` finds the element a JSON
+    property is, `effectiveDateTime` included; see
+    [`toFhirJson()` and `jsonElement()`](docs/api.md#tofhirjson-and-jsonelement).
 
 ### Changed
 
@@ -218,8 +248,24 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     When two items have no order, such as dates of different precision, the
     result is empty, as `<` is.
 
+- **Breaking:** `terminologies` is a reserved variable name without a
+  terminology provider too: `vars` and `defineVariable()` refuse it.
+- An element that only a subtype of the input type has, such as `name` on
+  `Bundle.entry.resource`, is a `subtype-element` error with an `ofType()`
+  hint, not `unknown-element`: the data may hold such a subtype.
+- **Breaking (types):** `AnalyzerDiagnostic.code` is an
+  `AnalyzerDiagnosticCode`, not a `string`.
+- **Breaking (types):** `evaluateAsync()` and `evaluateTypedAsync()` given
+  options typed as `AsyncEvaluateOptions`, which may set `syncWhenPossible`,
+  return the result or a Promise of it. Options without `syncWhenPossible`, or
+  typed `PromisedAsyncOptions`, still give a Promise.
+
 ### Fixed
 
+- Type inference typed `%context`, `%resource`, and `%rootResource` from the
+  input when `env` replaced them, so `%context.name` on a Patient input with a
+  Questionnaire in `env.context` inferred `HumanName[]`. It now types them from
+  the `env` value.
 - Strict evaluation and the analyzer read a typed `vars` value of a backbone
   type, such as `FHIR.QuestionnaireResponse.item`, as that type. They read it
   as untyped.

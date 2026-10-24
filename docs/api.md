@@ -13,6 +13,7 @@ common behavior that affects application code.
 | `fhirpath-ts/eslint` | ESLint plugin |
 | `fhirpath-ts/sites` | TypeScript AST expression-site finder |
 | `fhirpath-ts/sdc` | SDC `%questionnaire`, `%qitem`, and item contexts |
+| `fhirpath-ts/medplum` | Terminology provider and reference resolver over a Medplum client |
 
 Use the bound R4 engine for most application code:
 
@@ -132,6 +133,85 @@ Coding pair establishes the relationship. A configured provider
 reserves `%terminologies`; applications must not replace it through `env` or
 `vars`. Static analysis accepts an explicit variable declaration for this host
 service, while strict runtime evaluation supplies that declaration automatically.
+
+#### Medplum
+
+`fhirpath-ts/medplum` has providers over an authenticated `MedplumClient`, or
+any object with its `fhirUrl()`, `get()`, and `post()` methods:
+`medplumTerminology(client)` posts the six operations as Parameters resources,
+and `medplumResolver(client)` reads referenced resources from the client's
+FHIR base. Only a literal `Type/id` or `Type/id/_history/vid` read on that base
+is sent; a reference to another server, or a search or operation URL, resolves
+to nothing, because the client sends its credentials with every request.
+`lookup` and `validateCS` send a Coding's version as the `version` parameter,
+where Medplum reads it. `subsumes` sends `system`, `codeA`, and `codeB`, the form Medplum's `$subsumes`
+accepts, with the Codings' version as `version`; Codings naming two different
+versions fail the call. `fhirClient(baseUrl, headers)`
+is the same client shape over plain `fetch`, for a terminology server without
+a Medplum session. A failure whose body is an OperationOutcome with only
+`not-found` or `invalid` issues is an answer the server cannot give; any other
+failure is an error. Medplum also answers a request it cannot parse with
+`invalid`, so a malformed request looks like an unknown value set: `memberOf()`,
+`subsumes()`, and `translate()` return empty, while `weight()` reports an error.
+
+```ts
+import { evaluateAsync } from 'fhirpath-ts'
+import { medplumResolver, medplumTerminology } from 'fhirpath-ts/medplum'
+import { r4Model } from 'fhirpath-ts/r4'
+
+await evaluateAsync('Observation.code.coding.where(memberOf(%vitals)).code', observation, {
+  model: r4Model,
+  terminology: medplumTerminology(medplum),
+  resolver: medplumResolver(medplum),
+  env: { vitals: 'http://hl7.org/fhir/ValueSet/observation-vitalsignresult' },
+})
+```
+
+`weight()` asks `lookup(coding, 'property=itemWeight')`. Medplum's `$lookup`
+reports the concept properties that `CodeSystem/$import` loaded, not the
+`ordinalValue` extensions an R4 CodeSystem resource carries on its concepts,
+so when the answer has no `itemWeight` property the provider reads every
+version of the CodeSystem resource, across all search pages, and reports the concept's weight as that
+property. It selects the version as `weight()` does for contained CodeSystems,
+using the Coding's version or else the one `$lookup` answered with, and a
+malformed weight or a conflict between versions is an error. A concept found
+without a weight is empty; a code system or concept the server does not have is
+an error. The provider reads each system's CodeSystem resources once and keeps
+them for its lifetime, so a provider sees later edits only when the host
+creates a new one, for example per request or session; a failed read is not
+kept and is retried on the next lookup. The engine reads contained
+CodeSystems before it asks the provider. `pnpm record:tx:medplum` records the
+provider against a live Medplum server, and
+[SDC readiness](sdc-readiness.md) reports the live validation, the extension
+fallback included.
+
+A synchronous evaluation that needs a terminology service throws
+`FhirPathAsyncRequiredError`, a `FhirPathRuntimeError`. An asynchronous
+evaluation without `options.terminology` throws a plain `FhirPathRuntimeError`,
+since a retry cannot help. A synchronous `resolve()` of an external reference
+returns empty rather than throwing.
+
+A host that offers both modes, as fhirpath.js's `async: true` option does,
+passes `syncWhenPossible: true` to `evaluateAsync()` or `evaluateTypedAsync()`.
+The result is then the values themselves when no service answered any part of
+the evaluation, and a Promise when one did, an external `resolve()` included.
+An error of an evaluation that needed no service is thrown, not returned as a
+rejected Promise. Without a service call, the cost is that of `evaluate()`:
+
+```ts
+const result = evaluateAsync('Observation.code.coding.where(memberOf(%vitals)).code', observation, {
+  model: r4Model,
+  terminology,
+  syncWhenPossible: true,
+  env: { vitals: 'http://hl7.org/fhir/ValueSet/observation-vitalsignresult' },
+})
+const codes = result instanceof Promise ? await result : result
+```
+
+The return type is a Promise only when the options cannot set
+`syncWhenPossible`: an options value typed `AsyncEvaluateOptions` gives the
+values or a Promise of them. `PromisedAsyncOptions` names the options that
+keep a Promise.
 
 ### External references
 
@@ -503,7 +583,8 @@ With typed input:
 - Items with different owning resources, or typed values mixed with JSON,
   throw. Evaluate them one at a time.
 - An `env` value for `resource`, `rootResource`, or `context` still overrides
-  the derived one.
+  the derived one, and may be typed (see
+  [`%context` apart from the input](#context-apart-from-the-input)).
 
 JSON input is its own `%resource` and `%rootResource`, as before.
 
@@ -538,6 +619,34 @@ neither.
 
 `filter()`, `project()`, `checkConstraints()`, and DTO `from()` take JSON only.
 
+#### `%context` apart from the input
+
+`env` binds typed values as they are, so they keep their types and ancestry.
+An `env` value for `context` makes `%context` that element, while `$this` and
+relative paths start at the input. SDC template extraction needs this: an
+expression runs on each result of a `templateExtractContext`, while
+`%context` stays the QuestionnaireResponse item being extracted. fhirpath.js
+takes `context` from its environment variables the same way.
+
+`%resource` and `%rootResource` still come from the input. Set them in `env`
+too when the input is not inside the resource, such as the Bundle a search
+returned or a copy of an item:
+
+```ts
+const root = r4.toTyped(response, 'QuestionnaireResponse')
+const [meds] = r4.evaluateTyped("item.where(linkId = 'meds')", root)
+const names = r4.evaluateTyped('item', meds)
+r4.evaluate('answer.value | %context.linkId', names, { env: { context: meds } }) // ['Aspirin', 'meds']
+r4.evaluate('entry.resource.id | %resource.status', searchset, {
+  env: { context: meds, resource: root, rootResource: root },
+}) // ['m1', 'completed']
+```
+
+A typed `env` value is recognized as typed values given as the input are, never
+by its shape, and an array that mixes typed values and JSON throws. The
+analyzer takes the type of `%context` as a declared variable, for example
+`variables: { context: { types: ['FHIR.QuestionnaireResponse.item'], single: true } }`.
+
 #### Structured Data Capture
 
 `fhirpath-ts/sdc` gives the
@@ -571,6 +680,55 @@ for (const medication of r4.evaluateTyped("item.where(linkId = 'meds')", root)) 
 Both throw when a response item's linkId is not in the Questionnaire. Named
 `variable` extensions and launch contexts are the host's: evaluate them and
 pass the results through `vars`.
+
+### `toFhirJson()` and `jsonElement()`
+
+`toFhirJson(value, type)` turns a typed value into the FHIR JSON of an element
+of type `type`, the reverse of `toTyped()`. SDC template extraction and
+`$populate` write expression results into resources this way:
+
+```ts
+const [authored] = r4.evaluateTyped('authored', response)
+r4.toFhirJson(authored, 'dateTime') // '2025-09-16T12:34:56.000-07:00'
+const [dose] = r4.evaluateTyped("5.5 'mg'")
+r4.toFhirJson(dose, 'Quantity') // { value: 5.5, unit: 'mg', system: 'http://unitsofmeasure.org', code: 'mg' }
+```
+
+The value must fit the element:
+
+- A string fills a string-like or temporal element when it has that type's
+  format, from `ModelProvider.valuePattern()`. A date also has to exist in the
+  calendar, so `'2023-02-29'` is refused, and a date-time with a time needs a
+  timezone.
+- A date, date-time, or time fills `date`, `dateTime`, `instant`, `time`,
+  `string`, or `markdown` under the same format rules.
+- A boolean fills only `boolean`.
+- A number fills `decimal`, or `integer`, `unsignedInt`, or `positiveInt` when
+  it is a whole number in that type's range. A Decimal becomes a JS number, so
+  it loses the zeros of its scale.
+- A FHIRPath Quantity fills `Quantity` and its profiles (`Age`, `Duration`, and
+  so on) as a UCUM Quantity; a calendar duration takes its UCUM code, `a` for
+  `year`.
+- A FHIR value fills its own type, a supertype, and `Element`; a resource also
+  fills `Resource` and `DomainResource`. It is copied, so the result shares
+  nothing with the data.
+
+A value that does not fit throws a `FhirPathTypeError` naming the types, never
+the value. A primitive's `id` and extensions are not carried; write its `_name`
+sibling from the data if it needs them.
+
+`evaluate()` unwraps results without a target type: a Decimal becomes a number
+and a date-time its text with no check, and a Quantity becomes
+`{ value, unit }` with no UCUM code. Use `evaluate()` to read results and
+`toFhirJson()` to write them into a resource.
+
+`jsonElement(type, key)` finds the element a JSON property is, so a host
+walking FHIR JSON knows the type to convert to. A choice element's key carries
+its type: `r4.jsonElement('Observation', 'effectiveDateTime')` is
+`{ key: 'effectiveDateTime', type: 'dateTime', isCollection: false, isPrimitive: true }`.
+It is undefined for a key the type does not have, including a choice element's
+stem alone. An element the R4 model types as a System type, such as
+`Resource.id`, has its FHIR primitive type, `string`.
 
 ## Stateless API
 
@@ -716,8 +874,14 @@ fp.project(observations, columns, {
 ```
 
 Variables are evaluated in declaration order, so a later variable may use an
-earlier one. A variable cannot replace an environment value, including built-in
-values such as `%loinc`.
+earlier one. A variable cannot replace an environment value. Neither `vars`
+nor `defineVariable()` can take a name in `RESERVED_VARIABLE_NAMES`: `context`,
+`resource`, `rootResource`, `ucum`, `sct`, `loinc`, and `terminologies`, the
+last even without a terminology provider.
+
+`env` also takes typed values, such as `evaluateTyped()` results, which keep
+their types and ancestry; see
+[`%context` apart from the input](#context-apart-from-the-input).
 
 TypeScript does not retain object-property declaration order. Type inference
 can use `env`, the input, and explicit declarations while reading a literal
@@ -1302,6 +1466,14 @@ custom functions, conversions, regular expression engines, and trace sinks, may
 throw their own errors; the engine does not swallow them. Use
 [static checking](static-checking.md) to catch wrong paths and other expression
 errors before runtime.
+
+Engine error messages name types, functions, variables, elements, counts, text
+from the expression, and form identifiers such as a CodeSystem, ValueSet, or
+profile URL and a linkId. They never repeat another value read from the data,
+such as a code, a version, a string, or a free-text unit, so an application can
+log or show them. Errors from callbacks and terminology services, such as an
+OperationOutcome a server returns, pass through unchanged and carry whatever
+their source put in them.
 
 ## Parse caching
 

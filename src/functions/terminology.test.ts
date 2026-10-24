@@ -1,11 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 
+import { analyzeExpression } from '../analyzer/analyze.ts'
 import type { AsyncEvaluateOptions } from '../api/compile.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate, evaluateAsync } from '../api/evaluate.ts'
+import { RESERVED_VARIABLE_NAMES } from '../engine/context.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import { r4Model } from '../r4/index.ts'
 import type { TerminologyProvider } from '../terminology/provider.ts'
+import type { TypedValue } from '../values/typed-value.ts'
 
 const VS_VITALS = 'http://example.org/ValueSet/vitals'
 
@@ -178,11 +181,14 @@ describe('memberOf', () => {
     expect(() => compile('1').evaluate(observation, untyped)).toThrow(message)
   })
 
-  it('fails under sync evaluate() or without a provider with a pointer to evaluateAsync()', async () => {
+  it('points sync evaluate() to evaluateAsync(), and an async evaluation without a provider to options.terminology', async () => {
     const options = { model: r4Model, env: { vs: VS_VITALS } }
-    const message = 'memberOf() needs evaluateAsync() with options.terminology'
-    expect(() => evaluate('Observation.code.memberOf(%vs)', observation, options)).toThrow(message)
-    await expect(evaluateAsync('Observation.code.memberOf(%vs)', observation, options)).rejects.toThrow(message)
+    expect(() => evaluate('Observation.code.memberOf(%vs)', observation, options)).toThrow(
+      'memberOf() needs evaluateAsync() with options.terminology'
+    )
+    await expect(evaluateAsync('Observation.code.memberOf(%vs)', observation, options)).rejects.toThrow(
+      'memberOf() needs options.terminology'
+    )
   })
 
   it('fails when the provider lacks the operation', async () => {
@@ -429,11 +435,12 @@ describe('%terminologies API', () => {
     ).rejects.toThrow('lookup() is only available on %terminologies')
   })
 
-  it('%terminologies points to evaluateAsync() without a provider', async () => {
-    const message = '%terminologies needs evaluateAsync() with options.terminology'
-    expect(() => evaluate("%terminologies.expand('urn:vs')", observation, { model: r4Model })).toThrow(message)
+  it('%terminologies without a provider points to evaluateAsync() or to options.terminology', async () => {
+    expect(() => evaluate("%terminologies.expand('urn:vs')", observation, { model: r4Model })).toThrow(
+      '%terminologies needs evaluateAsync() with options.terminology'
+    )
     await expect(evaluateAsync("%terminologies.expand('urn:vs')", observation, { model: r4Model })).rejects.toThrow(
-      message
+      '%terminologies needs options.terminology'
     )
   })
 })
@@ -764,5 +771,78 @@ describe('evaluateAsync', () => {
     await expect(
       evaluateAsync('%terminologies', observation, { ...options, vars: { terminologies: '{}' } })
     ).rejects.toThrow('Cannot override the environment variable')
+  })
+
+  it('reserves %terminologies without a provider too', () => {
+    expect(RESERVED_VARIABLE_NAMES.has('terminologies')).toBe(true)
+    expect(() => evaluate('1', observation, { vars: { terminologies: '1' } })).toThrow(
+      'Cannot override the environment variable %terminologies with a var'
+    )
+    expect(() => evaluate("defineVariable('terminologies', 1).select(1)", observation)).toThrow(
+      'Cannot override the environment variable %terminologies'
+    )
+    expect(analyzeExpression("defineVariable('terminologies', 1).select(1)").map(({ code }) => code)).toEqual([
+      'variable-override',
+    ])
+  })
+})
+
+describe('syncWhenPossible', () => {
+  it('returns the result itself when the evaluation needs no service', () => {
+    const provider = stubProvider()
+    const options = { ...asyncOptions(provider), syncWhenPossible: true }
+    expect(evaluateAsync('Observation.status', observation, options)).toEqual(['final'])
+    expect(compile('Observation.id').evaluateTypedAsync(observation, options)).toEqual([
+      { type: 'System.String', value: 'o1' },
+    ])
+    expect(provider.calls).toEqual([])
+  })
+
+  it('returns a Promise when the evaluation calls a service', async () => {
+    const provider = stubProvider()
+    const result = evaluateAsync('Observation.code.memberOf(%vs)', observation, {
+      ...asyncOptions(provider),
+      syncWhenPossible: true,
+    })
+    expect(result).toBeInstanceOf(Promise)
+    await expect(result).resolves.toEqual([true])
+    expect(provider.calls).toHaveLength(1)
+  })
+
+  it('throws an error of a sync evaluation, and rejects without the option', async () => {
+    expect(() => evaluateAsync('(1 | 2).single()', observation, { syncWhenPossible: true })).toThrow(
+      FhirPathRuntimeError
+    )
+    expect(() => compile('(1 | 2).single()').evaluateTypedAsync(observation, { syncWhenPossible: true })).toThrow(
+      FhirPathRuntimeError
+    )
+    const rejected = evaluateAsync('(1 | 2).single()', observation, { syncWhenPossible: false })
+    expect(rejected).toBeInstanceOf(Promise)
+    await expect(rejected).rejects.toThrow(FhirPathRuntimeError)
+  })
+
+  it('types the result as a Promise only without the option', () => {
+    const compiled = compile('1')
+    expectTypeOf(compiled.evaluateTypedAsync()).toEqualTypeOf<Promise<TypedValue[]>>()
+    expectTypeOf(compiled.evaluateTypedAsync(undefined, { syncWhenPossible: false })).toEqualTypeOf<
+      Promise<TypedValue[]>
+    >()
+    expectTypeOf(compiled.evaluateTypedAsync(undefined, { syncWhenPossible: true })).toEqualTypeOf<
+      TypedValue[] | Promise<TypedValue[]>
+    >()
+    expectTypeOf(compiled.evaluateAsync(undefined, { syncWhenPossible: true })).toEqualTypeOf<
+      number[] | Promise<number[]>
+    >()
+    // A widened options value may hold `syncWhenPossible: true`.
+    expectTypeOf(evaluateAsync('1', undefined, asyncOptions(stubProvider()))).toEqualTypeOf<
+      unknown[] | Promise<unknown[]>
+    >()
+    expectTypeOf(evaluateAsync('1', undefined, { model: r4Model })).toEqualTypeOf<Promise<unknown[]>>()
+  })
+
+  it('is refused by a sync evaluation', () => {
+    expect(() => evaluate('1', observation, { syncWhenPossible: true } as never)).toThrow(
+      'options.syncWhenPossible is only accepted by evaluateAsync() and evaluateTypedAsync()'
+    )
   })
 })

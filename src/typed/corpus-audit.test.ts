@@ -52,14 +52,15 @@ describe('reference-derived type-inference inventory', () => {
     // The convertsToLong() and terminology cases need contexts this inventory
     // does not supply. The inventory's sources (the official
     // suites, fhirpath.js, and fhirpath-py) do not call the FHIRPath 3.0.0 functions
-    // difference(), duration(), pathname(), and repeatAll(), or the SDC weight(),
-    // yet; unit tests, the cross-checks in test-data/crosschecks, and the generated
+    // difference(), duration(), pathname(), and repeatAll(), or the SDC weight()
+    // and its former name ordinal(), yet; unit tests, the cross-checks in test-data/crosschecks, and the generated
     // function capabilities cover them.
     expect(INFERENCE_CORPUS_AUDIT.missingSignedFunctions).toEqual([
       'convertsToLong',
       'difference',
       'duration',
       'memberOf',
+      'ordinal',
       'pathname',
       'repeatAll',
       'subsumedBy',

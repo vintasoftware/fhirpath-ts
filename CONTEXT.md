@@ -37,7 +37,8 @@ and unattached when it was typed on its own.
 
 **Element context**:
 Typed values used as an evaluation's input, so `$this` and `%context` are those
-values instead of a whole resource.
+values instead of a whole resource. The environment can bind `%context`,
+`%resource`, or `%rootResource` to other values, typed or not.
 _Avoid_: base, focus resource, sub-context
 
 **Owning resource**:
@@ -45,6 +46,11 @@ The nearest resource in a typed value's ancestry, which `%resource` refers to.
 `%rootResource` is the container of a contained owning resource, and otherwise
 the owning resource itself.
 _Avoid_: parent resource, root (a different term)
+
+**Writing to an element**:
+Turning a typed value into the FHIR JSON of an element of a known type, checked
+against that type's format and range. It is the reverse of typing JSON.
+_Avoid_: unwrapping (the target-less conversion `evaluate()` does), serializing
 
 **Defining engine**:
 The engine a DTO or view was defined on. A DTO projects on it, or on an engine
@@ -84,3 +90,11 @@ _Avoid_: mixin, parent view, column set, trait
 Deriving a new engine on which expressions can call a DTO's columns as
 functions. Registering never changes the engine it derives from.
 _Avoid_: installing, mounting, extending the engine
+
+### Checking expressions
+
+**Definite diagnostic**:
+A static error that is wrong whatever the data: the part of the expression it
+marks throws whenever it runs, or is always empty, such as an unknown element
+or a wrong argument count. Other errors depend on the data the expression reads.
+_Avoid_: blocking, fatal, certain error

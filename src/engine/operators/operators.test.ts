@@ -362,8 +362,24 @@ describe('date/time arithmetic', () => {
   })
 
   it('rejects UCUM year and month for calendar arithmetic', () => {
-    expect(() => evaluate("@2014 + 1 'a'")).toThrow(FhirPathRuntimeError)
-    expect(() => evaluate("@2014-01 + 1 'mo'")).toThrow(FhirPathRuntimeError)
+    expect(() => evaluate("@2014 + 1 'a'")).toThrow(
+      new FhirPathRuntimeError("Cannot use UCUM unit 'a' for date/time arithmetic; use a calendar duration keyword")
+    )
+    expect(() => evaluate("@2014-01 + 1 'mo'")).toThrow(
+      new FhirPathRuntimeError("Cannot use UCUM unit 'mo' for date/time arithmetic; use a calendar duration keyword")
+    )
+  })
+
+  it('does not repeat a unit from the data in a date arithmetic error', () => {
+    const observation = {
+      resourceType: 'Observation',
+      status: 'final',
+      code: {},
+      valueQuantity: { value: 2, unit: 'doses per caregiver note' },
+    }
+    expect(() => evaluate('@2014-01-01 + Observation.value', observation, { model: r4Model })).toThrow(
+      new FhirPathRuntimeError('Date/time arithmetic needs a calendar duration keyword or a UCUM time unit')
+    )
   })
 
   it('out-of-range years are empty', () => {

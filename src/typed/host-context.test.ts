@@ -4,6 +4,7 @@ import { compile, type CustomFunction, type EvaluateOptions } from '../api/compi
 import { type EngineOptions, FhirPathEngine } from '../api/engine.ts'
 import type { Condition, DiagnosticReport, Patient } from '../r4/generated/type-maps.ts'
 import { r4Model } from '../r4/index.ts'
+import type { TypedValue } from '../values/typed-value.ts'
 import type { FhirpathResult, FhirpathTypeContext, FhirpathTypeContextOf, FhirpathTypeDeclaration } from './infer.ts'
 
 describe('typed host context', () => {
@@ -188,6 +189,29 @@ describe('typed host context', () => {
     expectTypeOf(relative).toEqualTypeOf<string[]>()
     expectTypeOf(contextId).toEqualTypeOf<string[]>()
     expectTypeOf(row).toEqualTypeOf<{ id: string | undefined; position: string | undefined }>()
+  })
+
+  it('types an env value for %context, %resource, or %rootResource from that value', () => {
+    const patient: Patient = { resourceType: 'Patient' }
+    const questionnaire = { resourceType: 'Questionnaire', name: 'form-a' } as const
+    const typed: TypedValue[] = []
+    const engine = new FhirPathEngine({ model: r4Model })
+    // The runtime reads the env values, not the input, so the input's type says nothing here.
+    expectTypeOf(engine.evaluate('%context.name', patient, { env: { context: questionnaire } })).toEqualTypeOf<
+      string[]
+    >()
+    expectTypeOf(
+      engine.evaluate('%rootResource.name', patient, { env: { rootResource: questionnaire } })
+    ).toEqualTypeOf<string[]>()
+    expectTypeOf(engine.evaluate('%resource.name', patient, { env: { resource: typed } })).toEqualTypeOf<unknown[]>()
+    expectTypeOf(
+      engine.evaluate('%context.name', patient, {
+        env: { context: typed[0] },
+        envTypes: { context: { type: 'Questionnaire' } },
+      })
+    ).toEqualTypeOf<string[]>()
+    // A typed value binds as the FHIR value it holds, not as an object with `type` and `value`.
+    expectTypeOf(engine.evaluate('%item.type', patient, { env: { item: typed } })).toEqualTypeOf<unknown[]>()
   })
 
   it('keeps a host function with no result type or body opaque, not empty', () => {

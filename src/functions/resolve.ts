@@ -1,5 +1,6 @@
 import { forEachCollecting, requestAsync } from '../engine/async.ts'
 import { ancestors, childValue, owningResource, rootResourceOf } from '../fhir/element-origin.ts'
+import { serverBase } from '../fhir/reference-resolver.ts'
 import { toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 
@@ -94,11 +95,6 @@ function referenceScope(
 
 function isAbsolute(reference: string): boolean {
   return reference.includes('://') || reference.startsWith('urn:')
-}
-
-/** The server base of an absolute RESTful url, e.g. `https://x/fhir` of `https://x/fhir/Patient/1/_history/2`. */
-function serverBase(url: string): string | undefined {
-  return /^(https?:\/\/.+?)\/[A-Za-z]+\/[A-Za-z0-9\-.]{1,64}(?:\/_history\/[A-Za-z0-9\-.]{1,64})?$/.exec(url)?.[1]
 }
 
 function resolveInBundle(reference: string, bundle: TypedValue): TypedValue | undefined {

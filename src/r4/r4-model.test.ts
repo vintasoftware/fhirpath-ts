@@ -20,6 +20,14 @@ describe('r4Model type resolution', () => {
     expect(r4Model.isSubtypeOf('FHIR.Quantity', 'FHIR.Element')).toBe(true)
     expect(r4Model.isSubtypeOf('System.Integer', 'FHIR.Resource')).toBe(false)
   })
+
+  it('lists the subtypes of a type', () => {
+    expect(r4Model.subtypesOf?.('FHIR.Resource')).toEqual(expect.arrayContaining(['FHIR.Patient', 'FHIR.Bundle']))
+    expect(r4Model.subtypesOf?.('DomainResource')).not.toContain('FHIR.Bundle')
+    expect(r4Model.subtypesOf?.('Quantity')).toEqual(expect.arrayContaining(['FHIR.Age', 'FHIR.Duration']))
+    expect(r4Model.subtypesOf?.('Patient')).toEqual([])
+    expect(r4Model.subtypesOf?.('Nope')).toBeUndefined()
+  })
 })
 
 describe('r4Model element lookup', () => {
@@ -85,6 +93,27 @@ describe('r4Model element lookup', () => {
     expect(r4Model.getElement('FHIR.Patient', 'id')?.types).toEqual(['System.String'])
     expect(r4Model.getElement('FHIR.Patient', 'extension')?.isCollection).toBe(true)
     expect(r4Model.getElement('FHIR.Observation', 'contained')?.types).toEqual(['Resource'])
+  })
+})
+
+describe('r4Model bound code systems', () => {
+  it('names the one code system of a required code binding, through inherited and backbone elements', () => {
+    expect(r4Model.boundCodeSystem?.('FHIR.Patient', 'gender')).toBe('http://hl7.org/fhir/administrative-gender')
+    expect(r4Model.boundCodeSystem?.('Patient.contact', 'gender')).toBe('http://hl7.org/fhir/administrative-gender')
+    expect(r4Model.boundCodeSystem?.('FHIR.QuestionnaireResponse', 'status')).toBe(
+      'http://hl7.org/fhir/questionnaire-answers-status'
+    )
+    expect(r4Model.boundCodeSystem?.('FHIR.Observation', 'status')).toBe('http://hl7.org/fhir/observation-status')
+    expect(r4Model.boundCodeSystem?.('FHIR.Timing.repeat', 'durationUnit')).toBe('http://unitsofmeasure.org')
+  })
+
+  it('gives none for a binding over several code systems, a non-code element, or an unknown one', () => {
+    // task-intent includes request-intent as well.
+    expect(r4Model.boundCodeSystem?.('FHIR.Task', 'intent')).toBeUndefined()
+    expect(r4Model.boundCodeSystem?.('FHIR.Patient', 'birthDate')).toBeUndefined()
+    expect(r4Model.boundCodeSystem?.('FHIR.Patient', 'maritalStatus')).toBeUndefined()
+    expect(r4Model.boundCodeSystem?.('FHIR.Patient', 'nothing')).toBeUndefined()
+    expect(r4Model.boundCodeSystem?.('FHIR.Nothing', 'status')).toBeUndefined()
   })
 })
 

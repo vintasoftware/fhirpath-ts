@@ -1,5 +1,6 @@
 import { FhirPathEngine } from '../api/engine.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
+import { R4_CODE_SYSTEMS } from './generated/code-systems-data.ts'
 import { R4_PRIMITIVE_PATTERNS } from './generated/primitive-patterns.ts'
 import { R4_RESOURCES_COMPACT } from './generated/resources-data.ts'
 import { R4_DATA_TYPES_COMPACT } from './generated/types-data.ts'
@@ -45,6 +46,25 @@ function findElement(typeName: string, element: string): GeneratedElement | unde
     current = definition.b
   }
   return undefined
+}
+
+let subtypes: Map<string, string[]> | undefined
+
+/** Each type's subtypes by local name, built on first use: only the analyzer's error path reads it. */
+function subtypeIndex(): Map<string, string[]> {
+  if (subtypes === undefined) {
+    subtypes = new Map()
+    for (const name of [...RESOURCES.names(), ...DATA_TYPES.names()]) {
+      const visited = new Set<string>([name])
+      for (let base = lookupType(name)?.b; base !== undefined && !visited.has(base); base = lookupType(base)?.b) {
+        visited.add(base)
+        const list = subtypes.get(base) ?? []
+        list.push(`${PREFIX}${name}`)
+        subtypes.set(base, list)
+      }
+    }
+  }
+  return subtypes
 }
 
 /** The generated R4 model: type resolution, element lookup, and the type hierarchy. */
@@ -100,6 +120,16 @@ export const r4Model: ModelProvider = {
   valuePattern(type: string): string | undefined {
     const name = localName(type)
     return Object.hasOwn(R4_PRIMITIVE_PATTERNS, name) ? R4_PRIMITIVE_PATTERNS[name] : undefined
+  },
+
+  boundCodeSystem(type: string, element: string): string | undefined {
+    const index = findElement(localName(type), element)?.s
+    return index === undefined ? undefined : R4_CODE_SYSTEMS[index]
+  },
+
+  subtypesOf(type: string): readonly string[] | undefined {
+    const name = localName(type)
+    return lookupType(name) ? (subtypeIndex().get(name) ?? []) : undefined
   },
 
   isSubtypeOf(type: string, base: string): boolean {

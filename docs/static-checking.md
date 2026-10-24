@@ -299,10 +299,16 @@ const diagnostics = analyzeExpression('name.givenn', {
 })
 ```
 
+`inputType` may list several types, for an input of one of them: an element on
+any one of them is enough, and a diagnostic names them all, as in
+`Element 'family' is not defined on FHIR.boolean | FHIR.Coding`.
+
 The analyzer checks:
 
 - syntax;
 - unknown elements, functions, types, and environment variables;
+- elements that only a subtype of the input type has, such as `name` on
+  `Bundle.entry.resource`, which needs `ofType()` (`subtype-element`);
 - function arity;
 - singleton requirements on inputs, operands, and arguments;
 - operand, argument, and function-input types;
@@ -344,6 +350,43 @@ intentionally hold arbitrary non-FHIR objects.
 A variable declaration may also set `ordered: false` when the host supplies a
 collection with no defined order; the analyzer then rejects positional
 operations on it. Omitting `ordered` keeps the ordering unknown.
+
+A declaration for `context`, `resource`, or `rootResource` types that variable
+apart from the input, as an `env` value sets it at runtime (see
+[`%context` apart from the input](api.md#context-apart-from-the-input)):
+
+```ts
+analyzeExpression('code | %context.linkId', {
+  model: r4Model,
+  inputType: ['Coding', 'Quantity'],
+  variables: {
+    context: { types: ['FHIR.QuestionnaireResponse.item'], single: true },
+    resource: { types: ['FHIR.QuestionnaireResponse'], single: true },
+  },
+})
+```
+
+### Diagnostic codes
+
+Each diagnostic has a stable `code`. `ANALYZER_DIAGNOSTIC_CODES` lists them and
+`AnalyzerDiagnosticCode` is their type. `DEFINITE_DIAGNOSTIC_CODES` holds the
+codes of errors that are wrong whatever the data: `syntax`, `unknown-element`,
+`unknown-function`, `unknown-variable`, `unknown-type`, `wrong-arity`,
+`variable-override`, `variable-redefined`, and `invalid-value`. The part of the expression they mark throws whenever it runs,
+or is always empty. Every other error depends on the data: `singleton-required`
+holds when the collection may have more than one item; `operand-type`,
+`input-type`, and `invalid-argument` throw only when the values they read are
+present; and a `datatype-root` such as `HumanName.family` matches typed input,
+though not JSON. A host that refuses only expressions that cannot work on any data
+filters on both:
+
+```ts
+const blocking = analyzeExpression(expression, options).filter(
+  diagnostic => diagnostic.severity === 'error' && DEFINITE_DIAGNOSTIC_CODES.has(diagnostic.code)
+)
+```
+
+Strict evaluation refuses every error, definite or not.
 
 `analyzeDto()` checks one DTO against the engine it was defined on, or against
 explicit analyzer options. `analyzeEngineDtos()` checks all DTOs registered on an

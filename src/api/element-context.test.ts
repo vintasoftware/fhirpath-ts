@@ -138,6 +138,70 @@ describe('typed values as evaluation input', () => {
   })
 })
 
+describe('typed values in env', () => {
+  const searchset = r4.toTyped(
+    { resourceType: 'Bundle', type: 'searchset', entry: [{ resource: { resourceType: 'Medication', id: 'm1' } }] },
+    'Bundle'
+  )
+
+  it('bind %context apart from the input, where $this and relative paths start', () => {
+    const [first, second] = groups()
+    const [mood] = r4.evaluateTyped('item', [second!])
+    const options = { env: { context: [first!] } }
+    expect(r4.evaluate('$this.answer.value.code', [mood!], options)).toEqual(['high'])
+    expect(r4.evaluate('%context.item.answer.value.code', [mood!], options)).toEqual(['low', 'high'])
+    expect(r4.evaluate('%resource.status', [mood!], options)).toEqual(['completed'])
+  })
+
+  it('keep their FHIR types and ancestry', () => {
+    const root = r4.toTyped(response, 'QuestionnaireResponse')
+    const [first] = r4.evaluateTyped("item.where(linkId = 'group')", root)
+    const options = { env: { group: first } }
+    expect(r4.evaluate('%group.item.answer.value.code', response, options)).toEqual(['low', 'high'])
+    // pathname() gives paths inside the input's resource, which a JSON input is not.
+    expect(r4.evaluate('%group.item.answer.first().pathname()', root, options)).toEqual([
+      'QuestionnaireResponse.item[0].item[0].answer[0]',
+    ])
+    expect(r4.evaluate('%group.item.answer.first().pathname()', response, options)).toEqual([])
+    // The same JSON is untyped, so its choice elements do not resolve.
+    expect(r4.evaluate('%group.item.answer.value', response, { env: { group: response.item[0] } })).toEqual([])
+  })
+
+  it('set %resource and %rootResource for a focus outside the resource', () => {
+    const [first] = groups()
+    const resource = r4.toTyped(response, 'QuestionnaireResponse')
+    const env = { context: [first!], resource, rootResource: resource }
+    expect(r4.evaluate('entry.resource.id', searchset, { env })).toEqual(['m1'])
+    expect(r4.evaluate('%resource.status', searchset, { env })).toEqual(['completed'])
+    expect(r4.evaluate('%context.linkId', searchset, { env })).toEqual(['group'])
+    expect(r4.evaluate('%resource.type', searchset)).toEqual(['searchset'])
+  })
+
+  it('set %resource for a copy of an item that is not inside the resource', () => {
+    const [mood] = r4.evaluate("item.item.where(linkId = 'mood')", response) as { answer: unknown[] }[]
+    const copy = r4.toTyped({ ...mood, answer: mood!.answer.slice(1) }, 'QuestionnaireResponse.item')
+    const env = { resource: response, rootResource: response }
+    expect(r4.evaluate('answer.value.code', copy, { env })).toEqual(['high'])
+    expect(r4.evaluate('%resource.status', copy, { env })).toEqual(['completed'])
+  })
+
+  it('refuse an array that mixes typed values and JSON', () => {
+    const [first] = groups()
+    expect(() => r4.evaluate('%group', response, { env: { group: [first!, { linkId: 'json' }] } })).toThrow(
+      'The env value %group mixes typed values and JSON'
+    )
+  })
+
+  it('type %context, %resource, and their own names under strict evaluation', () => {
+    const [first] = groups()
+    const options = { env: { context: [first!], group: first }, strict: true }
+    expect(r4.evaluate('%context.linkId | %group.linkId', searchset, options)).toEqual(['group'])
+    expect(() => r4.evaluate('%context.lnkId', searchset, options)).toThrow('Strict evaluation failed')
+    expect(() => r4.evaluate('%group.lnkId', searchset, options)).toThrow('Strict evaluation failed')
+    expect(() => r4.evaluate('entry.resorce', searchset, options)).toThrow('Strict evaluation failed')
+  })
+})
+
 describe('a declared root with typed input', () => {
   const answers = compile('item.answer.value', 'QuestionnaireResponse.item')
 

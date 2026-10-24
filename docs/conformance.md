@@ -132,6 +132,12 @@ qualifiers; the official R4 and R5 suites use the `-key` form. With a qualifier,
 
 ## Property and differential tests
 
+The dated [SDC readiness assessment](sdc-readiness.md) validates this engine
+with Smart Forms on Medplum: live terminology and references, the renderer in a
+browser, and Smart Forms' own tests, each against fhirpath.js. Its harnesses stay
+outside the repository; the offline probes run with
+`pnpm exec vitest run dogfood/sdc`.
+
 Generated tests cover behavior that a fixed example list may miss:
 
 - parser and printer round trips over generated ASTs;
