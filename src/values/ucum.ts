@@ -19,7 +19,7 @@ interface UnitAtom {
   dimension: Dimension
   /** Factor to the base unit of the dimension, as an exact decimal string. */
   factor: string
-  /** Prefixable per UCUM metadata (its metric flag); bracketed and derived units are not. */
+  /** Prefixable per UCUM metadata (its metric flag); bracketed units are not. */
   prefixable: boolean
   /**
    * A UCUM special unit. An `offset` unit converts as base = (value + offset) ×
@@ -80,15 +80,15 @@ const ATOMS: Readonly<Record<string, UnitAtom>> = {
 
 /**
  * Units UCUM defines from other units, as its table writes them: the value and
- * the unit it is measured in. Each reduces through `canonicalizeUnit`, so a
- * definition may name another derived unit. These are the force and pressure
- * units that blood-pressure conversions need.
+ * the unit it is measured in. These are the force and pressure units that
+ * blood-pressure conversions need. All are metric, so they take prefixes. Each
+ * reduces once, in table order, so a definition may name an earlier entry.
  */
-const DERIVED: Readonly<Record<string, { factor: string; unit: string; prefixable: boolean }>> = {
-  N: { factor: '1', unit: 'kg.m/s2', prefixable: true },
-  Pa: { factor: '1', unit: 'N/m2', prefixable: true },
+const DERIVED: Readonly<Record<string, { factor: string; unit: string }>> = {
+  N: { factor: '1', unit: 'kg.m/s2' },
+  Pa: { factor: '1', unit: 'N/m2' },
   // UCUM defines the meter of mercury column as 133.3220 kPa.
-  'm[Hg]': { factor: '133.322', unit: 'kPa', prefixable: true },
+  'm[Hg]': { factor: '133.322', unit: 'kPa' },
 }
 
 /** Units that are volumes even though their atom row reduces through meters. */
@@ -135,8 +135,29 @@ const MAX_EXPONENT_MAGNITUDE = 9
 /** One unit term reduced to base dimensions, before its exponent is applied. */
 interface ResolvedUnit {
   factor: Decimal
-  dimensions: Record<string, number>
+  dimensions: Readonly<Record<string, number>>
   special?: UnitAtom['special']
+}
+
+/** Every unit symbol reduced to base dimensions, and whether it takes a prefix. */
+const UNITS = new Map<string, ResolvedUnit & { prefixable: boolean }>()
+for (const [key, atom] of Object.entries(ATOMS)) {
+  const exponent = VOLUME_ATOMS.has(key) ? 3 : 1
+  UNITS.set(key, {
+    factor: Decimal.fromString(atom.factor) as Decimal,
+    dimensions: atom.dimension === '1' ? {} : { [atom.dimension]: exponent },
+    prefixable: atom.prefixable,
+    ...(atom.special !== undefined && { special: atom.special }),
+  })
+}
+for (const [key, { factor, unit }] of Object.entries(DERIVED)) {
+  // Every definition reduces; a table error fails here, when the module loads.
+  const definition = canonicalizeUnit(unit) as CanonicalUnit
+  UNITS.set(key, {
+    factor: definition.factor.multiply(Decimal.fromString(factor) as Decimal),
+    dimensions: definition.dimensions,
+    prefixable: true,
+  })
 }
 
 /** One term optionally followed by an integer exponent, e.g. `m2`, `cm3`, or `kPa`. */
@@ -164,61 +185,22 @@ function parseComponent(text: string): ResolvedUnit | undefined {
   return { factor: powDecimal(resolved.factor, exponent), dimensions: scaled(resolved.dimensions, exponent) }
 }
 
+/** A unit symbol, optionally after a prefix its unit takes. */
 function resolveUnit(text: string): ResolvedUnit | undefined {
-  const atom = resolveAtom(text)
-  if (atom) {
-    const exponent = VOLUME_ATOMS.has(atom.atomKey) ? 3 : 1
-    const dimensions = atom.atom.dimension === '1' ? {} : { [atom.atom.dimension]: exponent }
-    return atom.atom.special === undefined
-      ? { factor: atom.factor, dimensions }
-      : { factor: atom.factor, dimensions, special: atom.atom.special }
-  }
-  return resolveDerived(text)
-}
-
-function resolveAtom(text: string): { atom: UnitAtom; atomKey: string; factor: Decimal } | undefined {
-  const direct = ATOMS[text]
+  const direct = UNITS.get(text)
   if (direct) {
-    return { atom: direct, atomKey: text, factor: Decimal.fromString(direct.factor) as Decimal }
+    return direct
   }
   for (const [prefix, prefixFactor] of Object.entries(PREFIXES)) {
-    if (text.startsWith(prefix)) {
-      const rest = text.slice(prefix.length)
-      const atom = ATOMS[rest]
-      if (atom?.prefixable) {
-        const factor = (Decimal.fromString(atom.factor) as Decimal).multiply(
-          Decimal.fromString(prefixFactor) as Decimal
-        )
-        return { atom, atomKey: rest, factor }
-      }
+    const unit = text.startsWith(prefix) ? UNITS.get(text.slice(prefix.length)) : undefined
+    if (unit?.prefixable) {
+      return { ...unit, factor: unit.factor.multiply(Decimal.fromString(prefixFactor) as Decimal) }
     }
   }
   return undefined
 }
 
-/** A derived unit, prefixed or not, reduced through its defining expression. */
-function resolveDerived(text: string): ResolvedUnit | undefined {
-  const candidates: [string, string][] = [[text, '1']]
-  for (const [prefix, prefixFactor] of Object.entries(PREFIXES)) {
-    if (text.startsWith(prefix)) candidates.push([text.slice(prefix.length), prefixFactor])
-  }
-  for (const [key, prefixFactor] of candidates) {
-    const derived = DERIVED[key]
-    if (derived === undefined || (prefixFactor !== '1' && !derived.prefixable)) continue
-    const definition = canonicalizeUnit(derived.unit)
-    /* v8 ignore next 3 -- every definition in DERIVED reduces */
-    if (definition === undefined) {
-      return undefined
-    }
-    const factor = (Decimal.fromString(derived.factor) as Decimal)
-      .multiply(Decimal.fromString(prefixFactor) as Decimal)
-      .multiply(definition.factor)
-    return { factor, dimensions: { ...definition.dimensions } }
-  }
-  return undefined
-}
-
-function scaled(dimensions: Record<string, number>, exponent: number): Record<string, number> {
+function scaled(dimensions: Readonly<Record<string, number>>, exponent: number): Record<string, number> {
   return Object.fromEntries(Object.entries(dimensions).map(([dimension, power]) => [dimension, power * exponent]))
 }
 

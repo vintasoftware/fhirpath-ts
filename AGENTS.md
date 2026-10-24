@@ -318,8 +318,9 @@ no side effects so the `fhirpath-ts/medplum` entry can import it. Scoring
 errors name the CodeSystem, ValueSet, or element, never the code or version
 being scored ([Error messages](#error-messages)).
 
-A sync evaluation that needs a host service throws
-`FhirPathAsyncRequiredError`. That class is the contract fhirpath.js-style
+A sync evaluation that needs a terminology service throws
+`FhirPathAsyncRequiredError`; a sync `resolve()` of an external reference
+returns empty, so the Smart Forms adapter checks for `resolve()` itself. That class is the contract fhirpath.js-style
 hosts use to retry asynchronously; keep every "needs evaluateAsync()" site on
 `missingTerminology` in `src/engine/context.ts`, which throws it only for a
 sync evaluation, and never retry inside the engine.
@@ -332,9 +333,10 @@ core never imports a Medplum package. Typed results are recognized by
 identity, never by shape. The adapter's services answer each terminology
 request once (`cachedTerminology`) and send a failed one again: Smart Forms
 re-runs every calculated expression on each answer change and awaits them in
-turn, so without it each change repeats the requests. The core provider caches
-only CodeSystem searches, because a long-lived server process must see
-terminology updates.
+turn, so without it each change repeats the requests. The core provider
+caches only CodeSystem searches, for its own lifetime; a server that must see
+terminology edits creates a provider per request or session, and answer
+caching stays with the host that knows its session.
 
 ## Error messages
 

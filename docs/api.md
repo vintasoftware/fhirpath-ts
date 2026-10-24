@@ -150,7 +150,9 @@ versions fail the call. `fhirClient(baseUrl, headers)`
 is the same client shape over plain `fetch`, for a terminology server without
 a Medplum session. A failure whose body is an OperationOutcome with only
 `not-found` or `invalid` issues is an answer the server cannot give; any other
-failure is an error.
+failure is an error. Medplum also answers a request it cannot parse with
+`invalid`, so a malformed request looks like an unknown value set: `memberOf()`,
+`subsumes()`, and `translate()` return empty, while `weight()` reports an error.
 
 ```ts
 import { evaluateAsync } from 'fhirpath-ts'
@@ -174,17 +176,23 @@ property. It selects the version as `weight()` does for contained CodeSystems,
 using the Coding's version or else the one `$lookup` answered with, and a
 malformed weight or a conflict between versions is an error. A concept found
 without a weight is empty; a code system or concept the server does not have is
-an error. A failed read is retried on the next lookup. The engine reads
-contained CodeSystems before it asks the provider. The provider's request
-shapes are the ones `pnpm record:tx:medplum` records against a live Medplum
-server; the extension fallback is covered by unit tests with a stand-in client.
+an error. The provider reads each system's CodeSystem resources once and keeps
+them for its lifetime, so a provider sees later edits only when the host
+creates a new one, for example per request or session; a failed read is not
+kept and is retried on the next lookup. The engine reads contained
+CodeSystems before it asks the provider. `pnpm record:tx:medplum` records the
+provider against a live Medplum server, and
+[SDC readiness](sdc-readiness.md) reports the live validation, the extension
+fallback included.
 
-A synchronous evaluation that reaches a service throws
+A synchronous evaluation that needs a terminology service throws
 `FhirPathAsyncRequiredError`, a `FhirPathRuntimeError`. A host that offers
 both modes, as fhirpath.js's `async: true` option does, catches it and
 evaluates again with `evaluateAsync()`. An asynchronous evaluation without
 `options.terminology` throws a plain `FhirPathRuntimeError`, since a retry
-cannot help.
+cannot help. A synchronous `resolve()` of an external reference returns empty
+rather than throwing, so a host with a resolver chooses `evaluateAsync()`
+before evaluating an expression that calls `resolve()`.
 
 ### External references
 
@@ -1356,9 +1364,11 @@ throw their own errors; the engine does not swallow them. Use
 [static checking](static-checking.md) to catch wrong paths and other expression
 errors before runtime.
 
-Engine error messages name types, functions, variables, elements, and text from
-the expression, never a value read from the data, so an application can log or
-show them. Errors from callbacks and terminology services, such as an
+Engine error messages name types, functions, variables, elements, counts, text
+from the expression, and form identifiers such as a CodeSystem, ValueSet, or
+profile URL and a linkId. They never repeat another value read from the data,
+such as a code, a version, a string, or a free-text unit, so an application can
+log or show them. Errors from callbacks and terminology services, such as an
 OperationOutcome a server returns, pass through unchanged and carry whatever
 their source put in them.
 
