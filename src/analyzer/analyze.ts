@@ -659,13 +659,13 @@ class Analyzer {
         matchingTypes = input.types.filter(type => rootTypeMatches(this.model, type, node.name))
       }
       if (asType !== undefined && matchingTypes.length > 0) {
-        // The runtime matches a type name against the raw input only through the
-        // resourceType discriminator (values/typed-value.ts), so a non-resource
-        // name never matches there and the whole path navigates to empty.
+        // JSON input has a type only through its resourceType (values/typed-value.ts),
+        // so a non-resource name never matches it and the whole path navigates to
+        // empty. Typed input of that type matches.
         if (input.rawInput === true && !asType.startsWith('System.') && !this.isResourceType(asType)) {
           this.report(
             'datatype-root',
-            `'${node.name}' is not a resource type, and a type-name root matches only a resource's resourceType, so this always evaluates to empty — navigate from the input with a relative path`,
+            `'${node.name}' is not a resource type, and a type-name root matches JSON input only by its resourceType, so this is empty on JSON input — navigate from the input with a relative path`,
             node.span
           )
         }

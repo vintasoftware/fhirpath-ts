@@ -262,6 +262,9 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ### Fixed
 
+- The analyzer's `datatype-root` message said a path such as
+  `HumanName.family` always evaluates to empty. It is empty on JSON input
+  only; typed `HumanName` input matches it.
 - Type inference typed `%context`, `%resource`, and `%rootResource` from the
   input when `env` replaced them, so `%context.name` on a Patient input with a
   Questionnaire in `env.context` inferred `HumanName[]`. It now types them from

@@ -494,11 +494,11 @@ describe('coverage completion', () => {
 describe('type-name roots on non-resource inputs', () => {
   const datatype = { model: r4Model, inputType: 'CodeableConcept' }
 
-  it('flags a root naming the datatype input, which the runtime navigates to empty', () => {
+  it('flags a root naming the datatype input, which the runtime navigates to empty on JSON', () => {
     const diagnostics = analyzeExpression('CodeableConcept.text', datatype)
     expect(diagnostics.map(d => [d.severity, d.code])).toEqual([['error', 'datatype-root']])
     expect(diagnostics[0]?.message).toBe(
-      "'CodeableConcept' is not a resource type, and a type-name root matches only a resource's resourceType, so this always evaluates to empty — navigate from the input with a relative path"
+      "'CodeableConcept' is not a resource type, and a type-name root matches JSON input only by its resourceType, so this is empty on JSON input — navigate from the input with a relative path"
     )
   })
 
