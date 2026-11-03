@@ -24,5 +24,5 @@ export {
 export {
   ANALYZER_DIAGNOSTIC_CODES,
   type AnalyzerDiagnosticCode,
-  DEFINITE_DIAGNOSTIC_CODES,
+  DATA_INDEPENDENT_ERROR_CODES,
 } from './diagnostic-codes.ts'

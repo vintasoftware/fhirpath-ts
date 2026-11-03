@@ -369,7 +369,7 @@ analyzeExpression('code | %context.linkId', {
 ### Diagnostic codes
 
 Each diagnostic has a stable `code`. `ANALYZER_DIAGNOSTIC_CODES` lists them and
-`AnalyzerDiagnosticCode` is their type. `DEFINITE_DIAGNOSTIC_CODES` holds the
+`AnalyzerDiagnosticCode` is their type. `DATA_INDEPENDENT_ERROR_CODES` holds the
 codes of errors that are wrong whatever the data: `syntax`, `unknown-element`,
 `unknown-function`, `unknown-variable`, `unknown-type`, `wrong-arity`,
 `variable-override`, `variable-redefined`, and `invalid-value`. The part of the expression they mark throws whenever it runs,
@@ -382,11 +382,11 @@ filters on both:
 
 ```ts
 const blocking = analyzeExpression(expression, options).filter(
-  diagnostic => diagnostic.severity === 'error' && DEFINITE_DIAGNOSTIC_CODES.has(diagnostic.code)
+  diagnostic => diagnostic.severity === 'error' && DATA_INDEPENDENT_ERROR_CODES.has(diagnostic.code)
 )
 ```
 
-Strict evaluation refuses every error, definite or not.
+Strict evaluation refuses every error, data-independent or not.
 
 `analyzeDto()` checks one DTO against the engine it was defined on, or against
 explicit analyzer options. `analyzeEngineDtos()` checks all DTOs registered on an

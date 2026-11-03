@@ -705,7 +705,7 @@ class Analyzer {
     if (found.length === 0) {
       const subtypes = this.subtypesWithElement(input.types, node.name)
       if (subtypes.length > 0) {
-        // The data may hold such a subtype, as a Bundle entry holds a Patient, so this is not definite.
+        // The data may hold such a subtype, as a Bundle entry holds a Patient, so this error depends on the data.
         this.report(
           'subtype-element',
           `Element '${node.name}' is not defined on ${input.types.join(' | ')}, only on subtypes such as ${subtypes.slice(0, 3).join(', ')}; select one with ofType()`,

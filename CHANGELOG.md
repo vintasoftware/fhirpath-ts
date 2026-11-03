@@ -114,7 +114,7 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   - The analyzer's `inputType` takes several types, for an input of one of
     them: an element on any one of them is enough.
   - `fhirpath-ts/analyzer` exports `ANALYZER_DIAGNOSTIC_CODES`, the
-    `AnalyzerDiagnosticCode` type, and `DEFINITE_DIAGNOSTIC_CODES`: the codes
+    `AnalyzerDiagnosticCode` type, and `DATA_INDEPENDENT_ERROR_CODES`: the codes
     of errors that are wrong whatever the data, such as an unknown element or
     a wrong argument count, for a host that refuses only expressions that
     cannot work on any data; see

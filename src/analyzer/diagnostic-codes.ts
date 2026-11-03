@@ -38,7 +38,7 @@ export type AnalyzerDiagnosticCode = (typeof ANALYZER_DIAGNOSTIC_CODES)[number]
  * collection that may hold one item, an operand that may be empty, or a
  * datatype root that typed input matches.
  */
-export const DEFINITE_DIAGNOSTIC_CODES: ReadonlySet<AnalyzerDiagnosticCode> = new Set([
+export const DATA_INDEPENDENT_ERROR_CODES: ReadonlySet<AnalyzerDiagnosticCode> = new Set([
   'syntax',
   'unknown-element',
   'unknown-function',

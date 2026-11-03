@@ -93,8 +93,8 @@ _Avoid_: installing, mounting, extending the engine
 
 ### Checking expressions
 
-**Definite diagnostic**:
+**Data-independent error**:
 A static error that is wrong whatever the data: the part of the expression it
 marks throws whenever it runs, or is always empty, such as an unknown element
 or a wrong argument count. Other errors depend on the data the expression reads.
-_Avoid_: blocking, fatal, certain error
+_Avoid_: definite diagnostic, blocking, fatal, certain error
