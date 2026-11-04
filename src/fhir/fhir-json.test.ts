@@ -233,11 +233,17 @@ describe('toFhirJson()', () => {
       )
     })
 
-    it('writes a resource to a Resource element, and any value to Element', () => {
+    it('writes a resource to the resource types it derives from, and an element to Element', () => {
       const medication = { resourceType: 'Medication', id: 'm1' }
       expect(accepted(fhir('Medication', medication), 'Resource')).toStrictEqual(medication)
       expect(accepted(fhir('Medication', medication), 'DomainResource')).toStrictEqual(medication)
       expect(accepted(fhir('HumanName', { family: 'x' }), 'Element')).toStrictEqual({ family: 'x' })
+      expect(refusal(fhir('Bundle', { resourceType: 'Bundle' }), 'DomainResource')).toBe(
+        'A FHIR.Bundle value cannot be written to an element of type DomainResource'
+      )
+      expect(refusal(fhir('Medication', medication), 'Element')).toBe(
+        'A FHIR.Medication value cannot be written to an element of type Element'
+      )
     })
 
     it('writes a backbone element to the same backbone element', () => {

@@ -5,11 +5,13 @@ import { Decimal } from '../values/decimal.ts'
 import { isFhirQuantityType, toFhirQuantity } from '../values/quantity.ts'
 import {
   FHIR_PRIMITIVE_TO_SYSTEM,
+  PRIMITIVE_FOR_SYSTEM,
   type QuantityValue,
   SYSTEM_QUANTITY,
   systemTypeOf,
   type TypedValue,
 } from '../values/typed-value.ts'
+import { isFhirPrimitiveType } from './model-navigation.ts'
 
 /** The FHIR element a JSON property of a value is. */
 export interface JsonElement {
@@ -26,25 +28,10 @@ export interface JsonElement {
   isPrimitive: boolean
 }
 
-/** The FHIR primitive a System type stands for where the model types an element with one (`Resource.id`). */
-const SYSTEM_TO_FHIR: Readonly<Record<string, string>> = {
-  'System.String': 'string',
-  'System.Boolean': 'boolean',
-  'System.Integer': 'integer',
-  'System.Decimal': 'decimal',
-  'System.Date': 'date',
-  'System.DateTime': 'dateTime',
-  'System.Time': 'time',
-}
-
 /** A type as a local FHIR name: the namespace dropped, and a System type as its FHIR primitive. */
 function fhirLocalName(model: ModelProvider, type: string): string {
   const prefix = `${model.namespace}.`
-  return type.startsWith(prefix) ? type.slice(prefix.length) : (SYSTEM_TO_FHIR[type] ?? type)
-}
-
-function isPrimitiveName(name: string): boolean {
-  return Object.hasOwn(FHIR_PRIMITIVE_TO_SYSTEM, name)
+  return type.startsWith(prefix) ? type.slice(prefix.length) : (PRIMITIVE_FOR_SYSTEM[type] ?? type)
 }
 
 /**
@@ -96,7 +83,7 @@ export function jsonElement(model: ModelProvider, type: string, key: string): Js
 
 function element(model: ModelProvider, key: string, type: string, isCollection: boolean): JsonElement {
   const local = fhirLocalName(model, type)
-  return { key, type: local, isCollection, isPrimitive: isPrimitiveName(local) }
+  return { key, type: local, isCollection, isPrimitive: isFhirPrimitiveType(local) }
 }
 
 function capitalized(type: string): string {
@@ -122,21 +109,11 @@ export function matchesValuePattern(model: ModelProvider, primitive: string, tex
   return regex.test(text)
 }
 
-const STRING_TYPES = new Set([
-  'string',
-  'markdown',
-  'xhtml',
-  'code',
-  'id',
-  'uri',
-  'url',
-  'canonical',
-  'oid',
-  'uuid',
-  'base64Binary',
-])
-const TEMPORAL_TYPES = new Set(['date', 'dateTime', 'instant', 'time'])
-const INTEGER_TYPES = new Set(['integer', 'unsignedInt', 'positiveInt'])
+/** True for a FHIR primitive that behaves as System.Date, System.DateTime, or System.Time. */
+function isTemporal(primitive: string): boolean {
+  const system = FHIR_PRIMITIVE_TO_SYSTEM[primitive]
+  return system === 'System.Date' || system === 'System.DateTime' || system === 'System.Time'
+}
 
 /**
  * A typed value as the FHIR JSON of an element of type `target`, such as
@@ -144,15 +121,16 @@ const INTEGER_TYPES = new Set(['integer', 'unsignedInt', 'positiveInt'])
  * or temporal element when it has that type's format; a date, date-time, or
  * time fills a temporal element, `string`, or `markdown` in the same case; a
  * number fills `decimal`, or an integer type within its range; a FHIR value
- * fills its own type, a supertype, `Element`, and a resource also `Resource`
- * and `DomainResource`; a FHIRPath Quantity fills `Quantity` and its profiles
+ * fills its own type or a supertype; a FHIRPath Quantity fills `Quantity` and its profiles
  * with a UCUM code. A complex value is copied, so the result shares nothing
  * with the data. A primitive's `id` and extensions are not carried. Throws a
  * FhirPathTypeError that names the types, never the value.
  */
 export function toFhirJson(model: ModelProvider, value: TypedValue, target: string): unknown {
   const targetType = fhirLocalName(model, target)
-  return isPrimitiveName(targetType) ? primitiveJson(model, value, targetType) : complexJson(model, value, targetType)
+  return isFhirPrimitiveType(targetType)
+    ? primitiveJson(model, value, targetType)
+    : complexJson(model, value, targetType)
 }
 
 function primitiveJson(model: ModelProvider, value: TypedValue, target: string): unknown {
@@ -160,7 +138,7 @@ function primitiveJson(model: ModelProvider, value: TypedValue, target: string):
   const raw = value.value
   switch (source) {
     case 'System.String':
-      if (STRING_TYPES.has(target) || TEMPORAL_TYPES.has(target)) {
+      if (FHIR_PRIMITIVE_TO_SYSTEM[target] === 'System.String' || isTemporal(target)) {
         return formatted(model, String(raw), target)
       }
       break
@@ -176,7 +154,7 @@ function primitiveJson(model: ModelProvider, value: TypedValue, target: string):
     case 'System.Date':
     case 'System.DateTime':
     case 'System.Time':
-      if (TEMPORAL_TYPES.has(target) || target === 'string' || target === 'markdown') {
+      if (isTemporal(target) || target === 'string' || target === 'markdown') {
         return formatted(model, raw instanceof Temporal ? raw.toString() : String(raw), target)
       }
       break
@@ -192,7 +170,7 @@ function numberJson(raw: unknown, source: string, target: string): number {
   if (target === 'decimal') {
     return number
   }
-  if (!INTEGER_TYPES.has(target)) {
+  if (FHIR_PRIMITIVE_TO_SYSTEM[target] !== 'System.Integer') {
     throw new FhirPathTypeError(`A ${source} value cannot be written as ${target}`)
   }
   if (!Number.isSafeInteger(number) || number > 2147483647 || number < -2147483648) {
@@ -205,7 +183,7 @@ function numberJson(raw: unknown, source: string, target: string): number {
 }
 
 function formatted(model: ModelProvider, text: string, target: string): string {
-  if (!matchesValuePattern(model, target, text) || (TEMPORAL_TYPES.has(target) && !isCalendarDay(text))) {
+  if (!matchesValuePattern(model, target, text) || (isTemporal(target) && !isCalendarDay(text))) {
     throw new FhirPathTypeError(`The value does not have the format of a FHIR ${target}`)
   }
   return text
@@ -228,15 +206,10 @@ function complexJson(model: ModelProvider, value: TypedValue, target: string): u
     return toFhirQuantity(value.value as QuantityValue)
   }
   const prefix = `${model.namespace}.`
-  if (!value.type.startsWith(prefix) || isPrimitiveName(value.type.slice(prefix.length))) {
+  if (!value.type.startsWith(prefix) || isFhirPrimitiveType(value.type.slice(prefix.length))) {
     throw refused(value, target)
   }
-  const fits =
-    value.type.slice(prefix.length) === target ||
-    target === 'Element' ||
-    ((target === 'Resource' || target === 'DomainResource') && isResourceJson(value.value)) ||
-    model.isSubtypeOf(value.type, model.resolveType(target) ?? `${prefix}${target}`)
-  if (!fits) {
+  if (!model.isSubtypeOf(value.type, model.resolveType(target) ?? `${prefix}${target}`)) {
     throw refused(value, target)
   }
   return copyJson(value.value)
@@ -255,12 +228,4 @@ function copyJson(value: unknown): unknown {
 
 function refused(value: TypedValue, target: string): FhirPathTypeError {
   return new FhirPathTypeError(`A ${value.type} value cannot be written to an element of type ${target}`)
-}
-
-function isResourceJson(value: unknown): boolean {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as { resourceType?: unknown }).resourceType === 'string'
-  )
 }

@@ -10,6 +10,7 @@ import { isFhirQuantityType, toFhirQuantity } from '../values/quantity.ts'
 import {
   FHIR_PRIMITIVE_TO_SYSTEM,
   OBJECT_TYPE,
+  PRIMITIVE_FOR_SYSTEM,
   type QuantityValue,
   SYSTEM_BOOLEAN,
   SYSTEM_DATE,
@@ -118,18 +119,6 @@ export function selectorElement(model: ModelProvider, type: string, name: string
       ? FHIR_PRIMITIVE_TO_SYSTEM[typeLocalName(type)]
       : undefined
   return system === undefined || info === undefined ? info : { ...info, types: [system] }
-}
-
-/** The FHIR primitive named after each System type: a System.String fills a `string` choice. */
-const PRIMITIVE_FOR_SYSTEM: Readonly<Record<string, string>> = {
-  'System.Boolean': 'boolean',
-  'System.String': 'string',
-  'System.Integer': 'integer',
-  'System.Long': 'integer64',
-  'System.Decimal': 'decimal',
-  'System.Date': 'date',
-  'System.DateTime': 'dateTime',
-  'System.Time': 'time',
 }
 
 /** Implicit conversions (spec "Conversion") a value may take to fit an element. */

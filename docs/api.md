@@ -709,9 +709,8 @@ The value must fit the element:
 - A FHIRPath Quantity fills `Quantity` and its profiles (`Age`, `Duration`, and
   so on) as a UCUM Quantity; a calendar duration takes its UCUM code, `a` for
   `year`.
-- A FHIR value fills its own type, a supertype, and `Element`; a resource also
-  fills `Resource` and `DomainResource`. It is copied, so the result shares
-  nothing with the data.
+- A FHIR value fills its own type or a supertype. It is copied, so the result
+  shares nothing with the data.
 
 A value that does not fit throws a `FhirPathTypeError` naming the types, never
 the value. A primitive's `id` and extensions are not carried; write its `_name`
