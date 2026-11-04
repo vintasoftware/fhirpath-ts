@@ -10,6 +10,7 @@ import {
   selectorElement,
   valuePatternMessage,
 } from '../engine/instance-selector.ts'
+import { typeMatches } from '../engine/type-matching.ts'
 import { FhirPathSyntaxError, type SourceSpan } from '../errors.ts'
 import { choiceElementOfKey } from '../fhir/fhir-json.ts'
 import { compileDateFormat } from '../functions/date-format.ts'
@@ -406,7 +407,8 @@ class Analyzer {
   private readonly model: ModelProvider | undefined
   private readonly root: AnalyzerRoot
   private readonly runtime: boolean
-  private readonly frames: StaticState[] = []
+  /** The focus `$this` reads, innermost last; the root focus is always the first. */
+  private readonly frames: StaticState[]
   /** Depths of `frames` entries pushed for a sort() key, where `$index` is undefined. */
   private readonly sortKeyFrames = new Set<number>()
   /** Every declaration of each host-supplied name; one entry unless the name is overloaded. */
@@ -420,8 +422,8 @@ class Analyzer {
   private readonly rootFocus: StaticState
   private readonly focusTypeRules: FocusTypeRules = {
     resolve: parts => this.resolveTypeName(parts).type,
-    keep: (types, type) => this.survivingTypes(types, type),
-    drop: (types, type) => types.filter(candidate => !this.isTypeCompatible(candidate, type)),
+    passes: (type, parts) => typeMatches(this.model, type, parts, 'is', () => false),
+    isSubtypeOf: (type, base) => this.model?.isSubtypeOf(type, base) === true,
   }
 
   constructor(options: AnalyzeOptions | RuntimeAnalyzeOptions | undefined, root: AnalyzerRoot | undefined) {
@@ -456,6 +458,7 @@ class Analyzer {
       rawInput: true,
       ...(this.root.exactTypes !== undefined && { exactTypes: this.root.exactTypes }),
     }
+    this.frames = [this.rootFocus]
   }
 
   rootState(): StaticState {
@@ -464,7 +467,7 @@ class Analyzer {
 
   /** `$this`: the item a lambda runs on, or the root. */
   private focusState(): StaticState {
-    return this.frames.at(-1) ?? this.rootFocus
+    return this.frames.at(-1) as StaticState
   }
 
   /**
@@ -1429,33 +1432,26 @@ class Analyzer {
     condition: AstNode,
     outcome: boolean
   ): StaticState {
-    const types =
+    const narrowed =
       input === this.focusState() && input.types !== undefined
-        ? narrowFocus(condition, outcome, input.types, this.focusTypeRules)
+        ? narrowFocus(
+            condition,
+            outcome,
+            { types: input.types, ...(input.exactTypes !== undefined && { exactTypes: input.exactTypes }) },
+            this.focusTypeRules
+          )
         : undefined
-    if (types === undefined) {
+    if (narrowed === undefined) {
       return this.walk(node, input, scope)
     }
-    const exactTypes =
-      input.exactTypes === undefined
-        ? undefined
-        : (narrowFocus(condition, outcome, input.exactTypes, this.focusTypeRules) ?? input.exactTypes)
-    const narrowed: StaticState = { ...input, types, ...(exactTypes !== undefined && { exactTypes }) }
+    const focus: StaticState = { ...input, ...narrowed }
     // Replace the focus frame rather than add one: frame depth marks sort() keys.
-    const depth = this.frames.length
-    if (depth === 0) {
-      this.frames.push(narrowed)
-    } else {
-      this.frames[depth - 1] = narrowed
-    }
+    const depth = this.frames.length - 1
+    this.frames[depth] = focus
     try {
-      return this.walk(node, narrowed, scope)
+      return this.walk(node, focus, scope)
     } finally {
-      if (depth === 0) {
-        this.frames.pop()
-      } else {
-        this.frames[depth - 1] = input
-      }
+      this.frames[depth] = input
     }
   }
 

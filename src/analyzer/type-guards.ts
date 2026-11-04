@@ -14,14 +14,21 @@ import type { AstNode, BinaryOperator } from '../parser/ast.ts'
  * on a value, and checks that read the focus types find nothing to report.
  */
 
+/** The focus types a guard narrows. */
+export interface FocusTypes {
+  /** Static candidates: each value has one of these types or a subtype of it. */
+  types: string[]
+  /** The runtime type of each focus item, when strict evaluation knows them. */
+  exactTypes?: string[]
+}
+
 /** The model rules a guard reads, supplied by the analyzer. */
 export interface FocusTypeRules {
   /** The canonical type a type specifier names, or undefined when it names none. */
   resolve(parts: string[]): string | undefined
-  /** The candidates that can be a `type`: subtypes stay, supertypes narrow to `type`. */
-  keep(types: readonly string[], type: string): string[]
-  /** The candidates that can be something other than a `type`. */
-  drop(types: readonly string[], type: string): string[]
+  /** Whether a value of `type` passes `is` against the specifier, by the runtime rule. */
+  passes(type: string, parts: string[]): boolean
+  isSubtypeOf(type: string, base: string): boolean
 }
 
 /** The value of the left operand under which each guarding operator runs its right operand. */
@@ -39,35 +46,58 @@ export const GUARDED_RIGHT_OPERAND: ReadonlyMap<BinaryOperator, boolean> = new M
 export function narrowFocus(
   condition: AstNode,
   outcome: boolean,
-  types: readonly string[],
+  focus: FocusTypes,
   rules: FocusTypeRules
-): string[] | undefined {
+): FocusTypes | undefined {
   const tested = focusTypeTest(condition)
   if (tested !== undefined) {
-    const type = rules.resolve(tested)
-    if (type === undefined) {
-      return undefined
-    }
-    return outcome ? rules.keep(types, type) : rules.drop(types, type)
+    const target = rules.resolve(tested)
+    return target === undefined ? undefined : narrowByTest(focus, tested, target, outcome, rules)
   }
   if (condition.kind === 'dot' && condition.right.kind === 'call' && condition.right.name === 'not') {
-    return condition.right.args.length === 0 ? narrowFocus(condition.left, !outcome, types, rules) : undefined
+    return condition.right.args.length === 0 ? narrowFocus(condition.left, !outcome, focus, rules) : undefined
   }
   if (condition.kind !== 'binary' || (condition.operator !== 'and' && condition.operator !== 'or')) {
     return undefined
   }
   // `A and B` true and `A or B` false hold both sides; the other outcomes hold either side.
   const bothHold = (condition.operator === 'and') === outcome
-  const left = narrowFocus(condition.left, outcome, types, rules)
+  const left = narrowFocus(condition.left, outcome, focus, rules)
   if (bothHold) {
-    const right = narrowFocus(condition.right, outcome, left ?? types, rules)
-    return right ?? left
+    return narrowFocus(condition.right, outcome, left ?? focus, rules) ?? left
   }
-  const right = narrowFocus(condition.right, outcome, types, rules)
+  const right = narrowFocus(condition.right, outcome, focus, rules)
   if (left === undefined || right === undefined) {
     return undefined
   }
-  return [...new Set([...left, ...right])]
+  return {
+    types: [...new Set([...left.types, ...right.types])],
+    ...(focus.exactTypes !== undefined && {
+      exactTypes: focus.exactTypes.filter(type => left.exactTypes?.includes(type) || right.exactTypes?.includes(type)),
+    }),
+  }
+}
+
+/**
+ * The focus types for which `is` against `parts` gives `outcome`. A runtime
+ * type answers by itself. A static candidate that fails the test may still
+ * hold a value of the tested subtype, so a true outcome narrows it to `target`.
+ */
+function narrowByTest(
+  focus: FocusTypes,
+  parts: string[],
+  target: string,
+  outcome: boolean,
+  rules: FocusTypeRules
+): FocusTypes {
+  const passes = (type: string): boolean => rules.passes(type, parts)
+  const types = outcome
+    ? focus.types.flatMap(type => (passes(type) ? [type] : rules.isSubtypeOf(target, type) ? [target] : []))
+    : focus.types.filter(type => !passes(type))
+  return {
+    types: [...new Set(types)],
+    ...(focus.exactTypes !== undefined && { exactTypes: focus.exactTypes.filter(type => passes(type) === outcome) }),
+  }
 }
 
 /** The type specifier a condition tests the focus against, if it is such a test. */

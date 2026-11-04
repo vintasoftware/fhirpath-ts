@@ -641,6 +641,22 @@ describe('type guards', () => {
     expect(codes('$this is Period implies $this.toString().exists()', { model: r4Model })).toEqual([])
   })
 
+  it('tests a type as the runtime is does, so a FHIR string is not a System String', () => {
+    const string = { model: r4Model, inputType: 'string' }
+    expect(codes('iif($this is String, true, ($this + 1) > 0)', string)).toEqual(['operand-type', 'operand-type'])
+    expect(codes('$this is System.String or ($this + 1) > 0', string)).toEqual(['operand-type', 'operand-type'])
+    expect(codes('iif($this is String, ($this + 1) > 0, true)', string)).toEqual([])
+    expect(codes('$this is string or ($this + 1) > 0', string)).toEqual([])
+  })
+
+  it('narrows a supertype to the tested subtype', () => {
+    const bundle = { model: r4Model, inputType: 'Bundle' }
+    expect(codes('entry.resource.where($this is Patient implies $this.birthDate.exists())', bundle)).toEqual([])
+    expect(codes('entry.resource.where($this is Observation implies $this.birthDate.exists())', bundle)).toEqual([
+      'unknown-element',
+    ])
+  })
+
   it('keeps $index undefined in a guarded sort() key', () => {
     expect(codes('Patient.name.sort($this is HumanName and $index > 0)')).toEqual(['unknown-variable'])
   })

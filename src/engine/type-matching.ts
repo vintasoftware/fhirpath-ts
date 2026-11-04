@@ -1,4 +1,5 @@
 import { FhirPathTypeError } from '../errors.ts'
+import type { ModelProvider } from '../model/provider.ts'
 import {
   resolveByInput,
   SYSTEM_TYPE_LOCAL_NAMES,
@@ -19,23 +20,35 @@ function isSystemAmbiguousName(name: string): boolean {
   return SYSTEM_PRIMITIVE_NAMES_LOWER.has(name.toLowerCase())
 }
 
-/**
- * Does an item satisfy a type specifier, for the `is`, `ofType`, or `as` test?
- * Resolution order per spec "Models": the context model's types first, then the
- * System namespace. `is` always walks subtypes; `ofType` and `as` do too, except
- * when the requested name aliases a System primitive, where the official
- * inheritance tests pin an exact match instead (see isSystemAmbiguousName).
- *
- * `as` also casts: a FHIR primitive with a value matches the System type it
- * converts to (FHIR R4 FHIRPath page: `Patient.name.given.as(System.string)` is
- * valid). `is` and `ofType` keep the type identity, so a FHIR string is not a
- * System.String there (testType14).
- */
+/** Does an item satisfy a type specifier, for the `is`, `ofType`, or `as` test? See `typeMatches`. */
 export function itemMatchesType(
   context: EvaluationContext,
   item: TypedValue,
   parts: string[],
   mode: 'is' | 'ofType' | 'as'
+): boolean {
+  return typeMatches(context.model, item.type, parts, mode, systemName => convertsTo(item, systemName))
+}
+
+/**
+ * Does a value of `type` satisfy a type specifier? Resolution order per spec
+ * "Models": the model's types first, then the System namespace. `is` always
+ * walks subtypes; `ofType` and `as` do too, except when the requested name
+ * aliases a System primitive, where the official inheritance tests pin an exact
+ * match instead (see isSystemAmbiguousName).
+ *
+ * `as` also casts: a FHIR primitive with a value matches the System type it
+ * converts to (FHIR R4 FHIRPath page: `Patient.name.given.as(System.string)` is
+ * valid). Only `as` calls `converts`, which says whether the value does. `is`
+ * and `ofType` keep the type identity, so a FHIR string is not a System.String
+ * there (testType14). The analyzer's type guards ask `is` by type alone.
+ */
+export function typeMatches(
+  model: ModelProvider | undefined,
+  type: string,
+  parts: string[],
+  mode: 'is' | 'ofType' | 'as',
+  converts: (systemName: string) => boolean
 ): boolean {
   const exact = mode !== 'is'
   const cast = mode === 'as'
@@ -44,11 +57,10 @@ export function itemMatchesType(
     // (the lowercase fallback in matchesSystemType is only for unqualified names).
     const systemName = parts[1] as string
     if (systemName === 'Any') {
-      return item.type.startsWith('System.')
+      return type.startsWith('System.')
     }
-    return item.type === `System.${systemName}` || (cast && convertsTo(item, systemName))
+    return type === `System.${systemName}` || (cast && converts(systemName))
   }
-  const model = context.model
   if (parts.length === 2) {
     if (model && parts[0] === model.namespace) {
       const typeName = parts[1] as string
@@ -56,31 +68,29 @@ export function itemMatchesType(
       if (canonical === undefined) {
         return false
       }
-      return exact && isSystemAmbiguousName(typeName)
-        ? item.type === canonical
-        : model.isSubtypeOf(item.type, canonical)
+      return exact && isSystemAmbiguousName(typeName) ? type === canonical : model.isSubtypeOf(type, canonical)
     }
-    return item.type === parts.join('.')
+    return type === parts.join('.')
   }
   const name = parts[0] as string
   // System-typed values answer from the System namespace.
-  if (item.type.startsWith('System.')) {
-    return matchesSystemType(item, name)
+  if (type.startsWith('System.')) {
+    return matchesSystemType(type, name)
   }
   if (model) {
     const canonical = model.resolveType(name)
     if (canonical !== undefined) {
-      return exact && isSystemAmbiguousName(name) ? item.type === canonical : model.isSubtypeOf(item.type, canonical)
+      return exact && isSystemAmbiguousName(name) ? type === canonical : model.isSubtypeOf(type, canonical)
     }
   }
   // A name the model does not define falls back to the System namespace.
-  if (cast && SYSTEM_TYPE_LOCAL_NAMES.has(name) && convertsTo(item, name)) {
+  if (cast && SYSTEM_TYPE_LOCAL_NAMES.has(name) && converts(name)) {
     return true
   }
   // Dynamic fallback: resource and complex types match on their local name. The
   // internal Object marker never answers a type question — `ofType(Object)` is not
   // a way to select untyped values.
-  return item.type !== OBJECT_TYPE && typeLocalName(item.type) === name
+  return type !== OBJECT_TYPE && typeLocalName(type) === name
 }
 
 /**
@@ -150,11 +160,11 @@ function convertsTo(item: TypedValue, systemName: string): boolean {
   return item.value !== undefined && systemTypeOf(item) === `System.${systemName}`
 }
 
-function matchesSystemType(item: TypedValue, name: string): boolean {
+function matchesSystemType(type: string, name: string): boolean {
   if (name === 'Any') {
     return true
   }
-  const local = typeLocalName(item.type)
+  const local = typeLocalName(type)
   if (local === name) {
     return true
   }
