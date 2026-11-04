@@ -558,6 +558,110 @@ describe('type narrowing (ofType/as)', () => {
   })
 })
 
+describe('toString() input', () => {
+  it('reports a focus whose every candidate is a complex type', () => {
+    expect(codes('Patient.name.first().toString()')).toEqual(['operand-type'])
+    expect(messages('Patient.name.first().toString()')).toEqual([
+      'toString() converts primitive values and quantities, found FHIR.HumanName',
+    ])
+    expect(codes('Patient.toString()')).toEqual(['operand-type'])
+  })
+
+  it('accepts primitives, quantities, and types whose subtypes convert', () => {
+    expect(codes('Patient.birthDate.toString()')).toEqual([])
+    expect(codes("(1 'mg').toString()")).toEqual([])
+    expect(codes('onset.ofType(Age).toString()', { model: r4Model, inputType: 'Condition' })).toEqual([])
+    expect(codes('effective.toString()', { model: r4Model, inputType: 'Observation' })).toEqual([])
+    // Element has the primitive types among its subtypes.
+    expect(codes('toString()', { model: r4Model, inputType: 'Element' })).toEqual([])
+    expect(codes('Patient.name.first().children().toString()')).toEqual([])
+  })
+
+  it('needs a model to call a type complex', () => {
+    expect(codes('toString()', { inputType: 'HumanName' })).toEqual([])
+  })
+})
+
+describe('type guards', () => {
+  const periodOrTiming = { model: r4Model, inputType: ['Period', 'Timing'] }
+  const period = { model: r4Model, inputType: 'Period' }
+
+  it('checks the right operand of implies and and with the types the test keeps', () => {
+    expect(codes('$this is Period implies $this.toString().exists()', periodOrTiming)).toEqual(['operand-type'])
+    expect(codes('$this is dateTime implies $this.toString().exists()', periodOrTiming)).toEqual([])
+    expect(codes('$this.is(dateTime) and toString().exists()', period)).toEqual([])
+    expect(codes('is(Period) implies toString().exists()', periodOrTiming)).toEqual(['operand-type'])
+    // A supertype test keeps the candidate.
+    expect(codes('$this is Element implies $this.toString().exists()', period)).toEqual(['operand-type'])
+  })
+
+  it('checks the right operand of or with the types the test drops', () => {
+    expect(codes('$this is Period or $this.toString().exists()', period)).toEqual([])
+    expect(codes('$this is Period or $this.toString().exists()', periodOrTiming)).toEqual(['operand-type'])
+    expect(codes('$this is Period or $this is Timing or $this.toString().exists()', periodOrTiming)).toEqual([])
+  })
+
+  it('combines not(), and, and or in the test', () => {
+    expect(codes('($this is Period).not() implies $this.toString().exists()', periodOrTiming)).toEqual(['operand-type'])
+    expect(codes('($this is Period).not() implies $this.toString().exists()', period)).toEqual([])
+    expect(codes('($this is dateTime or $this is instant) implies $this.toString().exists()', period)).toEqual([])
+    expect(codes('($this is Period or $this is Timing) implies $this.toString().exists()', periodOrTiming)).toEqual([
+      'operand-type',
+    ])
+    expect(codes("($this is dateTime and %resource.id = 'x') implies $this.toString().exists()", period)).toEqual([])
+    // A false `and` holds when either side is false, so a side that tests nothing about the focus keeps every type.
+    expect(codes("($this is Period and %resource.id = 'x') or $this.toString().exists()", periodOrTiming)).toEqual([
+      'operand-type',
+    ])
+    expect(codes('($this is Period and $this is Timing) or $this.toString().exists()', periodOrTiming)).toEqual([
+      'operand-type',
+    ])
+    expect(codes("($this is dateTime or %resource.id = 'x') implies $this.toString().exists()", period)).toEqual([
+      'operand-type',
+    ])
+  })
+
+  it('narrows the iif() branches by the criterion', () => {
+    expect(codes('iif($this is dateTime, $this.toString().exists(), true)', period)).toEqual([])
+    expect(codes('iif($this is Period, true, $this.toString().exists())', period)).toEqual([])
+    expect(codes('iif($this is Period, $this.toString().exists(), true)', period)).toEqual(['operand-type'])
+  })
+
+  it('narrows nothing for a test of another value, an unknown type, or xor', () => {
+    expect(codes('$this.start is dateTime implies $this.toString().exists()', period)).toEqual(['operand-type'])
+    expect(codes('$this is Nope implies $this.toString().exists()', period)).toEqual(['unknown-type', 'operand-type'])
+    expect(codes('$this is dateTime xor $this.toString().exists()', period)).toEqual(['operand-type'])
+    expect(codes('$this.not() implies $this.toString().exists()', period)).toEqual(['operand-type'])
+    expect(codes('$this.is(dateTime).not(true) implies $this.toString().exists()', period)).toContain('operand-type')
+  })
+
+  it('narrows the item inside a lambda and leaves an unknown focus alone', () => {
+    expect(codes('Patient.name.where($this is HumanName implies $this.toString().exists())')).toEqual(['operand-type'])
+    expect(codes('Patient.name.where($this is Period implies $this.toString().exists())')).toEqual([])
+    expect(codes('$this is Period implies $this.toString().exists()', { model: r4Model })).toEqual([])
+  })
+
+  it('tests a type as the runtime is does, so a FHIR string is not a System String', () => {
+    const string = { model: r4Model, inputType: 'string' }
+    expect(codes('iif($this is String, true, ($this + 1) > 0)', string)).toEqual(['operand-type', 'operand-type'])
+    expect(codes('$this is System.String or ($this + 1) > 0', string)).toEqual(['operand-type', 'operand-type'])
+    expect(codes('iif($this is String, ($this + 1) > 0, true)', string)).toEqual([])
+    expect(codes('$this is string or ($this + 1) > 0', string)).toEqual([])
+  })
+
+  it('narrows a supertype to the tested subtype', () => {
+    const bundle = { model: r4Model, inputType: 'Bundle' }
+    expect(codes('entry.resource.where($this is Patient implies $this.birthDate.exists())', bundle)).toEqual([])
+    expect(codes('entry.resource.where($this is Observation implies $this.birthDate.exists())', bundle)).toEqual([
+      'unknown-element',
+    ])
+  })
+
+  it('keeps $index undefined in a guarded sort() key', () => {
+    expect(codes('Patient.name.sort($this is HumanName and $index > 0)')).toEqual(['unknown-variable'])
+  })
+})
+
 describe('lambda result typing', () => {
   it('select() returns the projection type', () => {
     expect(codes('Patient.name.select(given.first()).substring(1)')).toEqual(['singleton-required'])

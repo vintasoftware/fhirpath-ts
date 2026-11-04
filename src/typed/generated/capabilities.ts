@@ -15,7 +15,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
       kind: 'official',
       suite: 'r4',
       groupIndex: 2,
-      testIndex: 5,
+      testIndex: 6,
     },
   },
   'path.indexer': {
@@ -410,7 +410,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     reference: {
       kind: 'official',
       suite: 'r4',
-      groupIndex: 73,
+      groupIndex: 74,
       testIndex: 4,
     },
   },
@@ -427,7 +427,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     reference: {
       kind: 'official',
       suite: 'r4',
-      groupIndex: 74,
+      groupIndex: 75,
       testIndex: 4,
     },
   },
@@ -652,7 +652,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     reference: {
       kind: 'official',
       suite: 'r5',
-      groupIndex: 63,
+      groupIndex: 64,
       testIndex: 5,
     },
   },
@@ -669,7 +669,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     reference: {
       kind: 'official',
       suite: 'r5',
-      groupIndex: 64,
+      groupIndex: 65,
       testIndex: 4,
     },
   },
@@ -2393,9 +2393,9 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     runtime: false,
   },
   'builtin.toString': {
-    expression: 'Patient.name.first().toString()',
+    expression: 'Patient.birthDate.toString()',
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().toString()).count()',
+    composition: '(Patient.birthDate.toString()).count()',
     analyzer: {
       types: ['System.String'],
       single: true,

@@ -95,6 +95,15 @@ describe('strict evaluation', () => {
     expect(() => strict.evaluate(exclaimed, [patient, patient])).toThrow(/\[singleton-required\]/)
   })
 
+  it('narrows the runtime input types by a type guard', () => {
+    expect(strict.evaluate('$this is Observation implies $this.toString().exists()', patient)).toEqual([true])
+    // The guarded operand would throw on a Patient; a false left operand skips it.
+    expect(strict.evaluate('$this is Observation implies $this.substring(1).exists()', patient)).toEqual([true])
+    expect(() => strict.evaluate('$this is Patient implies $this.toString().exists()', patient)).toThrow(
+      /\[operand-type\].*toString\(\)/
+    )
+  })
+
   it('keeps specification runtime errors in lenient mode', () => {
     expect(() => lenient.evaluate('frobnicate()', patient)).toThrow(FhirPathTypeError)
     expect(() => lenient.evaluate('1.substring()', patient)).toThrow(FhirPathTypeError)

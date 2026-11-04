@@ -53,6 +53,17 @@ describe('three-valued logic (spec "Boolean logic", all 9 cells per operator)', 
     expect(evaluate("'a' and true")).toEqual([true])
     expect(evaluate("'a' or false")).toEqual([true])
   })
+
+  it('skips the right operand only when the left decides the result', () => {
+    const fails = '(1 | 2).single()'
+    expect(evaluate(`false and ${fails}`)).toEqual([false])
+    expect(evaluate(`true or ${fails}`)).toEqual([true])
+    expect(evaluate(`false implies ${fails}`)).toEqual([true])
+    expect(evaluate(`{} xor ${fails}`)).toEqual([])
+    for (const left of ['true and', '{} and', 'false or', '{} or', 'true implies', '{} implies', 'true xor']) {
+      expect(() => evaluate(`${left} ${fails}`), left).toThrow(FhirPathRuntimeError)
+    }
+  })
 })
 
 describe('equality (=, !=)', () => {

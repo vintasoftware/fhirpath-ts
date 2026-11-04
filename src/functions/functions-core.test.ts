@@ -262,7 +262,12 @@ describe('subsetting', () => {
 
   it('skip/take demand integer arguments', () => {
     expect(() => evaluate("(1 | 2).skip('a')")).toThrow(FhirPathRuntimeError)
-    expect(() => evaluate('(1 | 2).take({})')).toThrow(FhirPathTypeError)
+    expect(() => evaluate("(1 | 2).take('a')")).toThrow(FhirPathRuntimeError)
+  })
+
+  it('skip/take with an empty count return empty', () => {
+    expect(evaluate('(1 | 2).skip({})')).toEqual([])
+    expect(evaluate('(1 | 2).take({})')).toEqual([])
   })
 })
 

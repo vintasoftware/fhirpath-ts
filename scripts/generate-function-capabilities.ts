@@ -88,6 +88,8 @@ function functionExpression(name: string, signature: FunctionSignature): string 
     case 'min':
     case 'max':
       return `Patient.name.given.${name}()`
+    case 'toString':
+      return 'Patient.birthDate.toString()'
     default:
       break
   }

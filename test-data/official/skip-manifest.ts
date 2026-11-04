@@ -4,16 +4,17 @@
  */
 /**
  * Why a case does not run: another FHIR version or model (R5, STU3, DSTU2,
- * CDA), a documented divergence from the suite (quirk), or a feature the
- * README defers.
+ * CDA), a documented divergence from the suite (quirk), a feature the README
+ * defers, or a function that neither FHIRPath nor FHIR defines (extension).
  */
-export type SkipCategory = 'model' | 'quirk' | 'deferred'
+export type SkipCategory = 'model' | 'quirk' | 'deferred' | 'extension'
 
 /** How skipped test titles name each category, in both the official suites and the corpora. */
 export const SKIP_CATEGORY_LABELS: Readonly<Record<SkipCategory, string>> = {
   model: 'different FHIR version or model',
   quirk: 'intentional divergence',
   deferred: 'deferred feature',
+  extension: 'outside FHIRPath and FHIR',
 }
 
 export interface SkipEntry {
@@ -86,7 +87,86 @@ export const PHASE_OVERRIDES: PhaseOverride[] = [
   },
 ]
 
+/** One entry per suite and `[group, test]` case, all with the same category and reason. */
+function skipCases(
+  suites: readonly SkipEntry['suite'][],
+  cases: readonly (readonly [group: string, test?: string])[],
+  skip: Pick<SkipEntry, 'category' | 'reason' | 'runtimeOnly'>
+): SkipEntry[] {
+  return suites.flatMap(suite =>
+    cases.map(([group, test]) => ({ ...skip, suite, group, ...(test !== undefined && { test }) }))
+  )
+}
+
+const BOTH_SUITES = ['r4', 'r5'] as const
+
 export const SKIP_MANIFEST: SkipEntry[] = [
+  ...skipCases(BOTH_SUITES, [['documentFunctions']], {
+    category: 'extension',
+    reason:
+      'section(), entry(), entryIn(), resources(), resourcesIn(), sameSubject(), and hasCoding() extend the HL7 Java engine (org.hl7.fhir.core); FHIRPath and FHIR do not define them',
+  }),
+  ...skipCases(BOTH_SUITES, [['testLiterals', 'testLiteralUnicodeInvalid']], {
+    category: 'quirk',
+    reason:
+      "suite rejects '\\u+041' as a syntax error; FHIRPath 3.0.0 (\"String\") drops a backslash that starts no escape, as in '\\u005' giving 'u005'",
+  }),
+  ...skipCases(
+    BOTH_SUITES,
+    [
+      ['testLessThan', 'testLessThan29'],
+      ['testGreaterThan', 'testGreaterThan29'],
+    ],
+    {
+      category: 'quirk',
+      runtimeOnly: true,
+      reason:
+        "suite expects empty for 1 year against 2 months; FHIRPath 3.0.0 (\"Comparison\") converts calendar years and months to each other: '6 months > 1 year' is false",
+    }
+  ),
+  ...skipCases(
+    BOTH_SUITES,
+    [
+      ['LowBoundary', 'LowBoundaryDecimalExponent1'],
+      ['LowBoundary', 'LowBoundaryDecimalExponent3'],
+      ['LowBoundary', 'LowBoundaryDecimalExponent4'],
+      ['HighBoundary', 'HighBoundaryDecimalExponent1'],
+      ['HighBoundary', 'HighBoundaryDecimalExponent2'],
+      ['HighBoundary', 'HighBoundaryDecimalExponent4'],
+      ['HighBoundary', 'HighBoundaryDecimalExponent5'],
+    ],
+    {
+      category: 'quirk',
+      runtimeOnly: true,
+      reason:
+        'suite reads the precision of 9.5e2 from its mantissa (to the tens); a decimal keeps its precision as digits after the point, so 9.5e2 is 950, precise to the unit',
+    }
+  ),
+  ...skipCases(
+    ['r5'],
+    ['testDistinct30', 'testDistinct32', 'testDistinct33', 'testDistinct34', 'testDistinct35'].map(
+      test => ['testDistinct', test] as const
+    ),
+    {
+      category: 'quirk',
+      runtimeOnly: true,
+      reason:
+        'suite keeps the last of each repeated value; FHIRPath 3.0.0 leaves the order of distinct() open, and this engine keeps the first, as union() does',
+    }
+  ),
+  ...skipCases(
+    ['r5'],
+    [
+      ['testDistinct', 'testDistinct29'],
+      ['testDistinct', 'testDistinct36'],
+    ],
+    {
+      category: 'quirk',
+      runtimeOnly: true,
+      reason:
+        'suite expects empty when dates of different precision meet; FHIRPath 3.0.0 counts items as distinct unless = returns true, and @2020 = @2020-01-01 is empty',
+    }
+  ),
   {
     category: 'model',
     suite: 'r5',

@@ -311,7 +311,8 @@ The analyzer checks:
   `Bundle.entry.resource`, which needs `ofType()` (`subtype-element`);
 - function arity;
 - singleton requirements on inputs, operands, and arguments;
-- operand, argument, and function-input types;
+- operand, argument, and function-input types, including `toString()` on a
+  value that never converts to a String, such as a `Period`;
 - comparisons that cannot match;
 - order-dependent operations on collections known to be unordered;
 - choice-key misuse such as `Observation.valueQuantity`;
@@ -328,6 +329,39 @@ known to be unordered. Functions whose result merely varies with iteration
 order, such as `join()` and `aggregate()`, are not rejected. `union()`, `|`,
 and `combine()` keep the order of their sources
 ([Conformance](conformance.md#deviations-from-the-specification)).
+
+A type test on the focus narrows the types the analyzer checks the operand it
+guards against. In `A implies B`, `A and B`, and `iif(A, B, ...)`, B runs only
+when A is true; in `A or B` and `iif(A, ..., B)`, B runs only when A is false.
+This holds because the engine skips the right operand of `and`, `or`, and
+`implies` when the left one decides the result
+([short-circuiting](api.md#what-throws-errors-and-what-doesnt)). Other engines
+may run it, so use `iif()` in an expression that must not fail on them.
+
+A is `$this is T`, `$this.is(T)`, `is(T)`, `A.not()`, or an `and` or `or` of
+these. The test answers as `is` does at runtime, so a FHIR `string` is not a
+`String`:
+
+```ts-invalid
+// A Period is not a dateTime, so toString() runs on a Period: operand-type.
+analyzeExpression('$this is dateTime or $this.toString().exists()', {
+  model: r4Model,
+  inputType: 'Period',
+})
+```
+
+When the test leaves no type, the guarded operand cannot run on a value, and
+the analyzer reports nothing in it:
+
+```ts
+analyzeExpression('$this is dateTime implies $this.toString().exists()', {
+  model: r4Model,
+  inputType: 'Period',
+})
+```
+
+A test of another value, such as `$this.start is dateTime`, says nothing about
+the focus, and `xor` guards neither operand.
 
 Declare host variables and functions so the analyzer can check their use:
 

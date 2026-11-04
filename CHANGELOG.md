@@ -128,6 +128,13 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     names types only. `engine.jsonElement(type, key)` finds the element a JSON
     property is, `effectiveDateTime` included; see
     [`toFhirJson()` and `jsonElement()`](docs/api.md#tofhirjson-and-jsonelement).
+- The analyzer reads type guards. In `A implies B`, `A and B`, and
+  `iif(A, B, ...)`, it checks `B` on the focus types for which `A` is true; in
+  `A or B` and `iif(A, ..., B)`, on the types for which `A` is false. `A` is a
+  type test on the focus (`$this is T`, `$this.is(T)`, `is(T)`), its `not()`,
+  or an `and`/`or` of such tests, and it answers as the runtime `is` does, so
+  a FHIR `string` is not a `System.String`. See
+  [Public analyzer](docs/static-checking.md#public-analyzer).
 
 ### Changed
 
@@ -255,6 +262,16 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   hint, not `unknown-element`: the data may hold such a subtype.
 - **Breaking (types):** `AnalyzerDiagnostic.code` is an
   `AnalyzerCheckCode`, not a `string`.
+- `and`, `or`, `implies`, and `xor` skip the right operand when the left one
+  decides the result: `false and x`, `true or x`, `false implies x`, and
+  `{} xor x`. A right operand that would fail, such as the `substring()` in
+  `$this is Observation implies $this.substring(1).exists()` on a Patient, no
+  longer throws, and a `trace()` in it no longer logs. Results do not change
+  otherwise.
+- **Breaking:** the analyzer reports `operand-type` for `toString()` on a
+  value that never converts to a string, such as a `Period` or a
+  `HumanName`. Strict evaluation, the ESLint rule, and `fhirpath-check` now
+  refuse `Patient.name.first().toString()`, which returns empty.
 - **Breaking (types):** `evaluateAsync()` and `evaluateTypedAsync()` given
   options typed as `AsyncEvaluateOptions`, which may set `syncWhenPossible`,
   return the result or a Promise of it. Options without `syncWhenPossible`, or
@@ -305,6 +322,8 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `r4.evaluate(compile('clinicalStatus.coding.first().code', 'Condition'), condition, { type: 'code' })`
   failed to compile, and a resource-rooted expression such as `'Patient.name'`
   accepted an input of another resource type.
+- `skip()` and `take()` return empty for an empty count, such as `skip({})`,
+  as `substring()` does for an empty argument. They threw a type error.
 - `resolve()` resolves a contained reference inside a Bundle entry against that
   entry's resource; it returned empty. A reference from a contained resource
   reaches its siblings and its container, and a resource that `resolve()`

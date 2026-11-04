@@ -4,10 +4,10 @@ import { ANALYZER_SKIP_MANIFEST } from '../../test-data/official/analyzer-skip-m
 import { SKIP_MANIFEST } from '../../test-data/official/skip-manifest.ts'
 import { r4Model } from '../r4/index.ts'
 import {
+  caseInputType,
   casesMatching,
   expectedPhase,
   findSkipReason,
-  fixtureResourceType,
   loadOfficialSuite,
   type OfficialGroup,
   type OfficialTest,
@@ -44,7 +44,7 @@ function describeDiagnostics(diagnostics: ReturnType<typeof analyzeExpression>):
 }
 
 function analyzeCase(suite: SuiteName, test: OfficialTest): ReturnType<typeof analyzeExpression> {
-  const inputType = test.inputfile === undefined ? undefined : fixtureResourceType(suite, test.inputfile)
+  const inputType = caseInputType(suite, test)
   return analyzeExpression(test.expression, {
     model: r4Model,
     ...(inputType !== undefined && { inputType }),

@@ -1454,6 +1454,15 @@ Engine-generated failures use these exported `FhirPathError` subclasses:
 | `FhirPathRuntimeError` | `r4.test(patient, 'Patient.name.given')` | A criteria result must contain at most one item. |
 | `ProjectionRowError` | `r4.project(patients, columns, { onRowError })` | Passed to `onRowError` when a row fails; thrown when it returns `'stop'`. See [Row errors](#row-errors). |
 
+`and`, `or`, `implies`, and `xor` skip the right operand when the left one
+decides the result: `false and x`, `true or x`, `false implies x`, and
+`{} xor x`. FHIRPath allows this short-circuiting but does not require it. So
+`r4.evaluate('false and (1 | 2).single()')` returns `[false]` here, while an
+engine that evaluates both operands throws. In an expression that other
+engines also run, guard a failing operand with `iif()`, which every engine
+evaluates lazily. The analyzer's type guards rely on this skip
+([Static checking](static-checking.md#public-analyzer)).
+
 This follows FHIRPath's
 [empty propagation and singleton evaluation rules](https://hl7.org/fhirpath/STU3/en/index.html#singleton-evaluation-of-collections)
 and its

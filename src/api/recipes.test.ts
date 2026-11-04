@@ -551,6 +551,20 @@ describe('README usage recipes', () => {
     ).toEqual([])
   })
 
+  it('checks the operand a type test guards against the types the test leaves', () => {
+    const effective = r4.evaluateTyped(
+      'effective',
+      r4.toTyped(
+        { resourceType: 'Observation', status: 'final', code: {}, effectivePeriod: { start: '2020-01-01' } },
+        'Observation'
+      )
+    )
+    expect(r4.evaluate('$this is dateTime implies $this.toString().exists()', effective)).toEqual([true])
+    expect(
+      analyzeExpression('$this is dateTime implies $this.toString().exists()', { model: r4Model, inputType: 'Period' })
+    ).toEqual([])
+  })
+
   it('covers API reference expressions in their runtime contexts', () => {
     const patient: Patient = {
       resourceType: 'Patient',

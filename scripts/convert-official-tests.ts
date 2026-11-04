@@ -75,6 +75,12 @@ function convert(release: 'r4' | 'r5'): void {
       if (testNode['@_mode'] !== undefined) {
         test.mode = String(testNode['@_mode'])
       }
+      if (testNode['@_context'] !== undefined) {
+        test.context = String(testNode['@_context'])
+      }
+      if (testNode['@_contextType'] !== undefined) {
+        test.contextType = String(testNode['@_contextType'])
+      }
       if (testNode['@_skipStaticCheck'] === 'true') {
         test.skipStaticCheck = true
       }

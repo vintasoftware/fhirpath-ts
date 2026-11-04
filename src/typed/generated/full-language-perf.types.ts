@@ -486,8 +486,8 @@ export type Capability196 = FhirpathResultIn<'Patient.name.first().toLong()', 'o
 export type Composition196 = FhirpathResultIn<'(Patient.name.first().toLong()).count()', 'opaque'>
 export type Capability197 = FhirpathResultIn<"Patient.name.first().toQuantity('x')", 'opaque'>
 export type Composition197 = FhirpathResultIn<"(Patient.name.first().toQuantity('x')).count()", 'opaque'>
-export type Capability198 = FhirpathResultIn<'Patient.name.first().toString()', 'opaque'>
-export type Composition198 = FhirpathResultIn<'(Patient.name.first().toString()).count()', 'opaque'>
+export type Capability198 = FhirpathResultIn<'Patient.birthDate.toString()', 'opaque'>
+export type Composition198 = FhirpathResultIn<'(Patient.birthDate.toString()).count()', 'opaque'>
 export type Capability199 = FhirpathResultIn<'Patient.name.first().toTime()', 'opaque'>
 export type Composition199 = FhirpathResultIn<'(Patient.name.first().toTime()).count()', 'opaque'>
 export type Capability200 = FhirpathResultIn<"Patient.name.trace('x', $this)", 'opaque'>
@@ -511,8 +511,8 @@ export type Composition208 = FhirpathResultIn<'(Patient.name.where($this)).count
 export type Capability209 = FhirpathResultIn<'@2020-01-01.yearOf()', 'opaque'>
 export type Composition209 = FhirpathResultIn<'(@2020-01-01.yearOf()).count()', 'opaque'>
 export type LongestCorpusCase = FhirpathResultIn<
-  "\n\t\t\tgroup.select(\n\t\t\t\tdefineVariable('grp')\n\t\t\t\t.element\n\t\t\t\t.select(\n\t\t\t\t\tdefineVariable('ele')\n\t\t\t\t\t.target\n\t\t\t\t\t.select(%grp.source & '|' & %ele.code & ' ' & relationship & ' ' & %grp.target & '|' & code)\n\t\t\t\t)\n\t\t\t)\n\t\t\t.trace('all')\n\t\t\t.isDistinct()\n\t\t",
-  'ConceptMap'
+  "(Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value < @1975-01-01T00:00:00Z) and Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.toString() = '1974-12-25T14:35:45-05:00'",
+  'Patient'
 >
 type Words<Count extends number, Seen extends unknown[] = [], Result extends string = ''> = Seen['length'] extends Count
   ? Result

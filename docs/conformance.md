@@ -12,10 +12,19 @@ repository, converted to JSON offline, and run with Vitest.
 
 | Suite | Passing | Skipped with a reason | Failing |
 | --- | ---: | ---: | ---: |
-| R4 (`tests-fhir-r4.xml`) | 940 | 7 | 0 |
-| R5 (`tests-fhir-r5.xml`) | 1,062 | 13 | 0 |
+| R4 (`tests-fhir-r4.xml`) | 1,044 | 147 | 0 |
+| R5 (`tests-fhir-r5.xml`) | 1,187 | 160 | 0 |
 
-Every non-skipped official case passes.
+Every non-skipped official case passes. Of the skips, 115 in each suite are the
+`documentFunctions` group, and 15 are static-only cases (see below).
+
+A case may run on the results of a `context` expression over its fixture
+instead of the fixture's root. Its `contextType` declares the focus types a
+static check assumes, which may differ from the data's: `isSemanticChecks`
+declares a `Period` focus over a `dateTime`. The analyzer pass starts from
+`contextType`. The runtime pass runs the valid cases on the data, and leaves
+out the semantic-invalid ones with a `contextType`, because strict evaluation
+types the focus from the data. Those are the static-only skips.
 
 Invalid cases must fail in the phase named by the suite:
 
@@ -26,7 +35,8 @@ Invalid cases must fail in the phase named by the suite:
 Four intentional phase differences are recorded in the checked
 `PHASE_OVERRIDES` list.
 
-Semantic-invalid and strict-mode cases run through strict evaluation. The static
+Semantic-invalid and strict-mode cases run through strict evaluation, apart
+from the static-only cases. The static
 analyzer also runs a separate pass over both official suites. Every
 semantic-invalid case it supports must report an error diagnostic, while valid
 cases must report none. Execution-invalid cases must parse: the analyzer reports
@@ -35,10 +45,10 @@ no syntax diagnostic for them, apart from the phase overrides.
 ## Skipped official cases
 
 Every skip is listed in `test-data/official/skip-manifest.ts` with a category:
-a different FHIR version or model, an intentional divergence, or a deferred
-feature. Test titles name the category. No official case is skipped as a
-deferred feature. A maintenance test fails when a skip no longer matches
-a suite case.
+a different FHIR version or model, an intentional divergence, a deferred
+feature, or a function outside FHIRPath and FHIR. Test titles name the
+category. No official case is skipped as a deferred feature. A maintenance test
+fails when a skip no longer matches a suite case.
 
 | Cases | Category | Reason |
 | --- | --- | --- |
@@ -48,6 +58,11 @@ a suite case.
 | Lenient polymorphics | Intentional divergence | FHIRPath reads a choice element by its base name; the suite pins suffixed keys such as `valueQuantity` as errors outside lenient mode (`testPolymorphismB`) |
 | Decimal boundary and dateTime millisecond cases | Intentional divergence | Expected values conflict with the mathematical bounds; recorded as upstream test issues |
 | `testSort10` | Intentional divergence | Expects an empty sort key first in descending order; FHIRPath 3.0.0 sorts it last |
+| `documentFunctions` | Outside FHIRPath and FHIR | `section()`, `entry()`, `entryIn()`, `resources()`, `resourcesIn()`, `sameSubject()`, and `hasCoding()` extend the HL7 Java engine; the group's own description says so |
+| `testLiteralUnicodeInvalid` | Intentional divergence | Expects `'\u+041'` to be a syntax error; FHIRPath 3.0.0 drops a backslash that starts no escape |
+| `testLessThan29`, `testGreaterThan29` | Intentional divergence | Expect `1 year` and `2 months` not to compare; FHIRPath 3.0.0 converts calendar years to months (`6 months > 1 year` is false) |
+| Decimal exponent boundaries | Intentional divergence | Read the precision of `9.5e2` from its mantissa; a decimal keeps its precision as digits after the point, so `9.5e2` is `950` |
+| `testDistinct` order and precision in R5 | Intentional divergence | Expect `distinct()` to keep the last repeat, and empty when dates of different precision meet; FHIRPath 3.0.0 leaves the order open, and counts items as distinct unless `=` is true |
 
 The manifest contains the exact case names and evidence. Entries marked
 `runtimeOnly` dispute an expected value, not a feature. The analyzer pass still
