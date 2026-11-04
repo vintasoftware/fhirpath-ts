@@ -6,6 +6,10 @@ not yet merged), for an R4 deployment that renders and scores questionnaires wit
 Smart Forms and keeps its data and terminology in Medplum. R5 features and
 `%factory` are out of scope.
 
+After that commit, the adapter's `async: true` path moved to
+`syncWhenPossible` and its variables to `env`; the runs below were not repeated
+with that adapter.
+
 | Component | Version |
 | --- | --- |
 | Medplum server | 5.2.7 (`5.2.7-7e139c3`, Medplum cloud), a non-production project with synthetic data |
@@ -191,8 +195,8 @@ The application also needs:
    (above).
 2. For template extraction with `sdc-template-extract`, the five edits the
    offline suite applies; the first three fix behavior for either engine:
-   read generated template addresses with a JSON reader
-   (`dogfood/sdc/template-path.ts`); keep authored `ofType(string)` filters;
+   read generated template addresses with a JSON reader, since they are not
+   FHIRPath; keep authored `ofType(string)` filters;
    bind PATCH comparison expressions to the comparison response; pass
    `resolveInternalTypes: false` where context results feed value
    expressions; and, in one fixture, `.answer.value.ofType(FHIR.Coding)` for

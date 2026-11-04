@@ -4,7 +4,6 @@ import type { TerminologyProvider } from '../../src/index.ts'
 import type { MedplumClientLike } from '../../src/terminology/medplum.ts'
 import { fhirClient } from '../../src/terminology/medplum.ts'
 import { cachedTerminology, evaluate, medplumServices, smartFormsFhirpath } from './smart-forms-fhirpath.ts'
-import { readTemplatePath } from './template-path.ts'
 
 const response = {
   resourceType: 'QuestionnaireResponse',
@@ -270,26 +269,5 @@ describe('fhirClient()', () => {
     await expect(upper.get('https://tx.test/fhir/Patient?identifier=urn:mrn|123')).rejects.toThrow(
       'FHIR request to /fhir/Patient failed: 404'
     )
-  })
-})
-
-describe('template JSON addresses', () => {
-  it('reads primitive metadata and choice properties while keeping source object identity', () => {
-    const extension = { url: 'urn:test', valueString: 'expression' }
-    const fhirData = {
-      resourceType: 'Patient',
-      name: [{ given: ['Ada', 'Ada'], _given: [null, { extension: [extension] }] }],
-      deceasedBoolean: false,
-    }
-    expect(readTemplatePath({ fhirData, path: 'Patient.name[0]._given[1].extension' })[0]).toBe(extension)
-    expect(readTemplatePath({ fhirData, path: 'Patient.name[0].given' })).toEqual(['Ada', 'Ada'])
-    expect(readTemplatePath({ fhirData, path: 'Patient.deceasedBoolean' })).toEqual([false])
-    expect(readTemplatePath({ fhirData, path: 'Patient.name[9]._given' })).toEqual([])
-  })
-
-  it('refuses expressions and mismatched roots instead of interpreting them as JSON addresses', () => {
-    const fhirData = { resourceType: 'Patient' }
-    expect(() => readTemplatePath({ fhirData, path: 'Patient.name.first()' })).toThrow(/JSON address/)
-    expect(() => readTemplatePath({ fhirData, path: 'Observation.name' })).toThrow(/does not match/)
   })
 })
