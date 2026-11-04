@@ -21,3 +21,4 @@ export {
   analyzeEngineDtos,
   type DtoDiagnostic,
 } from './analyze-dto.ts'
+export { ANALYZER_CHECK_CODES, type AnalyzerCheckCode, DATA_INDEPENDENT_ERROR_CODES } from './diagnostic-codes.ts'

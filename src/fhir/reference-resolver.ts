@@ -19,3 +19,8 @@
  * no matter how often the expression resolves it.
  */
 export type ReferenceResolver = (reference: string, base: string | undefined) => Promise<unknown>
+
+/** The server base of an absolute RESTful url, e.g. `https://x/fhir` of `https://x/fhir/Patient/1/_history/2`. */
+export function serverBase(url: string): string | undefined {
+  return /^(https?:\/\/.+?)\/[A-Za-z]+\/[A-Za-z0-9\-.]{1,64}(?:\/_history\/[A-Za-z0-9\-.]{1,64})?$/.exec(url)?.[1]
+}

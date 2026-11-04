@@ -1,5 +1,7 @@
 import { mergeEnvKeys } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
+import { type JsonElement, jsonElement, toFhirJson } from '../fhir/fhir-json.ts'
+import type { ModelProvider } from '../model/provider.ts'
 import type { R4TypeOf } from '../r4/generated/type-maps.ts'
 import type {
   DeclaredRootInput,
@@ -272,6 +274,14 @@ interface Derivation {
 /** Set only while `register()` constructs a derived engine. */
 let deriving: Derivation | undefined
 
+/** The engine's model, which `what` needs. */
+function engineModel(model: ModelProvider | undefined, what: string): ModelProvider {
+  if (model === undefined) {
+    throw new FhirPathTypeError(`${what} needs an engine with a model`)
+  }
+  return model
+}
+
 /**
  * A FHIRPath engine with shared model and evaluation defaults. Per-call values
  * replace defaults, while `env`, `vars`, and `functions` merge by name. Keep an
@@ -434,6 +444,26 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    */
   toTyped(value: unknown, type: FhirTypeName, options?: ToTypedOptions): TypedValue[] {
     return toTyped(value, type, this.defaults.model, options)
+  }
+
+  /**
+   * The FHIR JSON of a typed value written to an element of type `type`, such
+   * as `dateTime`, `Reference`, or `Patient.contact`: the reverse of
+   * `toTyped()`. The value must fit the type, its format, and its range, and
+   * a FHIRPath Quantity becomes a UCUM Quantity. A complex value is copied.
+   * Throws a FhirPathTypeError that names the types, never the value.
+   */
+  toFhirJson(value: TypedValue, type: FhirTypeName): unknown {
+    return toFhirJson(engineModel(this.defaults.model, 'toFhirJson()'), value, type)
+  }
+
+  /**
+   * The element that the JSON property `key` of a value of type `type` is, or
+   * undefined when the type has none: `effectiveDateTime` on `Observation` is
+   * the choice element `effective` with type `dateTime`.
+   */
+  jsonElement(type: string, key: string): JsonElement | undefined {
+    return jsonElement(engineModel(this.defaults.model, 'jsonElement()'), type, key)
   }
 
   /**

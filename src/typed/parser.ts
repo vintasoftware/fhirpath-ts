@@ -4,6 +4,7 @@ import type {
   InferredHostValueDeclarations,
   LookupContextMap,
   MergeContextMaps,
+  TypedValueLike,
 } from './context-maps.ts'
 import type { InferenceSourceStepLimit, InferenceTokenLimit } from './inference-limits.ts'
 import type {
@@ -1881,7 +1882,7 @@ type CommonTargets<Left extends InferenceState, Right extends InferenceState> = 
 type BindVariable<Result extends InferenceState, Name extends string, Value extends InferenceState> =
   BindingsOf<Result> extends 'opaque'
     ? Result
-    : Name extends 'context' | 'resource' | 'rootResource' | 'ucum' | 'sct' | 'loinc'
+    : Name extends 'context' | 'resource' | 'rootResource' | 'ucum' | 'sct' | 'loinc' | 'terminologies'
       ? CopyEnvironment<OpaqueState, Result>
       : LookupBinding<BindingsOf<Result>, Name> extends never
         ? CoreOf<Result> &
@@ -1950,13 +1951,15 @@ type SpecialState<Name extends 'this' | 'index' | 'total', Context extends Infer
 type ExternalState<Name extends string, Context extends InferenceState> =
   LookupBinding<BindingsOf<Context>, Name> extends infer Found
     ? [Found] extends [never]
-      ? Name extends 'context'
-        ? CopyEnvironment<[RootTypesOf<Context>, RootTargetsOf<Context>], Context>
-        : Name extends 'resource' | 'rootResource'
-          ? ResourceVariableState<Name, Context>
-          : Name extends 'ucum' | 'sct' | 'loinc' | `vs-${string}` | `ext-${string}`
-            ? CopyEnvironment<['System.String', never], Context>
-            : HostVariableState<Name, Context>
+      ? Name extends 'context' | 'resource' | 'rootResource'
+        ? [LookupContextMap<EnvOf<HostContextOf<Context>>, Name>] extends [never]
+          ? Name extends 'context'
+            ? CopyEnvironment<[RootTypesOf<Context>, RootTargetsOf<Context>], Context>
+            : ResourceVariableState<Name, Context>
+          : HostVariableState<Name, Context>
+        : Name extends 'ucum' | 'sct' | 'loinc' | `vs-${string}` | `ext-${string}`
+          ? CopyEnvironment<['System.String', never], Context>
+          : HostVariableState<Name, Context>
       : Found extends InferenceState
         ? CopyEnvironment<Found, Context>
         : CopyEnvironment<UnknownState, Context>
@@ -2065,9 +2068,12 @@ type HostPresentValueState<Value> = 0 extends 1 & Value
                 ? Root extends keyof R4TypeOf & string
                   ? [Root, never]
                   : UnknownState
-                : [Value] extends [object]
-                  ? ['host', never] & HostValueCarrier<Value>
-                  : UnknownState
+                : // A typed value binds as the FHIR value it holds, whose type is not static.
+                  [Value] extends [TypedValueLike]
+                  ? UnknownState
+                  : [Value] extends [object]
+                    ? ['host', never] & HostValueCarrier<Value>
+                    : UnknownState
 
 type HostNumberType<Value extends number> = number extends Value
   ? 'System.Integer' | 'System.Decimal'

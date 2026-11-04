@@ -2022,6 +2022,16 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     },
     runtime: false,
   },
+  'builtin.ordinal': {
+    expression: 'Patient.name.ordinal()',
+    degradation: 'Patient.name.unknownFn()',
+    composition: '(Patient.name.ordinal()).count()',
+    analyzer: {
+      types: ['System.Decimal'],
+      single: false,
+    },
+    runtime: false,
+  },
   'builtin.pathname': {
     expression: 'Patient.name.pathname(true)',
     degradation: 'Patient.name.unknownFn()',

@@ -6,6 +6,7 @@ import type {
   InferredHostValueDeclarations,
   MergeContextMaps,
   NormalizeContextMap,
+  TypedValueLike,
 } from './context-maps.ts'
 import type { InferTypeExpression } from './parser.ts'
 
@@ -108,12 +109,15 @@ export type FhirpathTypeContextOf<Options> = {
   functions: NormalizeContextMap<ContextProperty<Options, 'functions'>>
 }
 
-/** A declared host value is an input, so it enters as any input of its type does. */
+/**
+ * A declared host value is an input, so it enters as any input of its type
+ * does, or as a typed value, whose type the declaration states.
+ */
 type DeclarationElement<Declaration> = Declaration extends { readonly type: infer Type }
   ? Type extends readonly FhirTypeName[]
-    ? InputOf<Type[number]>
+    ? InputOf<Type[number]> | TypedValueLike
     : Type extends FhirTypeName
-      ? InputOf<Type>
+      ? InputOf<Type> | TypedValueLike
       : unknown
   : unknown
 

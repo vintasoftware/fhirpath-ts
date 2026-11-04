@@ -14,8 +14,9 @@ const SAMPLE: Record<string, GeneratedType> = {
       value: { t: ['boolean', 'dateTime'], c: 1 },
       owner: { t: ['Reference'], r: ['Patient', 'Organization'] },
       links: { t: ['Reference'], a: 1, r: ['Thing'] },
-      status: { t: ['code'], m: 1 },
-      kind: { t: ['code'], a: 1, c: 1, m: 1, r: ['Thing'] },
+      status: { t: ['code'], m: 1, s: 0 },
+      gender: { t: ['code'], s: 12 },
+      kind: { t: ['code'], a: 1, c: 1, m: 1, s: 3, r: ['Thing'] },
     },
   },
   'Thing.part': { b: 'BackboneElement', e: { code: { t: ['System.String'] } } },
@@ -30,6 +31,7 @@ describe('compact model encoding', () => {
     expect(() => encodeCompactTypes({ 'a|b': { e: {} } })).toThrow(/reserved/)
     expect(() => encodeCompactTypes({ ok: { e: { 'x;y': { t: ['string'] } } } })).toThrow(/reserved/)
     expect(() => encodeCompactTypes({ ok: { e: { x: { t: ['a,b'] } } } })).toThrow(/reserved/)
+    expect(() => encodeCompactTypes({ ok: { e: { 'x~y': { t: ['code'] } } } })).toThrow(/reserved/)
   })
 
   it('serves lazy lookups with per-type caching', () => {
@@ -39,6 +41,7 @@ describe('compact model encoding', () => {
     expect(thing?.b).toBe('Base')
     expect(thing?.e['value']).toEqual({ t: ['boolean', 'dateTime'], c: 1 })
     expect(thing?.e['links']).toEqual({ t: ['Reference'], a: 1, r: ['Thing'] })
+    expect(thing?.e['kind']).toEqual({ t: ['code'], a: 1, c: 1, m: 1, s: 3, r: ['Thing'] })
     expect(table.get('Thing')).toBe(thing)
     expect(table.get('Base')).toEqual({ e: {} })
   })

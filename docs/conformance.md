@@ -132,6 +132,9 @@ qualifiers; the official R4 and R5 suites use the `-key` form. With a qualifier,
 
 ## Property and differential tests
 
+The Smart Forms adapter's offline probes run with
+`pnpm exec vitest run dogfood/sdc`.
+
 Generated tests cover behavior that a fixed example list may miss:
 
 - parser and printer round trips over generated ASTs;

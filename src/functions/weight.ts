@@ -5,24 +5,21 @@ import { FhirPathRuntimeError } from '../errors.ts'
 import { elementOrigin, owningResource, rootResourceOf } from '../fhir/element-origin.ts'
 import { extensionArraysOf } from '../fhir/extensions.ts'
 import { readModelProperty } from '../fhir/model-navigation.ts'
+import { codeSystemWeight, type ConceptKey, numericWeight, versionedWeight, WEIGHT_URLS } from '../fhir/weights.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import { Decimal } from '../values/decimal.ts'
 import { SYSTEM_DECIMAL, toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { registerFunction } from './registry.ts'
 import { callProvider, isObject, type ParameterEntry, parameterList, parameterValueX } from './terminology.ts'
 
-const WEIGHT_URLS = new Set<unknown>([
-  'http://hl7.org/fhir/StructureDefinition/itemWeight',
-  'http://hl7.org/fhir/StructureDefinition/ordinalValue',
-])
-
 const ANSWER_TYPE = 'FHIR.QuestionnaireResponse.item.answer'
 
-/** The CodeSystem property that carries a concept's weight. */
-const WEIGHT_PROPERTY_URI = 'http://hl7.org/fhir/concept-properties#itemWeight'
-
-/** SDC local scores; unresolved terminology must not silently lower a total. */
-registerFunction('weight', {
+/**
+ * SDC local scores; unresolved terminology must not silently lower a total.
+ * `ordinal()` is the name SDC used before `weight()`, which R4-era
+ * questionnaires and fhirpath.js still accept.
+ */
+const weight: Parameters<typeof registerFunction>[1] = {
   minArity: 0,
   maxArity: 0,
   evaluate: (context, input) => {
@@ -40,17 +37,16 @@ registerFunction('weight', {
     })
     return weights
   },
-})
+}
+registerFunction('weight', weight)
+registerFunction('ordinal', weight)
 
 function embeddedWeight(item: TypedValue | undefined): Decimal | undefined {
   if (item === undefined) return undefined
   for (const extension of extensionArraysOf(item).flat()) {
     const fields = extension as { url?: unknown; valueDecimal?: unknown } | null
     if (fields === null || !WEIGHT_URLS.has(fields.url)) continue
-    const score = typeof fields.valueDecimal === 'number' ? Decimal.fromNumber(fields.valueDecimal) : undefined
-    if (score === undefined)
-      throw new FhirPathRuntimeError('weight() requires a numeric valueDecimal on the weight extension')
-    return score
+    return numericWeight(fields.valueDecimal, 'valueDecimal on the weight extension')
   }
   return undefined
 }
@@ -92,27 +88,46 @@ function weightOf(context: EvaluationContext, model: ModelProvider, item: TypedV
       if (score !== undefined) return score
     }
   }
-  // A code's CodeSystem comes from its binding and a Coding's from its system.
-  // A Coding without a system names no CodeSystem, so it has no weight.
+  const concept = conceptOf(model, value)
+  if (concept === undefined) return undefined
+  const questionnaire = answer === undefined ? undefined : lookupEnvironmentVariable(context, 'questionnaire')?.[0]
+  const contained = codeSystemWeight(containedCodeSystems(model, [ownerOf(value), questionnaire]), concept)
+  if (contained.listed) return contained.weight
+  if (contained.complete) {
+    throw new FhirPathRuntimeError(`weight() cannot find a code in CodeSystem ${concept.system}`)
+  }
+  const coding = value.type === 'FHIR.Coding' ? value.value : { system: concept.system, code: concept.code }
+  const response = parameterList(callProvider(context, 'weight()', 'lookup', [coding, 'property=itemWeight']))
+  if (response === undefined) throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem')
+  const weight = lookupProperty(response, 'itemWeight')
+  return weight === undefined ? undefined : numericWeight(weight, 'CodeSystem itemWeight')
+}
+
+/**
+ * A Coding names its CodeSystem through `system`; a bare `code` through the
+ * required binding of the element it was read from, which the model knows
+ * for a binding over one code system. A Coding without a system names no
+ * CodeSystem, so it has no weight; a code whose binding cannot be resolved
+ * fails the call, so a required score is never silently dropped.
+ */
+function conceptOf(model: ModelProvider, value: TypedValue): ConceptKey | undefined {
   if (value.type === 'FHIR.code') {
-    throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem binding of a code')
-  }
-  const system = value.type === 'FHIR.Coding' ? children(model, value, 'system')[0]?.value : undefined
-  if (typeof system === 'string') {
-    const code = children(model, value, 'code')[0]?.value
-    if (typeof code !== 'string') {
-      throw new FhirPathRuntimeError('weight() needs a Coding with a code for CodeSystem lookup')
+    const origin = elementOrigin(value)
+    const system = origin === undefined ? undefined : model.boundCodeSystem?.(origin.parent.type, origin.name)
+    if (system === undefined) {
+      const where = origin === undefined ? '' : ` of ${origin.parent.type}.${origin.name}`
+      throw new FhirPathRuntimeError(`weight() cannot resolve the CodeSystem binding${where} of a code`)
     }
-    const version = children(model, value, 'version')[0]?.value
-    const questionnaire = answer === undefined ? undefined : lookupEnvironmentVariable(context, 'questionnaire')?.[0]
-    const contained = containedCodeSystemWeight(model, [ownerOf(value), questionnaire], system, code, version)
-    if (contained !== undefined) return contained.weight
-    const response = parameterList(callProvider(context, 'weight()', 'lookup', [value.value, 'property=itemWeight']))
-    if (response === undefined) throw new FhirPathRuntimeError('weight() cannot resolve the CodeSystem')
-    const weight = lookupProperty(response, 'itemWeight')
-    return weight === undefined ? undefined : numericWeight(weight)
+    return typeof value.value === 'string' ? { system, code: value.value, version: undefined } : undefined
   }
-  return undefined
+  if (value.type !== 'FHIR.Coding') return undefined
+  const system = children(model, value, 'system')[0]?.value
+  if (typeof system !== 'string') return undefined
+  const code = children(model, value, 'code')[0]?.value
+  if (typeof code !== 'string') {
+    throw new FhirPathRuntimeError('weight() needs a Coding with a code for CodeSystem lookup')
+  }
+  return { system, code, version: children(model, value, 'version')[0]?.value }
 }
 
 /**
@@ -133,16 +148,21 @@ function valueSetWeight(
   const system = children(model, value, 'system')[0]?.value
   const code = children(model, value, 'code')[0]?.value
   if (value.type !== 'FHIR.Coding' || typeof system !== 'string' || typeof code !== 'string') return undefined
+  const version = children(model, value, 'version')[0]?.value
   const valueSet = containedValueSet(model, questionnaire, canonical) ?? expandedValueSet(context, canonical)
-  const entry = nested(model, children(model, valueSet, 'expansion'), 'contains').find(item =>
-    matches(model, item, system, code)
-  )
-  const concept = children(model, valueSet, 'compose')
+  const entries = nested(model, children(model, valueSet, 'expansion'), 'contains')
+    .filter(item => matches(model, item, system, code))
+    .map(item => ({ version: children(model, item, 'version')[0]?.value, weight: embeddedWeight(item) }))
+  const concepts = children(model, valueSet, 'compose')
     .flatMap(compose => children(model, compose, 'include'))
     .filter(include => children(model, include, 'system')[0]?.value === system)
-    .flatMap(include => children(model, include, 'concept'))
-    .find(item => children(model, item, 'code')[0]?.value === code)
-  return embeddedWeight(entry) ?? embeddedWeight(concept)
+    .flatMap(include =>
+      children(model, include, 'concept')
+        .filter(item => children(model, item, 'code')[0]?.value === code)
+        .map(item => ({ version: children(model, include, 'version')[0]?.value, weight: embeddedWeight(item) }))
+    )
+  const where = `ValueSet ${canonical}`
+  return versionedWeight(entries, version, where) ?? versionedWeight(concepts, version, where)
 }
 
 function containedValueSet(model: ModelProvider, questionnaire: TypedValue, canonical: string): TypedValue | undefined {
@@ -169,61 +189,14 @@ function expandedValueSet(context: EvaluationContext, canonical: string): TypedV
 }
 
 /**
- * A Coding's weight from a CodeSystem contained in one of `scopes` (the
- * resource holding the value, and the Questionnaire for an answer). The result
- * is undefined when no contained CodeSystem answers, so the provider is asked:
- * none matches the system and version, or one that does not list all its codes
- * lacks this one. A complete CodeSystem without the code fails the call.
+ * The CodeSystems contained in `scopes`, as JSON: the resource holding the
+ * value, and the Questionnaire for an answer.
  */
-function containedCodeSystemWeight(
-  model: ModelProvider,
-  scopes: (TypedValue | undefined)[],
-  system: string,
-  code: string,
-  version: unknown
-): { weight: Decimal | undefined } | undefined {
-  for (const scope of scopes) {
-    if (scope === undefined) continue
-    for (const codeSystem of children(model, scope, 'contained')) {
-      if (codeSystem.type !== 'FHIR.CodeSystem' || children(model, codeSystem, 'url')[0]?.value !== system) continue
-      if (version !== undefined && children(model, codeSystem, 'version')[0]?.value !== version) continue
-      const concept = nested(model, [codeSystem], 'concept').find(
-        item => children(model, item, 'code')[0]?.value === code
-      )
-      if (concept !== undefined) return { weight: conceptWeight(model, codeSystem, concept) }
-      if (children(model, codeSystem, 'content')[0]?.value === 'complete') {
-        throw new FhirPathRuntimeError(`weight() cannot find code '${code}' in CodeSystem ${system}`)
-      }
-    }
-  }
-  return undefined
-}
-
-/** A CodeSystem concept's weight: a weight extension, or the property the CodeSystem declares for it. */
-function conceptWeight(model: ModelProvider, codeSystem: TypedValue, concept: TypedValue): Decimal | undefined {
-  const embedded = embeddedWeight(concept)
-  if (embedded !== undefined) return embedded
-  const weightCodes = new Set(
-    children(model, codeSystem, 'property')
-      .filter(
-        property =>
-          children(model, property, 'uri')[0]?.value === WEIGHT_PROPERTY_URI ||
-          children(model, property, 'code')[0]?.value === 'itemWeight'
-      )
-      .map(property => children(model, property, 'code')[0]?.value)
-  )
-  for (const property of children(model, concept, 'property')) {
-    if (!weightCodes.has(children(model, property, 'code')[0]?.value)) continue
-    return numericWeight(children(model, property, 'value')[0]?.value)
-  }
-  return undefined
-}
-
-/** A CodeSystem weight property's value: a Decimal or integer when contained, a JSON number from $lookup. */
-function numericWeight(value: unknown): Decimal {
-  const decimal = value instanceof Decimal ? value : typeof value === 'number' ? Decimal.fromNumber(value) : undefined
-  if (decimal === undefined) throw new FhirPathRuntimeError('weight() requires a numeric CodeSystem itemWeight')
-  return decimal
+function containedCodeSystems(model: ModelProvider, scopes: (TypedValue | undefined)[]): unknown[] {
+  return scopes
+    .flatMap(scope => (scope === undefined ? [] : children(model, scope, 'contained')))
+    .filter(resource => resource.type === 'FHIR.CodeSystem')
+    .map(resource => resource.value)
 }
 
 /** Every `name` child at any depth below `roots`: nested concepts or expansion entries. */

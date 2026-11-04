@@ -1,4 +1,5 @@
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { matchesValuePattern } from '../fhir/fhir-json.ts'
 import { convertSingle } from '../fhir/model-navigation.ts'
 import type { ElementInfo, ModelProvider } from '../model/provider.ts'
 import type { AstNode, InstanceSelectorNode } from '../parser/ast.ts'
@@ -9,6 +10,7 @@ import { isFhirQuantityType, toFhirQuantity } from '../values/quantity.ts'
 import {
   FHIR_PRIMITIVE_TO_SYSTEM,
   OBJECT_TYPE,
+  PRIMITIVE_FOR_SYSTEM,
   type QuantityValue,
   SYSTEM_BOOLEAN,
   SYSTEM_DATE,
@@ -119,18 +121,6 @@ export function selectorElement(model: ModelProvider, type: string, name: string
   return system === undefined || info === undefined ? info : { ...info, types: [system] }
 }
 
-/** The FHIR primitive named after each System type: a System.String fills a `string` choice. */
-const PRIMITIVE_FOR_SYSTEM: Readonly<Record<string, string>> = {
-  'System.Boolean': 'boolean',
-  'System.String': 'string',
-  'System.Integer': 'integer',
-  'System.Long': 'integer64',
-  'System.Decimal': 'decimal',
-  'System.Date': 'date',
-  'System.DateTime': 'dateTime',
-  'System.Time': 'time',
-}
-
 /** Implicit conversions (spec "Conversion") a value may take to fit an element. */
 const IMPLICIT_TARGETS: Readonly<Record<string, readonly string[]>> = {
   'System.Integer': ['System.Decimal', 'System.Long'],
@@ -180,8 +170,6 @@ export function acceptingElementType(
   )
 }
 
-const VALUE_PATTERNS = new Map<string, RegExp>()
-
 /**
  * The FHIR primitive whose value pattern a written value must match: the element
  * type that took it, or the selector's own type for a primitive's `value`.
@@ -209,12 +197,7 @@ export function valuePatternMessage(
   if (pattern === undefined || value === undefined || value === null) {
     return undefined
   }
-  let regex = VALUE_PATTERNS.get(pattern)
-  if (regex === undefined) {
-    regex = new RegExp(`^(?:${pattern})$`)
-    VALUE_PATTERNS.set(pattern, regex)
-  }
-  return regex.test(String(value))
+  return matchesValuePattern(model, primitive, String(value))
     ? undefined
     : `Element '${element}' of ${owner} does not match the ${typeLocalName(primitive)} pattern ${pattern}`
 }

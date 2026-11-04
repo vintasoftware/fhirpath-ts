@@ -54,7 +54,7 @@ export const INFERENCE_CORPUS_AUDIT = {
     '~',
   ],
   literals: ['boolean', 'date', 'dateTime', 'decimal', 'long', 'null', 'number', 'quantity', 'string', 'time'],
-  signedFunctions: 121,
+  signedFunctions: 122,
   coveredSignedFunctions: [
     'abs',
     'aggregate',
@@ -175,6 +175,7 @@ export const INFERENCE_CORPUS_AUDIT = {
     'difference',
     'duration',
     'memberOf',
+    'ordinal',
     'pathname',
     'repeatAll',
     'subsumedBy',

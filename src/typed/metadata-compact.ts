@@ -74,6 +74,7 @@ export interface CompactFunctionRules {
   not: readonly ['fixed', 'System.Boolean']
   now: readonly ['fixed', 'System.DateTime']
   ofType: readonly ['unknown']
+  ordinal: readonly ['fixed', 'System.Decimal']
   pathname: readonly ['fixed', 'System.String']
   power: readonly ['fixed', 'System.Decimal']
   precision: readonly ['fixed', 'System.Integer']
@@ -178,6 +179,7 @@ export type CompactFastFunctionName =
   | 'trace'
   | 'pathname'
   | 'weight'
+  | 'ordinal'
   | 'hasValue'
   | 'htmlChecks'
   | 'comparable'

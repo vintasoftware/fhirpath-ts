@@ -1,10 +1,10 @@
 import { Decimal } from './decimal.ts'
 
 /**
- * Minimal UCUM support: enough units for quantity comparison, conversion, and the
- * official test suites. Factors are exact Decimals, so `1 'm' = 100 'cm'` holds
- * without float drift. Anything outside this table still works as an opaque unit
- * that only compares with itself.
+ * Minimal UCUM support: enough units for quantity comparison, conversion, the
+ * official test suites, and clinical questionnaires. Factors are exact
+ * Decimals, so `1 'm' = 100 'cm'` holds without float drift. Anything outside
+ * this table still works as an opaque unit that only compares with itself.
  *
  * UCUM special units are not ratio scales. The offset temperatures (Celsius,
  * Fahrenheit, Réaumur) convert to kelvin; the others, such as the bel, neper,
@@ -19,7 +19,7 @@ interface UnitAtom {
   dimension: Dimension
   /** Factor to the base unit of the dimension, as an exact decimal string. */
   factor: string
-  /** Prefixable per UCUM metadata (its metric flag); bracketed and derived units are not. */
+  /** Prefixable per UCUM metadata (its metric flag); bracketed units are not. */
   prefixable: boolean
   /**
    * A UCUM special unit. An `offset` unit converts as base = (value + offset) ×
@@ -78,6 +78,19 @@ const ATOMS: Readonly<Record<string, UnitAtom>> = {
   bit_s: NON_RATIO,
 }
 
+/**
+ * Units UCUM defines from other units, as its table writes them: the value and
+ * the unit it is measured in. These are the force and pressure units that
+ * blood-pressure conversions need. All are metric, so they take prefixes. Each
+ * reduces once, in table order, so a definition may name an earlier entry.
+ */
+const DERIVED: Readonly<Record<string, { factor: string; unit: string }>> = {
+  N: { factor: '1', unit: 'kg.m/s2' },
+  Pa: { factor: '1', unit: 'N/m2' },
+  // UCUM defines the meter of mercury column as 133.3220 kPa.
+  'm[Hg]': { factor: '133.322', unit: 'kPa' },
+}
+
 /** Units that are volumes even though their atom row reduces through meters. */
 const VOLUME_ATOMS = new Set(['L', 'l'])
 
@@ -119,54 +132,76 @@ export interface CanonicalUnit {
  */
 const MAX_EXPONENT_MAGNITUDE = 9
 
-/** One `atom` optionally followed by an integer exponent, e.g. `m2` or `cm3`. */
-function parseComponent(
-  text: string
-): { factor: Decimal; dimension: Dimension; exponent: number; atom: UnitAtom } | undefined {
-  // Whole-text atoms first, so '1' is the unity unit rather than an empty atom with exponent 1.
-  const whole = resolveAtom(text)
+/** One unit term reduced to base dimensions, before its exponent is applied. */
+interface ResolvedUnit {
+  factor: Decimal
+  dimensions: Readonly<Record<string, number>>
+  special?: UnitAtom['special']
+}
+
+/** Every unit symbol reduced to base dimensions, and whether it takes a prefix. */
+const UNITS = new Map<string, ResolvedUnit & { prefixable: boolean }>()
+for (const [key, atom] of Object.entries(ATOMS)) {
+  const exponent = VOLUME_ATOMS.has(key) ? 3 : 1
+  UNITS.set(key, {
+    factor: Decimal.fromString(atom.factor) as Decimal,
+    dimensions: atom.dimension === '1' ? {} : { [atom.dimension]: exponent },
+    prefixable: atom.prefixable,
+    ...(atom.special !== undefined && { special: atom.special }),
+  })
+}
+for (const [key, { factor, unit }] of Object.entries(DERIVED)) {
+  // Every definition reduces; a table error fails here, when the module loads.
+  const definition = canonicalizeUnit(unit) as CanonicalUnit
+  UNITS.set(key, {
+    factor: definition.factor.multiply(Decimal.fromString(factor) as Decimal),
+    dimensions: definition.dimensions,
+    prefixable: true,
+  })
+}
+
+/** One term optionally followed by an integer exponent, e.g. `m2`, `cm3`, or `kPa`. */
+function parseComponent(text: string): ResolvedUnit | undefined {
+  // Whole-text units first, so '1' is the unity unit rather than an empty atom with exponent 1.
+  const whole = resolveUnit(text)
   if (whole) {
-    const volumeBump = VOLUME_ATOMS.has(whole.atomKey) ? 3 : 1
-    return { factor: whole.factor, dimension: whole.atom.dimension, exponent: volumeBump, atom: whole.atom }
+    return whole
   }
   const match = /^(.*?)(-?\d+)?$/.exec(text)
   /* v8 ignore next 3 -- the regex cannot fail on any string */
   if (!match) {
     return undefined
   }
-  const [, atomText = '', exponentText] = match
+  const [, unitText = '', exponentText] = match
   const exponent = exponentText === undefined ? 1 : Number.parseInt(exponentText, 10)
   if (Math.abs(exponent) > MAX_EXPONENT_MAGNITUDE) {
     return undefined
   }
-  const resolved = resolveAtom(atomText)
+  const resolved = resolveUnit(unitText)
   // A special unit has no powers: 'Cel2' means nothing.
-  if (!resolved || resolved.atom.special !== undefined) {
+  if (!resolved || resolved.special !== undefined) {
     return undefined
   }
-  const volumeBump = VOLUME_ATOMS.has(resolved.atomKey) ? 3 : 1
-  const factor = powDecimal(resolved.factor, exponent)
-  return { factor, dimension: resolved.atom.dimension, exponent: exponent * volumeBump, atom: resolved.atom }
+  return { factor: powDecimal(resolved.factor, exponent), dimensions: scaled(resolved.dimensions, exponent) }
 }
 
-function resolveAtom(text: string): { atom: UnitAtom; atomKey: string; factor: Decimal } | undefined {
-  const direct = ATOMS[text]
+/** A unit symbol, optionally after a prefix its unit takes. */
+function resolveUnit(text: string): ResolvedUnit | undefined {
+  const direct = UNITS.get(text)
   if (direct) {
-    return { atom: direct, atomKey: text, factor: Decimal.fromString(direct.factor) as Decimal }
+    return direct
   }
   for (const [prefix, prefixFactor] of Object.entries(PREFIXES)) {
-    if (text.startsWith(prefix)) {
-      const rest = text.slice(prefix.length)
-      const atom = ATOMS[rest]
-      if (atom?.prefixable) {
-        const factor = (Decimal.fromString(atom.factor) as Decimal).multiply(
-          Decimal.fromString(prefixFactor) as Decimal
-        )
-        return { atom, atomKey: rest, factor }
-      }
+    const unit = text.startsWith(prefix) ? UNITS.get(text.slice(prefix.length)) : undefined
+    if (unit?.prefixable) {
+      return { ...unit, factor: unit.factor.multiply(Decimal.fromString(prefixFactor) as Decimal) }
     }
   }
   return undefined
+}
+
+function scaled(dimensions: Readonly<Record<string, number>>, exponent: number): Record<string, number> {
+  return Object.fromEntries(Object.entries(dimensions).map(([dimension, power]) => [dimension, power * exponent]))
 }
 
 function powDecimal(base: Decimal, exponent: number): Decimal {
@@ -185,38 +220,50 @@ function powDecimal(base: Decimal, exponent: number): Decimal {
 }
 
 /**
- * Reduce a UCUM expression (`mg`, `m2`, `g/m`, `kg.m/s2`) to base dimensions.
- * Undefined for units outside the table, and for special units other than an
- * offset temperature standing alone and unprefixed — they stay opaque.
+ * The unit an annotated UCUM expression means. An annotation that stands as a
+ * term of its own (`{tablet}`, `mg/{tablet}`, `{beats}/min`) is unity; one
+ * written after a symbol (`Cel{body}`, `mg{dose}`) is dropped.
+ */
+function withoutAnnotations(unit: string): string {
+  return unit.replace(/(^|[./])\{[^{}]*\}/g, '$11').replace(/\{[^{}]*\}/g, '')
+}
+
+/**
+ * Reduce a UCUM expression (`mg`, `m2`, `g/m`, `kg.m/s2`, `/min`, `{beats}/min`)
+ * to base dimensions. An annotation in braces means unity, as UCUM defines it,
+ * and a term before the first `/` may be absent. Undefined for units outside
+ * the table, and for special units other than an offset temperature standing
+ * alone and unprefixed — they stay opaque.
  */
 export function canonicalizeUnit(unit: string): CanonicalUnit | undefined {
-  const [numerator, ...denominators] = unit.split('/')
+  const expression = withoutAnnotations(unit)
+  const [numerator = '', ...denominators] = expression.split('/')
   let factor = new Decimal(1n, 0)
   let offset: Decimal | undefined
   const dimensions: Record<string, number> = {}
   const apply = (componentText: string, sign: 1 | -1): boolean => {
     const component = parseComponent(componentText)
-    const special = component?.atom.special
+    const special = component?.special
     if (special !== undefined) {
       // 'Cel' converts; 'mCel', 'Cel/s', and every non-ratio unit do not.
-      if (special.kind !== 'offset' || componentText !== unit || !(componentText in ATOMS)) return false
+      if (special.kind !== 'offset' || componentText !== expression || !(componentText in ATOMS)) return false
       offset = Decimal.fromString(special.offset) as Decimal
     }
     if (!component) {
       return false
     }
     factor = sign === 1 ? factor.multiply(component.factor) : (factor.divide(component.factor) as Decimal)
-    if (component.dimension !== '1') {
-      const next = (dimensions[component.dimension] ?? 0) + sign * component.exponent
+    for (const [dimension, power] of Object.entries(component.dimensions)) {
+      const next = (dimensions[dimension] ?? 0) + sign * power
       if (next === 0) {
-        delete dimensions[component.dimension]
+        delete dimensions[dimension]
       } else {
-        dimensions[component.dimension] = next
+        dimensions[dimension] = next
       }
     }
     return true
   }
-  for (const part of (numerator ?? '').split('.')) {
+  for (const part of (numerator === '' && denominators.length > 0 ? '1' : numerator).split('.')) {
     if (!apply(part, 1)) {
       return undefined
     }
@@ -247,7 +294,7 @@ export function fromBase(base: Decimal, unit: CanonicalUnit): Decimal {
  * quantity arithmetic and sums give empty.
  */
 export function isSpecialUnit(unit: string): boolean {
-  return SPECIAL_UNITS.has(unit)
+  return SPECIAL_UNITS.has(withoutAnnotations(unit))
 }
 
 export function sameDimensions(a: CanonicalUnit, b: CanonicalUnit): boolean {

@@ -43,6 +43,7 @@
     "./eslint": "./src/eslint/index.ts",
     "./sites": "./src/sites/index.ts",
     "./sdc": "./src/sdc/index.ts",
+    "./medplum": "./src/terminology/medplum.ts",
     "./package.json": "./package.json"
   },
   "bin": {
@@ -87,6 +88,10 @@
       "./sdc": {
         "types": "./dist/sdc/index.d.ts",
         "default": "./dist/sdc/index.js"
+      },
+      "./medplum": {
+        "types": "./dist/terminology/medplum.d.ts",
+        "default": "./dist/terminology/medplum.js"
       },
       "./package.json": "./package.json"
     },

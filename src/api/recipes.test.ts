@@ -409,6 +409,46 @@ describe('README usage recipes', () => {
       return r4.first("item.where(linkId = 'name').answer.value", context, { vars: scope.vars(context) })
     })
     expect(names).toEqual(['Aspirin'])
+
+    const typedRoot = r4.toTyped(response, 'QuestionnaireResponse')
+    const [meds] = r4.evaluateTyped("item.where(linkId = 'meds')", typedRoot)
+    const items = r4.evaluateTyped('item', meds!)
+    expect(r4.evaluate('answer.value | %context.linkId', items, { env: { context: meds } })).toEqual([
+      'Aspirin',
+      'meds',
+    ])
+    const searchset = r4.toTyped(
+      { resourceType: 'Bundle', type: 'searchset', entry: [{ resource: { resourceType: 'Medication', id: 'm1' } }] },
+      'Bundle'
+    )
+    expect(
+      r4.evaluate('entry.resource.id | %resource.status', searchset, {
+        env: { context: meds, resource: typedRoot, rootResource: typedRoot },
+      })
+    ).toEqual(['m1', 'completed'])
+  })
+
+  it('write results back as FHIR JSON', () => {
+    const response: QuestionnaireResponse = {
+      resourceType: 'QuestionnaireResponse',
+      status: 'completed',
+      authored: '2025-09-16T12:34:56.000-07:00',
+    }
+    const [authored] = r4.evaluateTyped('authored', response)
+    expect(r4.toFhirJson(authored!, 'dateTime')).toBe('2025-09-16T12:34:56.000-07:00')
+    const [dose] = r4.evaluateTyped("5.5 'mg'")
+    expect(r4.toFhirJson(dose!, 'Quantity')).toEqual({
+      value: 5.5,
+      unit: 'mg',
+      system: 'http://unitsofmeasure.org',
+      code: 'mg',
+    })
+    expect(r4.jsonElement('Observation', 'effectiveDateTime')).toEqual({
+      key: 'effectiveDateTime',
+      type: 'dateTime',
+      isCollection: false,
+      isPrimitive: true,
+    })
   })
 
   it('build values', () => {
@@ -490,6 +530,25 @@ describe('README usage recipes', () => {
         env: { limit: 0 },
       })
     ).toBe(true)
+
+    const response: QuestionnaireResponse = {
+      resourceType: 'QuestionnaireResponse',
+      status: 'completed',
+      item: [{ linkId: 'drug', answer: [{ valueCoding: { code: 'm1' } }] }],
+    }
+    const [item] = r4.evaluateTyped('item', r4.toTyped(response, 'QuestionnaireResponse'))
+    const [coding] = r4.evaluateTyped('answer.value', item!)
+    expect(r4.evaluate('code | %context.linkId', coding!, { env: { context: item } })).toEqual(['m1', 'drug'])
+    expect(
+      analyzeExpression('code | %context.linkId', {
+        model: r4Model,
+        inputType: ['Coding', 'Quantity'],
+        variables: {
+          context: { types: ['FHIR.QuestionnaireResponse.item'], single: true },
+          resource: { types: ['FHIR.QuestionnaireResponse'], single: true },
+        },
+      })
+    ).toEqual([])
   })
 
   it('covers API reference expressions in their runtime contexts', () => {

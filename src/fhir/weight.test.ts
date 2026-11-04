@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { analyzeExpressionDetailed } from '../analyzer/analyze.ts'
 import { compile } from '../api/compile.ts'
 import { evaluate, evaluateAsync } from '../api/evaluate.ts'
+import { FhirPathAsyncRequiredError, FhirPathRuntimeError } from '../errors.ts'
 import { r4Model } from '../r4/index.ts'
 import type { TerminologyProvider } from '../terminology/provider.ts'
 
@@ -48,6 +49,8 @@ describe('SDC weight()', () => {
     expect(evaluate('item.item.answer.value.weight().sum()', response, options)).toEqual([5])
     expect(evaluate('repeat(item).answer.value.weight().sum()', response, options)).toEqual([5])
     expect(evaluate('descendants().ofType(Coding).weight().sum()', response, options)).toEqual([5])
+    // ordinal() is the SDC name before weight(), still used by R4-era questionnaires.
+    expect(evaluate('item.item.answer.ordinal()', response, options)).toEqual([0, 2.5, 2.5])
   })
 
   it('keeps answer context in saved typed variables', () => {
@@ -205,9 +208,30 @@ describe('SDC weight()', () => {
     expect(() =>
       evaluate('code.coding.weight()', { resourceType: 'Observation', code: { coding: [coding('a')] } }, options)
     ).toThrow('weight() needs evaluateAsync() with options.terminology')
+    // A bare code names its CodeSystem through its element's binding, so the lookup goes to the provider.
     expect(() => evaluate('gender.weight()', { resourceType: 'Patient', gender: 'male' }, options)).toThrow(
-      'CodeSystem'
+      'weight() needs evaluateAsync() with options.terminology'
     )
+    expect(() => evaluate('intent.weight()', { resourceType: 'Task', intent: 'order' }, options)).toThrow(
+      'weight() cannot resolve the CodeSystem binding of FHIR.Task.intent of a code'
+    )
+    // A string literal is a System.String, not a FHIR code: ineligible, so empty.
+    expect(evaluate("'male'.weight()", {}, options)).toEqual([])
+    expect(() => evaluate('gender.weight()', { resourceType: 'Patient', gender: 'male' }, options)).toThrow(
+      FhirPathAsyncRequiredError
+    )
+  })
+
+  it('reports a missing provider in an async evaluation as configuration, not as a need for evaluateAsync()', async () => {
+    const patient = { resourceType: 'Patient', gender: 'male' }
+    const failure = await evaluateAsync('gender.weight()', patient, options).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(FhirPathRuntimeError)
+    expect(failure).not.toBeInstanceOf(FhirPathAsyncRequiredError)
+    expect((failure as Error).message).toBe('weight() needs options.terminology')
+    await expect(evaluateAsync('%terminologies', patient, options)).rejects.toThrow(
+      '%terminologies needs options.terminology'
+    )
+    expect(() => evaluate('%terminologies', patient, options)).toThrow(FhirPathAsyncRequiredError)
   })
 
   it('rejects an invalid weight instead of turning it into a zero score', () => {
@@ -222,10 +246,12 @@ describe('SDC weight()', () => {
   })
 
   it('declares a Decimal collection to the analyzer', () => {
-    const result = analyzeExpressionDetailed('QuestionnaireResponse.item.answer.value.weight()', { model: r4Model })
-    expect(result.diagnostics).toEqual([])
-    expect(result.result.types).toEqual(['System.Decimal'])
-    expect(result.result.single).toBe(false)
+    for (const name of ['weight', 'ordinal']) {
+      const result = analyzeExpressionDetailed(`QuestionnaireResponse.item.answer.value.${name}()`, { model: r4Model })
+      expect(result.diagnostics).toEqual([])
+      expect(result.result.types).toEqual(['System.Decimal'])
+      expect(result.result.single).toBe(false)
+    }
   })
 
   describe('ValueSet and CodeSystem lookup', () => {
@@ -421,16 +447,56 @@ describe('SDC weight()', () => {
         item: [item()],
         contained: [codeSystem([scored('a', 1)], { content })],
       })
+      // The message names the CodeSystem, never the answered code.
       expect(() => run(q('complete'), reply(coding('missing')))).toThrow(
-        "weight() cannot find code 'missing' in CodeSystem urn:scores"
+        new FhirPathRuntimeError('weight() cannot find a code in CodeSystem urn:scores')
       )
       expect(() => run(q('fragment'), reply(coding('missing')))).toThrow(
         'weight() needs evaluateAsync() with options.terminology'
       )
-      // A Coding version the contained CodeSystem does not have also goes to the provider.
-      expect(() => run(q('complete'), reply({ ...coding('a'), version: '9' }))).toThrow(
+      // An unversioned CodeSystem stands in for any version; one with another version goes to the provider.
+      expect(run(q('complete'), reply({ ...coding('a'), version: '9' }))).toEqual([1])
+      const versioned = {
+        resourceType: 'Questionnaire',
+        item: [item()],
+        contained: [codeSystem([scored('a', 1)], { version: '1' })],
+      }
+      expect(() => run(versioned, reply({ ...coding('a'), version: '9' }))).toThrow(
         'weight() needs evaluateAsync() with options.terminology'
       )
+    })
+
+    it('applies the version rules across contained CodeSystems', () => {
+      const q = (...versions: [string | undefined, number][]) => ({
+        resourceType: 'Questionnaire',
+        item: [item()],
+        contained: versions.map(([version, weight], index) =>
+          codeSystem([scored('a', weight)], { id: `cs${index}`, ...(version && { version }) })
+        ),
+      })
+      expect(run(q(['1', 2], ['2', 5]), reply({ ...coding('a'), version: '2' }))).toEqual([5])
+      expect(run(q(['1', 2], [undefined, 5]), reply({ ...coding('a'), version: '9' }))).toEqual([5])
+      expect(() => run(q(['1', 2], ['2', 5]), reply(coding('a')))).toThrow(
+        new FhirPathRuntimeError(
+          'weight() finds different weights for a code in CodeSystem urn:scores across code system versions; the Coding names none'
+        )
+      )
+      expect(run(q(['1', 3], ['2', 3]), reply(coding('a')))).toEqual([3])
+      // Two listings of the Coding's own version that disagree; neither the code nor the version is named.
+      expect(() => run(q(['2', 2], ['2', 5]), reply({ ...coding('a'), version: '2' }))).toThrow(
+        new FhirPathRuntimeError(
+          "weight() finds different weights for a code in CodeSystem urn:scores for the Coding's version"
+        )
+      )
+    })
+
+    it('fails on a malformed contained CodeSystem weight instead of dropping the score', () => {
+      const q = {
+        resourceType: 'Questionnaire',
+        item: [item()],
+        contained: [codeSystem([{ code: 'a', extension: [{ url: ordinalUrl, valueString: '3' }] }])],
+      }
+      expect(() => run(q, reply(coding('a')))).toThrow('weight() requires a numeric valueDecimal')
     })
 
     it('fails the whole collection when one answer needs an unavailable lookup', () => {
@@ -488,5 +554,153 @@ describe('SDC weight()', () => {
         evaluateAsync('item.answer.value.weight()', reply(coding('a')), options('http://example.org/ValueSet/unknown'))
       ).rejects.toThrow('weight() cannot resolve the ValueSet http://example.org/ValueSet/unknown')
     })
+  })
+})
+
+describe('weight() across code system versions', () => {
+  const system = 'urn:versioned'
+  const reply = (version?: string) => ({
+    resourceType: 'QuestionnaireResponse',
+    item: [{ linkId: 'q', answer: [{ valueCoding: { system, code: 'yes', ...(version && { version }) } }] }],
+  })
+  const concept = (weight: number) => ({ code: 'yes', extension: score(weight) })
+  const include = (weight: number, version?: string) => ({
+    system,
+    ...(version && { version }),
+    concept: [concept(weight)],
+  })
+  const entry = (weight: number, version?: string) => ({
+    system,
+    code: 'yes',
+    ...(version && { version }),
+    extension: score(weight),
+  })
+  const questionnaire = (valueSet: object) => ({
+    resourceType: 'Questionnaire',
+    item: [{ linkId: 'q', type: 'choice', answerValueSet: '#vs' }],
+    contained: [{ resourceType: 'ValueSet', id: 'vs', status: 'active', ...valueSet }],
+  })
+  const run = (valueSet: object, version?: string) =>
+    evaluate('item.answer.value.weight()', reply(version), {
+      model: r4Model,
+      env: { questionnaire: questionnaire(valueSet) },
+    })
+  const composed = { compose: { include: [include(2, 'v1'), include(5, 'v2')] } }
+  const expanded = { expansion: { timestamp: '2026-10-22', contains: [entry(2, 'v1'), entry(5, 'v2')] } }
+
+  it('selects the listing with the Coding version in compose.include and expansion.contains', () => {
+    expect(run(composed, 'v2')).toEqual([5])
+    expect(run(composed, 'v1')).toEqual([2])
+    expect(run(expanded, 'v2')).toEqual([5])
+    expect(run(expanded, 'v1')).toEqual([2])
+  })
+
+  it('lets a listing without a version, or with the * wildcard, stand in for any version', () => {
+    expect(run({ compose: { include: [include(3)] } }, 'v9')).toEqual([3])
+    expect(run({ compose: { include: [include(3, '*')] } }, 'v9')).toEqual([3])
+    expect(run({ expansion: { timestamp: '2026-10-22', contains: [entry(3)] } }, 'v9')).toEqual([3])
+    // A listing that names the version wins over the one for any version.
+    expect(run({ compose: { include: [include(3), include(5, 'v2')] } }, 'v2')).toEqual([5])
+    expect(run({ compose: { include: [include(3, '*'), include(5, 'v2')] } }, 'v2')).toEqual([5])
+  })
+
+  it('leaves a version the value set does not list to the CodeSystem', () => {
+    expect(() => run(composed, 'v3')).toThrow('weight() needs evaluateAsync() with options.terminology')
+    expect(() => run(expanded, 'v3')).toThrow('weight() needs evaluateAsync() with options.terminology')
+  })
+
+  it('refuses to choose between conflicting weights for a Coding without a version', () => {
+    const conflict = /^weight\(\) finds different weights for a code in ValueSet #vs across code system versions/
+    expect(() => run(composed)).toThrow(conflict)
+    expect(() => run(expanded)).toThrow(conflict)
+    expect(() => run({ compose: { include: [include(3), include(5, 'v2')] } })).toThrow(conflict)
+    // Agreeing listings, or one weighted listing, are not a conflict.
+    expect(run({ compose: { include: [include(4, 'v1'), include(4, 'v2')] } })).toEqual([4])
+    expect(
+      run({ compose: { include: [include(4, 'v1'), { system, version: 'v2', concept: [{ code: 'yes' }] }] } })
+    ).toEqual([4])
+  })
+
+  it('keeps the expansion ahead of compose for the version it lists', () => {
+    const both = {
+      compose: { include: [include(1, 'v2')] },
+      expansion: { timestamp: '2026-10-22', contains: [entry(5, 'v2'), { system, code: 'yes', version: 'v1' }] },
+    }
+    expect(run(both, 'v2')).toEqual([5])
+    // The v1 expansion entry has no weight and compose lists no v1 concept.
+    expect(() => run(both, 'v1')).toThrow('weight() needs evaluateAsync() with options.terminology')
+  })
+})
+
+describe('weight() on a bare code', () => {
+  const genderSystem = 'http://hl7.org/fhir/administrative-gender'
+  const codeSystem = (concept: object[], extra: object = {}) => ({
+    resourceType: 'CodeSystem',
+    id: 'gender',
+    url: genderSystem,
+    status: 'active',
+    content: 'complete',
+    concept,
+    ...extra,
+  })
+  const patient = (contained: object[], gender = 'female') => ({ resourceType: 'Patient', gender, contained })
+  const options = { model: r4Model }
+
+  it("reads the CodeSystem of the element's required binding from a contained CodeSystem", () => {
+    const scored = codeSystem([
+      { code: 'female', extension: score(4) },
+      { code: 'male', extension: score(1) },
+    ])
+    expect(evaluate('gender.weight()', patient([scored]), options)).toEqual([4])
+    expect(
+      evaluate('contact.gender.weight()', { ...patient([scored]), contact: [{ gender: 'male' }] }, options)
+    ).toEqual([1])
+    // Typed results keep the element they were read from.
+    const typed = compile('gender').evaluateTyped(patient([scored]), options)
+    expect(evaluate('%gender.weight()', {}, { ...options, vars: { gender: typed } })).toEqual([4])
+    expect(evaluate('gender.weight()', patient([codeSystem([{ code: 'female' }])]), options)).toEqual([])
+    expect(() => evaluate('gender.weight()', patient([scored], 'other'), options)).toThrow(
+      new FhirPathRuntimeError(`weight() cannot find a code in CodeSystem ${genderSystem}`)
+    )
+  })
+
+  it('looks the code up through the provider with the bound system', async () => {
+    const calls: unknown[] = []
+    const terminology: TerminologyProvider = {
+      lookup: async (coded, params) => {
+        calls.push([coded, params])
+        return {
+          resourceType: 'Parameters',
+          parameter: [
+            {
+              name: 'property',
+              part: [
+                { name: 'code', valueCode: 'itemWeight' },
+                { name: 'value', valueDecimal: 2.5 },
+              ],
+            },
+          ],
+        }
+      },
+    }
+    await expect(evaluateAsync('gender.weight()', patient([]), { ...options, terminology })).resolves.toEqual([2.5])
+    expect(calls).toEqual([[{ system: genderSystem, code: 'female' }, 'property=itemWeight']])
+  })
+
+  it('reports a code whose binding names no single CodeSystem, and a code outside any element', () => {
+    expect(() => evaluate('intent.weight()', { resourceType: 'Task', intent: 'order' }, options)).toThrow(
+      'cannot resolve the CodeSystem binding of FHIR.Task.intent'
+    )
+    expect(evaluate("'female'.weight()", patient([]), options)).toEqual([])
+    expect(() =>
+      evaluate('gender.weight()', patient([]), {
+        model: {
+          namespace: r4Model.namespace,
+          resolveType: r4Model.resolveType,
+          getElement: r4Model.getElement,
+          isSubtypeOf: r4Model.isSubtypeOf,
+        },
+      })
+    ).toThrow('cannot resolve the CodeSystem binding of FHIR.Patient.gender')
   })
 })

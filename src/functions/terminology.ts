@@ -1,5 +1,5 @@
 import { requestAsync } from '../engine/async.ts'
-import type { EvaluationContext } from '../engine/context.ts'
+import { type EvaluationContext, missingTerminology } from '../engine/context.ts'
 import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { isTerminologyService, type TerminologyProvider } from '../terminology/provider.ts'
@@ -204,9 +204,7 @@ export function callProvider<K extends keyof TerminologyProvider>(
 ): unknown {
   const services = context.async
   const provider = services?.terminology
-  if (services === undefined || provider === undefined) {
-    throw new FhirPathRuntimeError(`${what} needs evaluateAsync() with options.terminology`)
-  }
+  if (services === undefined || provider === undefined) throw missingTerminology(context, what)
   const impl = provider[method]
   if (!impl) {
     throw new FhirPathRuntimeError(`the terminology provider does not implement ${method}()`)

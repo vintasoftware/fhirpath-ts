@@ -191,6 +191,16 @@ describe('external references via options.resolver', () => {
     expect(calls).toEqual(['https://ehr.example.org/Organization/acme', 'Practitioner/dr-a'])
   })
 
+  it('takes the async path for an external reference under syncWhenPossible', async () => {
+    const { calls, resolver } = stubResolver()
+    const sync = { ...options, resolver, syncWhenPossible: true }
+    expect(evaluateAsync('Patient.managingOrganization.resolve().name', patient, sync)).toEqual(['ACME'])
+    const external = evaluateAsync('Patient.generalPractitioner.resolve().id', subject, sync)
+    expect(external).toBeInstanceOf(Promise)
+    await expect(external).resolves.toEqual(['dr-a'])
+    expect(calls).toEqual(['Practitioner/dr-a'])
+  })
+
   it('local resolution wins: contained and Bundle references never reach the resolver', async () => {
     const { calls, resolver } = stubResolver()
     await expect(

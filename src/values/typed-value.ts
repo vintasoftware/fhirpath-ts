@@ -61,6 +61,22 @@ export const FHIR_PRIMITIVE_TO_SYSTEM: Readonly<Record<string, string>> = {
 }
 
 /**
+ * The FHIR primitive named after each System type: a System.String fills a
+ * `string` choice, and the model's System-typed elements (`Resource.id`) are
+ * written as these primitives.
+ */
+export const PRIMITIVE_FOR_SYSTEM: Readonly<Record<string, string>> = {
+  'System.Boolean': 'boolean',
+  'System.String': 'string',
+  'System.Integer': 'integer',
+  'System.Long': 'integer64',
+  'System.Decimal': 'decimal',
+  'System.Date': 'date',
+  'System.DateTime': 'dateTime',
+  'System.Time': 'time',
+}
+
+/**
  * The System type a value behaves as: System types answer themselves, FHIR
  * primitives answer their twin (`FHIR.code` → `System.String`), everything else
  * undefined. Operators dispatch on this so FHIR-typed primitives keep working.

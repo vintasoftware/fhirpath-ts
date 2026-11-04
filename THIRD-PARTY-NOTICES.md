@@ -6,6 +6,15 @@ file consolidates their notices so any future redistribution of the package
 (npm publication, OSS extraction) carries them along. Today the package is
 consumed privately inside this repository.
 
+## LHNCBC/lforms — test data
+
+The SDC test questionnaires in `test-data/sdc/lforms/` and selected assertions
+ported into `dogfood/sdc/` come from
+[LHNCBC/lforms](https://github.com/LHNCBC/lforms).
+Their upstream license and content notices are in
+`test-data/sdc/lforms/LICENSE.md`; source paths and checksums are in its
+`manifest.json`. These test inputs are not shipped in the npm package.
+
 ## Medplum — Apache License 2.0
 
 The Pratt-parser structure (prefix/infix parselets driven by a precedence

@@ -1416,6 +1416,12 @@ export type BuiltinOfTypeDegradation = Assert<Equal<FhirpathResultIn<'Patient.na
 export type BuiltinOfTypeComposition = Assert<
   Equal<FhirpathResultIn<'(Patient.name.ofType(HumanName)).count()', 'opaque'>, number[]>
 >
+export type BuiltinOrdinalFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.ordinal()', 'opaque'>>
+export type BuiltinOrdinalPositive = Assert<Equal<FhirpathResultIn<'Patient.name.ordinal()', 'opaque'>, number[]>>
+export type BuiltinOrdinalDegradation = Assert<Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>>
+export type BuiltinOrdinalComposition = Assert<
+  Equal<FhirpathResultIn<'(Patient.name.ordinal()).count()', 'opaque'>, number[]>
+>
 export type BuiltinPathnameFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.pathname(true)', 'opaque'>>
 export type BuiltinPathnamePositive = Assert<Equal<FhirpathResultIn<'Patient.name.pathname(true)', 'opaque'>, string[]>>
 export type BuiltinPathnameDegradation = Assert<

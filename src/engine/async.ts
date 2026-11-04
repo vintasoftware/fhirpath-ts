@@ -98,23 +98,42 @@ export function alsoCollecting(error: unknown, rest: () => unknown): unknown {
  * depend on which provider answers first. Each replay resolves at least one
  * request the cache did not have, so the loop terminates — a deterministic
  * attempt can only suspend finitely often.
+ *
+ * A first attempt that completes returns its result directly, and one that
+ * fails throws: only a suspension makes the result a Promise.
  */
-export async function resolveSuspensions<T>(attempt: (cache: Map<string, unknown>) => T): Promise<T> {
+export function resolveSuspensions<T>(attempt: (cache: Map<string, unknown>) => T): T | Promise<T> {
   const cache = new Map<string, unknown>()
-  for (;;) {
+  try {
+    return attempt(cache)
+  } catch (error) {
+    if (!(error instanceof AsyncSuspension)) {
+      throw error
+    }
+    return replay(error, attempt, cache)
+  }
+}
+
+async function replay<T>(
+  suspension: AsyncSuspension,
+  attempt: (cache: Map<string, unknown>) => T,
+  cache: Map<string, unknown>
+): Promise<T> {
+  for (let pending = suspension; ;) {
+    const requests = [...pending.requests]
+    // async: a provider that throws instead of rejecting still settles in order.
+    const answers = await Promise.allSettled(requests.map(async ([, run]) => run()))
+    for (const [index, answer] of answers.entries()) {
+      if (answer.status === 'rejected') throw answer.reason
+      cache.set((requests[index] as [string, unknown])[0], answer.value)
+    }
     try {
       return attempt(cache)
     } catch (error) {
       if (!(error instanceof AsyncSuspension)) {
         throw error
       }
-      const requests = [...error.requests]
-      // async: a provider that throws instead of rejecting still settles in order.
-      const answers = await Promise.allSettled(requests.map(async ([, run]) => run()))
-      for (const [index, answer] of answers.entries()) {
-        if (answer.status === 'rejected') throw answer.reason
-        cache.set((requests[index] as [string, unknown])[0], answer.value)
-      }
+      pending = error
     }
   }
 }

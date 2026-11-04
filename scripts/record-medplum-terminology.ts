@@ -25,6 +25,7 @@ import { resolve } from 'node:path'
 
 import { CompiledExpression } from '../src/api/compile.ts'
 import { r4Model } from '../src/r4/index.ts'
+import { fhirClient, medplumTerminology } from '../src/terminology/medplum.ts'
 import type { TerminologyProvider } from '../src/terminology/provider.ts'
 import {
   FREQUENCY_CONCEPT_MAP,
@@ -75,21 +76,6 @@ async function fhir(method: string, path: string, body?: unknown): Promise<unkno
   return response.json()
 }
 
-/**
- * The statuses of an answer the service cannot give: Medplum answers 400 for an
- * unknown value set or a code system without a hierarchy, and 404 for an unknown
- * concept. Any other failure, such as rate limiting, stops the recording.
- */
-const CANNOT_ANSWER = new Set([400, 404, 422])
-
-/** A FHIR operation as the provider answers it. */
-async function operation(path: string, parameter: object[]): Promise<unknown> {
-  const response = await call('POST', new URL(path, fhirBase), { resourceType: 'Parameters', parameter })
-  if (CANNOT_ANSWER.has(response.status)) return undefined
-  if (!response.ok) throw new Error(`${path} answered ${response.status}`)
-  return withoutServerFields(await response.json())
-}
-
 /** An answer without server bookkeeping: `meta` (project, author) and resource ids the server assigned. */
 function withoutServerFields(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(withoutServerFields)
@@ -102,57 +88,9 @@ function withoutServerFields(value: unknown): unknown {
   )
 }
 
-const resourceParameter = (name: string, value: unknown) =>
-  typeof value === 'string' ? { name: 'url', valueUri: value } : { name, resource: value }
-
-function codedParameter(coded: unknown): object {
-  if (typeof coded === 'string') return { name: 'code', valueCode: coded }
-  return 'coding' in (coded as object)
-    ? { name: 'codeableConcept', valueCodeableConcept: coded }
-    : { name: 'coding', valueCoding: coded }
-}
-
-const codeOf = (coded: unknown) => (typeof coded === 'string' ? coded : (coded as { code?: string }).code)
-
-/** The API's URL-encoded parameter string as Parameters entries. */
-const extra = (params: string | undefined) =>
-  [...new URLSearchParams(params ?? '')].map(([name, value]) =>
-    name === 'property' ? { name, valueCode: value } : { name, valueString: value }
-  )
-
-const live: Required<TerminologyProvider> = {
-  expand: (valueSet, params) =>
-    operation('ValueSet/$expand', [resourceParameter('valueSet', valueSet), ...extra(params)]),
-  lookup: (coded, params) => operation('CodeSystem/$lookup', [codedParameter(coded), ...extra(params)]),
-  validateVS: (valueSet, coded, params) =>
-    operation('ValueSet/$validate-code', [
-      resourceParameter('valueSet', valueSet),
-      codedParameter(coded),
-      ...extra(params),
-    ]),
-  validateCS: (codeSystem, coded, params) =>
-    operation('CodeSystem/$validate-code', [
-      resourceParameter('codeSystem', codeSystem),
-      codedParameter(coded),
-      ...extra(params),
-    ]),
-  // Medplum takes codeA/codeB within `system`, and the API wants the outcome code.
-  subsumes: async (system, coded1, coded2, params) => {
-    const answer = (await operation('CodeSystem/$subsumes', [
-      { name: 'system', valueUri: system },
-      { name: 'codeA', valueCode: codeOf(coded1) },
-      { name: 'codeB', valueCode: codeOf(coded2) },
-      ...extra(params),
-    ])) as { parameter?: { name: string; valueCode?: string }[] } | undefined
-    return answer?.parameter?.find(parameter => parameter.name === 'outcome')?.valueCode
-  },
-  translate: (conceptMap, coded, params) =>
-    operation('ConceptMap/$translate', [
-      resourceParameter('conceptMap', conceptMap),
-      codedParameter(coded),
-      ...extra(params),
-    ]),
-}
+// The shipped provider over the token the script obtained, so the recording
+// exercises the same request shapes an application sends through MedplumClient.
+const live = medplumTerminology(fhirClient(fhirBase.href, { Authorization: `Bearer ${accessToken}` }))
 
 /** Deletes a resource; anything but success fails the run, so nothing is left behind unnoticed. */
 async function remove(reference: string): Promise<void> {
@@ -215,7 +153,7 @@ async function createFixtures(created: string[]): Promise<void> {
 const entries: TxFixtureEntry[] = []
 const terminology = txProvider(async (operationName, args) => {
   const impl = live[operationName as keyof TerminologyProvider] as (...callArgs: unknown[]) => Promise<unknown>
-  const response = await impl(...args)
+  const response = withoutServerFields(await impl(...args))
   if (!entries.some(e => e.operation === operationName && JSON.stringify(e.args) === JSON.stringify(args))) {
     entries.push({ operation: operationName, args, response })
   }

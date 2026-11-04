@@ -33,6 +33,14 @@ export class FhirPathTypeError extends FhirPathError {}
 export class FhirPathRuntimeError extends FhirPathError {}
 
 /**
+ * A synchronous evaluation reached a function that needs a host service only
+ * `evaluateAsync()` and `evaluateTypedAsync()` take: a terminology lookup, or
+ * `%terminologies`. A host that offers both modes, as fhirpath.js's `async`
+ * option does, catches this error and evaluates again asynchronously.
+ */
+export class FhirPathAsyncRequiredError extends FhirPathRuntimeError {}
+
+/**
  * One row of a `project()` batch failed. `onRowError` receives it; `cause` is
  * the error the row raised. The message names the row and column only, never
  * a value. `subject` is the input resource and may hold PHI, so it is not
