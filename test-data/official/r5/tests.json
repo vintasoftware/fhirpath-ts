@@ -462,6 +462,17 @@
         "inputfile": "patient-example.xml"
       },
       {
+        "name": "testEscapedIdentifierUnicode",
+        "expression": "Patient.`\\u006eame`.given.first()",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "Peter"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
         "name": "testSimpleBackTick1",
         "expression": "`Patient`.name.`given`",
         "outputs": [
@@ -1424,6 +1435,13 @@
           }
         ],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testLiteralUnicodeInvalid",
+        "expression": "'\\u+041'",
+        "outputs": [],
+        "inputfile": "patient-example.xml",
+        "invalid": "syntax"
       },
       {
         "name": "testCollectionNotEmpty",
@@ -2391,6 +2409,28 @@
         "inputfile": "patient-example.xml"
       },
       {
+        "name": "testStringQuantityMonthToQuantityEquivalent",
+        "expression": "'1 month'.toQuantity() ~ 1 month",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testStringQuantityYearToQuantityEquivalent",
+        "expression": "'1 year'.toQuantity() ~ 1 year",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
         "name": "testStringDecimalLiteralToQuantity",
         "expression": "'1.0'.toQuantity() ~ 1 '1'",
         "outputs": [
@@ -3160,6 +3200,350 @@
           }
         ],
         "inputfile": "questionnaire-example.xml"
+      },
+      {
+        "name": "testDistinct7",
+        "expression": "Patient.name.given.isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct8",
+        "expression": "Patient.name.given.distinct().isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct9",
+        "expression": "Patient.gender.combine('male').isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct10",
+        "expression": "Patient.gender.combine('female').isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct11",
+        "expression": "CodeSystem.url.combine('http://hl7.org/fhir/CodeSystem/example').isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "codesystem-example.xml"
+      },
+      {
+        "name": "testDistinct12",
+        "expression": "'1'.combine(2).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct13",
+        "expression": "1.0.combine(1.00).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct14",
+        "expression": "1.combine(2).combine(1).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct15",
+        "expression": "true.combine(false).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct16",
+        "expression": "true.combine(false).combine(true).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct17",
+        "expression": "@T10:00:00.combine(@T11:00:00).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct18",
+        "expression": "@T10:00:00.combine(@T10:00:00).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct19",
+        "expression": "1.combine('a').combine(true).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct20",
+        "expression": "1.combine('a').combine(true).combine('a').isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct21",
+        "expression": "1.combine(1.0).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct22",
+        "expression": "1.5.combine(2.5).combine(10.0).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct23",
+        "expression": "1.5.combine(2.0).combine(1.50).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct24",
+        "expression": "'1.0'.combine('1.00').combine(5.0).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct25",
+        "expression": "10.combine(1.5).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct26",
+        "expression": "@2020-01-01.combine(@2020-01-02).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct27",
+        "expression": "@2020-01-01.combine(@2020-01-01).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct28",
+        "expression": "@2020-01-01T10:00:00+10:00.combine(@2020-01-01T00:00:00Z).isDistinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct29",
+        "expression": "@2020.combine(@2020-01-01).isDistinct()",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct30",
+        "expression": "'a'.combine('b').combine('a').distinct()",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "b"
+          },
+          {
+            "type": "string",
+            "value": "a"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct31",
+        "expression": "Patient.gender.combine('male').distinct()",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "male"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct32",
+        "expression": "1.combine(2).combine(1).combine(3).distinct()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "2"
+          },
+          {
+            "type": "integer",
+            "value": "1"
+          },
+          {
+            "type": "integer",
+            "value": "3"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct33",
+        "expression": "1.combine(2).combine(1.0).distinct()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "2"
+          },
+          {
+            "type": "decimal",
+            "value": "1.0"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct34",
+        "expression": "true.combine(false).combine(true).distinct()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          },
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct35",
+        "expression": "@2020-01-01.combine(@2020-01-02).combine(@2020-01-01).distinct()",
+        "outputs": [
+          {
+            "type": "date",
+            "value": "@2020-01-02"
+          },
+          {
+            "type": "date",
+            "value": "@2020-01-01"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDistinct36",
+        "expression": "@2020.combine(@2020-01-01).distinct()",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -3432,6 +3816,12 @@
           }
         ],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testIndexer3",
+        "expression": "Patient.name[-1]",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -3558,6 +3948,50 @@
           }
         ],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSkip5",
+        "expression": "Patient.name.skip(-1).count() = Patient.name.count()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSkip6",
+        "expression": "Patient.name.skip(0).count() = Patient.name.count()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSkip7",
+        "expression": "(0 | 1 | 2).skip({}).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSkip8",
+        "expression": "{}.skip({}).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -3633,6 +4067,28 @@
       {
         "name": "testTake7",
         "expression": "Patient.name.take(0).given.exists() = false",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testTake8",
+        "expression": "(0 | 1 | 2).take({}).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testTake9",
+        "expression": "{}.take({}).empty()",
         "outputs": [
           {
             "type": "boolean",
@@ -4217,6 +4673,72 @@
       {
         "name": "testSubstring12",
         "expression": "'string'.substring({}).empty() = true",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSubstring13",
+        "expression": "'abcdefg'.substring(3, -1) = ''",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSubstring14",
+        "expression": "'abcdefg'.substring(0, -1) = ''",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSubstring15",
+        "expression": "'abcdefg'.substring(1, 2147483647) = 'bcdefg'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSubstring16",
+        "expression": "'abcdefg'.substring(3, 0) = ''",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSubstring17",
+        "expression": "'abcdefg'.substring(3, {}) = 'defg'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testSubstring18",
+        "expression": "'abcdefg'.substring(0, {}) = 'abcdefg'",
         "outputs": [
           {
             "type": "boolean",
@@ -5164,6 +5686,39 @@
           }
         ],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testUnescapeJson2",
+        "expression": "'\"1<2\"'.escape('json').unescape('json')",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "\"1<2\""
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testUnescapeJson3",
+        "expression": "'\\\\u0041B'.unescape('json')",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "AB"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testUnescapeJson4",
+        "expression": "'\\\\\"1<2\\\\\"'.unescape('json')",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "\"1<2\""
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -5861,6 +6416,106 @@
           }
         ],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality31",
+        "expression": "100 = 1.0",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality32",
+        "expression": "10 = 1.0",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality33",
+        "expression": "10 = 10.0",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality34",
+        "expression": "1.50 = 1.5",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality35",
+        "expression": "100.toDecimal() = 1.0",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality36",
+        "expression": "1 year = 1 'a'",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality37",
+        "expression": "@2015-02-04T10:00 = @2015-02-04T10:00",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality38",
+        "expression": "@2015-02-04T10:00 = @2015-02-04T11:00",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality39",
+        "expression": "@2015-02-04T10:00:00 = @2015-02-04T10:00",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquality40",
+        "expression": "@2015-02-04T10:00-05:00 = @2015-02-04T10:00-05:00",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -6137,6 +6792,17 @@
           }
         ],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testNEquality27",
+        "expression": "@2015-02-04T10:00 != @2015-02-04T11:00",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -6144,7 +6810,7 @@
     "name": "testHasValue",
     "tests": [
       {
-        "name": "testHasValue1",
+        "name": "testHasCodingValue1",
         "expression": "name.first().given.first().hasValue()",
         "outputs": [
           {
@@ -6155,7 +6821,7 @@
         "inputfile": "patient-example.xml"
       },
       {
-        "name": "testHasValue2",
+        "name": "testHasCodingValue2",
         "expression": "name.first().hasValue()",
         "outputs": [
           {
@@ -6166,7 +6832,7 @@
         "inputfile": "patient-example.xml"
       },
       {
-        "name": "testHasValue3",
+        "name": "testHasCodingValue3",
         "expression": "name.first().given.first().hasValue() and name.first() != 'Peter'",
         "outputs": [
           {
@@ -6445,6 +7111,83 @@
           }
         ],
         "inputfile": "observation-example.xml"
+      },
+      {
+        "name": "testEquivalent25",
+        "expression": "1 year ~ 1 'a'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquivalent26",
+        "expression": "2 years ~ 2 'a'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquivalent27",
+        "expression": "1 month ~ 1 'mo'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquivalent28",
+        "expression": "1 year ~ 1 day",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquivalent29",
+        "expression": "1 'x' ~ 1 year",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquivalent30",
+        "expression": "1 year ~ 1 'kg'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testEquivalent31",
+        "expression": "@2015-02-04T10:00 ~ @2015-02-04T10:00",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -6692,6 +7435,28 @@
           }
         ],
         "inputfile": "observation-example.xml"
+      },
+      {
+        "name": "testNotEquivalent23",
+        "expression": "1 year !~ 1 day",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testNotEquivalent24",
+        "expression": "1 month !~ 1 'mo'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -6981,6 +7746,17 @@
         "inputfile": "patient-example.xml"
       },
       {
+        "name": "testLessThan28",
+        "expression": "(Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value < @1975-01-01T00:00:00Z) and Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.toString() = '1974-12-25T14:35:45-05:00'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
         "name": "testLessThanEmpty1",
         "expression": "1 < {}",
         "outputs": [],
@@ -6997,8 +7773,137 @@
         "expression": "{} < {}",
         "outputs": [],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testLessThan29",
+        "expression": "1 year < 2 months",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testLessThan30",
+        "expression": "1 'kg' < 2 'm'",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testLessThan31",
+        "expression": "1 'kg' < 2000 'g'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testLessThan32",
+        "expression": "1 year < 2 years",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testLessThan33",
+        "expression": "Parameters.parameter[0].value < Parameters.parameter[1].value",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-quantity-unit-text.xml"
       }
     ]
+  },
+  {
+    "name": "testQuantityUnitComparison",
+    "tests": [
+      {
+        "name": "testQuantityNoUnitEqual",
+        "expression": "Parameters.parameter[0].value = Parameters.parameter[1].value",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-example-quantities.xml"
+      },
+      {
+        "name": "testQuantityNoUnitEquivalent",
+        "expression": "Parameters.parameter[0].value ~ Parameters.parameter[1].value",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-example-quantities.xml"
+      },
+      {
+        "name": "testQuantityUnitTextEqual",
+        "expression": "Parameters.parameter[2].value = Parameters.parameter[3].value",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-example-quantities.xml"
+      },
+      {
+        "name": "testQuantityUnitTextEquivalent",
+        "expression": "Parameters.parameter[2].value ~ Parameters.parameter[3].value",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-example-quantities.xml"
+      },
+      {
+        "name": "testQuantityUnitVsNoUnitEqual",
+        "expression": "Parameters.parameter[2].value = Parameters.parameter[0].value",
+        "outputs": [],
+        "inputfile": "parameters-example-quantities.xml"
+      },
+      {
+        "name": "testQuantityNoUnitVsUnitEqual",
+        "expression": "Parameters.parameter[0].value = Parameters.parameter[2].value",
+        "outputs": [],
+        "inputfile": "parameters-example-quantities.xml"
+      },
+      {
+        "name": "testQuantityUnitVsNoUnitEquivalent",
+        "expression": "Parameters.parameter[2].value ~ Parameters.parameter[0].value",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "parameters-example-quantities.xml"
+      },
+      {
+        "name": "testQuantityNoUnitVsUnitEquivalent",
+        "expression": "Parameters.parameter[0].value ~ Parameters.parameter[2].value",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "parameters-example-quantities.xml"
+      }
+    ],
+    "description": "Comparing quantities that have no UCUM code, by unit text or the lack of a unit"
   },
   {
     "name": "testLessOrEqual",
@@ -7302,6 +8207,34 @@
         "expression": "{} <= {}",
         "outputs": [],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testLessOrEqual28",
+        "expression": "1 year <= 2 days",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testLessOrEqual29",
+        "expression": "1 'kg' <= 999 'g'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testLessOrEqual30",
+        "expression": "Parameters.parameter[0].value <= Parameters.parameter[1].value",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-quantity-unit-text.xml"
       }
     ]
   },
@@ -7605,6 +8538,23 @@
       {
         "name": "testGreatorOrEqualEmpty3",
         "expression": "{} >= {}",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testGreatorOrEqual28",
+        "expression": "2 years >= 2 year",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testGreatorOrEqual29",
+        "expression": "2 'kg' >= 1 'm'",
         "outputs": [],
         "inputfile": "patient-example.xml"
       }
@@ -7912,6 +8862,29 @@
         "expression": "{} > {}",
         "outputs": [],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testGreaterThan28",
+        "expression": "1 year > 1 'a'",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testGreaterThan29",
+        "expression": "1 year > 2 months",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testGreaterThan30",
+        "expression": "Parameters.parameter[1].value > Parameters.parameter[0].value",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-quantity-unit-text.xml"
       }
     ]
   },
@@ -8128,6 +9101,17 @@
           {
             "type": "string",
             "value": "Peter"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testUnion13",
+        "expression": "(@2015-02-04T10:00 | @2015-02-04T10:00).count() = 1",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
           }
         ],
         "inputfile": "patient-example.xml"
@@ -9166,6 +10150,28 @@
         "expression": "{} + {}",
         "outputs": [],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testPlusDate23",
+        "expression": "@2015-02-04T10:00Z + 1 hour = @2015-02-04T11:00Z",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testPlusDate24",
+        "expression": "@2015-02-04T10Z + 1 hour = @2015-02-04T11Z",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -9325,6 +10331,17 @@
         "expression": "{} - {}",
         "outputs": [],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testMinus9",
+        "expression": "@2015-02-04T10:00Z - 1 day = @2015-02-03T10:00Z",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -9465,6 +10482,12 @@
         "expression": "{} / {}",
         "outputs": [],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDivide7",
+        "expression": "0.0 / 0",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -9549,6 +10572,12 @@
         "expression": "{} div {}",
         "outputs": [],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testDiv7",
+        "expression": "0 div 0.0",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -9631,6 +10660,24 @@
       {
         "name": "testModEmpty3",
         "expression": "{} mod {}",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testMod7",
+        "expression": "5.5 mod 0",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testMod8",
+        "expression": "5 mod 0.0",
+        "outputs": [],
+        "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testMod9",
+        "expression": "0.0 mod 0",
         "outputs": [],
         "inputfile": "patient-example.xml"
       }
@@ -10823,6 +11870,100 @@
         ]
       },
       {
+        "name": "LowBoundaryDecimalCarry1",
+        "expression": "(-9.96).lowBoundary(1)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "-10.0"
+          }
+        ]
+      },
+      {
+        "name": "LowBoundaryDecimalCarry2",
+        "expression": "(-99.96).lowBoundary(1)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "-100.0"
+          }
+        ]
+      },
+      {
+        "name": "LowBoundaryDecimalCarry3",
+        "expression": "(-9).lowBoundary(0)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "-10"
+          }
+        ]
+      },
+      {
+        "name": "LowBoundaryDecimalBorrow1",
+        "expression": "10.lowBoundary(0)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "9"
+          }
+        ]
+      },
+      {
+        "name": "LowBoundaryDecimalBorrow2",
+        "expression": "100.lowBoundary(2)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "99.50"
+          }
+        ]
+      },
+      {
+        "name": "LowBoundaryDecimalExponent1",
+        "expression": "Parameters.parameter[0].value.lowBoundary(0)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "945"
+          }
+        ],
+        "inputfile": "parameters-example-decimals.xml"
+      },
+      {
+        "name": "LowBoundaryDecimalExponent2",
+        "expression": "Parameters.parameter[1].value.lowBoundary()",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "0.00145000"
+          }
+        ],
+        "inputfile": "parameters-example-decimals.xml"
+      },
+      {
+        "name": "LowBoundaryDecimalExponent3",
+        "expression": "Parameters.parameter[2].value.lowBoundary(0)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "-955"
+          }
+        ],
+        "inputfile": "parameters-example-decimals.xml"
+      },
+      {
+        "name": "LowBoundaryDecimalExponent4",
+        "expression": "Parameters.parameter[3].value.lowBoundary(1)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "145.0"
+          }
+        ],
+        "inputfile": "parameters-example-decimals.xml"
+      },
+      {
         "name": "LowBoundaryQuantity",
         "expression": "1.587 'cm'.lowBoundary(8)",
         "outputs": [
@@ -11056,6 +12197,101 @@
             "value": "1.58750000"
           }
         ]
+      },
+      {
+        "name": "HighBoundaryDecimalCarry1",
+        "expression": "9.95.highBoundary(1)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "10.0"
+          }
+        ]
+      },
+      {
+        "name": "HighBoundaryDecimalCarry2",
+        "expression": "0.996.highBoundary(1)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "1.0"
+          }
+        ]
+      },
+      {
+        "name": "HighBoundaryDecimalCarry3",
+        "expression": "99.96.highBoundary(1)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "100.0"
+          }
+        ]
+      },
+      {
+        "name": "HighBoundaryDecimalCarry4",
+        "expression": "9.highBoundary(0)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "10"
+          }
+        ]
+      },
+      {
+        "name": "HighBoundaryDecimalExponent1",
+        "expression": "Parameters.parameter[0].value.highBoundary(0)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "955"
+          }
+        ],
+        "inputfile": "parameters-example-decimals.xml"
+      },
+      {
+        "name": "HighBoundaryDecimalExponent2",
+        "expression": "Parameters.parameter[0].value.highBoundary()",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "955.00000000"
+          }
+        ],
+        "inputfile": "parameters-example-decimals.xml"
+      },
+      {
+        "name": "HighBoundaryDecimalExponent3",
+        "expression": "Parameters.parameter[1].value.highBoundary()",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "0.00155000"
+          }
+        ],
+        "inputfile": "parameters-example-decimals.xml"
+      },
+      {
+        "name": "HighBoundaryDecimalExponent4",
+        "expression": "Parameters.parameter[2].value.highBoundary(0)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "-945"
+          }
+        ],
+        "inputfile": "parameters-example-decimals.xml"
+      },
+      {
+        "name": "HighBoundaryDecimalExponent5",
+        "expression": "Parameters.parameter[3].value.highBoundary(1)",
+        "outputs": [
+          {
+            "type": "decimal",
+            "value": "155.0"
+          }
+        ],
+        "inputfile": "parameters-example-decimals.xml"
       },
       {
         "name": "HighBoundaryQuantity",
@@ -11742,7 +12978,7 @@
     "name": "cdaTests",
     "tests": [
       {
-        "name": "testHasTemplateId1",
+        "name": "testHasCodingTemplateId1",
         "expression": "hasTemplateIdOf('http://hl7.org/cda/us/ccda/StructureDefinition/ContinuityofCareDocumentCCD')",
         "outputs": [
           {
@@ -11754,7 +12990,7 @@
         "mode": "cda"
       },
       {
-        "name": "testHasTemplateId2",
+        "name": "testHasCodingTemplateId2",
         "expression": "ClinicalDocument.hasTemplateIdOf('http://hl7.org/cda/us/ccda/StructureDefinition/ContinuityofCareDocumentCCD')",
         "outputs": [
           {
@@ -11766,7 +13002,7 @@
         "mode": "cda"
       },
       {
-        "name": "testHasTemplateId3",
+        "name": "testHasCodingTemplateId3",
         "expression": "recordTarget.patientRole.hasTemplateIdOf('http://hl7.org/cda/us/ccda/StructureDefinition/ContinuityofCareDocumentCCD')",
         "outputs": [
           {
@@ -11872,5 +13108,1670 @@
         "mode": "html"
       }
     ]
+  },
+  {
+    "name": "isSemanticChecks",
+    "tests": [
+      {
+        "name": "isEffectOnLogic1Base",
+        "expression": "$this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective"
+      },
+      {
+        "name": "isEffectOnLogic2Base",
+        "expression": "$this.toString().length() > 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "dateTime"
+      },
+      {
+        "name": "isEffectOnLogic3Base",
+        "expression": "$this.toString().length() > 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isEffectOnLogic1",
+        "expression": "$this is dateTime implies $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective"
+      },
+      {
+        "name": "isEffectOnLogic2",
+        "expression": "$this is dateTime implies $this.toString().length() > 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "dateTime"
+      },
+      {
+        "name": "isEffectOnLogic3",
+        "expression": "$this is dateTime implies $this.toString().length() > 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardFnImplies",
+        "expression": "$this.is(dateTime) implies $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardFnImpliesBad",
+        "expression": "$this.is(Period) implies $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|Timing",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardImpliesBad",
+        "expression": "$this is Period implies $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|Timing",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardImpliesEmpty",
+        "expression": "$this is dateTime implies $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|Timing"
+      },
+      {
+        "name": "isGuardOrTypesImplies",
+        "expression": "($this is dateTime or $this is instant) implies $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardOrTypesImpliesBad",
+        "expression": "($this is dateTime or $this is Period) implies $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardOrTypesImpliesAll",
+        "expression": "($this is dateTime or $this is Period) implies $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective"
+      },
+      {
+        "name": "isGuardOrFnTypesImpliesBad",
+        "expression": "($this.is(dateTime) or $this.is(Period)) implies $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardAndOtherImplies",
+        "expression": "($this is dateTime and %resource.status = 'final') implies $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardOtherAndImplies",
+        "expression": "(%resource.status = 'final' and $this is dateTime) implies $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardOrOtherImpliesBad",
+        "expression": "($this is dateTime or %resource.status = 'final') implies $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardOrOtherImpliesNoParensBad",
+        "expression": "$this is dateTime or %resource.status = 'final' implies $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardOrInnerImplies",
+        "expression": "$this is Period or (%resource.status = 'final' implies $this.toString().length() >= 10)",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardOrInnerImpliesBad",
+        "expression": "$this is Period or (%resource.status = 'final' implies $this.toString().length() >= 10)",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|Timing",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardAnd",
+        "expression": "$this is dateTime and $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardAndBad",
+        "expression": "$this is Period and $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|Timing",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardOr",
+        "expression": "$this is Period or $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardOr2",
+        "expression": "$this is Period or $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|dateTime"
+      },
+      {
+        "name": "isGuardOrBad",
+        "expression": "$this is Period or $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|Timing",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardOrBoth",
+        "expression": "$this is Period or $this is Timing or $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|Timing"
+      },
+      {
+        "name": "isGuardXorBad",
+        "expression": "$this is dateTime xor $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardXorBad2",
+        "expression": "$this is dateTime xor $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|dateTime"
+      },
+      {
+        "name": "isGuardNotImplies",
+        "expression": "($this is Period).not() implies $this.toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardNotImpliesBad",
+        "expression": "($this is Period).not() implies $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|Timing",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardIifTrue",
+        "expression": "iif($this is dateTime, $this.toString().length() >= 10, true)",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardIifElse",
+        "expression": "iif($this is Period, true, $this.toString().length() >= 10)",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardIifBad",
+        "expression": "iif($this is Period, $this.toString().length() >= 10, true)",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardNested",
+        "expression": "$this is Period implies ($this is dateTime implies $this.toString().length() >= 10)",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period|Timing"
+      },
+      {
+        "name": "isGuardSupertypeBad",
+        "expression": "$this is Element implies $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardOtherExpressionBad",
+        "expression": "$this.start is dateTime implies $this.toString().length() >= 10",
+        "outputs": [],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period",
+        "invalid": "semantic"
+      },
+      {
+        "name": "isGuardOfType",
+        "expression": "$this.ofType(dateTime).toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      },
+      {
+        "name": "isGuardAs",
+        "expression": "($this as dateTime).toString().length() >= 10",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml",
+        "context": "Observation.effective",
+        "contextType": "Period"
+      }
+    ]
+  },
+  {
+    "name": "documentFunctions",
+    "tests": [
+      {
+        "name": "testSection1",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').count()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection2",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').title",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "Problems"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection3",
+        "expression": "Bundle.section('http://loinc.org', '11450-4', 1, 1).exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection4",
+        "expression": "Bundle.section('http://loinc.org', '11450-4', 0, '*').exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection5",
+        "expression": "Bundle.section('http://loinc.org', '11450-4', 2, '*').exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection6",
+        "expression": "Bundle.section('http://loinc.org', '11348-0', 0, 0).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection7",
+        "expression": "Bundle.section('http://loinc.org', '8716-3').title",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "Vital signs"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection8",
+        "expression": "Bundle.entry.resource.ofType(Composition).section('http://loinc.org', '48765-2').count()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection9",
+        "expression": "Bundle.section('http://snomed.info/sct', '11450-4').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection10",
+        "expression": "Bundle.entry.resource.ofType(Patient).section('http://loinc.org', '11450-4').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection11",
+        "expression": "Bundle.section('http://loinc.org', '11450-4', 2, 1)",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "execution"
+      },
+      {
+        "name": "testSection12",
+        "expression": "Bundle.section('http://loinc.org', '11450-4', 1, 'many')",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "execution"
+      },
+      {
+        "name": "testSection13",
+        "expression": "Bundle.section('http://loinc.org', '11450-4', 1)",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "syntax"
+      },
+      {
+        "name": "testSection14",
+        "expression": "Bundle.section({}, '11450-4').title",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "Problems"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection15",
+        "expression": "Bundle.section('http://loinc.org', {}, 0, '*').count()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "6"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection16",
+        "expression": "Bundle.section('http://loinc.org', {}).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection17",
+        "expression": "Bundle.section('http://loinc.org', '11450-4', {}, {}).count()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection18",
+        "expression": "Bundle.section('http://loinc.org', {}, {}, {}).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection19",
+        "expression": "Bundle.section('http://LOINC.org', '11450-4').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSection20",
+        "expression": "Bundle.section('http://loinc.org', '11450-4', (0 | 1), '*').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry1",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry('http://snomed.info/sct', '38341003').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry2",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry('http://snomed.info/sct', '44054006').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry3",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry('http://snomed.info/sct', '195967001').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry4",
+        "expression": "Bundle.section('http://loinc.org', '10160-0').entry('http://snomed.info/sct', '108774000').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "m1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry5",
+        "expression": "Bundle.section('http://loinc.org', '10160-0').entry('http://snomed.info/sct', '387207008').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "med2"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry6",
+        "expression": "Bundle.section('http://loinc.org', '11369-6').entry('http://snomed.info/sct', '871875004').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "i1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry7",
+        "expression": "Bundle.section('http://loinc.org', '30954-2').entry('http://loinc.org', '8480-6').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry8",
+        "expression": "Bundle.section('http://loinc.org', '8716-3').entry('http://loinc.org', '8480-6').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "o1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry9",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry('http://snomed.info/sct', '38341003', 1, 1).exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry10",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry('http://snomed.info/sct', '38341003', 2, '*').exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry11",
+        "expression": "Bundle.section('http://loinc.org', '48765-2').entry('http://snomed.info/sct', '764146007').patient.reference",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "urn:uuid:5b6a5a3e-46f3-4a4e-9c3b-8f0e1b2d6a03"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry12",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry('http://snomed.info/sct')",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "syntax"
+      },
+      {
+        "name": "testEntry13",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry({}, '38341003').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry14",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry('http://snomed.info/sct', {}).id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry15",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry({}, {}).where(id = 'c4').exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry16",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry({}, {}).count()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "2"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry17",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry({}, {}, {}, {}).count()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "2"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry18",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry({}, {}, 2, {}).count()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "2"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry19",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry({}, {}, {}, 1).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntry20",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry('http://snomed.info/sct', ('38341003' | '44054006')).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntryIn1",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entryIn('http://hl7.org/fhir/ValueSet/data-absent-reason').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c4"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntryIn2",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entryIn('http://hl7.org/fhir/ValueSet/data-absent-reason', 1, 1).exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntryIn3",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entryIn('http://hl7.org/fhir/ValueSet/data-absent-reason', 0, 0).exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntryIn4",
+        "expression": "Bundle.section('http://loinc.org', '48765-2').entryIn('http://hl7.org/fhir/ValueSet/data-absent-reason').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntryIn5",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entryIn('http://example.org/fhir/ValueSet/not-a-value-set')",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "execution"
+      },
+      {
+        "name": "testEntryIn6",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entryIn('not a value set')",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "execution"
+      },
+      {
+        "name": "testEntryIn7",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entryIn({}).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntryIn8",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entryIn('http://hl7.org/fhir/ValueSet/data-absent-reason', {}, {}).id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c4"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testEntryIn9",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entryIn(('http://hl7.org/fhir/ValueSet/data-absent-reason' | 'http://hl7.org/fhir/ValueSet/condition-code')).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources1",
+        "expression": "Bundle.resources('http://snomed.info/sct', '195967001').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c3"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources2",
+        "expression": "Bundle.resources('http://snomed.info/sct', '38341003', 'Condition').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources3",
+        "expression": "Bundle.resources('http://snomed.info/sct', '38341003', 'Observation').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources4",
+        "expression": "Bundle.entry.resource.ofType(Composition).resources('http://snomed.info/sct', '108774000').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "m1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources5",
+        "expression": "Bundle.resources('http://snomed.info/sct', '871875004').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "i1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources6",
+        "expression": "Bundle.resources('http://snomed.info/sct', '387207008').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources7",
+        "expression": "Bundle.resources('http://snomed.info/sct', '38341003', 'condition')",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "execution"
+      },
+      {
+        "name": "testResources8",
+        "expression": "Bundle.resources({}, '38341003').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources9",
+        "expression": "Bundle.resources('http://loinc.org', {}).count()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "4"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources10",
+        "expression": "Bundle.resources('http://snomed.info/sct', '38341003', {}).id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c1"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources11",
+        "expression": "Bundle.resources({}, {}, 'Observation').count()",
+        "outputs": [
+          {
+            "type": "integer",
+            "value": "4"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResources12",
+        "expression": "Bundle.resources('http://snomed.info/sct', '38341003', ('Condition' | 'Observation')).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResourcesIn1",
+        "expression": "Bundle.resourcesIn('http://hl7.org/fhir/ValueSet/data-absent-reason').id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c4"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResourcesIn2",
+        "expression": "Bundle.resourcesIn('http://hl7.org/fhir/ValueSet/data-absent-reason', 'Observation').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResourcesIn3",
+        "expression": "Bundle.resourcesIn('http://example.org/fhir/ValueSet/not-a-value-set')",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "execution"
+      },
+      {
+        "name": "testResourcesIn4",
+        "expression": "Bundle.resourcesIn({}).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResourcesIn5",
+        "expression": "Bundle.resourcesIn('http://hl7.org/fhir/ValueSet/data-absent-reason', {}).id",
+        "outputs": [
+          {
+            "type": "id",
+            "value": "c4"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResourcesIn6",
+        "expression": "Bundle.resourcesIn(('http://hl7.org/fhir/ValueSet/data-absent-reason' | 'http://hl7.org/fhir/ValueSet/condition-code')).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject1",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').sameSubject()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject2",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c5').sameSubject()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject3",
+        "expression": "Bundle.entry.resource.ofType(AllergyIntolerance).sameSubject()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject4",
+        "expression": "Bundle.entry.resource.ofType(Composition).sameSubject()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject5",
+        "expression": "Bundle.entry.resource.ofType(Patient).first().sameSubject().empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject6",
+        "expression": "Bundle.entry.resource.ofType(Condition).sameSubject().empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject7",
+        "expression": "Bundle.entry.resource.ofType(Condition).all(sameSubject())",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject8",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry('http://snomed.info/sct', '38341003').all(sameSubject())",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject9",
+        "expression": "Bundle.entry.resource.ofType(Immunization).sameSubject(%resource.entry.resource.ofType(Condition).where(id = 'c1'))",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject10",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').sameSubject(%resource.entry.resource.ofType(Condition).where(id = 'c5'))",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject11",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').sameSubject(%resource.entry.resource.ofType(Condition)).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject12",
+        "expression": "Bundle.entry.resource.ofType(Observation).where(id = 'o2').sameSubject(%resource.entry.resource.ofType(Observation).where(id = 'o3'))",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject13",
+        "expression": "Bundle.entry.resource.ofType(Observation).where(id = 'o2').sameSubject(%resource.entry.resource.ofType(Observation).where(id = 'o4'))",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject14",
+        "expression": "Bundle.entry.resource.ofType(Observation).where(id = 'o2').sameSubject()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testSameSubject15",
+        "expression": "Observation.sameSubject().empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "observation-example.xml"
+      },
+      {
+        "name": "testSameSubject16",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').sameSubject(%resource, %resource)",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "syntax"
+      },
+      {
+        "name": "testSameSubject17",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').sameSubject({}).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testDocumentElement1",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entry('http://snomed.info/sct', '38341003').id = 'c1'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json",
+        "mode": "element"
+      },
+      {
+        "name": "testDocumentElement2",
+        "expression": "Bundle.resources('http://snomed.info/sct', '871875004').id = 'i1'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json",
+        "mode": "element"
+      },
+      {
+        "name": "testDocumentElement3",
+        "expression": "Bundle.section('http://loinc.org', '11450-4').entryIn('http://hl7.org/fhir/ValueSet/data-absent-reason').id = 'c4'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json",
+        "mode": "element"
+      },
+      {
+        "name": "testDocumentElement4",
+        "expression": "Bundle.section('http://loinc.org', '10160-0').entry('http://snomed.info/sct', '387207008').id = 'med2'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json",
+        "mode": "element"
+      },
+      {
+        "name": "testDocumentElement5",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c5').sameSubject() = false",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json",
+        "mode": "element"
+      },
+      {
+        "name": "testDocumentElement6",
+        "expression": "Bundle.entry.resource.ofType(Observation).where(id = 'o2').sameSubject(%resource.entry.resource.ofType(Observation).where(id = 'o3'))",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json",
+        "mode": "element"
+      },
+      {
+        "name": "testResourcesAbstract1",
+        "expression": "Bundle.resources('http://snomed.info/sct', '38341003').category.empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResourcesAbstract2",
+        "expression": "Bundle.resources('http://loinc.org', '8480-6').value.exists()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testResourcesAbstract3",
+        "expression": "Bundle.resources('http://snomed.info/sct', '38341003').nonsenseElement",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "semantic"
+      },
+      {
+        "name": "testHasCoding1",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding('http://snomed.info/sct', '38341003')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding2",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding('http://snomed.info/sct', '44054006')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding3",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.coding.hasCoding('http://snomed.info/sct', '38341003')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding4",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding('http://loinc.org', '38341003')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding5",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding('http://snomed.info/sct', '38341003', '20250101')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding6",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').category.hasCoding('http://snomed.info/sct', '38341003').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding7",
+        "expression": "Bundle.entry.resource.ofType(Condition).code.hasCoding('http://snomed.info/sct', '44054006')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding8",
+        "expression": "Bundle.entry.resource.ofType(Condition).all(code.hasCoding('http://snomed.info/sct', '38341003'))",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding9",
+        "expression": "Bundle.resources('http://snomed.info/sct', '38341003').all(code.hasCoding('http://snomed.info/sct', '38341003'))",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding10",
+        "expression": "Bundle.entry.resource.ofType(Condition).code.hasCoding('http://snomed.info/sct')",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "syntax"
+      },
+      {
+        "name": "testHasCoding11",
+        "expression": "Bundle.entry.resource.ofType(Patient).name.hasCoding('http://snomed.info/sct', '38341003')",
+        "outputs": [],
+        "inputfile": "bundle-document-ips.json",
+        "invalid": "semantic"
+      },
+      {
+        "name": "testHasCoding12",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding({}, '38341003')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding13",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding('http://snomed.info/sct', {})",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding14",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding('http://snomed.info/sct', '38341003', {})",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding15",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').children().hasCoding('http://snomed.info/sct', '38341003')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding16",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding('http://snomed.info/SCT', '38341003')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding17",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding('', '38341003')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding18",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding({}, '44054006')",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding19",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding('http://loinc.org', {})",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding20",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding({}, {}, {})",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding21",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').category.hasCoding({}, {}).empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      },
+      {
+        "name": "testHasCoding22",
+        "expression": "Bundle.entry.resource.ofType(Condition).where(id = 'c1').code.hasCoding(('http://snomed.info/sct' | 'http://loinc.org'), '38341003').empty()",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "bundle-document-ips.json"
+      }
+    ],
+    "description": "Functions for FHIR documents: section(), entry(), entryIn(), resources(), resourcesIn(), sameSubject() and hasCoding(). These are not part of FHIRPath, nor of the FHIR specification's additional FHIRPath functions - they are an extension of the HL7 Java reference implementation (org.hl7.fhir.core), so other engines run them only if they choose to implement the functions"
   }
 ]

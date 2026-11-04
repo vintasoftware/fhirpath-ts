@@ -33,6 +33,7 @@ import {
   SYSTEM_TYPE_LOCAL_NAMES,
   unsatisfiedInput,
   type ValueKind,
+  valueKindOfTypeName,
 } from '../values/type-compat.ts'
 import { FHIR_PRIMITIVE_TO_SYSTEM, systemTypeOfName, typeLocalName } from '../values/typed-value.ts'
 import {
@@ -58,6 +59,7 @@ import {
   withSingle,
 } from './signatures.ts'
 import { SOURCE_VARIABLE_DEFAULTS, type SourceVariableDefaults, type SourceVariablePlan } from './source-options.ts'
+import { type FocusTypeRules, GUARDED_RIGHT_OPERAND, narrowFocus, typeSpecifierParts } from './type-guards.ts'
 
 export interface AnalyzerDiagnostic {
   severity: 'error' | 'warning'
@@ -414,6 +416,13 @@ class Analyzer {
   /** Inside repeatedItems()'s exploratory walks, which read an unknown element as empty, as the runtime does. */
   private exploringRepeat = 0
   private readonly reportUnchecked: boolean
+  /** The root focus, one object so a walk can tell it is analyzing the focus itself. */
+  private readonly rootFocus: StaticState
+  private readonly focusTypeRules: FocusTypeRules = {
+    resolve: parts => this.resolveTypeName(parts).type,
+    keep: (types, type) => this.survivingTypes(types, type),
+    drop: (types, type) => types.filter(candidate => !this.isTypeCompatible(candidate, type)),
+  }
 
   constructor(options: AnalyzeOptions | RuntimeAnalyzeOptions | undefined, root: AnalyzerRoot | undefined) {
     this.model = options?.model
@@ -440,16 +449,22 @@ class Analyzer {
       ])
     )
     this.declaredVariables = new Map(Object.entries(normalizeEnvKeys(options?.variables)))
-  }
-
-  rootState(): StaticState {
-    return {
+    this.rootFocus = {
       types: this.root.types,
       single: this.root.single,
       ordered: this.root.ordered,
       rawInput: true,
       ...(this.root.exactTypes !== undefined && { exactTypes: this.root.exactTypes }),
     }
+  }
+
+  rootState(): StaticState {
+    return this.rootFocus
+  }
+
+  /** `$this`: the item a lambda runs on, or the root. */
+  private focusState(): StaticState {
+    return this.frames.at(-1) ?? this.rootFocus
   }
 
   /**
@@ -580,7 +595,7 @@ class Analyzer {
 
   private walkSpecial(node: AstNode & { kind: 'special' }): StaticState {
     if (node.name === 'this') {
-      return this.frames.at(-1) ?? this.rootState()
+      return this.focusState()
     }
     if (node.name === 'index' && this.sortKeyFrames.has(this.frames.length)) {
       // The runtime hides $index in a sort key: sorting does not visit items in order.
@@ -852,6 +867,7 @@ class Analyzer {
     this.checkIntervalPrecision(node, input, argStates)
     this.checkDateFormat(node, input)
     this.checkOrderableInput(node, input)
+    this.checkToStringInput(node, input)
     this.checkStringConversion(node)
     // ofType(X) filters and as(X) casts: both narrow to the named type,
     // intersected with the known candidates.
@@ -1103,7 +1119,12 @@ class Analyzer {
         if (spec === 'sort-key') {
           this.sortKeyFrames.add(this.frames.length)
         }
-        const state = this.walk(body, itemState, forkScope(scope))
+        // iif() runs its true branch when the criterion is true and its other branch when it is not.
+        const criterion = node.name === 'iif' && index > 0 ? node.args[0] : undefined
+        const state =
+          criterion === undefined
+            ? this.walk(body, itemState, forkScope(scope))
+            : this.walkGuarded(body, itemState, forkScope(scope), criterion, index === 1)
         this.sortKeyFrames.delete(this.frames.length)
         this.frames.pop()
         argStates.push(state)
@@ -1127,7 +1148,7 @@ class Analyzer {
         return
       }
       // Value arguments evaluate against $this, mirroring the runtime.
-      const argState = this.walk(argument, this.frames.at(-1) ?? this.rootState(), forkScope(scope))
+      const argState = this.walk(argument, this.focusState(), forkScope(scope))
       argStates.push(argState)
       if (spec !== undefined && spec !== 'any') {
         if (argState.types !== undefined && argState.single === false) {
@@ -1249,6 +1270,37 @@ class Analyzer {
     }
   }
 
+  /**
+   * toString() converts primitive values and quantities. A focus whose every
+   * candidate type is another complex type, such as Period or HumanName,
+   * converts to nothing, so the result is always empty.
+   */
+  private checkToStringInput(node: AstNode & { kind: 'call' }, input: StaticState): void {
+    if (node.name !== 'toString' || input.types === undefined || input.types.length === 0) {
+      return
+    }
+    if (!input.types.some(type => this.mayConvertToString(type))) {
+      this.report(
+        'operand-type',
+        `toString() converts primitive values and quantities, found ${input.types.join(' | ')}`,
+        node.span
+      )
+    }
+  }
+
+  /** False only for a model type that, with all its subtypes, is complex and not a Quantity. */
+  private mayConvertToString(type: string): boolean {
+    const model = this.model
+    const subtypes = model?.subtypesOf?.(type)
+    if (model === undefined || subtypes === undefined) {
+      return true
+    }
+    const quantity = `${model.namespace}.Quantity`
+    return [type, ...subtypes].some(
+      candidate => valueKindOfTypeName(candidate) !== 'Complex' || model.isSubtypeOf(candidate, quantity)
+    )
+  }
+
   /** A literal encode()/decode() format or escape()/unescape() target must be one the function supports. */
   private checkStringConversion(node: AstNode & { kind: 'call' }): void {
     const choice = node.args[0]
@@ -1340,15 +1392,8 @@ class Analyzer {
     if (input.types === undefined) {
       return [target]
     }
-    const survivors = new Set<string>()
-    for (const type of input.types) {
-      if (this.isTypeCompatible(type, target)) {
-        survivors.add(type)
-      } else if (this.isTypeCompatible(target, type)) {
-        survivors.add(target)
-      }
-    }
-    if (survivors.size === 0 && input.types.length > 0) {
+    const survivors = this.survivingTypes(input.types, target)
+    if (survivors.length === 0 && input.types.length > 0) {
       this.report(
         'always-empty',
         `No candidate type (${input.types.join(' | ')}) can be a ${target}, so this is always empty`,
@@ -1356,7 +1401,62 @@ class Analyzer {
         'warning'
       )
     }
+    return survivors
+  }
+
+  /** The candidates that can be a `target`: subtypes stay, supertypes narrow to the target. */
+  private survivingTypes(types: readonly string[], target: string): string[] {
+    const survivors = new Set<string>()
+    for (const type of types) {
+      if (this.isTypeCompatible(type, target)) {
+        survivors.add(type)
+      } else if (this.isTypeCompatible(target, type)) {
+        survivors.add(target)
+      }
+    }
     return [...survivors]
+  }
+
+  /**
+   * Walk an operand that runs only when `condition` is `outcome`, with the
+   * focus narrowed to the types that outcome leaves (see `type-guards.ts`).
+   * An input other than the focus, such as a function's receiver, stays as is.
+   */
+  private walkGuarded(
+    node: AstNode,
+    input: StaticState,
+    scope: VariableScope,
+    condition: AstNode,
+    outcome: boolean
+  ): StaticState {
+    const types =
+      input === this.focusState() && input.types !== undefined
+        ? narrowFocus(condition, outcome, input.types, this.focusTypeRules)
+        : undefined
+    if (types === undefined) {
+      return this.walk(node, input, scope)
+    }
+    const exactTypes =
+      input.exactTypes === undefined
+        ? undefined
+        : (narrowFocus(condition, outcome, input.exactTypes, this.focusTypeRules) ?? input.exactTypes)
+    const narrowed: StaticState = { ...input, types, ...(exactTypes !== undefined && { exactTypes }) }
+    // Replace the focus frame rather than add one: frame depth marks sort() keys.
+    const depth = this.frames.length
+    if (depth === 0) {
+      this.frames.push(narrowed)
+    } else {
+      this.frames[depth - 1] = narrowed
+    }
+    try {
+      return this.walk(node, narrowed, scope)
+    } finally {
+      if (depth === 0) {
+        this.frames.pop()
+      } else {
+        this.frames[depth - 1] = input
+      }
+    }
   }
 
   /** True when every `type` value is a `base` value, including FHIR-primitive → System subtyping. */
@@ -1379,24 +1479,29 @@ class Analyzer {
 
   /** Check a type name; returns its canonical form, or undefined when it was reported unknown. */
   private checkTypeName(parts: string[], span: SourceSpan): string | undefined {
+    const { type, problem } = this.resolveTypeName(parts)
+    if (problem !== undefined) {
+      this.report('unknown-type', problem, span)
+    }
+    return type
+  }
+
+  /** The canonical form of a type name, or why it names no type. */
+  private resolveTypeName(parts: string[]): { type?: string; problem?: string } {
     if (parts.length === 2 && parts[0] === 'System') {
-      if (!SYSTEM_TYPE_LOCAL_NAMES.has(parts[1] as string)) {
-        this.report('unknown-type', `Unknown type 'System.${parts[1]}'`, span)
-        return undefined
-      }
-      return `System.${parts[1]}`
+      return SYSTEM_TYPE_LOCAL_NAMES.has(parts[1] as string)
+        ? { type: `System.${parts[1]}` }
+        : { problem: `Unknown type 'System.${parts[1]}'` }
     }
     const name = parts.length === 2 ? (parts[1] as string) : (parts[0] as string)
     if (parts.length === 2 && this.model && parts[0] !== this.model.namespace) {
-      this.report('unknown-type', `Unknown namespace '${parts[0]}'`, span)
-      return undefined
+      return { problem: `Unknown namespace '${parts[0]}'` }
     }
     const resolved = this.model?.resolveType(name)
     if (this.model && resolved === undefined && !SYSTEM_TYPE_LOCAL_NAMES.has(name)) {
-      this.report('unknown-type', `Unknown type '${parts.join('.')}'`, span)
-      return undefined
+      return { problem: `Unknown type '${parts.join('.')}'` }
     }
-    return resolved ?? (SYSTEM_TYPE_LOCAL_NAMES.has(name) ? `System.${name}` : name)
+    return { type: resolved ?? (SYSTEM_TYPE_LOCAL_NAMES.has(name) ? `System.${name}` : name) }
   }
 
   private walkBinary(node: AstNode & { kind: 'binary' }, input: StaticState, scope: VariableScope): StaticState {
@@ -1404,7 +1509,11 @@ class Analyzer {
     // copy, so defineVariable() in one side is invisible to the other, exactly
     // like the runtime.
     const left = this.walk(node.left, input, forkScope(scope))
-    const right = this.walk(node.right, input, forkScope(scope))
+    const guardOutcome = GUARDED_RIGHT_OPERAND.get(node.operator)
+    const right =
+      guardOutcome === undefined
+        ? this.walk(node.right, input, forkScope(scope))
+        : this.walkGuarded(node.right, input, forkScope(scope), node.left, guardOutcome)
     switch (node.operator) {
       case '+':
       case '-':
@@ -1814,16 +1923,6 @@ function mergedResult(
     ...(union.single !== undefined && { single: union.single }),
     ...(union.ordered !== undefined && { ordered: union.ordered }),
   }
-}
-
-function typeSpecifierParts(node: AstNode): string[] | undefined {
-  if (node.kind === 'identifier') {
-    return [node.name]
-  }
-  if (node.kind === 'dot' && node.left.kind === 'identifier' && node.right.kind === 'identifier') {
-    return [node.left.name, node.right.name]
-  }
-  return undefined
 }
 
 /**

@@ -1,10 +1,8 @@
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import { FhirPathSyntaxError } from '../errors.ts'
+import { findSkipReason, loadOfficialSuite } from '../testing/official-harness.ts'
 import { stripSpans } from '../testing/strip-spans.ts'
-import { testDataPath } from '../testing/test-data.ts'
 import { parse } from './parser.ts'
 import { printExpression } from './printer.ts'
 
@@ -13,30 +11,13 @@ interface CorpusEntry {
   invalid: string | undefined
 }
 
-function decodeXmlEntities(text: string): string {
-  return text
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#([0-9]+);/g, (_, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-}
-
-/**
- * Crude expression extraction, enough for a parse-only corpus. Phase 11 replaces
- * this with a real XML conversion that keeps groups, outputs, and modes.
- */
+/** Every suite expression, without the syntax-invalid cases the skip manifest disputes. */
 function loadCorpus(release: 'r4' | 'r5'): CorpusEntry[] {
-  const xml = readFileSync(testDataPath(`official/${release}/tests-fhir-${release}.xml`), 'utf8')
-  const entries: CorpusEntry[] = []
-  for (const match of xml.matchAll(/<expression([^>]*)>([\s\S]*?)<\/expression>/g)) {
-    const attributes = match[1] as string
-    const invalid = /invalid\s*=\s*"([^"]*)"/.exec(attributes)?.[1]
-    entries.push({ expression: decodeXmlEntities(match[2] as string), invalid })
-  }
-  return entries
+  return loadOfficialSuite(release).flatMap(group =>
+    group.tests
+      .filter(test => test.invalid !== 'syntax' || findSkipReason(release, group, test) === undefined)
+      .map(test => ({ expression: test.expression, invalid: test.invalid }))
+  )
 }
 
 describe.each([['r4'], ['r5']] as const)('official %s suite expressions', release => {

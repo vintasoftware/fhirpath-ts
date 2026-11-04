@@ -1653,7 +1653,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
   },
   'builtin.toString': {
     source: {
-      expression: 'Patient.name.first().toString()',
+      expression: 'Patient.birthDate.toString()',
       corpusGap: 'focused built-in result-rule assertion independent of surrounding corpus syntax',
     },
     expectedType: 'string[]',
@@ -1664,7 +1664,7 @@ export const BUILTIN_FUNCTION_CAPABILITIES = {
       single: true,
     },
     degradation: 'Patient.name.unknownFn()',
-    composition: '(Patient.name.first().toString()).count()',
+    composition: '(Patient.birthDate.toString()).count()',
   },
   'builtin.toTime': {
     source: {

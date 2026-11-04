@@ -1,6 +1,6 @@
 import type { EvaluationContext } from '../engine/context.ts'
 import { distinctItems, EqualityIndex } from '../engine/operators/equality.ts'
-import { FhirPathRuntimeError, FhirPathTypeError } from '../errors.ts'
+import { FhirPathRuntimeError } from '../errors.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { singleton } from '../values/collection.ts'
 import { SYSTEM_INTEGER, type TypedValue } from '../values/typed-value.ts'
@@ -36,25 +36,25 @@ registerFunction('tail', {
   evaluate: (_context, input) => input.slice(1),
 })
 
-function integerArgument(
-  name: string,
+/** The count argument of skip() and take(); undefined when it is empty or has no value. */
+function countArgument(
   context: EvaluationContext,
   input: TypedValue[],
   node: AstNode,
   evaluateNode: NodeEvaluator
-): number {
-  const value = singleton(evaluateNode(node, context, input), SYSTEM_INTEGER)
-  if (value === undefined || typeof value.value !== 'number') {
-    throw new FhirPathTypeError(`${name}() expects an integer argument`)
-  }
-  return value.value
+): number | undefined {
+  const count = singleton(evaluateNode(node, context, input), SYSTEM_INTEGER)?.value
+  return typeof count === 'number' ? count : undefined
 }
 
 registerFunction('skip', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const count = integerArgument('skip', context, input, argAt(args, 0), evaluateNode)
+    const count = countArgument(context, input, argAt(args, 0), evaluateNode)
+    if (count === undefined) {
+      return []
+    }
     return count <= 0 ? input : input.slice(count)
   },
 })
@@ -63,8 +63,8 @@ registerFunction('take', {
   minArity: 1,
   maxArity: 1,
   evaluate: (context, input, args, evaluateNode) => {
-    const count = integerArgument('take', context, input, argAt(args, 0), evaluateNode)
-    return count <= 0 ? [] : input.slice(0, count)
+    const count = countArgument(context, input, argAt(args, 0), evaluateNode)
+    return count === undefined || count <= 0 ? [] : input.slice(0, count)
   },
 })
 

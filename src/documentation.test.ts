@@ -169,6 +169,8 @@ const documentation: readonly DocumentExpectation[] = [
       valid('clinicalStatus.coding.first().code', "value.ofType(Quantity) > 140 'mm[Hg]'"),
       valid("%reports.where(basedOn.reference = 'ServiceRequest/' + %context.id).first()"),
       invalid('Patient', ['unknown-element'], 'name.givenn'),
+      invalid('Period', ['operand-type'], '$this is dateTime or $this.toString().exists()'),
+      valid('$this is dateTime implies $this.toString().exists()'),
       valid('%limit < value.count()'),
       valid('code | %context.linkId'),
       valid(),

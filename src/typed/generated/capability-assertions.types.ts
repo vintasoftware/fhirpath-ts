@@ -1717,15 +1717,15 @@ export type BuiltinToQuantityDegradation = Assert<
 export type BuiltinToQuantityComposition = Assert<
   Equal<FhirpathResultIn<"(Patient.name.first().toQuantity('x')).count()", 'opaque'>, number[]>
 >
-export type BuiltinToStringFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.first().toString()', 'opaque'>>
+export type BuiltinToStringFastSlowParity = Assert<FastSlowInferenceParity<'Patient.birthDate.toString()', 'opaque'>>
 export type BuiltinToStringPositive = Assert<
-  Equal<FhirpathResultIn<'Patient.name.first().toString()', 'opaque'>, string[]>
+  Equal<FhirpathResultIn<'Patient.birthDate.toString()', 'opaque'>, string[]>
 >
 export type BuiltinToStringDegradation = Assert<
   Equal<FhirpathResultIn<'Patient.name.unknownFn()', 'opaque'>, unknown[]>
 >
 export type BuiltinToStringComposition = Assert<
-  Equal<FhirpathResultIn<'(Patient.name.first().toString()).count()', 'opaque'>, number[]>
+  Equal<FhirpathResultIn<'(Patient.birthDate.toString()).count()', 'opaque'>, number[]>
 >
 export type BuiltinToTimeFastSlowParity = Assert<FastSlowInferenceParity<'Patient.name.first().toTime()', 'opaque'>>
 export type BuiltinToTimePositive = Assert<Equal<FhirpathResultIn<'Patient.name.first().toTime()', 'opaque'>, string[]>>

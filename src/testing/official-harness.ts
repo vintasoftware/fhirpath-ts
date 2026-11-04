@@ -7,6 +7,7 @@ import {
   SKIP_MANIFEST,
   type SkipEntry,
 } from '../../test-data/official/skip-manifest.ts'
+import { analyzeExpressionDetailed } from '../analyzer/analyze.ts'
 import { CompiledExpression } from '../api/compile.ts'
 import { FhirPathError, FhirPathRuntimeError, FhirPathSyntaxError, FhirPathTypeError } from '../errors.ts'
 import { valueToString } from '../functions/conversion.ts'
@@ -29,6 +30,13 @@ export interface OfficialTest {
   invalid?: string
   predicate?: boolean
   mode?: string
+  /** An expression whose results are the focus the case runs on, instead of the fixture's root. */
+  context?: string
+  /**
+   * The focus types a static check assumes, `|`-separated, when they differ
+   * from the data's: the data stays the fixture's.
+   */
+  contextType?: string
   /** Suite marker for cases some static checkers cannot handle; this analyzer checks them like any other case. */
   skipStaticCheck?: boolean
   outputs: OfficialOutput[]
@@ -68,11 +76,46 @@ export function findSkipReason(
   return entry === undefined ? undefined : `${SKIP_CATEGORY_LABELS[entry.category]}: ${entry.reason}`
 }
 
-/** The fixture's resourceType, for seeding the analyzer's input type. */
-export function fixtureResourceType(suite: SuiteName, inputfile: string): string | undefined {
-  const fixture = loadFixture(suite, inputfile)
-  const resourceType = (fixture as { resourceType?: unknown }).resourceType
-  return typeof resourceType === 'string' ? resourceType : undefined
+/**
+ * The focus types the analyzer starts from: the case's `contextType`, else the
+ * static type of its `context` over the fixture, else the fixture's resourceType.
+ */
+export function caseInputType(suite: SuiteName, test: OfficialTest): string | string[] | undefined {
+  if (test.contextType !== undefined) {
+    return test.contextType.split('|')
+  }
+  const fixture = test.inputfile === undefined ? undefined : loadFixture(suite, test.inputfile)
+  const resourceType = (fixture as { resourceType?: unknown } | undefined)?.resourceType
+  const rootType = typeof resourceType === 'string' ? resourceType : undefined
+  if (test.context === undefined) {
+    return rootType
+  }
+  return analyzeExpressionDetailed(test.context, {
+    model: r4Model,
+    ...(rootType !== undefined && { inputType: rootType }),
+  }).result.types
+}
+
+/**
+ * The input a case runs on: the fixture, or the typed results of the case's
+ * `context` expression over it, which keep their ancestry for `%resource`.
+ */
+function caseInput(suite: SuiteName, test: OfficialTest): unknown {
+  const fixture = test.inputfile === undefined ? undefined : loadFixture(suite, test.inputfile)
+  return test.context === undefined
+    ? fixture
+    : new CompiledExpression(test.context).evaluateTyped(fixture, { model: r4Model })
+}
+
+/**
+ * Why the runtime pass cannot run a case, if it cannot. A semantic case with a
+ * `contextType` declares focus types the data does not have, and strict
+ * evaluation types the focus from the data, so only the analyzer pass checks it.
+ */
+export function staticOnlyReason(test: OfficialTest): string | undefined {
+  return test.invalid === 'semantic' && test.contextType !== undefined
+    ? `static only: the context type ${test.contextType} is not the data's type`
+    : undefined
 }
 
 /** The fields that pick suite cases, shared by skip entries and phase overrides. */
@@ -127,7 +170,7 @@ export function expectedPhase(suite: SuiteName, groupName: string, test: Officia
 
 /** Run one official case; returns undefined on pass, a failure message otherwise. */
 export function runOfficialTest(suite: SuiteName, test: OfficialTest, groupName = ''): string | undefined {
-  const input = test.inputfile === undefined ? undefined : loadFixture(suite, test.inputfile)
+  const input = caseInput(suite, test)
   const options = {
     model: r4Model,
     ...((test.invalid === 'semantic' || test.mode === 'strict') && { strict: true }),
@@ -165,7 +208,7 @@ export async function runOfficialTestAsync(
   groupName = ''
 ): Promise<string | undefined> {
   if (test.mode !== 'tx') return runOfficialTest(suite, test, groupName)
-  const input = test.inputfile === undefined ? undefined : loadFixture(suite, test.inputfile)
+  const input = caseInput(suite, test)
   try {
     const results = await new CompiledExpression(test.expression).evaluateTypedAsync(input, {
       model: r4Model,

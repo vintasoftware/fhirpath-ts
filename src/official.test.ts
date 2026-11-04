@@ -7,6 +7,7 @@ import {
   loadOfficialSuite,
   runOfficialTest,
   runOfficialTestAsync,
+  staticOnlyReason,
   type SuiteName,
 } from './testing/official-harness.ts'
 
@@ -21,7 +22,7 @@ for (const suite of ['r4', 'r5'] as const) {
       describe(group.name, () => {
         group.tests.forEach((test, index) => {
           const title = `${test.name ?? `case-${index}`}: ${test.expression.slice(0, 100)}`
-          const skipReason = findSkipReason(suite, group, test)
+          const skipReason = findSkipReason(suite, group, test) ?? staticOnlyReason(test)
           if (skipReason !== undefined) {
             it.skip(`${title} [${skipReason}]`, () => {})
             return
