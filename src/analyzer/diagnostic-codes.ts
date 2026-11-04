@@ -1,5 +1,5 @@
-/** Every code an analyzer diagnostic carries. */
-export const ANALYZER_DIAGNOSTIC_CODES = [
+/** Every code an analyzer diagnostic carries: each names the check that reported it. */
+export const ANALYZER_CHECK_CODES = [
   'always-empty',
   'argument-singleton',
   'column-type',
@@ -26,7 +26,7 @@ export const ANALYZER_DIAGNOSTIC_CODES = [
   'wrong-arity',
 ] as const
 
-export type AnalyzerDiagnosticCode = (typeof ANALYZER_DIAGNOSTIC_CODES)[number]
+export type AnalyzerCheckCode = (typeof ANALYZER_CHECK_CODES)[number]
 
 /**
  * Codes of errors that are wrong whatever the data: the part of the expression
@@ -38,7 +38,7 @@ export type AnalyzerDiagnosticCode = (typeof ANALYZER_DIAGNOSTIC_CODES)[number]
  * collection that may hold one item, an operand that may be empty, or a
  * datatype root that typed input matches.
  */
-export const DATA_INDEPENDENT_ERROR_CODES: ReadonlySet<AnalyzerDiagnosticCode> = new Set([
+export const DATA_INDEPENDENT_ERROR_CODES: ReadonlySet<AnalyzerCheckCode> = new Set([
   'syntax',
   'unknown-element',
   'unknown-function',

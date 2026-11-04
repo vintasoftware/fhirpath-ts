@@ -368,8 +368,8 @@ analyzeExpression('code | %context.linkId', {
 
 ### Diagnostic codes
 
-Each diagnostic has a stable `code`. `ANALYZER_DIAGNOSTIC_CODES` lists them and
-`AnalyzerDiagnosticCode` is their type. `DATA_INDEPENDENT_ERROR_CODES` holds the
+Each diagnostic has a stable `code`. `ANALYZER_CHECK_CODES` lists them and
+`AnalyzerCheckCode` is their type. `DATA_INDEPENDENT_ERROR_CODES` holds the
 codes of errors that are wrong whatever the data: `syntax`, `unknown-element`,
 `unknown-function`, `unknown-variable`, `unknown-type`, `wrong-arity`,
 `variable-override`, `variable-redefined`, and `invalid-value`. The part of the expression they mark throws whenever it runs,

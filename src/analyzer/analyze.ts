@@ -42,7 +42,7 @@ import {
   isRuntimeAnalyzerVariable,
   runtimeAnalyzerEnvironmentVariables,
 } from './declarations.ts'
-import type { AnalyzerDiagnosticCode } from './diagnostic-codes.ts'
+import type { AnalyzerCheckCode } from './diagnostic-codes.ts'
 import { applyOperatorResultRule, applyTypeOperatorResultRule } from './operator-rules.ts'
 import { hasNestedUnboundedQuantifier } from './regex-safety.ts'
 import {
@@ -64,7 +64,7 @@ export interface AnalyzerDiagnostic {
   /** Unresolved element, function, or variable name, when the diagnostic has one. */
   name?: string
   /** Stable rule identifier, e.g. `unknown-element` or `singleton-required`. */
-  code: AnalyzerDiagnosticCode
+  code: AnalyzerCheckCode
   message: string
   span: SourceSpan
 }
@@ -1643,7 +1643,7 @@ class Analyzer {
   }
 
   private report(
-    code: AnalyzerDiagnosticCode,
+    code: AnalyzerCheckCode,
     message: string,
     span: SourceSpan,
     severity: 'error' | 'warning' = 'error',

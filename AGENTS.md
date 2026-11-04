@@ -204,8 +204,8 @@ perform.
 
 ## Diagnostic codes
 
-`report()` takes an `AnalyzerDiagnosticCode`, so a new code goes into
-`ANALYZER_DIAGNOSTIC_CODES` in `src/analyzer/diagnostic-codes.ts`. Add a code
+`report()` takes an `AnalyzerCheckCode`, so a new code goes into
+`ANALYZER_CHECK_CODES` in `src/analyzer/diagnostic-codes.ts`. Add a code
 to `DATA_INDEPENDENT_ERROR_CODES` only with a case in `diagnostic-codes.test.ts`
 showing that the part it marks throws or is empty with and without the data it
 reads; hosts refuse expressions on that set alone. An element that only a

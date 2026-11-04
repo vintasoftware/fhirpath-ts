@@ -113,8 +113,8 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     cannot take.
   - The analyzer's `inputType` takes several types, for an input of one of
     them: an element on any one of them is enough.
-  - `fhirpath-ts/analyzer` exports `ANALYZER_DIAGNOSTIC_CODES`, the
-    `AnalyzerDiagnosticCode` type, and `DATA_INDEPENDENT_ERROR_CODES`: the codes
+  - `fhirpath-ts/analyzer` exports `ANALYZER_CHECK_CODES`, the
+    `AnalyzerCheckCode` type, and `DATA_INDEPENDENT_ERROR_CODES`: the codes
     of errors that are wrong whatever the data, such as an unknown element or
     a wrong argument count, for a host that refuses only expressions that
     cannot work on any data; see
@@ -254,7 +254,7 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `Bundle.entry.resource`, is a `subtype-element` error with an `ofType()`
   hint, not `unknown-element`: the data may hold such a subtype.
 - **Breaking (types):** `AnalyzerDiagnostic.code` is an
-  `AnalyzerDiagnosticCode`, not a `string`.
+  `AnalyzerCheckCode`, not a `string`.
 - **Breaking (types):** `evaluateAsync()` and `evaluateTypedAsync()` given
   options typed as `AsyncEvaluateOptions`, which may set `syncWhenPossible`,
   return the result or a Promise of it. Options without `syncWhenPossible`, or

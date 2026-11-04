@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { r4, r4Model } from '../r4/index.ts'
 import { analyzeExpression } from './analyze.ts'
-import { ANALYZER_DIAGNOSTIC_CODES, DATA_INDEPENDENT_ERROR_CODES } from './diagnostic-codes.ts'
+import { ANALYZER_CHECK_CODES, DATA_INDEPENDENT_ERROR_CODES } from './diagnostic-codes.ts'
 
 const patient = { resourceType: 'Patient', id: 'p' }
 const named = { ...patient, name: [{ family: 'Doe' }] }
@@ -69,11 +69,11 @@ describe('DATA_INDEPENDENT_ERROR_CODES', () => {
       .filter(file => file.endsWith('.ts') && !file.endsWith('.test.ts') && file !== 'diagnostic-codes.ts')
       .map(file => readFileSync(`${directory}/${file}`, 'utf8'))
       .join('\n')
-    for (const code of ANALYZER_DIAGNOSTIC_CODES) {
+    for (const code of ANALYZER_CHECK_CODES) {
       expect(sources, code).toContain(`'${code}'`)
     }
     for (const code of DATA_INDEPENDENT_ERROR_CODES) {
-      expect(ANALYZER_DIAGNOSTIC_CODES).toContain(code)
+      expect(ANALYZER_CHECK_CODES).toContain(code)
     }
   })
 })
