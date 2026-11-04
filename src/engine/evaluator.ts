@@ -34,6 +34,7 @@ import {
 import { evaluateInstanceSelector } from './instance-selector.ts'
 import { navigateIdentifier } from './navigation.ts'
 import { evaluateBinary, evaluateTypeOp, evaluateUnary } from './operators/index.ts'
+import { decidedByLeft } from './operators/logic.ts'
 import { resolveHostCall } from './type-matching.ts'
 
 function evaluateArgument(node: AstNode, context: EvaluationContext, _input: TypedValue[]): TypedValue[] {
@@ -145,7 +146,10 @@ export function evaluateNode(node: AstNode, context: EvaluationContext, input: T
       } catch (error) {
         throw alsoCollecting(error, () => evaluateNode(node.right, forkVariables(context), input))
       }
-      return evaluateBinary(context, node.operator, left, evaluateNode(node.right, forkVariables(context), input))
+      return (
+        decidedByLeft(node.operator, left) ??
+        evaluateBinary(context, node.operator, left, evaluateNode(node.right, forkVariables(context), input))
+      )
     }
     case 'typeOp':
       return evaluateTypeOp(context, node.operator, evaluateNode(node.operand, context, input), node.type)

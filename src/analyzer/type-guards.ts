@@ -6,7 +6,10 @@ import type { AstNode, BinaryOperator } from '../parser/ast.ts'
  * leaves:
  *
  * - `A implies B`, `A and B`, `iif(A, B, ...)`: B runs only when A is true.
- * - `A or B`, `iif(A, ..., B)`: B matters only when A is false.
+ * - `A or B`, `iif(A, ..., B)`: B runs only when A is false.
+ *
+ * The evaluator makes this hold: `iif()` runs one branch, and `decidedByLeft`
+ * skips the right operand of a logic operator whose left operand decides it.
  *
  * A is `$this is T`, `$this.is(T)`, `is(T)`, `A.not()`, or an `and`/`or` of
  * guards. A test on anything but the focus, such as `$this.start is dateTime`,

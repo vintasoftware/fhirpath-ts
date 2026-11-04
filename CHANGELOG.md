@@ -262,6 +262,12 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   hint, not `unknown-element`: the data may hold such a subtype.
 - **Breaking (types):** `AnalyzerDiagnostic.code` is an
   `AnalyzerCheckCode`, not a `string`.
+- `and`, `or`, `implies`, and `xor` skip the right operand when the left one
+  decides the result: `false and x`, `true or x`, `false implies x`, and
+  `{} xor x`. A right operand that would fail, such as the `substring()` in
+  `$this is Observation implies $this.substring(1).exists()` on a Patient, no
+  longer throws, and a `trace()` in it no longer logs. Results do not change
+  otherwise.
 - **Breaking:** the analyzer reports `operand-type` for `toString()` on a
   value that never converts to a string, such as a `Period` or a
   `HumanName`. Strict evaluation, the ESLint rule, and `fhirpath-check` now
