@@ -181,9 +181,7 @@ them for its lifetime, so a provider sees later edits only when the host
 creates a new one, for example per request or session; a failed read is not
 kept and is retried on the next lookup. The engine reads contained
 CodeSystems before it asks the provider. `pnpm record:tx:medplum` records the
-provider against a live Medplum server, and
-[SDC readiness](sdc-readiness.md) reports the live validation, the extension
-fallback included.
+provider against a live Medplum server.
 
 A synchronous evaluation that needs a terminology service throws
 `FhirPathAsyncRequiredError`, a `FhirPathRuntimeError`. An asynchronous

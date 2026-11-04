@@ -24,6 +24,4 @@ probes. `smart-forms-fhirpath.ts` is the one adapter behind a build alias from
 `fhirpath`: it takes fhirpath.js's call shape and translates argument order,
 the fixed R4 model, `{ base, expression }` fragment types, typed results
 carried between calls, and the `async`, `terminologyUrl`, and `fhirServerUrl`
-options into the native API and the `fhirpath-ts/medplum` providers. The
-[SDC readiness report](../docs/sdc-readiness.md) lists the Smart Forms changes
-that remain.
+options into the native API and the `fhirpath-ts/medplum` providers.

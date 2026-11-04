@@ -4,8 +4,7 @@
  * fragment type of `{ base, expression }`, typed results carried between
  * calls, and the host services behind fhirpath.js's `async`, `terminologyUrl`,
  * and `fhirServerUrl` options. A build alias from `fhirpath` to this module
- * replaces the engine without touching the call sites; the Smart Forms edits
- * that remain are listed in docs/sdc-readiness.md.
+ * replaces the engine without touching the call sites.
  */
 import { createCachedCompiler } from '../../src/api/compile.ts'
 import {

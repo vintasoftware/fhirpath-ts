@@ -175,7 +175,6 @@ const documentation: readonly DocumentExpectation[] = [
     ],
   },
   { path: 'docs/conformance.md', fences: [] },
-  { path: 'docs/sdc-readiness.md', fences: [] },
   { path: 'docs/engine-comparison.md', fences: [] },
   { path: 'demo/README.md', fences: [valid('Patient.name.given')] },
 ]
