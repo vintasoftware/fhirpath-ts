@@ -8,6 +8,17 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+## 0.5.0 - 2026-11-04
+
+This release brings the FHIRPath 3.0.0 additions (instance selectors,
+`repeatAll()`, `duration()` and `difference()`, formatted date parsing,
+`pathname()`) and the 3.0.0 math, sort, and equality rules; asynchronous
+terminology and reference resolution, with Medplum providers; SDC scoring and
+typed element contexts; and typed engine inputs for declared roots. Many
+changes are breaking: see **Changed**. The largest are that `evaluate()` reads
+a Bundle as one resource, a primitive with only extensions gives no item,
+Integer overflow is empty, and the `typescript` peer starts at 5.4.
+
 ### Added
 
 - FHIRPath 3.0.0 functions and arguments:
@@ -66,13 +77,48 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
     `Patient.name.sort(family desc, given.first())`. `asc` and `desc` stay
     ordinary element names elsewhere. The `-key` form still sorts descending
     ([#127](https://github.com/vintasoftware/fhirpath-ts/issues/127)).
-- The SDC `weight()` scores answers locally with a model. It reads `itemWeight`
-  and R4 `ordinalValue` extensions on an answer or its value, then on the
-  matching `answerOption` of the answer's item in `%questionnaire`, so
-  `item.answer.value.weight().sum()` totals a QuestionnaireResponse. It throws
-  without a model, without `%questionnaire` for an answer, for a missing
-  questionnaire item, and when the weight needs a ValueSet or CodeSystem
-  lookup; see [Score questionnaire answers](README.md#score-questionnaire-answers).
+- Asynchronous services
+  ([Asynchronous services](docs/api.md#asynchronous-services)):
+  - `evaluateAsync()`, and `evaluateAsync()` and `evaluateTypedAsync()` on
+    `compile()`, take `AsyncEvaluateOptions`: `EvaluateOptions` plus
+    `terminology` and `resolver`. Engine methods and sync calls stay
+    synchronous, and a sync call given either option throws.
+  - `options.terminology`, a `TerminologyProvider`, serves `memberOf()`,
+    `subsumes()`, `subsumedBy()`, `%terminologies`, and `weight()` lookups.
+    Answers are cached per evaluation, and independent requests start
+    together. A function that needs a provider under `evaluate()` throws
+    `FhirPathAsyncRequiredError`.
+  - `options.resolver`, a `ReferenceResolver`, lets `resolve()` read external
+    references. Contained and Bundle references resolve locally first, and
+    the resolver receives the reference with the server base of the resource
+    that holds it; see [External references](docs/api.md#external-references).
+  - `fhirpath-ts/medplum`: `medplumTerminology(client)` and
+    `medplumResolver(client)` over an authenticated `MedplumClient`, and
+    `fhirClient(baseUrl, headers)` for the same shape over `fetch`. The
+    resolver sends only a literal `Type/id` read on the client's own base;
+    see [Medplum](docs/api.md#medplum).
+- The SDC `weight()` scores questionnaire answers with a model. It reads
+  `itemWeight` and R4 `ordinalValue` extensions on an answer or its value,
+  then the matching `answerOption` in `%questionnaire`, then the item's
+  `answerValueSet` (contained, or expanded through the terminology provider),
+  then the Coding's CodeSystem (contained, or through `$lookup`), so
+  `item.answer.value.weight().sum()` totals a QuestionnaireResponse. A listing
+  that names the Coding's version wins; a Coding without a version takes only
+  a weight its listings agree on. A bare `code` element scores through the
+  CodeSystem of its required binding. A lookup that cannot be answered throws,
+  so a total is never silently lowered. `ordinal()` is the same function; see
+  [Score questionnaire answers](README.md#score-questionnaire-answers).
+- `project()` and DTO `from()` take `onRowError` for an array or a Bundle. It
+  receives a `ProjectionRowError` (row `index`, `total`, `column`, `cause`,
+  and a non-enumerable `subject`) and returns `'skip'` to drop the row or
+  `'stop'` to throw; see [Row errors](docs/api.md#row-errors)
+  ([#42](https://github.com/vintasoftware/fhirpath-ts/issues/42)).
+- UCUM special units
+  ([#8](https://github.com/vintasoftware/fhirpath-ts/issues/8)): Celsius,
+  Fahrenheit, and Réaumur convert with their offsets
+  (`23 'Cel' = 73.4 '[degF]'`), and the 22 special units take prefixes as
+  UCUM allows (`dB`, `mCel`).
+  `N`, `Pa`, and `m[Hg]` are defined, so `mm[Hg]` converts to `kPa`.
 - `engine.compile(expression, type)` declares the type a relative expression
   runs against, as the package-root `compile(expression, type)` does. The input
   must be that type or an array of it, the result is inferred against it, and
@@ -257,6 +303,36 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 - **Breaking:** `terminologies` is a reserved variable name without a
   terminology provider too: `vars` and `defineVariable()` refuse it.
+- **Breaking:** string functions count Unicode characters, as FHIRPath 3.0.0
+  says: `length()`, `indexOf()`, `lastIndexOf()`, `substring()`, `toChars()`,
+  and `replace('', ...)` count `'🔥'` as one character, which was two. An
+  unpaired surrogate escape such as `'\uD800'` is a syntax error. String
+  indexing (`'a🔥b'[0]`) is unchanged.
+- **Breaking:** a Date plus or minus an hour, minute, second, or millisecond
+  quantity is an error, as FHIRPath 3.0.0 says: `@1973-12-25 + 1 hour` and
+  `Patient.birthDate + 1 hour` throw.
+- **Breaking:** quantity `+`, `-`, `*`, `/`, and `sum()` give empty for UCUM
+  special units: temperatures (`1 'Cel' + 1 'Cel'`) and the non-ratio units
+  such as the bel, neper, and pH. `K` stays a ratio unit. Because units are
+  UCUM codes, `kB` is a kilobel; write data sizes as `kBy`.
+- `~` on quantities rounds to the less precise operand in either order:
+  `4040 'mg' ~ 4 'g'` is true, as `4 'g' ~ 4040 'mg'` was.
+- A UCUM annotation is unity when it is its own term (`{tablet}`,
+  `mg/{tablet}`) and is dropped after a symbol (`mg{dose}`), so
+  `(5 'mg/{tablet}').toQuantity('mg')` converts.
+- `repeat()` fails after 10,000 items, so a projection that never stops
+  returning new values, such as `1.repeat($this + 1)`, ends with an error.
+  Deduplication in `repeat()`, `distinct()`, `|`, `union()`, and the other set
+  functions is indexed: collecting 10,000 items took 13.7 s and now takes
+  under 70 ms.
+- `as` (operator and function) also matches a FHIR primitive that has a value
+  and converts to the requested System type, as the R4 FHIRPath page allows:
+  `Observation.value.as(System.String)` returns a FHIR `string`. `is()` and
+  `ofType()` still compare FHIR types.
+- Engine error messages no longer repeat values read from the data, such as a
+  code, a version, a string, or a free-text unit, so a host can log or forward
+  them; see
+  [What throws errors](docs/api.md#what-throws-errors-and-what-doesnt).
 - An element that only a subtype of the input type has, such as `name` on
   `Bundle.entry.resource`, is a `subtype-element` error with an `ofType()`
   hint, not `unknown-element`: the data may hold such a subtype.
@@ -324,6 +400,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   accepted an input of another resource type.
 - `skip()` and `take()` return empty for an empty count, such as `skip({})`,
   as `substring()` does for an empty argument. They threw a type error.
+- A millisecond quantity added to a time rounds to whole milliseconds, half
+  away from zero: `@T12:00:00.000 + 0.5 'ms'` gave the malformed
+  `12:00:00.0.5`.
+- `unescape('html')` decodes decimal and hexadecimal references such as
+  `&#65;` and `&#x42;`.
 - `resolve()` resolves a contained reference inside a Bundle entry against that
   entry's resource; it returned empty. A reference from a contained resource
   reaches its siblings and its container, and a resource that `resolve()`
