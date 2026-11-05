@@ -12,6 +12,7 @@ import {
   type DeclaredFunction,
   type DeclaredVariable,
   type EvaluationValueOption,
+  withoutEvaluationValues,
 } from './analyze.ts'
 import { analyzerEnvironmentVariables, analyzerVariables, PROJECT_ROW_VARIABLES } from './declarations.ts'
 
@@ -41,18 +42,11 @@ export interface AnalyzedEngine {
 }
 
 /**
- * The evaluation values of `AnalyzeOptions`, refused even when they come from
- * a spread of evaluation options, which TypeScript does not check for excess
- * properties.
- */
-type NoEvaluationValues = { readonly [K in EvaluationValueOption]?: never }
-
-/**
  * `analyzeDto` options. The DTO's own engine supplies the context unless
  * `engine` replaces it; evaluation values (`env`, `vars`) come from that
  * engine, so these options take declarations only.
  */
-export interface AnalyzeDtoOptions extends Omit<AnalyzeOptions, EvaluationValueOption>, NoEvaluationValues {
+export interface AnalyzeDtoOptions extends Omit<AnalyzeOptions, EvaluationValueOption> {
   /** Engine model, functions, and environment names used while checking the DTO. */
   engine?: AnalyzedContext
 }
@@ -74,8 +68,10 @@ function definingContext(dto: DtoClass, definition: DtoDefinition): AnalyzedCont
  * would be reported as unresolved. `model` and `inputType` are single values, so
  * there the caller simply wins.
  */
-function contextOf(engine: AnalyzedContext, caller: Omit<AnalyzeDtoOptions, 'engine'>): AnalyzeOptions {
+function contextOf(engine: AnalyzedContext, options: AnalyzeOptions): AnalyzeOptions {
   const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
+  // A spread of evaluation options, or an `AnalyzeOptions` value, may still carry them.
+  const caller = withoutEvaluationValues(options)
   const activeModel = caller.model ?? model
   return {
     ...(model !== undefined && { model }),

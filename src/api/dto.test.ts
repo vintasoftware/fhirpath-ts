@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { analyzeDto, analyzeEngineDtos, analyzeExpression } from '../analyzer/index.ts'
+import { analyzeDto, analyzeEngineDtos, analyzeExpression, type AnalyzeOptions } from '../analyzer/index.ts'
 import { FhirPathTypeError, ProjectionRowError } from '../errors.ts'
 import type {
   Appointment,
@@ -1648,14 +1648,24 @@ describe('analyzeDto', () => {
   it('takes declarations, not evaluation values, for caller environment names', () => {
     class Row extends r4.defineView('Observation', { callerEnv: ['subject'] }) {
       name = this.column('%subject.nam')
+
+      other = this.column('%other.nam')
     }
     const declared = { subject: { types: ['FHIR.Patient'], single: true } }
-    expect(analyzeDto(Row, { variables: declared }).map(f => f.code)).toEqual(['unknown-element'])
+    expect(analyzeDto(Row, { variables: declared }).map(f => [f.member, f.code])).toEqual([
+      ['name', 'unknown-element'],
+      ['other', 'unknown-variable'],
+    ])
     // @ts-expect-error A DTO's env and vars come from its engine; a caller declares names in `variables`.
     analyzeDto(Row, { env: { subject: { resourceType: 'Patient' } } })
-    const evaluation = { model: r4Model, env: { subject: { resourceType: 'Patient' } } }
-    // @ts-expect-error Also through a spread of evaluation options, which has no excess-property check.
-    analyzeDto(Row, { ...evaluation })
+    // A spread of evaluation options, or an AnalyzeOptions value, still compiles; its env is not read.
+    const patientJson = { resourceType: 'Patient' }
+    const evaluation = { model: r4Model, env: { subject: patientJson, other: patientJson } }
+    const shared: AnalyzeOptions = evaluation
+    for (const options of [{ ...evaluation }, shared]) {
+      expect(analyzeDto(Row, options).map(f => [f.member, f.code])).toEqual([['other', 'unknown-variable']])
+      expect(analyzeEngineDtos(r4, options)).toEqual([])
+    }
     // @ts-expect-error The sweep takes the same options.
     analyzeEngineDtos(r4, { vars: {} })
   })
