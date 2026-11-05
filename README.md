@@ -319,6 +319,12 @@ For template extraction, an expression can run on one element while
 of the element's type, and refuses a value that does not fit (see
 [`toFhirJson()` and `jsonElement()`](docs/api.md#tofhirjson-and-jsonelement)).
 
+`r4.evaluateXFhirQuery(query, input)` fills an x-fhir-query, the FHIR search
+with FHIRPath in `{{ }}` that extraction contexts, `$populate`, and answer
+expressions use. It refuses a result with no search form, such as a
+`HumanName`, by its type, so the value never reaches the URL (see
+[x-fhir-query](docs/api.md#x-fhir-query)).
+
 ### Walk nested structures
 
 `repeat(item)` follows every nested `item` collection and returns the items at
@@ -495,7 +501,8 @@ Package code is licensed under Apache-2.0. Third-party material and full license
 texts are collected in
 [`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md).
 
-- The parser structure is adapted from Medplum (Apache-2.0).
+- The parser structure and the x-fhir-query search forms are adapted from Medplum
+  (Apache-2.0).
 - Official FHIRPath tests come from FHIR/fhir-test-cases (Apache-2.0 and FHIR CC0
   content).
 - Reference tests come from HL7/fhirpath.js (NLM BSD-style) and fhirpath-py (MIT).
@@ -610,3 +617,8 @@ settings override the adapter's defaults one by one.
 `trace()` does nothing unless a trace sink is provided. Traced values may contain
 patient data. Never send PHI values to console output or production logs; use
 record identifiers or element paths from `pathname()` instead.
+
+Engine error messages never repeat a value read from the data, but errors from
+host functions and services can. Log `safeErrorMessage(error)`, which keeps an
+engine message and reduces any other error to its name (see
+[What throws errors](docs/api.md#what-throws-errors-and-what-doesnt)).

@@ -642,8 +642,8 @@ r4.evaluate('entry.resource.id | %resource.status', searchset, {
 
 A typed `env` value is recognized as typed values given as the input are, never
 by its shape, and an array that mixes typed values and JSON throws. The
-analyzer takes the type of `%context` as a declared variable, for example
-`variables: { context: { types: ['FHIR.QuestionnaireResponse.item'], single: true } }`.
+analyzer takes the same `env` and types `%context` from it (see
+[Public analyzer](static-checking.md#public-analyzer)).
 
 #### Structured Data Capture
 
@@ -726,6 +726,65 @@ its type: `r4.jsonElement('Observation', 'effectiveDateTime')` is
 It is undefined for a key the type does not have, including a choice element's
 stem alone. An element the R4 model types as a System type, such as
 `Resource.id`, has its FHIR primitive type, `string`.
+
+### x-fhir-query
+
+An [x-fhir-query](https://hl7.org/fhir/R5/fhir-xquery.html) is a FHIR search
+string with FHIRPath expressions between `{{` and `}}`. Each embedded
+expression is evaluated and its results are put into the string before the
+search runs. SDC uses it for extraction contexts, `$populate`, answer and
+candidate expressions, and launch contexts. `evaluateXFhirQuery()` evaluates
+each embedded expression on the input with the engine's options:
+
+```ts
+r4.evaluateXFhirQuery('Observation?subject.identifier={{identifier}}&date=ge{{%since}}', patient, {
+  env: { since: '2024-01-01' },
+}) // 'Observation?subject.identifier=http://example.org/mrn|mrn-1&date=ge2024-01-01'
+```
+
+`compileXFhirQuery(query)` parses the query once. Its `evaluate(input, options)`
+and `evaluateAsync(input, options)` do the same as `evaluateXFhirQuery()`, the
+async form with terminology and reference services; the options need a
+`model`, as for a compiled expression. When several embedded expressions fail,
+the error is the first one's in query order. A host that evaluates each embedded
+expression itself, with its own focus, analysis, and error reporting, reads
+`expressions` and gives `substitute()` the typed results of each, in order:
+
+```ts
+import { compileXFhirQuery } from 'fhirpath-ts'
+
+const query = compileXFhirQuery('Observation?subject={{%resource.subject.reference}}&code={{code}}')
+const results = query.expressions.map(expression => expression.evaluateTyped(focus, { model: r4Model }))
+query.substitute(results)
+```
+
+Each result becomes its search form:
+
+| Result | Search form |
+| --- | --- |
+| String, number, Boolean, date, date-time, or time | Its text |
+| `Coding` | `system\|code`, or the code alone without a system |
+| `Identifier` | `system\|value`, or the value alone without a system |
+| `CodeableConcept` | One `Coding` form per coding |
+| `Reference` | Its `reference` |
+| `canonical` | Its text, with `\|version` kept as the version separator |
+| `Quantity` and its profiles (`Age`, `Duration`, ...) | `value\|system\|code`, with the unit when there is no code |
+| FHIRPath Quantity | `value\|http://unitsofmeasure.org\|code`, a calendar duration with its UCUM code (`a` for `year`) |
+
+Several results become a comma-separated list, as the x-fhir-query rules say,
+and no result an empty value; a primitive with only extensions gives nothing.
+Inside each value, a `\` goes before `\`, `$`, `,`, and `|`, the FHIR search
+escaping, so a server reads them as data rather than as separators: an
+Identifier value `a,b` stays one value, not `a` or `b`. Then each value is
+percent-encoded except `|`, `:`, and `/`, so `&` and `#` cannot change the
+query either. Any other type has no search form:
+`substitute()` throws a `FhirPathTypeError` that names the type, such as
+`A FHIR.HumanName value cannot be put in an x-fhir-query`, and never writes the
+value. A query that is not valid FHIRPath throws a `FhirPathSyntaxError` that
+counts the embedded expressions from 1:
+`Embedded expression 2 of the x-fhir-query is not valid FHIRPath: ...`. Its
+`cause` is the expression's own syntax error, with the position in that
+expression. Expressions hold no braces, so `{{ {a} }}` is not one.
 
 ## Stateless API
 
@@ -1480,6 +1539,21 @@ such as a code, a version, a string, or a free-text unit, so an application can
 log or show them. Errors from callbacks and terminology services, such as an
 OperationOutcome a server returns, pass through unchanged and carry whatever
 their source put in them.
+
+`safeErrorMessage(error)` gives the message of an error caught around an
+evaluation that is safe to log or show: a `FhirPathError`'s own message, or
+`Unexpected <name>`, such as `Unexpected TypeError`, for any other error, and
+`Unexpected error` for a value that is not an `Error`:
+
+```ts
+import { safeErrorMessage } from 'fhirpath-ts'
+
+try {
+  r4.evaluate(expression, resource, { functions })
+} catch (error) {
+  logger.warn(`Expression ${expressionId} failed: ${safeErrorMessage(error)}`)
+}
+```
 
 ## Parse caching
 

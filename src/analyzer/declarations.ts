@@ -1,3 +1,4 @@
+import type { AnyExpression } from '../api/compile.ts'
 import { envCollection, normalizeEnvKeys } from '../engine/context.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { FhirpathTypeDeclaration, FhirpathTypeDeclarations } from '../typed/infer.ts'
@@ -137,4 +138,81 @@ function collectAnalyzerVariables(
     }
   }
   return variables
+}
+
+/** A `vars` binding as an evaluation takes it: an expression, as text or compiled, or a typed collection. */
+export type VarBinding = AnyExpression | readonly TypedValue[]
+
+/** The variables an evaluation binds, in the shape of its options. */
+export interface EvaluationBindings {
+  env?: Readonly<Record<string, unknown>> | undefined
+  envTypes?: FhirpathTypeDeclarations | undefined
+  vars?: Readonly<Record<string, VarBinding>> | undefined
+  varTypes?: FhirpathTypeDeclarations | undefined
+  /** A terminology service binds `%terminologies`. */
+  terminology?: unknown
+}
+
+/** The inferred result of a `vars` expression. */
+export interface VarExpressionResult {
+  types: string[] | undefined
+  single: boolean | undefined
+  ordered: boolean | undefined
+}
+
+/**
+ * The analyzer variables of an evaluation with these bindings, typed from the
+ * values: `env` first, then each `vars` entry in order, as the evaluator binds
+ * them. A typed value gives its type, and JSON the type its `resourceType`
+ * names; a declaration in `envTypes` or `varTypes` wins over the value.
+ * `typeVar` analyzes a `vars` expression with the variables bound before it.
+ * `runtime` keeps the exact types of the values, which strict evaluation
+ * checks host-function dispatch against.
+ */
+export function evaluationVariables(
+  bindings: EvaluationBindings,
+  model: ModelProvider | undefined,
+  runtime: boolean,
+  typeVar: (
+    name: string,
+    expression: AnyExpression,
+    variables: Record<string, AnalyzerVariableState>
+  ) => VarExpressionResult
+): Record<string, AnalyzerVariableState> {
+  const variables: Record<string, AnalyzerVariableState> = runtime
+    ? runtimeAnalyzerEnvironmentVariables(bindings.env, bindings.envTypes, model)
+    : analyzerEnvironmentVariables(bindings.env, bindings.envTypes, model)
+  if (bindings.terminology !== undefined) variables['terminologies'] = { types: ['TerminologyService'], single: true }
+  const declarations = normalizeEnvKeys(bindings.varTypes)
+  for (const [name, value] of Object.entries(normalizeEnvKeys(bindings.vars))) {
+    const declaration = declarations[name]
+    if (isTypedCollection(value)) {
+      variables[name] = runtime
+        ? runtimeAnalyzerVariable(value, model, declaration)
+        : declaration === undefined
+          ? analyzerVariableFromCollection(value, model)
+          : { ...analyzerVariable(declaration), ordered: true }
+      continue
+    }
+    const result = typeVar(name, value, { ...variables })
+    // A declaration overrides the inferred types and cardinality, but ordering
+    // always comes from the analyzed expression — declarations cannot state it.
+    variables[name] = {
+      ...(declaration === undefined
+        ? {
+            ...(result.types !== undefined && { types: result.types }),
+            ...(result.single !== undefined && { single: result.single }),
+          }
+        : analyzerVariable(declaration)),
+      ...(result.ordered !== undefined && { ordered: result.ordered }),
+    }
+  }
+  for (const [name, declaration] of Object.entries(declarations)) {
+    variables[name] ??= analyzerVariable(declaration)
+  }
+  return variables
+}
+
+function isTypedCollection(value: VarBinding): value is readonly TypedValue[] {
+  return Array.isArray(value)
 }

@@ -41,8 +41,10 @@ import {
   analyzerEnvironmentVariables,
   type AnalyzerVariable,
   type AnalyzerVariableState,
+  evaluationVariables,
   isRuntimeAnalyzerVariable,
   runtimeAnalyzerEnvironmentVariables,
+  type VarBinding,
 } from './declarations.ts'
 import type { AnalyzerCheckCode } from './diagnostic-codes.ts'
 import { applyOperatorResultRule, applyTypeOperatorResultRule } from './operator-rules.ts'
@@ -117,14 +119,39 @@ export interface AnalyzeOptions {
   inputType?: string | readonly string[]
   /** Host-supplied functions by name — EvaluateOptions.functions can be passed as-is. */
   functions?: Record<string, DeclaredFunction>
-  /** Host-supplied environment variables by name (with or without the leading `%`). */
+  /**
+   * Host-supplied environment variables by name (with or without the leading
+   * `%`). They win over the declarations derived from `env` and `vars`.
+   */
   variables?: Record<string, DeclaredVariable>
+  /**
+   * The `env` values the expression will be evaluated with, as in
+   * `EvaluateOptions`. Each is declared from its type: a typed value's own
+   * type, never its content, so a value typed with `toTyped({}, type)` stands
+   * for data that does not exist yet; JSON with a `resourceType` as that
+   * resource; other JSON with no type.
+   */
+  env?: Readonly<Record<string, unknown>>
+  /** Explicit types for `env` values, as in `EvaluateOptions`. They win over the values. */
+  envTypes?: FhirpathTypeDeclarations
+  /**
+   * The `vars` the expression will be evaluated with, as in `EvaluateOptions`.
+   * A typed collection is declared from its types; an expression from the
+   * result type the analyzer infers for it, with the variables bound before
+   * it. A `vars` expression's own diagnostics are not reported.
+   */
+  vars?: Readonly<Record<string, VarBinding>>
+  /** Explicit types for `vars`, as in `EvaluateOptions`. They win over the values. */
+  varTypes?: FhirpathTypeDeclarations
   /** Report navigation that remains unchecked because the input or a declared host variable has no type. */
   reportUnchecked?: boolean
 }
 
+/** The `AnalyzeOptions` fields that give evaluation values rather than declarations. */
+export type EvaluationValueOption = 'env' | 'envTypes' | 'vars' | 'varTypes'
+
 /** Internal strict-analysis options whose variables may retain exact runtime focus types. */
-export interface RuntimeAnalyzeOptions extends Omit<AnalyzeOptions, 'variables'> {
+export interface RuntimeAnalyzeOptions extends Omit<AnalyzeOptions, 'variables' | EvaluationValueOption> {
   variables?: Record<string, AnalyzerVariableState>
 }
 
@@ -374,7 +401,24 @@ export function analyzeExpressionDetailed(expression: string, options?: AnalyzeO
       result: { types: undefined, single: undefined, ordered: undefined },
     }
   }
-  return analyzeAstDetailed(ast, options)
+  return analyzeAstDetailed(ast, withEvaluationVariables(options))
+}
+
+/** The options with the declarations derived from `env` and `vars` under the explicit `variables`. */
+function withEvaluationVariables(options: AnalyzeOptions | undefined): AnalyzeOptions | undefined {
+  if (options === undefined) return undefined
+  const { env, envTypes, vars, varTypes, ...rest } = options
+  if (env === undefined && envTypes === undefined && vars === undefined && varTypes === undefined) return options
+  const explicit = normalizeEnvKeys(options.variables)
+  const derived = evaluationVariables(options, options.model, false, (_name, expression, bound) => {
+    const typed = { ...rest, variables: { ...bound, ...explicit } }
+    return (
+      typeof expression === 'string'
+        ? analyzeExpressionDetailed(expression, typed)
+        : analyzeAstDetailed(expression.ast, typed)
+    ).result
+  })
+  return { ...rest, variables: { ...derived, ...explicit } }
 }
 
 /** Analyze an already parsed expression, optionally with a runtime-derived input state. */

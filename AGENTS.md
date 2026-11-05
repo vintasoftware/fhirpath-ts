@@ -373,13 +373,38 @@ caches only CodeSystem searches, for its own lifetime; a server that must see
 terminology edits creates a provider per request or session, and answer
 caching stays with the host that knows its session.
 
+## x-fhir-query
+
+`src/api/x-fhir-query.ts` is the one place that turns typed results into
+search forms. A type with no search form is refused by name, never written as
+text or JSON (`docs/adr/0006`): the query becomes a URL that leaves the host.
+Every part read from a value goes through `text()`, which applies FHIR search
+escaping; the `|` and `,` the code adds between parts are the only unescaped
+separators, plus a canonical's `|version`. Keep `compileXFhirQuery()`'s parts separate: hosts such as sdc-extractor-ts
+evaluate each embedded expression themselves, with their own focus, analysis,
+and error reports, and call only `substitute()`. The file adapts Medplum code;
+keep its attribution header and its "Changes:" line current.
+
+## Analyzer variables from evaluation values
+
+`evaluationVariables` in `src/analyzer/declarations.ts` derives analyzer
+variables from `env`, `envTypes`, `vars`, and `varTypes`. Strict evaluation and
+the public `AnalyzeOptions` fields both call it, so a host that analyzes with
+its evaluation options gets the declarations strict evaluation would check.
+It declares a typed value from its type alone, so a host can analyze before
+data exists with values typed from `{}`; a typed `env` value is still
+recognized by its brand, never its shape. Strict evaluation keeps the exact
+runtime types (`runtime`), and reports a `vars` expression's errors; the public
+analyzer reports only the analyzed expression's.
+
 ## Error messages
 
 An engine error message may name types, functions, variables, elements,
 counts, and expression text, and form identifiers such as a CodeSystem URL or
 a linkId. It must not repeat a value read from the evaluated data: a code, a
 version, a string, or a free-text Quantity unit. Hosts such as
-sdc-extractor-ts forward these messages, and `docs/api.md` promises this. A
+sdc-extractor-ts forward these messages through `safeErrorMessage()`, and
+`docs/api.md` promises this. A
 value that must reach the caller goes on a non-enumerable property, as
 `ProjectionRowError.subject` does.
 

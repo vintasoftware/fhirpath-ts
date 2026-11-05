@@ -11,6 +11,7 @@ import {
   type AnalyzerDiagnostic,
   type DeclaredFunction,
   type DeclaredVariable,
+  type EvaluationValueOption,
 } from './analyze.ts'
 import { analyzerEnvironmentVariables, analyzerVariables, PROJECT_ROW_VARIABLES } from './declarations.ts'
 
@@ -39,8 +40,12 @@ export interface AnalyzedEngine {
   readonly dtos: readonly DtoClass[]
 }
 
-/** `analyzeDto` options. The DTO's own engine supplies the context unless `engine` replaces it. */
-export interface AnalyzeDtoOptions extends AnalyzeOptions {
+/**
+ * `analyzeDto` options. The DTO's own engine supplies the context unless
+ * `engine` replaces it; evaluation values (`env`, `vars`) come from that
+ * engine, so these options take declarations only.
+ */
+export interface AnalyzeDtoOptions extends Omit<AnalyzeOptions, EvaluationValueOption> {
   /** Engine model, functions, and environment names used while checking the DTO. */
   engine?: AnalyzedContext
 }
@@ -62,7 +67,7 @@ function definingContext(dto: DtoClass, definition: DtoDefinition): AnalyzedCont
  * would be reported as unresolved. `model` and `inputType` are single values, so
  * there the caller simply wins.
  */
-function contextOf(engine: AnalyzedContext, caller: AnalyzeOptions): AnalyzeOptions {
+function contextOf(engine: AnalyzedContext, caller: Omit<AnalyzeDtoOptions, 'engine'>): AnalyzeOptions {
   const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
   const activeModel = caller.model ?? model
   return {
@@ -85,7 +90,7 @@ function contextOf(engine: AnalyzedContext, caller: AnalyzeOptions): AnalyzeOpti
  */
 export function analyzeEngineDtos(
   engine: AnalyzedEngine,
-  options?: AnalyzeOptions
+  options?: Omit<AnalyzeDtoOptions, 'engine'>
 ): (DtoDiagnostic & { dto: string })[] {
   return engine.dtos.flatMap(dto => analyzeDto(dto, options).map(finding => ({ ...finding, dto: dto.name })))
 }

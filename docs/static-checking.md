@@ -385,6 +385,24 @@ A variable declaration may also set `ordered: false` when the host supplies a
 collection with no defined order; the analyzer then rejects positional
 operations on it. Omitting `ordered` keeps the ordering unknown.
 
+A host that evaluates with `env` and `vars` can give the analyzer the same
+values, and it declares each variable from them. A typed value gives its type
+and never its content, so a value typed with `toTyped({}, type)` stands for
+data that does not exist yet. JSON with a `resourceType` gives that resource,
+and other JSON no type. A typed `vars` collection gives its types and size,
+and a `vars` expression the result type the analyzer infers for it; its own
+diagnostics are not reported. `envTypes` and `varTypes` win over the values,
+and `variables` over both:
+
+```ts
+analyzeExpression('answer.value | %qitem.linkId | %context.linkId', {
+  model: r4Model,
+  inputType: 'QuestionnaireResponse.item',
+  env: { context: r4.toTyped({}, 'QuestionnaireResponse.item'), resource: response },
+  vars: { qitem: r4.toTyped({}, 'Questionnaire.item') },
+})
+```
+
 A declaration for `context`, `resource`, or `rootResource` types that variable
 apart from the input, as an `env` value sets it at runtime (see
 [`%context` apart from the input](api.md#context-apart-from-the-input)):
@@ -424,7 +442,8 @@ Strict evaluation refuses every error, data-independent or not.
 
 `analyzeDto()` checks one DTO against the engine it was defined on, or against
 explicit analyzer options. `analyzeEngineDtos()` checks all DTOs registered on an
-engine.
+engine. Both take the DTO's `env` and `vars` from that engine, so their options
+declare caller environment names in `variables` and take no `env` or `vars`.
 
 ## Shared expression-site rules
 

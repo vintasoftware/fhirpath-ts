@@ -1645,6 +1645,18 @@ describe('analyzeDto', () => {
     })
   })
 
+  it('takes declarations, not evaluation values, for caller environment names', () => {
+    class Row extends r4.defineView('Observation', { callerEnv: ['subject'] }) {
+      name = this.column('%subject.nam')
+    }
+    const declared = { subject: { types: ['FHIR.Patient'], single: true } }
+    expect(analyzeDto(Row, { variables: declared }).map(f => f.code)).toEqual(['unknown-element'])
+    // @ts-expect-error A DTO's env and vars come from its engine; a caller declares names in `variables`.
+    analyzeDto(Row, { env: { subject: { resourceType: 'Patient' } } })
+    // @ts-expect-error The sweep takes the same options.
+    analyzeEngineDtos(r4, { vars: {} })
+  })
+
   it('analyzes a compiled var by its source, and only declares a pre-bound one', () => {
     class Bound extends r4.defineView('Observation', {
       vars: {

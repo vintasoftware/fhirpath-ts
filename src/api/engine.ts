@@ -59,6 +59,7 @@ import {
   projectRows,
 } from './project.ts'
 import { toTyped, type ToTypedOptions } from './to-typed.ts'
+import { CompiledXFhirQuery } from './x-fhir-query.ts'
 
 /**
  * What `evaluate()` and its siblings accept as input: one value, which an
@@ -455,6 +456,16 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    */
   toFhirJson(value: TypedValue, type: FhirTypeName): unknown {
     return toFhirJson(engineModel(this.defaults.model, 'toFhirJson()'), value, type)
+  }
+
+  /**
+   * An x-fhir-query with each embedded expression evaluated on `input` and
+   * replaced by its search form, as `compileXFhirQuery(query).evaluate()`
+   * gives it with this engine's defaults. Embedded expressions parse through
+   * this engine's cache.
+   */
+  evaluateXFhirQuery(query: string, input?: unknown, options?: EvaluateOptions): string {
+    return new CompiledXFhirQuery(query, this.compileCached).evaluate(input, this.merged(options))
   }
 
   /**
