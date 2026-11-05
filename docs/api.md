@@ -1535,6 +1535,21 @@ log or show them. Errors from callbacks and terminology services, such as an
 OperationOutcome a server returns, pass through unchanged and carry whatever
 their source put in them.
 
+`safeErrorMessage(error)` gives the message of an error caught around an
+evaluation that is safe to log or show: a `FhirPathError`'s own message, or
+`Unexpected <name>`, such as `Unexpected TypeError`, for any other error, and
+`Unexpected error` for a value that is not an `Error`:
+
+```ts
+import { safeErrorMessage } from 'fhirpath-ts'
+
+try {
+  r4.evaluate(expression, resource, { functions })
+} catch (error) {
+  logger.warn(`Expression ${expressionId} failed: ${safeErrorMessage(error)}`)
+}
+```
+
 ## Parse caching
 
 Each engine has a private LRU parse cache. The default capacity is

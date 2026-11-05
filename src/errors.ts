@@ -81,3 +81,17 @@ export class ProjectionRowError extends FhirPathError {
     Object.defineProperty(this, 'subject', { value: at.subject, enumerable: false })
   }
 }
+
+/**
+ * The message of an error that is safe to log or show: a `FhirPathError`'s
+ * own message, which never repeats a value read from the data, or only the
+ * error's name for any other error, whose text can carry data. Use it for
+ * errors thrown during an evaluation, where host functions, terminology
+ * services, and resolvers can also throw.
+ */
+export function safeErrorMessage(error: unknown): string {
+  if (error instanceof FhirPathError) {
+    return error.message
+  }
+  return error instanceof Error ? `Unexpected ${error.name}` : 'Unexpected error'
+}

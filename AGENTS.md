@@ -401,7 +401,8 @@ An engine error message may name types, functions, variables, elements,
 counts, and expression text, and form identifiers such as a CodeSystem URL or
 a linkId. It must not repeat a value read from the evaluated data: a code, a
 version, a string, or a free-text Quantity unit. Hosts such as
-sdc-extractor-ts forward these messages, and `docs/api.md` promises this. A
+sdc-extractor-ts forward these messages through `safeErrorMessage()`, and
+`docs/api.md` promises this. A
 value that must reach the caller goes on a non-enumerable property, as
 `ProjectionRowError.subject` does.
 

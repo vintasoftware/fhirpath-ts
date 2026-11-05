@@ -159,6 +159,7 @@ const documentation: readonly DocumentExpectation[] = [
       valid('Bundle.entry.resource.ofType(Patient).name.family', 'entry.count()'),
       valid('birthDate < @1990-01-01', 'id'),
       valid(),
+      valid(),
       valid('Patient.name'),
     ],
   },

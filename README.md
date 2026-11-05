@@ -617,3 +617,8 @@ settings override the adapter's defaults one by one.
 `trace()` does nothing unless a trace sink is provided. Traced values may contain
 patient data. Never send PHI values to console output or production logs; use
 record identifiers or element paths from `pathname()` instead.
+
+Engine error messages never repeat a value read from the data, but errors from
+host functions and services can. Log `safeErrorMessage(error)`, which keeps an
+engine message and reduces any other error to its name (see
+[What throws errors](docs/api.md#what-throws-errors-and-what-doesnt)).

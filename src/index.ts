@@ -76,6 +76,7 @@ export {
   FhirPathSyntaxError,
   FhirPathTypeError,
   ProjectionRowError,
+  safeErrorMessage,
 } from './errors.ts'
 export type { JsonElement } from './fhir/fhir-json.ts'
 export { type DomPurifyLike, domPurifySanitizer } from './fhir/narrative-sanitizer.ts'
