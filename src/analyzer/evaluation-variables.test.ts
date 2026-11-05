@@ -50,7 +50,8 @@ describe('analyzer variables from env', () => {
   it('declares JSON without a resourceType with no type', () => {
     const env = { settings: { anything: 1 } }
     expect(codes('%settings.whatever', { env })).toStrictEqual([])
-    expect(result('%settings', { env }).types).toBeUndefined()
+    // One value, so one item in a defined order, of a type the analyzer cannot tell.
+    expect(result('%settings', { env })).toStrictEqual({ types: undefined, single: true, ordered: true })
   })
 
   it('reads names with or without %', () => {
