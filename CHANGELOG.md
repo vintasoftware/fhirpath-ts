@@ -8,6 +8,20 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+### Added
+
+- x-fhir-query: `compileXFhirQuery(query)` parses the FHIRPath expressions
+  embedded in `{{ }}` of a FHIR search string. Its `substitute(results)` puts
+  each expression's typed results into the query as their search forms
+  (`system|code` for a Coding, a comma list for several results, each value
+  percent-encoded), and `evaluate()` and `evaluateAsync()` evaluate them on an
+  input first. `r4.evaluateXFhirQuery(query, input, options)` does it in one
+  call. A result with no search form throws a `FhirPathTypeError` that names
+  its type only. See [x-fhir-query](docs/api.md#x-fhir-query) and
+  [ADR 0006](docs/adr/0006-x-fhir-query-refuses-values-without-a-search-form.md).
+- `FhirPathSyntaxError` takes `ErrorOptions` as its third argument, for a
+  `cause`.
+
 ## 0.5.0 - 2026-11-04
 
 This release brings the FHIRPath 3.0.0 additions (instance selectors,

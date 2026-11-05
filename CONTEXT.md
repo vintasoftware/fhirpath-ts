@@ -98,3 +98,20 @@ A static error that is wrong whatever the data: the part of the expression it
 marks throws whenever it runs, or is always empty, such as an unknown element
 or a wrong argument count. Other errors depend on the data the expression reads.
 _Avoid_: definite diagnostic, blocking, fatal, certain error
+
+### Searching
+
+**x-fhir-query**:
+A FHIR search string with embedded expressions, whose results are put into the
+string before the search runs.
+_Avoid_: query template, FHIR query (the search itself)
+
+**Embedded expression**:
+A FHIRPath expression written between `{{` and `}}` in an x-fhir-query.
+_Avoid_: placeholder, template variable, token (a FHIR search parameter type)
+
+**Search form**:
+The text a typed value takes as a FHIR search parameter value, such as
+`system|code` for a Coding. A value whose type has no search form cannot be
+put in an x-fhir-query.
+_Avoid_: search token, stringified value

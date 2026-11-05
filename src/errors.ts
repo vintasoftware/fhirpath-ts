@@ -16,14 +16,29 @@ export class FhirPathError extends Error {
   }
 }
 
+/** The end of a syntax error's message: where the error is. */
+function position(span: SourceSpan): string {
+  return ` (line ${span.line}, column ${span.column})`
+}
+
 /** The expression does not match the FHIRPath grammar. Maps to `invalid="syntax"` in the official test suite. */
 export class FhirPathSyntaxError extends FhirPathError {
   readonly span: SourceSpan
 
-  constructor(message: string, span: SourceSpan) {
-    super(`${message} (line ${span.line}, column ${span.column})`)
+  constructor(message: string, span: SourceSpan, options?: ErrorOptions) {
+    super(`${message}${position(span)}`, options)
     this.span = span
   }
+}
+
+/**
+ * A syntax error of a part of a larger text, such as an embedded expression:
+ * `prefix`, then the part's error with its position in the part. The part's
+ * error is the `cause`.
+ */
+export function syntaxErrorOfPart(prefix: string, error: FhirPathSyntaxError): FhirPathSyntaxError {
+  const reason = error.message.slice(0, -position(error.span).length)
+  return new FhirPathSyntaxError(`${prefix}: ${reason}`, error.span, { cause: error })
 }
 
 /** The expression is grammatical but breaks a typing rule, e.g. a singleton rule or an undefined `%var`. Maps to `invalid="semantic"`. */

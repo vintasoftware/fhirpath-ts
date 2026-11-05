@@ -124,6 +124,8 @@ const documentation: readonly DocumentExpectation[] = [
       valid(),
       valid("item.where(linkId = 'meds')", "item.where(linkId = 'name').answer.value"),
       valid('authored', "5.5 'mg'"),
+      valid(),
+      valid(),
       valid('Patient.name.given', 'Patient.name.given', 'Patient.name.given', 'Patient.name.given'),
       valid(),
       valid('%report.status'),

@@ -20,6 +20,9 @@ Their upstream license and content notices are in
 The Pratt-parser structure (prefix/infix parselets driven by a precedence
 table) in `src/parser/parser.ts` is adapted from Medplum's FHIRPath parser:
 <https://github.com/medplum/medplum> (`packages/core/src/fhirlexer/parse.ts`).
+The x-fhir-query search forms in `src/api/x-fhir-query.ts` are adapted from
+`stringifyTypedValue` (`packages/core/src/types.ts`) and `parseXFhirQuery`
+(`packages/core/src/search/search.ts`).
 A handful of evaluator spot-check expressions in
 `src/reference-crosschecks.test.ts` come from its test suite. Licensed under
 the Apache License 2.0 — full text in the appendix below.

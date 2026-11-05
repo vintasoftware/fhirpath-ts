@@ -727,6 +727,60 @@ It is undefined for a key the type does not have, including a choice element's
 stem alone. An element the R4 model types as a System type, such as
 `Resource.id`, has its FHIR primitive type, `string`.
 
+### x-fhir-query
+
+An [x-fhir-query](https://hl7.org/fhir/R5/fhir-xquery.html) is a FHIR search
+string with FHIRPath expressions between `{{` and `}}`. Each embedded
+expression is evaluated and its results are put into the string before the
+search runs. SDC uses it for extraction contexts, `$populate`, answer and
+candidate expressions, and launch contexts. `evaluateXFhirQuery()` evaluates
+each embedded expression on the input with the engine's options:
+
+```ts
+r4.evaluateXFhirQuery('Observation?subject.identifier={{identifier}}&date=ge{{%since}}', patient, {
+  env: { since: '2024-01-01' },
+}) // 'Observation?subject.identifier=http://example.org/mrn|mrn-1&date=ge2024-01-01'
+```
+
+`compileXFhirQuery(query)` parses the query once. Its `evaluate(input, options)`
+and `evaluateAsync(input, options)` do the same as `evaluateXFhirQuery()`, the
+async form with terminology and reference services; the options need a
+`model`, as for a compiled expression. A host that evaluates each embedded
+expression itself, with its own focus, analysis, and error reporting, reads
+`expressions` and gives `substitute()` the typed results of each, in order:
+
+```ts
+import { compileXFhirQuery } from 'fhirpath-ts'
+
+const query = compileXFhirQuery('Observation?subject={{%resource.subject.reference}}&code={{code}}')
+const results = query.expressions.map(expression => expression.evaluateTyped(focus, { model: r4Model }))
+query.substitute(results)
+```
+
+Each result becomes its search form:
+
+| Result | Search form |
+| --- | --- |
+| String, number, Boolean, date, date-time, or time | Its text |
+| `Coding` | `system\|code`, or the code alone without a system |
+| `Identifier` | `system\|value`, or the value alone without a system |
+| `CodeableConcept` | One `Coding` form per coding |
+| `Reference` | Its `reference` |
+| `Quantity` and its profiles (`Age`, `Duration`, ...) | `value\|system\|code`, with the unit when there is no code |
+| FHIRPath Quantity | `value\|http://unitsofmeasure.org\|code`, a calendar duration with its UCUM code (`a` for `year`) |
+
+Several results become a comma-separated list, as the x-fhir-query rules say,
+and no result an empty value; a primitive with only extensions gives nothing.
+Each value is percent-encoded except `|`, `:`, and `/`, so `,`, `&`, and `#`
+in a value cannot change the query. Any other type has no search form:
+`substitute()` throws a `FhirPathTypeError` that names the type, such as
+`A FHIR.HumanName value cannot be put in an x-fhir-query`, and never writes the
+value. A query that is not valid FHIRPath throws a `FhirPathSyntaxError` that
+counts the embedded expressions from 1:
+`Embedded expression 2 of the x-fhir-query is not valid FHIRPath: ...`. Its
+`cause` is the expression's own syntax error, with the position in that
+expression. Expressions hold no braces, so `{{ {a} }}` is not one.
+
 ## Stateless API
 
 The package root also exports stateless forms:

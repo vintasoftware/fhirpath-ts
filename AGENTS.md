@@ -373,6 +373,16 @@ caches only CodeSystem searches, for its own lifetime; a server that must see
 terminology edits creates a provider per request or session, and answer
 caching stays with the host that knows its session.
 
+## x-fhir-query
+
+`src/api/x-fhir-query.ts` is the one place that turns typed results into
+search forms. A type with no search form is refused by name, never written as
+text or JSON (`docs/adr/0006`): the query becomes a URL that leaves the host.
+Keep `compileXFhirQuery()`'s parts separate: hosts such as sdc-extractor-ts
+evaluate each embedded expression themselves, with their own focus, analysis,
+and error reports, and call only `substitute()`. The file adapts Medplum code;
+keep its attribution header and its "Changes:" line current.
+
 ## Error messages
 
 An engine error message may name types, functions, variables, elements,
