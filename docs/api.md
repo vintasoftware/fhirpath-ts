@@ -40,9 +40,11 @@ const fp = new FhirPathEngine({
 
 The free `evaluateAsync(expression, input, options)` returns a Promise of plain
 values. `compile()` also exposes `evaluateAsync()` and `evaluateTypedAsync()`;
-the latter retains FHIR types and element ancestry. Engine and bound-expression
-methods remain synchronous. Pass the model and context explicitly when using
-the asynchronous entry points, for example `options.model: r4Model`.
+the latter retains FHIR types and element ancestry. Pass the model and context
+explicitly to these, for example `options.model: r4Model`. On an engine,
+`r4.evaluateTypedAsync(expression, input, options)` uses the engine's model,
+`env`, `vars`, and functions, as `evaluateTyped()` does, and takes the services
+per call; the other engine and bound-expression methods are synchronous.
 
 Supply `options.terminology`, a `TerminologyProvider`, for `memberOf()`,
 `subsumes()`, `subsumedBy()`, `weight()` lookups beyond contained resources

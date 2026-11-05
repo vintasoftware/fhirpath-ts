@@ -3,6 +3,8 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import { FhirPathRuntimeError, FhirPathSyntaxError, ProjectionRowError } from '../errors.ts'
 import type { Bundle, Condition, Observation, Patient } from '../r4/generated/type-maps.ts'
 import { r4, r4Model } from '../r4/index.ts'
+import type { TerminologyProvider } from '../terminology/provider.ts'
+import type { TypedValue } from '../values/typed-value.ts'
 import { compile, CompiledExpression } from './compile.ts'
 import { BoundExpression, FhirPathEngine, recordEngines } from './engine.ts'
 import type { Projection } from './project.ts'
@@ -267,6 +269,46 @@ describe('FhirPathEngine.first', () => {
 
   it('returns undefined on empty', () => {
     expect(r4.first('Patient.deceased', patient)).toBeUndefined()
+  })
+})
+
+describe('FhirPathEngine.evaluateTypedAsync', () => {
+  const VS = 'http://example.org/ValueSet/weights'
+  const coded: Observation = {
+    resourceType: 'Observation',
+    status: 'final',
+    code: { coding: [{ system: 'http://example.org/cs', code: 'w' }] },
+  }
+  const terminology: TerminologyProvider & { calls: number } = {
+    calls: 0,
+    async validateVS() {
+      this.calls++
+      return { resourceType: 'Parameters', parameter: [{ name: 'result', valueBoolean: true }] }
+    },
+  }
+
+  it("evaluates with a per-call service and the engine's defaults", async () => {
+    const engine = new FhirPathEngine({ model: r4Model, env: { vs: VS } })
+    const result = await engine.evaluateTypedAsync('code.coding.where(memberOf(%vs))', coded, { terminology })
+    expect(result.map(item => [item.type, item.value])).toEqual([
+      ['FHIR.Coding', { system: 'http://example.org/cs', code: 'w' }],
+    ])
+    expect(terminology.calls).toBe(1)
+  })
+
+  it('returns the result itself under syncWhenPossible when no service is needed', () => {
+    const result = r4.evaluateTypedAsync('status', coded, { syncWhenPossible: true })
+    expect(Array.isArray(result) && result.map(item => item.type)).toEqual(['FHIR.code'])
+  })
+
+  it('types its result and its input as evaluateTyped() does', () => {
+    expectTypeOf(r4.evaluateTypedAsync('status', coded)).toEqualTypeOf<Promise<TypedValue[]>>()
+    expectTypeOf(r4.evaluateTypedAsync('status', coded, { syncWhenPossible: true })).toEqualTypeOf<
+      TypedValue[] | Promise<TypedValue[]>
+    >()
+    const rooted = compile('status', 'Observation')
+    // @ts-expect-error a Patient is not the declared Observation
+    void (() => r4.evaluateTypedAsync(rooted, patient))
   })
 })
 

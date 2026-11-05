@@ -31,6 +31,11 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   [What throws errors](docs/api.md#what-throws-errors-and-what-doesnt).
 - `FhirPathSyntaxError` takes `ErrorOptions` as its third argument, for a
   `cause`.
+- `engine.evaluateTypedAsync(expression, input, options)`, such as
+  `r4.evaluateTypedAsync()`: `evaluateTyped()` with terminology and reference
+  services, on the engine's model and defaults, so a host no longer compiles
+  the expression and passes `model` itself. See
+  [Asynchronous services](docs/api.md#asynchronous-services).
 
 ## 0.5.0 - 2026-11-04
 
