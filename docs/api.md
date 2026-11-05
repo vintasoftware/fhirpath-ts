@@ -745,7 +745,8 @@ r4.evaluateXFhirQuery('Observation?subject.identifier={{identifier}}&date=ge{{%s
 `compileXFhirQuery(query)` parses the query once. Its `evaluate(input, options)`
 and `evaluateAsync(input, options)` do the same as `evaluateXFhirQuery()`, the
 async form with terminology and reference services; the options need a
-`model`, as for a compiled expression. A host that evaluates each embedded
+`model`, as for a compiled expression. When several embedded expressions fail,
+the error is the first one's in query order. A host that evaluates each embedded
 expression itself, with its own focus, analysis, and error reporting, reads
 `expressions` and gives `substitute()` the typed results of each, in order:
 

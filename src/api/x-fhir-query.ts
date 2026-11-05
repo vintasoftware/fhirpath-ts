@@ -73,23 +73,48 @@ export class CompiledXFhirQuery {
 
   /**
    * `evaluate()` with asynchronous services, such as a terminology service.
-   * The embedded expressions are evaluated concurrently. With
-   * `syncWhenPossible`, a query that needs no service returns its result
-   * directly.
+   * The embedded expressions are evaluated concurrently, and a failure is the
+   * first failing expression's error, in query order. With
+   * `syncWhenPossible`, a query that needs no service returns its result, or
+   * throws, directly.
    */
   evaluateAsync(input?: unknown, options?: PromisedAsyncOptions): Promise<string>
   evaluateAsync(input?: unknown, options?: AsyncEvaluateOptions): string | Promise<string>
   evaluateAsync(input?: unknown, options?: AsyncEvaluateOptions): string | Promise<string> {
-    const results = this.expressions.map(expression => expression.evaluateTypedAsync(input, options))
-    if (options?.syncWhenPossible === true && !results.some(result => result instanceof Promise)) {
-      return this.substitute(results as TypedValue[][])
+    // Each expression runs even when an earlier one fails, so its Promise, if any, is always awaited.
+    const outcomes = this.expressions.map((expression): Outcome<TypedValue[] | Promise<TypedValue[]>> => {
+      try {
+        return { value: expression.evaluateTypedAsync(input, options) }
+      } catch (error) {
+        return { error }
+      }
+    })
+    if (options?.syncWhenPossible === true && outcomes.every(isSettled)) {
+      return this.substitute(outcomes.map(settledValue))
     }
-    return Promise.all(results).then(settled => this.substitute(settled))
+    // allSettled, so the error reported is the first in query order, not the first to settle.
+    return Promise.allSettled(
+      outcomes.map(async outcome => ('error' in outcome ? Promise.reject(outcome.error) : outcome.value))
+    ).then(settled => this.substitute(settled.map(settledValue)))
   }
 
   toString(): string {
     return this.source
   }
+}
+
+/** An evaluation that returned a value or threw. */
+type Outcome<T> = { value: T } | { error: unknown }
+
+function isSettled<T>(outcome: Outcome<T | Promise<T>>): outcome is Outcome<T> {
+  return !('value' in outcome && outcome.value instanceof Promise)
+}
+
+/** The value of a settled evaluation, or its error thrown. */
+function settledValue<T>(outcome: Outcome<T> | PromiseSettledResult<T>): T {
+  if ('error' in outcome) throw outcome.error
+  if ('reason' in outcome) throw outcome.reason
+  return outcome.value
 }
 
 /**

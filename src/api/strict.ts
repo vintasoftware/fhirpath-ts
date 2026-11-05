@@ -11,7 +11,7 @@ import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import type { TypedValue } from '../values/typed-value.ts'
-import type { AsyncEvaluateOptions, CompiledExpression, EvaluateOptions } from './compile.ts'
+import type { AnyExpression, AsyncEvaluateOptions, EvaluateOptions } from './compile.ts'
 
 interface StrictFinding {
   diagnostic: AnalyzerDiagnostic
@@ -92,8 +92,8 @@ function runtimeRoot(
   }
 }
 
-function astOf(expression: string | { readonly source: string }): AstNode {
-  return typeof expression === 'string' ? parse(expression) : (expression as CompiledExpression).ast
+function astOf(expression: AnyExpression): AstNode {
+  return typeof expression === 'string' ? parse(expression) : expression.ast
 }
 
 function formatFindings(findings: StrictFinding[]): string {

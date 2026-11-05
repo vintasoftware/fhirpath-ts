@@ -442,7 +442,8 @@ Strict evaluation refuses every error, data-independent or not.
 
 `analyzeDto()` checks one DTO against the engine it was defined on, or against
 explicit analyzer options. `analyzeEngineDtos()` checks all DTOs registered on an
-engine.
+engine. Both take the DTO's `env` and `vars` from that engine, so their options
+declare caller environment names in `variables` and take no `env` or `vars`.
 
 ## Shared expression-site rules
 

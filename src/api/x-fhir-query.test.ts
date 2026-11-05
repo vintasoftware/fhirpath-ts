@@ -241,6 +241,41 @@ describe('CompiledXFhirQuery.evaluateAsync', () => {
     await expect(compileXFhirQuery('Patient?_count=1').evaluateAsync()).resolves.toBe('Patient?_count=1')
   })
 
+  it('rejects with the first failing expression in query order, not the first to fail', async () => {
+    const rejects = new Map<unknown, (error: Error) => void>()
+    const failing: TerminologyProvider = {
+      validateVS: url => new Promise((_, reject) => rejects.set(url, reject)),
+    }
+    const query = compileXFhirQuery('Observation?a={{code.memberOf(%first)}}&b={{code.memberOf(%second)}}')
+    const result = query.evaluateAsync(coding, {
+      model: r4Model,
+      terminology: failing,
+      env: { first: `${VS}-1`, second: `${VS}-2` },
+    })
+    await Promise.resolve()
+    rejects.get(`${VS}-2`)?.(new Error('second failed'))
+    rejects.get(`${VS}-1`)?.(new Error('first failed'))
+    await expect(result).rejects.toThrow('first failed')
+  })
+
+  it('keeps a pending expression awaited when another fails at once under syncWhenPossible', async () => {
+    const rejects: ((error: Error) => void)[] = []
+    const failing: TerminologyProvider = { validateVS: () => new Promise((_, reject) => rejects.push(reject)) }
+    const query = compileXFhirQuery('Observation?a={{code.memberOf(%vs)}}&b={{(1 | 2).single()}}')
+    const result = query.evaluateAsync(coding, {
+      model: r4Model,
+      terminology: failing,
+      env: { vs: VS },
+      syncWhenPossible: true,
+    })
+    expect(result).toBeInstanceOf(Promise)
+    rejects.forEach(reject => reject(new Error('service failed')))
+    await expect(result).rejects.toThrow('service failed')
+    expect(() =>
+      compileXFhirQuery('Patient?a={{(1 | 2).single()}}').evaluateAsync(undefined, { syncWhenPossible: true })
+    ).toThrow(FhirPathRuntimeError)
+  })
+
   it('types the result as a Promise only without syncWhenPossible', () => {
     const query = compileXFhirQuery('Patient?_count=1')
     expectTypeOf(query.evaluateAsync()).toEqualTypeOf<Promise<string>>()

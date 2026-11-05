@@ -1,6 +1,7 @@
 // All data in this file is synthetic.
 import { describe, expect, it } from 'vitest'
 
+import { compile } from '../api/compile.ts'
 import { r4, r4Model } from '../r4/index.ts'
 import type { TypedValue } from '../values/typed-value.ts'
 import { analyzeExpressionDetailed, type AnalyzeOptions } from './analyze.ts'
@@ -92,7 +93,7 @@ describe('analyzer variables from vars', () => {
   })
 
   it('reads a compiled expression', () => {
-    expect(result('%answers', { vars: { answers: r4.compile('answer') } }).types).toStrictEqual([
+    expect(result('%answers', { vars: { answers: compile('answer') } }).types).toStrictEqual([
       'FHIR.QuestionnaireResponse.item.answer',
     ])
   })

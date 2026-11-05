@@ -1,3 +1,4 @@
+import type { AnyExpression } from '../api/compile.ts'
 import { envCollection, normalizeEnvKeys } from '../engine/context.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { FhirpathTypeDeclaration, FhirpathTypeDeclarations } from '../typed/infer.ts'
@@ -140,7 +141,7 @@ function collectAnalyzerVariables(
 }
 
 /** A `vars` binding as an evaluation takes it: an expression, as text or compiled, or a typed collection. */
-export type VarBinding = string | { readonly source: string } | readonly TypedValue[]
+export type VarBinding = AnyExpression | readonly TypedValue[]
 
 /** The variables an evaluation binds, in the shape of its options. */
 export interface EvaluationBindings {
@@ -174,7 +175,7 @@ export function evaluationVariables(
   runtime: boolean,
   typeVar: (
     name: string,
-    expression: Exclude<VarBinding, readonly TypedValue[]>,
+    expression: AnyExpression,
     variables: Record<string, AnalyzerVariableState>
   ) => VarExpressionResult
 ): Record<string, AnalyzerVariableState> {

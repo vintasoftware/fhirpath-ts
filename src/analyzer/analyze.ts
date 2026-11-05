@@ -147,11 +147,11 @@ export interface AnalyzeOptions {
   reportUnchecked?: boolean
 }
 
+/** The `AnalyzeOptions` fields that give evaluation values rather than declarations. */
+export type EvaluationValueOption = 'env' | 'envTypes' | 'vars' | 'varTypes'
+
 /** Internal strict-analysis options whose variables may retain exact runtime focus types. */
-export interface RuntimeAnalyzeOptions extends Omit<
-  AnalyzeOptions,
-  'variables' | 'env' | 'envTypes' | 'vars' | 'varTypes'
-> {
+export interface RuntimeAnalyzeOptions extends Omit<AnalyzeOptions, 'variables' | EvaluationValueOption> {
   variables?: Record<string, AnalyzerVariableState>
 }
 
@@ -411,8 +411,12 @@ function withEvaluationVariables(options: AnalyzeOptions | undefined): AnalyzeOp
   if (env === undefined && envTypes === undefined && vars === undefined && varTypes === undefined) return options
   const explicit = normalizeEnvKeys(options.variables)
   const derived = evaluationVariables(options, options.model, false, (_name, expression, bound) => {
-    const source = typeof expression === 'string' ? expression : expression.source
-    return analyzeExpressionDetailed(source, { ...rest, variables: { ...bound, ...explicit } }).result
+    const typed = { ...rest, variables: { ...bound, ...explicit } }
+    return (
+      typeof expression === 'string'
+        ? analyzeExpressionDetailed(expression, typed)
+        : analyzeAstDetailed(expression.ast, typed)
+    ).result
   })
   return { ...rest, variables: { ...derived, ...explicit } }
 }
