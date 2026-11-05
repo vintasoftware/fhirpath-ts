@@ -378,7 +378,9 @@ caching stays with the host that knows its session.
 `src/api/x-fhir-query.ts` is the one place that turns typed results into
 search forms. A type with no search form is refused by name, never written as
 text or JSON (`docs/adr/0006`): the query becomes a URL that leaves the host.
-Keep `compileXFhirQuery()`'s parts separate: hosts such as sdc-extractor-ts
+Every part read from a value goes through `text()`, which applies FHIR search
+escaping; the `|` and `,` the code adds between parts are the only unescaped
+separators, plus a canonical's `|version`. Keep `compileXFhirQuery()`'s parts separate: hosts such as sdc-extractor-ts
 evaluate each embedded expression themselves, with their own focus, analysis,
 and error reports, and call only `substitute()`. The file adapts Medplum code;
 keep its attribution header and its "Changes:" line current.

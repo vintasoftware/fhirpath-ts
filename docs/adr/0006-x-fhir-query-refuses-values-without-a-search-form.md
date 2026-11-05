@@ -8,8 +8,11 @@ URL that results leaves the host: servers, proxies, and access logs keep it.
 Each result becomes its search form: text for a primitive, `system|code` for
 a Coding, `value|system|code` for a Quantity, and so on. A result whose type
 has no search form, such as a `HumanName`, `Address`, or JSON of no type,
-throws a `FhirPathTypeError` that names the type, never the value. Each value
-is percent-encoded, so a `,` or `&` in the data cannot change the query.
+throws a `FhirPathTypeError` that names the type, never the value. Inside
+each value, a `\` goes before `\`, `$`, `,`, and `|`, as FHIR search escaping
+says, and then the value is percent-encoded. A `,` or `|` in the data then
+cannot add a value or a system, and a `&` cannot add a parameter. A canonical
+keeps its `|version`, which is the version separator of a search.
 
 `compileXFhirQuery(query)` keeps the parts apart: `expressions` gives the
 compiled embedded expressions, and `substitute(results)` takes each one's
@@ -30,6 +33,11 @@ host with no further needs.
 - **Medplum's empty-unless-single rule.** Medplum writes nothing when an
   expression gives zero or several results. The R5 x-fhir-query page lists
   several results as a comma-separated list, which FHIR search reads as OR.
+- **Percent-encoding without search escaping, as Medplum and Smart Forms
+  do.** A server decodes `%2C` back to `,` before it reads the separators, so
+  an Identifier value `a,b` would search for `a` or `b`. Escaping means a
+  string built as `system|code` text is one escaped value; an expression
+  returns a Coding or Identifier for a token.
 - **Only a one-call form that evaluates and substitutes.** SDC extraction
   evaluates each embedded expression on its own focus, with its own
   `%context`, variables, static analysis, and an error report that names the

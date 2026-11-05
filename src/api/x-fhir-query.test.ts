@@ -129,12 +129,38 @@ describe('CompiledXFhirQuery.substitute', () => {
     expect(substitute('Patient?name={{ e }}', r4.evaluateTyped("'Ana & Bo #1'"))).toBe(
       'Patient?name=Ana%20%26%20Bo%20%231'
     )
-    expect(substitute('Patient?name={{ e }}', r4.evaluateTyped("'a,b'"))).toBe('Patient?name=a%2Cb')
     expect(substitute('Observation?date={{ e }}', r4.evaluateTyped('@2024-03-01T10:00:00+02:00'))).toBe(
       'Observation?date=2024-03-01T10:00:00%2B02:00'
     )
     expect(substitute('Observation?code={{ e }}', [fhir('Coding', { system: 'http://loinc.org', code: 'a/b' })])).toBe(
       'Observation?code=http://loinc.org|a/b'
+    )
+  })
+
+  it('escapes the search separators in a value, so data cannot add a value, a system, or a part', () => {
+    // A server reads `\,` `\|` `\$` `\\` as data, after percent-decoding (%5C is `\`).
+    expect(substitute('Patient?name={{ e }}', r4.evaluateTyped("'a,b'"))).toBe('Patient?name=a%5C%2Cb')
+    expect(substitute('Patient?name={{ e }}', r4.evaluateTyped("'a$b\\\\c'"))).toBe('Patient?name=a%5C%24b%5C%5Cc')
+    expect(substitute('Patient?identifier={{ e }}', [fhir('Identifier', { system: 'urn:x', value: 'a,b|c' })])).toBe(
+      'Patient?identifier=urn:x|a%5C%2Cb%5C|c'
+    )
+    expect(substitute('Observation?code={{ e }}', [fhir('Coding', { code: 'x|y' })])).toBe('Observation?code=x%5C|y')
+    expect(substitute('Observation?subject={{ e }}', [fhir('Reference', { reference: 'Patient/a,b' })])).toBe(
+      'Observation?subject=Patient/a%5C%2Cb'
+    )
+    expect(substitute('Observation?value-quantity={{ e }}', [fhir('Quantity', { value: 1, unit: 'a|b' })])).toBe(
+      'Observation?value-quantity=1||a%5C|b'
+    )
+  })
+
+  it("keeps a canonical's version separator", () => {
+    const canonical = (value: string) =>
+      substitute('QuestionnaireResponse?questionnaire={{ e }}', [fhir('canonical', value)])
+    expect(canonical('http://example.org/Questionnaire/q|1.0')).toBe(
+      'QuestionnaireResponse?questionnaire=http://example.org/Questionnaire/q|1.0'
+    )
+    expect(canonical('http://example.org/Questionnaire/q,r')).toBe(
+      'QuestionnaireResponse?questionnaire=http://example.org/Questionnaire/q%5C%2Cr'
     )
   })
 

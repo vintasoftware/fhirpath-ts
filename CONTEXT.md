@@ -112,6 +112,7 @@ _Avoid_: placeholder, template variable, token (a FHIR search parameter type)
 
 **Search form**:
 The text a typed value takes as a FHIR search parameter value, such as
-`system|code` for a Coding. A value whose type has no search form cannot be
-put in an x-fhir-query.
+`system|code` for a Coding. Separators inside a value are escaped, so they
+stay data. A value whose type has no search form cannot be put in an
+x-fhir-query.
 _Avoid_: search token, stringified value

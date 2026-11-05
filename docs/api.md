@@ -767,13 +767,17 @@ Each result becomes its search form:
 | `Identifier` | `system\|value`, or the value alone without a system |
 | `CodeableConcept` | One `Coding` form per coding |
 | `Reference` | Its `reference` |
+| `canonical` | Its text, with `\|version` kept as the version separator |
 | `Quantity` and its profiles (`Age`, `Duration`, ...) | `value\|system\|code`, with the unit when there is no code |
 | FHIRPath Quantity | `value\|http://unitsofmeasure.org\|code`, a calendar duration with its UCUM code (`a` for `year`) |
 
 Several results become a comma-separated list, as the x-fhir-query rules say,
 and no result an empty value; a primitive with only extensions gives nothing.
-Each value is percent-encoded except `|`, `:`, and `/`, so `,`, `&`, and `#`
-in a value cannot change the query. Any other type has no search form:
+Inside each value, a `\` goes before `\`, `$`, `,`, and `|`, the FHIR search
+escaping, so a server reads them as data rather than as separators: an
+Identifier value `a,b` stays one value, not `a` or `b`. Then each value is
+percent-encoded except `|`, `:`, and `/`, so `&` and `#` cannot change the
+query either. Any other type has no search form:
 `substitute()` throws a `FhirPathTypeError` that names the type, such as
 `A FHIR.HumanName value cannot be put in an x-fhir-query`, and never writes the
 value. A query that is not valid FHIRPath throws a `FhirPathSyntaxError` that

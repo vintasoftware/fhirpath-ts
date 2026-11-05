@@ -2,8 +2,8 @@
 // packages/core/src/types.ts `stringifyTypedValue` and packages/core/src/search/search.ts `parseXFhirQuery`.
 // Copyright Orangebot, Inc. and Medplum contributors. Licensed under the Apache License, Version 2.0.
 // Changes: rewritten for fhirpath-ts typed values, a collection becomes a comma-separated list as the R5
-// x-fhir-query rules say, a Coding without a system is the bare code, each value is percent-encoded, and a value
-// whose type has no search form is refused instead of written as JSON.
+// x-fhir-query rules say, a Coding without a system is the bare code, each value is search-escaped and
+// percent-encoded, and a value whose type has no search form is refused instead of written as JSON.
 
 /**
  * x-fhir-query (https://hl7.org/fhir/R5/fhir-xquery.html): a FHIR search
@@ -133,14 +133,17 @@ export function compileXFhirQuery(query: string): CompiledXFhirQuery {
 function searchForms(value: TypedValue): string[] {
   const raw = value.value
   if (raw === undefined) return []
-  if (raw instanceof Temporal || raw instanceof Decimal) return [raw.toString()]
-  if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint') return [String(raw)]
-  if (typeof raw === 'boolean') return [raw ? 'true' : 'false']
+  if (value.type === 'FHIR.canonical' && typeof raw === 'string') {
+    // A canonical's `|version` is the version separator of a search, so that `|` stays.
+    const bar = raw.indexOf('|')
+    return [bar === -1 ? text(raw) : `${text(raw.slice(0, bar))}|${text(raw.slice(bar + 1))}`]
+  }
+  if (typeof raw !== 'object' || raw instanceof Temporal || raw instanceof Decimal) return [text(raw)]
   if (value.type === SYSTEM_QUANTITY) {
     // The UCUM form: a calendar duration such as `3 years` takes its UCUM code `a`.
     const quantity = raw as QuantityValue
     const { system, code } = toFhirQuantity(quantity)
-    return [`${quantity.value.toString()}|${system}|${code}`]
+    return [`${text(quantity.value)}|${text(system)}|${text(code)}`]
   }
   const json = raw as Record<string, unknown>
   const type = value.type.startsWith('FHIR.') ? typeLocalName(value.type) : undefined
@@ -154,7 +157,7 @@ function searchForms(value: TypedValue): string[] {
         ? json['coding'].map((coding: Record<string, unknown>) => token(coding['system'], coding['code']))
         : []
     case 'Reference':
-      return typeof json['reference'] === 'string' ? [json['reference']] : []
+      return typeof json['reference'] === 'string' ? [text(json['reference'])] : []
   }
   if (type !== undefined && isFhirQuantityType(type)) {
     return [`${text(json['value'])}|${text(json['system'])}|${text(json['code'] ?? json['unit'])}`]
@@ -164,11 +167,16 @@ function searchForms(value: TypedValue): string[] {
 
 /** A token search value: `system|code`, or the bare code when there is no system. */
 function token(system: unknown, code: unknown): string {
-  return typeof system === 'string' && system !== '' ? `${system}|${text(code)}` : text(code)
+  return typeof system === 'string' && system !== '' ? `${text(system)}|${text(code)}` : text(code)
 }
 
+/**
+ * One part of a search value as text, with FHIR search escaping: a `\` before
+ * each `\`, `$`, `,`, and `|`, so a server reads them as data, not as
+ * separators ("Escaping Search Parameters", https://hl7.org/fhir/R5/search.html).
+ */
 function text(value: unknown): string {
-  return value === undefined || value === null ? '' : String(value)
+  return value === undefined || value === null ? '' : String(value).replace(/[\\$,|]/g, '\\$&')
 }
 
 /** Percent-encodes a value for a query string, keeping the characters of a token and of a URL readable. */
