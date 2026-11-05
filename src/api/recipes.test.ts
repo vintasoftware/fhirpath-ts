@@ -549,6 +549,33 @@ describe('README usage recipes', () => {
         },
       })
     ).toEqual([])
+
+    // Analyze with the values the expression is evaluated with; a value typed from `{}` stands for future data.
+    const evaluation = {
+      env: { context: r4.toTyped({}, 'QuestionnaireResponse.item'), resource: response },
+      vars: { qitem: r4.toTyped({}, 'Questionnaire.item') },
+    }
+    expect(
+      analyzeExpression('answer.value | %qitem.linkId | %context.linkId', {
+        model: r4Model,
+        inputType: 'QuestionnaireResponse.item',
+        ...evaluation,
+      })
+    ).toEqual([])
+    expect(
+      analyzeExpression('%qitem.answer', {
+        model: r4Model,
+        inputType: 'QuestionnaireResponse.item',
+        ...evaluation,
+      }).map(diagnostic => diagnostic.code)
+    ).toEqual(['unknown-element'])
+    const qitem = r4.toTyped({ linkId: 'drug', type: 'choice' }, 'Questionnaire.item')
+    expect(
+      r4.evaluate('answer.value | %qitem.linkId | %context.linkId', [item!], {
+        env: { context: item, resource: response },
+        vars: { qitem },
+      })
+    ).toEqual([{ code: 'm1' }, 'drug'])
   })
 
   it('checks the operand a type test guards against the types the test leaves', () => {

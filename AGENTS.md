@@ -383,6 +383,18 @@ evaluate each embedded expression themselves, with their own focus, analysis,
 and error reports, and call only `substitute()`. The file adapts Medplum code;
 keep its attribution header and its "Changes:" line current.
 
+## Analyzer variables from evaluation values
+
+`evaluationVariables` in `src/analyzer/declarations.ts` derives analyzer
+variables from `env`, `envTypes`, `vars`, and `varTypes`. Strict evaluation and
+the public `AnalyzeOptions` fields both call it, so a host that analyzes with
+its evaluation options gets the declarations strict evaluation would check.
+It declares a typed value from its type alone, so a host can analyze before
+data exists with values typed from `{}`; a typed `env` value is still
+recognized by its brand, never its shape. Strict evaluation keeps the exact
+runtime types (`runtime`), and reports a `vars` expression's errors; the public
+analyzer reports only the analyzed expression's.
+
 ## Error messages
 
 An engine error message may name types, functions, variables, elements,

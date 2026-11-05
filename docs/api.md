@@ -642,8 +642,8 @@ r4.evaluate('entry.resource.id | %resource.status', searchset, {
 
 A typed `env` value is recognized as typed values given as the input are, never
 by its shape, and an array that mixes typed values and JSON throws. The
-analyzer takes the type of `%context` as a declared variable, for example
-`variables: { context: { types: ['FHIR.QuestionnaireResponse.item'], single: true } }`.
+analyzer takes the same `env` and types `%context` from it (see
+[Public analyzer](static-checking.md#public-analyzer)).
 
 #### Structured Data Capture
 

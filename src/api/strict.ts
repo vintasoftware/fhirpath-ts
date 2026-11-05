@@ -4,19 +4,14 @@ import {
   analyzeRuntimeAstDetailed,
   type RuntimeAnalyzeOptions,
 } from '../analyzer/analyze.ts'
-import {
-  analyzerVariable,
-  type AnalyzerVariableState,
-  runtimeAnalyzerEnvironmentVariables,
-  runtimeAnalyzerVariable,
-} from '../analyzer/declarations.ts'
-import { contextResources, normalizeEnvKeys } from '../engine/context.ts'
+import { type AnalyzerVariableState, evaluationVariables, runtimeAnalyzerVariable } from '../analyzer/declarations.ts'
+import { contextResources } from '../engine/context.ts'
 import { FhirPathTypeError } from '../errors.ts'
 import type { ModelProvider } from '../model/provider.ts'
 import type { AstNode } from '../parser/ast.ts'
 import { parse } from '../parser/parser.ts'
 import type { TypedValue } from '../values/typed-value.ts'
-import type { AnyExpression, AsyncEvaluateOptions, EvaluateOptions } from './compile.ts'
+import type { AsyncEvaluateOptions, CompiledExpression, EvaluateOptions } from './compile.ts'
 
 interface StrictFinding {
   diagnostic: AnalyzerDiagnostic
@@ -39,44 +34,16 @@ export function assertStrictExpression(
 
   const model = options.model
   const analyzerRoot = runtimeRoot(root, model, inputType)
-  const variables: Record<string, AnalyzerVariableState> = runtimeAnalyzerEnvironmentVariables(
-    options.env,
-    options.envTypes,
-    model
-  )
-  const declarations = normalizeEnvKeys(options.varTypes)
-  if (options.terminology !== undefined) variables['terminologies'] = { types: ['TerminologyService'], single: true }
   const findings: StrictFinding[] = []
-
-  for (const [name, value] of Object.entries(normalizeEnvKeys(options.vars))) {
-    const declaration = declarations[name]
-    if (isResolvedCollection(value)) {
-      variables[name] = runtimeAnalyzerVariable(value, model, declaration)
-      continue
-    }
-
-    const details = analyzeRuntimeAstDetailed(astOf(value), analyzerOptions(options, variables), analyzerRoot)
+  const variables = evaluationVariables(options, model, true, (name, expression, bound) => {
+    const details = analyzeRuntimeAstDetailed(astOf(expression), analyzerOptions(options, bound), analyzerRoot)
     findings.push(
       ...details.diagnostics
         .filter(diagnostic => diagnostic.severity === 'error')
         .map(diagnostic => ({ diagnostic, subject: `vars.${name}` }))
     )
-    // A declaration overrides the inferred types and cardinality, but ordering
-    // always comes from the analyzed expression — declarations cannot state it.
-    variables[name] = {
-      ...(declaration === undefined
-        ? {
-            ...(details.result.types !== undefined && { types: details.result.types }),
-            ...(details.result.single !== undefined && { single: details.result.single }),
-          }
-        : analyzerVariable(declaration)),
-      ...(details.result.ordered !== undefined && { ordered: details.result.ordered }),
-    }
-  }
-
-  for (const [name, declaration] of Object.entries(declarations)) {
-    variables[name] ??= analyzerVariable(declaration)
-  }
+    return details.result
+  })
 
   const details = analyzeRuntimeAstDetailed(ast, analyzerOptions(options, variables), analyzerRoot)
   findings.push(
@@ -125,12 +92,8 @@ function runtimeRoot(
   }
 }
 
-function isResolvedCollection(value: AnyExpression | readonly TypedValue[]): value is readonly TypedValue[] {
-  return Array.isArray(value)
-}
-
-function astOf(expression: AnyExpression): AstNode {
-  return typeof expression === 'string' ? parse(expression) : expression.ast
+function astOf(expression: string | { readonly source: string }): AstNode {
+  return typeof expression === 'string' ? parse(expression) : (expression as CompiledExpression).ast
 }
 
 function formatFindings(findings: StrictFinding[]): string {
