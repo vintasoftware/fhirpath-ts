@@ -1653,6 +1653,9 @@ describe('analyzeDto', () => {
     expect(analyzeDto(Row, { variables: declared }).map(f => f.code)).toEqual(['unknown-element'])
     // @ts-expect-error A DTO's env and vars come from its engine; a caller declares names in `variables`.
     analyzeDto(Row, { env: { subject: { resourceType: 'Patient' } } })
+    const evaluation = { model: r4Model, env: { subject: { resourceType: 'Patient' } } }
+    // @ts-expect-error Also through a spread of evaluation options, which has no excess-property check.
+    analyzeDto(Row, { ...evaluation })
     // @ts-expect-error The sweep takes the same options.
     analyzeEngineDtos(r4, { vars: {} })
   })

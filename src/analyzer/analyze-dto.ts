@@ -41,11 +41,18 @@ export interface AnalyzedEngine {
 }
 
 /**
+ * The evaluation values of `AnalyzeOptions`, refused even when they come from
+ * a spread of evaluation options, which TypeScript does not check for excess
+ * properties.
+ */
+type NoEvaluationValues = { readonly [K in EvaluationValueOption]?: never }
+
+/**
  * `analyzeDto` options. The DTO's own engine supplies the context unless
  * `engine` replaces it; evaluation values (`env`, `vars`) come from that
  * engine, so these options take declarations only.
  */
-export interface AnalyzeDtoOptions extends Omit<AnalyzeOptions, EvaluationValueOption> {
+export interface AnalyzeDtoOptions extends Omit<AnalyzeOptions, EvaluationValueOption>, NoEvaluationValues {
   /** Engine model, functions, and environment names used while checking the DTO. */
   engine?: AnalyzedContext
 }
