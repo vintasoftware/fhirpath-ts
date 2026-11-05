@@ -8,16 +8,26 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+## 0.6.0 - 2026-11-05
+
+This release adds what SDC hosts such as sdc-extractor-ts and Smart Forms
+needed to write themselves: x-fhir-query substitution, analysis with the `env`
+and `vars` an expression is evaluated with, `safeErrorMessage()` for errors
+caught around an evaluation, and asynchronous evaluation on an engine
+(`r4.evaluateTypedAsync()`). It adds API only; see **Changed** for the
+one case where existing analyzer calls report more.
+
 ### Added
 
 - x-fhir-query: `compileXFhirQuery(query)` parses the FHIRPath expressions
   embedded in `{{ }}` of a FHIR search string. Its `substitute(results)` puts
   each expression's typed results into the query as their search forms
   (`system|code` for a Coding, a comma list for several results, each value
-  search-escaped and percent-encoded), and `evaluate()` and `evaluateAsync()` evaluate them on an
-  input first. `r4.evaluateXFhirQuery(query, input, options)` does it in one
-  call. A result with no search form throws a `FhirPathTypeError` that names
-  its type only. See [x-fhir-query](docs/api.md#x-fhir-query) and
+  search-escaped and percent-encoded), and `evaluate()` and `evaluateAsync()`
+  evaluate them on an input first; `evaluateAsync()` rejects with the first
+  failure in query order. `r4.evaluateXFhirQuery(query, input, options)` does
+  it in one call. A result with no search form throws a `FhirPathTypeError`
+  that names its type only. See [x-fhir-query](docs/api.md#x-fhir-query) and
   [ADR 0006](docs/adr/0006-x-fhir-query-refuses-values-without-a-search-form.md).
 - The analyzer takes the `env`, `envTypes`, `vars`, and `varTypes` an
   expression is evaluated with, and declares each variable from them: a typed
@@ -31,6 +41,19 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   [What throws errors](docs/api.md#what-throws-errors-and-what-doesnt).
 - `FhirPathSyntaxError` takes `ErrorOptions` as its third argument, for a
   `cause`.
+- `engine.evaluateTypedAsync(expression, input, options)`, such as
+  `r4.evaluateTypedAsync()`: `evaluateTyped()` with terminology and reference
+  services, on the engine's model and defaults, so a host no longer compiles
+  the expression and passes `model` itself. See
+  [Asynchronous services](docs/api.md#asynchronous-services).
+
+### Changed
+
+- An analyzer call that passed `env` or `vars` through a spread of evaluation
+  options had them ignored; they now declare their variables, so navigation
+  from those variables is checked and can report `unknown-element`.
+  `analyzeDto()` and `analyzeEngineDtos()` do not take them: a DTO's `env` and
+  `vars` come from its engine.
 
 ## 0.5.0 - 2026-11-04
 

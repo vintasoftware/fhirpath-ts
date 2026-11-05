@@ -539,7 +539,8 @@ are easy to break during maintenance.
 ## Gaps and deferred features
 
 The package currently ships only an R4 model. Evaluation is synchronous by default;
-`evaluateAsync()` awaits host-provided terminology services. Tagged
+`evaluateAsync()` and `r4.evaluateTypedAsync()` await host-provided terminology
+services. Tagged
 templates remain untyped because TypeScript does not preserve their literal type
 ([TypeScript #33304](https://github.com/microsoft/TypeScript/issues/33304)); use
 `fhirpath('...')` or `compile('...')` for inference in strings.

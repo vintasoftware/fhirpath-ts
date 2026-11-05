@@ -18,6 +18,7 @@ import type { TypedValue } from '../values/typed-value.ts'
 import { type BundleLike, isBundle, toSubjects } from './bundle.ts'
 import {
   type AnyExpression,
+  type AsyncEvaluateOptions,
   CompiledExpression,
   type Compiler,
   createCachedCompiler,
@@ -26,6 +27,7 @@ import {
   type Declaring,
   type EvaluateOptions,
   type InferredExpressionResult,
+  type PromisedAsyncOptions,
   type SingleCustomFunction,
 } from './compile.ts'
 import { type ConstraintCheckResult, evaluateConstraints, type FhirConstraint } from './constraints.ts'
@@ -435,6 +437,30 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
   }
 
   /**
+   * `evaluateTyped()` with asynchronous services: `options.terminology` and
+   * `options.resolver`, which engine defaults do not hold. With
+   * `syncWhenPossible`, an evaluation that needs no service returns its
+   * result directly.
+   */
+  evaluateTypedAsync<const Expr extends string, Root extends string = 'opaque'>(
+    expression: EngineExpression<Expr, Root>,
+    input?: NoInfer<EngineCallInput<Expr, Root>>,
+    options?: PromisedAsyncOptions
+  ): Promise<TypedValue[]>
+  evaluateTypedAsync<const Expr extends string, Root extends string = 'opaque'>(
+    expression: EngineExpression<Expr, Root>,
+    input?: NoInfer<EngineCallInput<Expr, Root>>,
+    options?: AsyncEvaluateOptions
+  ): TypedValue[] | Promise<TypedValue[]>
+  evaluateTypedAsync(
+    expression: AnyExpression,
+    input?: unknown,
+    options?: AsyncEvaluateOptions
+  ): TypedValue[] | Promise<TypedValue[]> {
+    return this.compileCached(expression).evaluateTypedAsync(input, this.merged(options))
+  }
+
+  /**
    * Type a JSON value as `type` for use as an element context: pass the result
    * as the input of `evaluate()` and its siblings. With `{ in: resource }`, the
    * value is found by object identity inside that resource and keeps its
@@ -644,7 +670,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    * Replaces scalar defaults and merges `env`, `vars`, and `functions` by name.
    * Per-call entries win. Environment keys are normalized with or without `%`.
    */
-  private merged(options?: EvaluateOptions): EvaluateOptions {
+  private merged(options?: AsyncEvaluateOptions): AsyncEvaluateOptions {
     if (!options) {
       return this.defaults
     }
@@ -667,7 +693,7 @@ export class FhirPathEngine<const Defaults extends object = EmptyFhirpathTypeCon
    * through this engine's LRU here, once per call at most — so per-row
    * evaluation inside project() never re-parses them.
    */
-  private precompiled(options: EvaluateOptions): EvaluateOptions {
+  private precompiled(options: AsyncEvaluateOptions): AsyncEvaluateOptions {
     const out = { ...options }
     if (options.vars) {
       out.vars = Object.fromEntries(

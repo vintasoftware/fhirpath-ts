@@ -407,8 +407,9 @@ export function analyzeExpressionDetailed(expression: string, options?: AnalyzeO
 /** The options with the declarations derived from `env` and `vars` under the explicit `variables`. */
 function withEvaluationVariables(options: AnalyzeOptions | undefined): AnalyzeOptions | undefined {
   if (options === undefined) return undefined
-  const { env, envTypes, vars, varTypes, ...rest } = options
+  const { env, envTypes, vars, varTypes } = options
   if (env === undefined && envTypes === undefined && vars === undefined && varTypes === undefined) return options
+  const rest = withoutEvaluationValues(options)
   const explicit = normalizeEnvKeys(options.variables)
   const derived = evaluationVariables(options, options.model, false, (_name, expression, bound) => {
     const typed = { ...rest, variables: { ...bound, ...explicit } }
@@ -419,6 +420,12 @@ function withEvaluationVariables(options: AnalyzeOptions | undefined): AnalyzeOp
     ).result
   })
   return { ...rest, variables: { ...derived, ...explicit } }
+}
+
+/** The options with only their declarations: no `env`, `envTypes`, `vars`, or `varTypes`. */
+export function withoutEvaluationValues(options: AnalyzeOptions): Omit<AnalyzeOptions, EvaluationValueOption> {
+  const { env: _env, envTypes: _envTypes, vars: _vars, varTypes: _varTypes, ...declarations } = options
+  return declarations
 }
 
 /** Analyze an already parsed expression, optionally with a runtime-derived input state. */

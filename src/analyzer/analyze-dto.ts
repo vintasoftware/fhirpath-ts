@@ -12,6 +12,7 @@ import {
   type DeclaredFunction,
   type DeclaredVariable,
   type EvaluationValueOption,
+  withoutEvaluationValues,
 } from './analyze.ts'
 import { analyzerEnvironmentVariables, analyzerVariables, PROJECT_ROW_VARIABLES } from './declarations.ts'
 
@@ -67,8 +68,10 @@ function definingContext(dto: DtoClass, definition: DtoDefinition): AnalyzedCont
  * would be reported as unresolved. `model` and `inputType` are single values, so
  * there the caller simply wins.
  */
-function contextOf(engine: AnalyzedContext, caller: Omit<AnalyzeDtoOptions, 'engine'>): AnalyzeOptions {
+function contextOf(engine: AnalyzedContext, options: AnalyzeOptions): AnalyzeOptions {
   const { model, functions, env, envTypes, vars, varTypes } = engine.defaults
+  // A spread of evaluation options, or an `AnalyzeOptions` value, may still carry them.
+  const caller = withoutEvaluationValues(options)
   const activeModel = caller.model ?? model
   return {
     ...(model !== undefined && { model }),
