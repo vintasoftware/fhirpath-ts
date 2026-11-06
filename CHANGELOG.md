@@ -18,7 +18,8 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 - The same checkers read the `functions` option of analyzer and engine calls:
   a function named there is no longer reported as `unknown-function`, and
   options that may hold functions the source cannot name, such as a
-  `functions` variable or a spread, report no unknown function.
+  `functions` variable or a spread, report no unknown function and do not
+  apply the engine's function declarations.
 
 ### Changed
 

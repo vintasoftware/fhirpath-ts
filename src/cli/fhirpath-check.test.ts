@@ -442,6 +442,41 @@ describe('fhirpath-check CLI', { timeout: 15_000 }, () => {
     expect(result.output).not.toContain('unknown-element')
   })
 
+  it('drops default function declarations when a call may replace them', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-open-functions-'))
+    mkdirSync(join(directory, 'node_modules'), { recursive: true })
+    symlinkSync(resolve(import.meta.dirname, '../..'), join(directory, 'node_modules', 'fhirpath-ts'), 'dir')
+    writeFileSync(
+      join(directory, 'engine.ts'),
+      [
+        "import { FhirPathEngine } from 'fhirpath-ts'",
+        "import { r4Model } from 'fhirpath-ts/r4'",
+        'export const fp = new FhirPathEngine({',
+        '  model: r4Model,',
+        '  functions: {',
+        "    myFn: { fn: () => [], minArity: 0, maxArity: 0, signature: { result: { types: ['Patient'], single: true } } },",
+        '  },',
+        '})',
+      ].join('\n')
+    )
+    writeFileSync(
+      join(directory, 'source.ts'),
+      [
+        "import { fp } from './engine.ts'",
+        "fp.evaluate('myFn(1).status', patient, { functions: hostFunctions })",
+        "fp.evaluate('myFn().status', patient, { ...options })",
+        "fp.evaluate('myFn().status', patient)",
+      ].join('\n')
+    )
+
+    const result = run(['--dtos', 'engine.ts', 'source.ts'], directory)
+    expect(result.status).toBe(1)
+    expect(result.output).not.toContain('wrong-arity')
+    expect(result.output).not.toContain('source.ts:2:')
+    expect(result.output).not.toContain('source.ts:3:')
+    expect(result.output).toContain("source.ts:4:21 [unknown-element] Element 'status' is not defined on FHIR.Patient")
+  })
+
   it('drops stale default varTypes when an options spread may replace them', () => {
     const directory = mkdtempSync(join(tmpdir(), 'fhirpath-check-source-var-spread-'))
     mkdirSync(join(directory, 'node_modules'), { recursive: true })

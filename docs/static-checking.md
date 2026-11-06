@@ -187,9 +187,11 @@ options, as the analyzer does. Its `vars` expressions are not checked, because
 the analyzer does not report their diagnostics.
 
 The names in a call's literal `functions` option are declared functions, with
-any arity and an unknown result type. If the options may hold functions the
-source cannot name, such as a `functions` variable or a spread, an unknown
-function is not reported.
+any arity and an unknown result type. They replace the engine's functions of
+the same name, as at runtime. If the options may hold functions the source
+cannot name, such as a `functions` variable or a spread, they may replace any
+engine function, so the call is checked with its own function names only and
+an unknown function is not reported.
 
 The command exits with a non-zero status when it reports an error diagnostic.
 Warnings, such as possible regular expression backtracking, do not fail the run.
