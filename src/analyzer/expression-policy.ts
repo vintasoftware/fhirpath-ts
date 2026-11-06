@@ -67,6 +67,8 @@ export interface CallSitePolicy {
   optionsArg?: number
   /** Additional expressions held by the options argument. */
   optionsExpressions?: 'vars'
+  /** The options argument is an `AnalyzeOptions`, whose `variables` also declare names. */
+  optionsVariables?: true
   /** The call supplies projection-only `%rowIndex` and `%rowTotal`. */
   rowVariables?: true
   /**
@@ -79,6 +81,21 @@ export interface CallSitePolicy {
   dto?: true
   /** Declares a zero-argument function named after the field it initializes. */
   declaresField?: 'column' | 'criteria'
+}
+
+/**
+ * `analyzeExpression(expr, options)` and `analyzeExpressionDetailed`: the root is
+ * the `inputType` option, and the options declare variables as an engine call's
+ * do, plus `variables`. A vars expression's own diagnostics are not reported.
+ */
+const ANALYZER_CALL: CallSitePolicy = {
+  argIndex: 0,
+  shape: 'expression',
+  receiver: 'any',
+  rootArg: 1,
+  rootProperty: 'inputType',
+  optionsArg: 1,
+  optionsVariables: true,
 }
 
 /** Call names that take FHIRPath expressions, and where/how/on-what they take them. */
@@ -105,7 +122,8 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
     'first',
     { argIndex: 0, shape: 'expression', receiver: 'engine', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
   ],
-  ['analyzeExpression', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1, rootProperty: 'inputType' }],
+  ['analyzeExpression', ANALYZER_CALL],
+  ['analyzeExpressionDetailed', ANALYZER_CALL],
   // `new CompiledExpression(expr, type)` builds what compile() returns.
   ['CompiledExpression', { argIndex: 0, shape: 'expression', receiver: 'import', rootArg: 1 }],
   // Subject-first FhirPathEngine helpers: the expression(s) come second.
@@ -584,8 +602,17 @@ export interface OptionScopes<N> {
   expressions: (ExpressionCandidate<N> & { name?: string })[]
 }
 
-/** Parse one literal EvaluateOptions object into environment and ordered var scopes. */
-export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes<N> | undefined {
+/**
+ * Parse one literal EvaluateOptions object into environment and ordered var
+ * scopes. With `analyzerVariables`, the object is an `AnalyzeOptions`: its
+ * `variables` names are declared too, untyped, and win over env and vars
+ * declarations of the same name, as the analyzer gives them priority.
+ */
+export function optionScopes<N>(
+  options: N,
+  ast: ExpressionAst<N>,
+  analyzerVariables = false
+): OptionScopes<N> | undefined {
   const properties = ast.properties(options)
   if (properties === undefined) {
     return undefined
@@ -595,9 +622,12 @@ export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes
   const envDeclarations = finalKnownProperty(properties, 'envTypes', lastUnknown)
   const varValues = finalKnownProperty(properties, 'vars', lastUnknown)
   const varDeclarations = finalKnownProperty(properties, 'varTypes', lastUnknown)
+  const declaredValues = analyzerVariables ? finalKnownProperty(properties, 'variables', lastUnknown) : undefined
   const varsProperties = varValues === undefined ? [] : ast.properties(varValues)
   const envScope = variablesFromPair(envValues, envDeclarations, ast)
   const varScope = variablesFromPair(varValues, varDeclarations, ast)
+  const declared = normalizedObjectWrites(declaredValues, ast)
+  const untyped: Record<string, SiteVariable> = Object.fromEntries(declared.names.map(name => [name, {}]))
   const unknownOptions = lastUnknown >= 0
   // env/envTypes exist while var bodies run. vars/varTypes only finish binding
   // after those bodies have run, so an unknown varTypes name must not hide a
@@ -605,12 +635,14 @@ export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes
   const openBeforeVars =
     envScope.valuesOpen ||
     envScope.declarationsOpen ||
-    (unknownOptions && (envValues === undefined || envDeclarations === undefined))
+    declared.open ||
+    (unknownOptions &&
+      (envValues === undefined || envDeclarations === undefined || (analyzerVariables && declaredValues === undefined)))
   const dynamicVars = varsProperties === undefined || varsProperties.some(property => property.name === undefined)
   return {
-    env: envScope.variables,
+    env: { ...envScope.variables, ...untyped },
     vars: varScope.variables,
-    varDeclarations: varScope.declarations,
+    varDeclarations: Object.fromEntries(Object.entries(varScope.declarations).filter(([name]) => !(name in untyped))),
     inheritsVarDeclarations: !unknownOptions && varDeclarations === undefined,
     openBeforeVars,
     openAfterVars:
@@ -839,7 +871,7 @@ export function callExpressionCandidates<N>(
     return []
   }
   const options = policy.optionsArg === undefined ? undefined : argumentAt(policy.optionsArg)
-  const scopes = options === undefined ? undefined : optionScopes(options, ast)
+  const scopes = options === undefined ? undefined : optionScopes(options, ast, policy.optionsVariables === true)
   const openBeforeVars = options !== undefined && (scopes === undefined || scopes.openBeforeVars)
   const openAfterVars = options !== undefined && (scopes === undefined || scopes.openAfterVars)
   const base = siteContext(

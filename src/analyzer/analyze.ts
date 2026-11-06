@@ -264,7 +264,8 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
  * does not prove which variables the later call provides. An input type read
  * from the call's own input argument (`inputFromArgument`) is the call that
  * runs the expression, so its variables are still checked; that type is used
- * only when the model knows it. A site whose call
+ * only when the model knows it. The same holds for a declared root when the
+ * call's own options bind the variables (`analyzeExpression`). A site whose call
  * binds variables the source cannot name (`openVariables`) may resolve any
  * `%variable` at runtime, so an unresolved one is reported as an
  * `unchecked-variable` warning under `reportUnchecked` instead of an error.
@@ -329,7 +330,12 @@ export function analyzeSite(
         ]
       })
     }
-    return inputType === undefined || site.inputFromArgument === true || options?.variables !== undefined
+    // A site with a variable plan read its call's own options, so that call
+    // binds the variables, as for an input-argument root.
+    return inputType === undefined ||
+      site.inputFromArgument === true ||
+      variablePlan !== undefined ||
+      options?.variables !== undefined
       ? diagnostics
       : diagnostics.filter(diagnostic => diagnostic.code !== 'unknown-variable')
   }
