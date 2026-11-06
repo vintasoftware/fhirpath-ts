@@ -801,6 +801,75 @@ describe('the walkers agree on a site’s context', () => {
       expected: [],
     },
     {
+      name: "analyzeExpression's variables, env, vars, and varTypes options declare names",
+      code: [
+        "import { analyzeExpression, analyzeExpressionDetailed } from 'fhirpath-ts/analyzer'",
+        "analyzeExpression('%a', { variables: { a: {} } })",
+        "analyzeExpression('%b', { env: { b: 1 } })",
+        "analyzeExpression('%c', { vars: { c: '1' } })",
+        "analyzeExpression('%d', { varTypes: { d: { type: 'string' } } })",
+        "analyzeExpressionDetailed('%e', { inputType: 'Patient', variables: { '%e': {} } })",
+        "analyzeExpressionDetailed('%f', { inputType: 'Patient', env: { e: 1 } })",
+      ].join('\n'),
+      expected: ['unknown-variable: Undefined environment variable %f'],
+    },
+    {
+      name: "analyzeExpression's vars expressions are not reported",
+      code: [
+        "import { analyzeExpression } from 'fhirpath-ts/analyzer'",
+        "analyzeExpression('%v', { vars: { v: '%typo' } })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: "analyzeExpression's open options leave variables unjudged",
+      code: [
+        "import { analyzeExpression } from 'fhirpath-ts/analyzer'",
+        "analyzeExpression('%a', options)",
+        "analyzeExpression('%a', { inputType: 'Patient', ...options })",
+        "analyzeExpression('%a', { env: {}, envTypes: {}, ...options, inputType: 'Patient' })",
+        "analyzeExpression('%a', { variables: { ...declared } })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
+      name: "analyzeExpression's variables win over a typed env declaration",
+      code: [
+        "import { analyzeExpression } from 'fhirpath-ts/analyzer'",
+        'analyzeExpression("%x.status", {',
+        "  inputType: 'Patient', env: { x: observation }, envTypes: { x: { type: 'Patient' } }, variables: { x: {} },",
+        '})',
+        'analyzeExpression("%x.status", {',
+        "  inputType: 'Patient', env: { x: observation }, envTypes: { x: { type: 'Patient' } },",
+        '})',
+      ].join('\n'),
+      expected: ["unknown-element: Element 'status' is not defined on FHIR.Patient"],
+    },
+    {
+      name: "a call's functions option declares host functions, including for its vars",
+      code: [
+        "import { analyzeExpression } from 'fhirpath-ts/analyzer'",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "analyzeExpression('myFn()', { inputType: 'Patient', functions: { myFn: fn } })",
+        "r4.evaluate('myFn(1)', patient, { functions: { myFn } })",
+        "r4.evaluate('%v', patient, { functions: { myFn }, vars: { v: 'myFn()' } })",
+        "r4.evaluate('otherFn()', patient, { functions: { myFn } })",
+      ].join('\n'),
+      expected: ["unknown-function: Unrecognized function 'otherFn'"],
+    },
+    {
+      name: "a call's open functions leave unknown functions unjudged",
+      code: [
+        "import { analyzeExpression } from 'fhirpath-ts/analyzer'",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "analyzeExpression('anyFn()', { inputType: 'Patient', functions: hostFunctions })",
+        "analyzeExpression('anyFn()', { inputType: 'Patient', functions: { ...hostFunctions } })",
+        "r4.evaluate('anyFn()', patient, options)",
+        "r4.evaluate('anyFn()', patient, { strict: true, ...options })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
       name: "new CompiledExpression's second argument fixes the root",
       code: [
         "import { CompiledExpression } from 'fhirpath-ts'",

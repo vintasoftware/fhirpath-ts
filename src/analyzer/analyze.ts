@@ -264,10 +264,14 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
  * does not prove which variables the later call provides. An input type read
  * from the call's own input argument (`inputFromArgument`) is the call that
  * runs the expression, so its variables are still checked; that type is used
- * only when the model knows it. A site whose call
+ * only when the model knows it. The same holds for a declared root when the
+ * call's own options bind the variables (`analyzeExpression`). A site whose call
  * binds variables the source cannot name (`openVariables`) may resolve any
  * `%variable` at runtime, so an unresolved one is reported as an
  * `unchecked-variable` warning under `reportUnchecked` instead of an error.
+ * A site whose call may declare functions the source cannot name
+ * (`openFunctions`) may replace any default function, so it is analyzed with
+ * only the call's own function names and reports no unknown function.
  * DTO sites may also receive variables and functions from base classes, other
  * modules, or `project()`. Such sites omit unknown-variable diagnostics and
  * report an unknown function only when it resembles a local column. A DTO
@@ -285,6 +289,10 @@ export function analyzeSite(
     variables?: Readonly<Record<string, DeclaredVariable>>
     /** The call also binds variables the source cannot name — a computed key or spread in env/vars. */
     openVariables?: true
+    /** Host function names the call's own `functions` option declares, of unknown arity and type. */
+    callFunctions?: readonly string[]
+    /** The call's options may declare host functions the source cannot name. */
+    openFunctions?: true
     /** Functions the site's file declares — a DTO's column fields (see `columnFunctionDeclaration`). */
     functions?: Readonly<Record<string, DeclaredFunction>>
   },
@@ -294,7 +302,11 @@ export function analyzeSite(
     SOURCE_VARIABLE_DEFAULTS
   ]
   const variablePlan = (site as typeof site & { variablePlan?: SourceVariablePlan }).variablePlan
-  const declared = { ...site.functions, ...options?.functions }
+  const callFunctions = Object.fromEntries((site.callFunctions ?? []).map(name => [name, {}]))
+  // A call's own functions win over defaults, as at runtime. A call that may
+  // replace any of them leaves no default declaration standing.
+  const declared: Record<string, DeclaredFunction> =
+    site.openFunctions === true ? callFunctions : { ...site.functions, ...options?.functions, ...callFunctions }
   const variables = sourceSiteVariables(site.variables, variablePlan, options?.variables, sourceVariables)
   // A `resourceType` literal the model does not know is not a FHIR resource.
   const inputType =
@@ -306,10 +318,12 @@ export function analyzeSite(
   const merged: AnalyzeOptions = {
     ...options,
     ...(inputType !== undefined && { inputType }),
-    ...(Object.keys(declared).length > 0 && { functions: declared }),
+    functions: declared,
     ...(variables !== undefined && { variables }),
   }
-  const diagnostics = analyzeExpression(site.expression, merged)
+  const diagnostics = analyzeExpression(site.expression, merged).filter(
+    diagnostic => site.openFunctions !== true || diagnostic.code !== 'unknown-function'
+  )
   if (site.dto !== true) {
     if (site.openVariables === true) {
       return diagnostics.flatMap(diagnostic => {
@@ -329,7 +343,12 @@ export function analyzeSite(
         ]
       })
     }
-    return inputType === undefined || site.inputFromArgument === true || options?.variables !== undefined
+    // A site with a variable plan read its call's own options, so that call
+    // binds the variables, as for an input-argument root.
+    return inputType === undefined ||
+      site.inputFromArgument === true ||
+      variablePlan !== undefined ||
+      options?.variables !== undefined
       ? diagnostics
       : diagnostics.filter(diagnostic => diagnostic.code !== 'unknown-variable')
   }

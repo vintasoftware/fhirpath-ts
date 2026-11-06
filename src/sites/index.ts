@@ -62,6 +62,10 @@ export interface ExpressionSite {
   variablePlan?: NonNullable<SiteContext['variablePlan']>
   /** The call binds variables the source cannot name (a computed key or spread) — see `SiteContext`. */
   openVariables?: true
+  /** Host function names the call's own `functions` option declares. */
+  callFunctions?: NonNullable<SiteContext['callFunctions']>
+  /** The call's options may declare host functions the source cannot name. */
+  openFunctions?: true
   /** Callable DTO columns declared in the same file. */
   functions?: Readonly<Record<string, FileColumnFunction>>
 }

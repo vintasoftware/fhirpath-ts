@@ -76,8 +76,9 @@ export default [
 
 It recognizes:
 
-- `fhirpath`, `compile`, `evaluate`, `evaluateTyped`, `first`, and
-  `analyzeExpression` calls, and `new CompiledExpression()`;
+- `fhirpath`, `compile`, `evaluate`, `evaluateTyped`, `first`,
+  `analyzeExpression`, and `analyzeExpressionDetailed` calls, and
+  `new CompiledExpression()`;
 - `FhirPathEngine` and `r4` methods such as `test`, `filter`, `project`, and
   `checkConstraints`;
 - DTO and view `this.column()` and `this.criteria()` fields, and the `vars` of
@@ -179,6 +180,18 @@ uncertain, the CLI reports one `[warning:skipped]` for the `vars` object.
 Inline `env` and `vars` names are available to expression checks. If dynamic
 options may add more names, unresolved variables are reported as
 `[warning:unchecked-variable]` instead of errors.
+
+An `analyzeExpression()` or `analyzeExpressionDetailed()` call declares the
+names in its literal `variables`, `env`, `envTypes`, `vars`, and `varTypes`
+options, as the analyzer does. Its `vars` expressions are not checked, because
+the analyzer does not report their diagnostics.
+
+The names in a call's literal `functions` option are declared functions, with
+any arity and an unknown result type. They replace the engine's functions of
+the same name, as at runtime. If the options may hold functions the source
+cannot name, such as a `functions` variable or a spread, they may replace any
+engine function, so the call is checked with its own function names only and
+an unknown function is not reported.
 
 The command exits with a non-zero status when it reports an error diagnostic.
 Warnings, such as possible regular expression backtracking, do not fail the run.

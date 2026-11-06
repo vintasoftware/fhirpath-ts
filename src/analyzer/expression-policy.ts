@@ -13,6 +13,14 @@ import { bareEnvironmentName } from '../engine/context.ts'
 import { type AnalyzerVariable, PROJECT_ROW_VARIABLES } from './declarations.ts'
 import type { SourceVariablePlan } from './source-options.ts'
 
+/**
+ * The interface a call's options argument follows. `EvaluateOptions` binds
+ * env and vars over the engine's defaults, and its vars expressions run, so
+ * they are checked. `AnalyzeOptions` declares env, vars, and `variables` on
+ * their own; the analyzer does not report its vars expressions' diagnostics.
+ */
+export type OptionsType = 'EvaluateOptions' | 'AnalyzeOptions'
+
 /** The supported expression argument shapes: one string, columns, constraints, or DTO variables. */
 export type CallSiteShape = 'expression' | 'columns' | 'constraints' | 'dto-vars'
 
@@ -63,10 +71,8 @@ export interface CallSitePolicy {
    * itself, which no single input type describes.
    */
   inputEach?: true
-  /** The EvaluateOptions argument whose inline env/vars declarations are visible to the expression. */
-  optionsArg?: number
-  /** Additional expressions held by the options argument. */
-  optionsExpressions?: 'vars'
+  /** The options argument whose inline declarations are visible to the expression (see `OptionsType`). */
+  options?: { arg: number; type: OptionsType }
   /** The call supplies projection-only `%rowIndex` and `%rowTotal`. */
   rowVariables?: true
   /**
@@ -81,6 +87,20 @@ export interface CallSitePolicy {
   declaresField?: 'column' | 'criteria'
 }
 
+/**
+ * `analyzeExpression(expr, options)` and `analyzeExpressionDetailed`: the root is
+ * the `inputType` option, and the options declare variables as an engine call's
+ * do, plus `variables`. A vars expression's own diagnostics are not reported.
+ */
+const ANALYZER_CALL: CallSitePolicy = {
+  argIndex: 0,
+  shape: 'expression',
+  receiver: 'any',
+  rootArg: 1,
+  rootProperty: 'inputType',
+  options: { arg: 1, type: 'AnalyzeOptions' },
+}
+
 /** Call names that take FHIRPath expressions, and where/how/on-what they take them. */
 export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   // Expression-first: the low-level API and the evaluate family of FhirPathEngine.
@@ -91,27 +111,28 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
   ['compile', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1 }],
   [
     'evaluateAsync',
-    { argIndex: 0, shape: 'expression', receiver: 'any', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
+    { argIndex: 0, shape: 'expression', receiver: 'any', inputArg: 1, options: { arg: 2, type: 'EvaluateOptions' } },
   ],
   [
     'evaluate',
-    { argIndex: 0, shape: 'expression', receiver: 'any', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
+    { argIndex: 0, shape: 'expression', receiver: 'any', inputArg: 1, options: { arg: 2, type: 'EvaluateOptions' } },
   ],
   [
     'evaluateTyped',
-    { argIndex: 0, shape: 'expression', receiver: 'any', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
+    { argIndex: 0, shape: 'expression', receiver: 'any', inputArg: 1, options: { arg: 2, type: 'EvaluateOptions' } },
   ],
   [
     'first',
-    { argIndex: 0, shape: 'expression', receiver: 'engine', inputArg: 1, optionsArg: 2, optionsExpressions: 'vars' },
+    { argIndex: 0, shape: 'expression', receiver: 'engine', inputArg: 1, options: { arg: 2, type: 'EvaluateOptions' } },
   ],
-  ['analyzeExpression', { argIndex: 0, shape: 'expression', receiver: 'any', rootArg: 1, rootProperty: 'inputType' }],
+  ['analyzeExpression', ANALYZER_CALL],
+  ['analyzeExpressionDetailed', ANALYZER_CALL],
   // `new CompiledExpression(expr, type)` builds what compile() returns.
   ['CompiledExpression', { argIndex: 0, shape: 'expression', receiver: 'import', rootArg: 1 }],
   // Subject-first FhirPathEngine helpers: the expression(s) come second.
   [
     'test',
-    { argIndex: 1, shape: 'expression', receiver: 'engine', inputArg: 0, optionsArg: 2, optionsExpressions: 'vars' },
+    { argIndex: 1, shape: 'expression', receiver: 'engine', inputArg: 0, options: { arg: 2, type: 'EvaluateOptions' } },
   ],
   [
     'filter',
@@ -121,8 +142,7 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
       receiver: 'engine',
       inputArg: 0,
       inputEach: true,
-      optionsArg: 2,
-      optionsExpressions: 'vars',
+      options: { arg: 2, type: 'EvaluateOptions' },
     },
   ],
   [
@@ -133,8 +153,7 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
       receiver: 'engine',
       inputArg: 0,
       inputEach: true,
-      optionsArg: 2,
-      optionsExpressions: 'vars',
+      options: { arg: 2, type: 'EvaluateOptions' },
       rowVariables: true,
     },
   ],
@@ -146,8 +165,7 @@ export const CALL_SITES: ReadonlyMap<string, CallSitePolicy> = new Map([
       receiver: 'any',
       inputArg: 0,
       inputEach: true,
-      optionsArg: 2,
-      optionsExpressions: 'vars',
+      options: { arg: 2, type: 'EvaluateOptions' },
     },
   ],
   // DTO declarations: the expression of a `name = this.column(...)` field, and
@@ -364,6 +382,10 @@ export interface SiteContext {
    * `analyzeSite`.
    */
   openVariables?: true
+  /** Host function names the call's own `functions` option declares. */
+  callFunctions?: readonly string[]
+  /** The call's options may declare host functions the source cannot name. */
+  openFunctions?: true
 }
 
 /** Analyzer facts a source literal can declare; ordering requires runtime knowledge. */
@@ -570,7 +592,7 @@ export interface OptionScopes<N> {
   vars: Record<string, SiteVariable>
   /** Final declarations only, without value-only names. */
   varDeclarations: Record<string, SiteVariable>
-  /** Whether this closed options object definitely omits varTypes. */
+  /** The site inherits the engine's default varTypes: a closed EvaluateOptions object without varTypes. */
   inheritsVarDeclarations: boolean
   /**
    * The options bind variables whose names the source cannot enumerate before
@@ -582,10 +604,24 @@ export interface OptionScopes<N> {
   openAfterVars: boolean
   /** Final ordered `vars` entries, or one coverage gap when their order is dynamic. */
   expressions: (ExpressionCandidate<N> & { name?: string })[]
+  /** The host function names the `functions` option declares. */
+  functions: string[]
+  /** The options may declare host functions the source cannot name. */
+  openFunctions: boolean
 }
 
-/** Parse one literal EvaluateOptions object into environment and ordered var scopes. */
-export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes<N> | undefined {
+/**
+ * Parse one literal options object into environment and ordered var scopes,
+ * and the names of its `functions`. The `variables` names of an `AnalyzeOptions` are declared untyped and win
+ * over env and vars declarations of the same name, as the analyzer gives them
+ * priority. Only `EvaluateOptions` inherit the engine's default `varTypes`.
+ */
+export function optionScopes<N>(
+  options: N,
+  ast: ExpressionAst<N>,
+  type: OptionsType = 'EvaluateOptions'
+): OptionScopes<N> | undefined {
+  const analyzer = type === 'AnalyzeOptions'
   const properties = ast.properties(options)
   if (properties === undefined) {
     return undefined
@@ -595,9 +631,14 @@ export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes
   const envDeclarations = finalKnownProperty(properties, 'envTypes', lastUnknown)
   const varValues = finalKnownProperty(properties, 'vars', lastUnknown)
   const varDeclarations = finalKnownProperty(properties, 'varTypes', lastUnknown)
+  const declaredValues = analyzer ? finalKnownProperty(properties, 'variables', lastUnknown) : undefined
+  const functionValues = finalKnownProperty(properties, 'functions', lastUnknown)
+  const functionProperties = functionValues === undefined ? [] : ast.properties(functionValues)
   const varsProperties = varValues === undefined ? [] : ast.properties(varValues)
   const envScope = variablesFromPair(envValues, envDeclarations, ast)
   const varScope = variablesFromPair(varValues, varDeclarations, ast)
+  const declared = normalizedObjectWrites(declaredValues, ast)
+  const untyped: Record<string, SiteVariable> = Object.fromEntries(declared.names.map(name => [name, {}]))
   const unknownOptions = lastUnknown >= 0
   // env/envTypes exist while var bodies run. vars/varTypes only finish binding
   // after those bodies have run, so an unknown varTypes name must not hide a
@@ -605,13 +646,15 @@ export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes
   const openBeforeVars =
     envScope.valuesOpen ||
     envScope.declarationsOpen ||
-    (unknownOptions && (envValues === undefined || envDeclarations === undefined))
+    declared.open ||
+    (unknownOptions &&
+      (envValues === undefined || envDeclarations === undefined || (analyzer && declaredValues === undefined)))
   const dynamicVars = varsProperties === undefined || varsProperties.some(property => property.name === undefined)
   return {
-    env: envScope.variables,
+    env: { ...envScope.variables, ...untyped },
     vars: varScope.variables,
-    varDeclarations: varScope.declarations,
-    inheritsVarDeclarations: !unknownOptions && varDeclarations === undefined,
+    varDeclarations: Object.fromEntries(Object.entries(varScope.declarations).filter(([name]) => !(name in untyped))),
+    inheritsVarDeclarations: !analyzer && !unknownOptions && varDeclarations === undefined,
     openBeforeVars,
     openAfterVars:
       openBeforeVars ||
@@ -624,6 +667,11 @@ export function optionScopes<N>(options: N, ast: ExpressionAst<N>): OptionScopes
         : dynamicVars
           ? [{ node: varValues, uncheckable: 'dynamic-vars' as const }]
           : finalVarExpressions(varsProperties, ast),
+    functions: (functionProperties ?? []).flatMap(property => (property.name === undefined ? [] : [property.name])),
+    openFunctions:
+      functionProperties === undefined ||
+      functionProperties.some(property => property.name === undefined) ||
+      (unknownOptions && functionValues === undefined),
   }
 }
 
@@ -838,21 +886,26 @@ export function callExpressionCandidates<N>(
   if (argument === undefined) {
     return []
   }
-  const options = policy.optionsArg === undefined ? undefined : argumentAt(policy.optionsArg)
-  const scopes = options === undefined ? undefined : optionScopes(options, ast)
+  const options = policy.options === undefined ? undefined : argumentAt(policy.options.arg)
+  const scopes = options === undefined ? undefined : optionScopes(options, ast, policy.options?.type)
   const openBeforeVars = options !== undefined && (scopes === undefined || scopes.openBeforeVars)
   const openAfterVars = options !== undefined && (scopes === undefined || scopes.openAfterVars)
-  const base = siteContext(
-    policy,
-    argumentAt,
-    classRoot,
-    ast,
-    {
-      ...scopes?.env,
-      ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
-    },
-    inputEvidence
-  )
+  const openFunctions = options !== undefined && (scopes === undefined || scopes.openFunctions)
+  const base: SiteContext = {
+    ...siteContext(
+      policy,
+      argumentAt,
+      classRoot,
+      ast,
+      {
+        ...scopes?.env,
+        ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
+      },
+      inputEvidence
+    ),
+    ...(scopes !== undefined && scopes.functions.length > 0 && { callFunctions: scopes.functions }),
+    ...(openFunctions && { openFunctions: true as const }),
+  }
   const values = scopes?.expressions.flatMap(entry => (entry.name === undefined ? [] : [entry.name])) ?? []
   const plan =
     options === undefined
@@ -874,10 +927,7 @@ export function callExpressionCandidates<N>(
       source: 'argument' as const,
     })
   )
-  if (policy.optionsExpressions !== 'vars' || policy.optionsArg === undefined) {
-    return candidates
-  }
-  if (scopes === undefined) {
+  if (scopes === undefined || policy.options?.type !== 'EvaluateOptions') {
     return candidates
   }
   for (const entry of scopes.expressions) {
