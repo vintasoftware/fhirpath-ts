@@ -269,6 +269,8 @@ export function analyzeExpression(expression: string, options?: AnalyzeOptions):
  * binds variables the source cannot name (`openVariables`) may resolve any
  * `%variable` at runtime, so an unresolved one is reported as an
  * `unchecked-variable` warning under `reportUnchecked` instead of an error.
+ * A site whose call may declare functions the source cannot name
+ * (`openFunctions`) reports no unknown function.
  * DTO sites may also receive variables and functions from base classes, other
  * modules, or `project()`. Such sites omit unknown-variable diagnostics and
  * report an unknown function only when it resembles a local column. A DTO
@@ -286,6 +288,10 @@ export function analyzeSite(
     variables?: Readonly<Record<string, DeclaredVariable>>
     /** The call also binds variables the source cannot name — a computed key or spread in env/vars. */
     openVariables?: true
+    /** Host function names the call's own `functions` option declares, of unknown arity and type. */
+    callFunctions?: readonly string[]
+    /** The call's options may declare host functions the source cannot name. */
+    openFunctions?: true
     /** Functions the site's file declares — a DTO's column fields (see `columnFunctionDeclaration`). */
     functions?: Readonly<Record<string, DeclaredFunction>>
   },
@@ -295,7 +301,12 @@ export function analyzeSite(
     SOURCE_VARIABLE_DEFAULTS
   ]
   const variablePlan = (site as typeof site & { variablePlan?: SourceVariablePlan }).variablePlan
-  const declared = { ...site.functions, ...options?.functions }
+  const declared: Record<string, DeclaredFunction> = {
+    ...site.functions,
+    ...options?.functions,
+    // A call's own functions win over defaults, as at runtime.
+    ...Object.fromEntries((site.callFunctions ?? []).map(name => [name, {}])),
+  }
   const variables = sourceSiteVariables(site.variables, variablePlan, options?.variables, sourceVariables)
   // A `resourceType` literal the model does not know is not a FHIR resource.
   const inputType =
@@ -310,7 +321,9 @@ export function analyzeSite(
     ...(Object.keys(declared).length > 0 && { functions: declared }),
     ...(variables !== undefined && { variables }),
   }
-  const diagnostics = analyzeExpression(site.expression, merged)
+  const diagnostics = analyzeExpression(site.expression, merged).filter(
+    diagnostic => site.openFunctions !== true || diagnostic.code !== 'unknown-function'
+  )
   if (site.dto !== true) {
     if (site.openVariables === true) {
       return diagnostics.flatMap(diagnostic => {

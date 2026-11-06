@@ -846,6 +846,30 @@ describe('the walkers agree on a site’s context', () => {
       expected: ["unknown-element: Element 'status' is not defined on FHIR.Patient"],
     },
     {
+      name: "a call's functions option declares host functions, including for its vars",
+      code: [
+        "import { analyzeExpression } from 'fhirpath-ts/analyzer'",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "analyzeExpression('myFn()', { inputType: 'Patient', functions: { myFn: fn } })",
+        "r4.evaluate('myFn(1)', patient, { functions: { myFn } })",
+        "r4.evaluate('%v', patient, { functions: { myFn }, vars: { v: 'myFn()' } })",
+        "r4.evaluate('otherFn()', patient, { functions: { myFn } })",
+      ].join('\n'),
+      expected: ["unknown-function: Unrecognized function 'otherFn'"],
+    },
+    {
+      name: "a call's open functions leave unknown functions unjudged",
+      code: [
+        "import { analyzeExpression } from 'fhirpath-ts/analyzer'",
+        "import { r4 } from 'fhirpath-ts/r4'",
+        "analyzeExpression('anyFn()', { inputType: 'Patient', functions: hostFunctions })",
+        "analyzeExpression('anyFn()', { inputType: 'Patient', functions: { ...hostFunctions } })",
+        "r4.evaluate('anyFn()', patient, options)",
+        "r4.evaluate('anyFn()', patient, { strict: true, ...options })",
+      ].join('\n'),
+      expected: [],
+    },
+    {
       name: "new CompiledExpression's second argument fixes the root",
       code: [
         "import { CompiledExpression } from 'fhirpath-ts'",

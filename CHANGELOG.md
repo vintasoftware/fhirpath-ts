@@ -15,6 +15,10 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   of `analyzeExpression()` calls, so a name declared there is no longer
   reported as `unknown-variable` (#148). They also check
   `analyzeExpressionDetailed()` calls the same way.
+- The same checkers read the `functions` option of analyzer and engine calls:
+  a function named there is no longer reported as `unknown-function`, and
+  options that may hold functions the source cannot name, such as a
+  `functions` variable or a spread, report no unknown function.
 
 ### Changed
 

@@ -382,6 +382,10 @@ export interface SiteContext {
    * `analyzeSite`.
    */
   openVariables?: true
+  /** Host function names the call's own `functions` option declares. */
+  callFunctions?: readonly string[]
+  /** The call's options may declare host functions the source cannot name. */
+  openFunctions?: true
 }
 
 /** Analyzer facts a source literal can declare; ordering requires runtime knowledge. */
@@ -600,11 +604,15 @@ export interface OptionScopes<N> {
   openAfterVars: boolean
   /** Final ordered `vars` entries, or one coverage gap when their order is dynamic. */
   expressions: (ExpressionCandidate<N> & { name?: string })[]
+  /** The host function names the `functions` option declares. */
+  functions: string[]
+  /** The options may declare host functions the source cannot name. */
+  openFunctions: boolean
 }
 
 /**
- * Parse one literal options object into environment and ordered var scopes.
- * The `variables` names of an `AnalyzeOptions` are declared untyped and win
+ * Parse one literal options object into environment and ordered var scopes,
+ * and the names of its `functions`. The `variables` names of an `AnalyzeOptions` are declared untyped and win
  * over env and vars declarations of the same name, as the analyzer gives them
  * priority. Only `EvaluateOptions` inherit the engine's default `varTypes`.
  */
@@ -624,6 +632,8 @@ export function optionScopes<N>(
   const varValues = finalKnownProperty(properties, 'vars', lastUnknown)
   const varDeclarations = finalKnownProperty(properties, 'varTypes', lastUnknown)
   const declaredValues = analyzer ? finalKnownProperty(properties, 'variables', lastUnknown) : undefined
+  const functionValues = finalKnownProperty(properties, 'functions', lastUnknown)
+  const functionProperties = functionValues === undefined ? [] : ast.properties(functionValues)
   const varsProperties = varValues === undefined ? [] : ast.properties(varValues)
   const envScope = variablesFromPair(envValues, envDeclarations, ast)
   const varScope = variablesFromPair(varValues, varDeclarations, ast)
@@ -657,6 +667,11 @@ export function optionScopes<N>(
         : dynamicVars
           ? [{ node: varValues, uncheckable: 'dynamic-vars' as const }]
           : finalVarExpressions(varsProperties, ast),
+    functions: (functionProperties ?? []).flatMap(property => (property.name === undefined ? [] : [property.name])),
+    openFunctions:
+      functionProperties === undefined ||
+      functionProperties.some(property => property.name === undefined) ||
+      (unknownOptions && functionValues === undefined),
   }
 }
 
@@ -875,17 +890,22 @@ export function callExpressionCandidates<N>(
   const scopes = options === undefined ? undefined : optionScopes(options, ast, policy.options?.type)
   const openBeforeVars = options !== undefined && (scopes === undefined || scopes.openBeforeVars)
   const openAfterVars = options !== undefined && (scopes === undefined || scopes.openAfterVars)
-  const base = siteContext(
-    policy,
-    argumentAt,
-    classRoot,
-    ast,
-    {
-      ...scopes?.env,
-      ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
-    },
-    inputEvidence
-  )
+  const openFunctions = options !== undefined && (scopes === undefined || scopes.openFunctions)
+  const base: SiteContext = {
+    ...siteContext(
+      policy,
+      argumentAt,
+      classRoot,
+      ast,
+      {
+        ...scopes?.env,
+        ...(policy.rowVariables === true && PROJECT_ROW_VARIABLES),
+      },
+      inputEvidence
+    ),
+    ...(scopes !== undefined && scopes.functions.length > 0 && { callFunctions: scopes.functions }),
+    ...(openFunctions && { openFunctions: true as const }),
+  }
   const values = scopes?.expressions.flatMap(entry => (entry.name === undefined ? [] : [entry.name])) ?? []
   const plan =
     options === undefined
