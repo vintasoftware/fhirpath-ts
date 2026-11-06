@@ -8,6 +8,21 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+### Fixed
+
+- The ESLint rule, the `fhirpath-check` source pass, and the playground read
+  the literal `variables`, `env`, `envTypes`, `vars`, and `varTypes` options
+  of `analyzeExpression()` calls, so a name declared there is no longer
+  reported as `unknown-variable` (#148). They also check
+  `analyzeExpressionDetailed()` calls the same way.
+
+### Changed
+
+- An `analyzeExpression()` call with an `inputType` option now reports an
+  undeclared `%variable` from source, as the call does at runtime. Before,
+  the `inputType` silenced it. Literals in `analyzeExpressionDetailed()`
+  calls are now checked, so a lint run can report more.
+
 ## 0.6.0 - 2026-11-05
 
 This release adds what SDC hosts such as sdc-extractor-ts and Smart Forms
