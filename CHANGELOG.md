@@ -8,6 +8,13 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+## 0.6.1 - 2026-11-06
+
+The source checkers (ESLint rule, `fhirpath-check`, playground) read the
+options of analyzer calls and the `functions` option of engine calls, so names
+declared there are no longer reported as unknown. See **Changed** for the
+cases where a lint run can report more.
+
 ### Fixed
 
 - The ESLint rule, the `fhirpath-check` source pass, and the playground read
