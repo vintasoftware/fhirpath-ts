@@ -7,6 +7,15 @@ There is no npm token in this repository's secrets, and a normal `npm publish`
 from a laptop is expected to fail — see
 [Why publishing only works from CI](#why-publishing-only-works-from-ci).
 
+## Changelog entries
+
+Each pull request that adds a feature or fixes a bug adds its entries to
+`CHANGELOG.md` under `## Unreleased` in the same pull request. Use the Keep a
+Changelog headings (`Added`, `Changed`, `Fixed`, `Security`). Start an entry with
+**Breaking:** when callers must change code or expectations, or with
+**Breaking (types):** when only types change. At release time, step 3 below
+moves these entries into the version's section.
+
 ## Cutting a release
 
 1. **Pick the version.** The package follows semver. Pre-1.0, a breaking change
