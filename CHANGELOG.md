@@ -16,6 +16,12 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
   `left.value.add is not a function`. It reads as an opaque value, as such a
   number already does without a model: arithmetic and comparison throw
   `FhirPathTypeError`, `= 1` is false, and `is decimal` is false.
+- `toString()` and `convertsToString()` convert a FHIR `Quantity`, and its
+  subtypes such as `Age`, as they convert a System Quantity: with a model,
+  `Observation.value.toString()` on a `valueQuantity` gives `1.5 'kg'`, where
+  it gave empty. A UCUM time code prints as written: a Quantity of 4 with
+  code `d` gives `4 'd'`, the form FHIRPath 3.0.0 uses for durations. The
+  static analyzer already accepted `toString()` on a Quantity.
 - Date and time arithmetic whose result lies past the JavaScript `Date` range,
   such as `@2020-01-01 + 100000000 days`, is empty, as any result outside the
   years 0001 to 9999 already was. It threw

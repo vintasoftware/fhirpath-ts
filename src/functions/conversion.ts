@@ -6,7 +6,7 @@ import { singleton, wrapBoolean } from '../values/collection.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
 import { LONG_MAX, LONG_MIN } from '../values/numeric.ts'
-import { coerceQuantity, convertQuantity } from '../values/quantity.ts'
+import { calendarToUcumLoose, coerceQuantity, convertQuantity } from '../values/quantity.ts'
 import {
   isInteger32,
   type QuantityValue,
@@ -220,8 +220,16 @@ export function valueToString(item: TypedValue): string | undefined {
         ? `${quantity.value.toString()} ${quantity.unit}`
         : `${quantity.value.toString()} '${quantity.unit}'`
     }
-    default:
-      return undefined
+    default: {
+      // A FHIR Quantity converts as it does for operators, and keeps the UCUM
+      // code its data names: 4 'd' reads as 4 days but prints as 4 'd'.
+      const quantity = coerceQuantity(item)
+      if (quantity === undefined) {
+        return undefined
+      }
+      const ucum = calendarToUcumLoose(quantity)
+      return `${ucum.value.toString()} '${ucum.unit}'`
+    }
   }
 }
 

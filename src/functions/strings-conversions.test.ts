@@ -290,6 +290,32 @@ describe('conversions', () => {
     expect(() => evaluate('(1 | 2).toString()')).toThrow(FhirPathRuntimeError)
   })
 
+  it.each([
+    [{ value: 1.5, unit: 'kilogram', system: 'http://unitsofmeasure.org', code: 'kg' }, ["1.5 'kg'"]],
+    // A UCUM time code reads as a calendar duration and prints as its code.
+    [{ value: 4, unit: 'days', system: 'http://unitsofmeasure.org', code: 'd' }, ["4 'd'"]],
+    [{ value: 30, unit: 'yr', system: 'http://unitsofmeasure.org', code: 'a' }, ["30 'a'"]],
+    // Without a code, the unit text is the unit, as for operators.
+    [{ value: 2, unit: 'tablets' }, ["2 'tablets'"]],
+    [{ unit: 'kg', code: 'kg' }, []],
+  ])('a FHIR Quantity converts to String: %j', (valueQuantity, expected) => {
+    const observation = { resourceType: 'Observation', status: 'final', code: {}, valueQuantity }
+    expect(evaluate('Observation.value.toString()', observation, { model: r4Model })).toEqual(expected)
+    expect(evaluate('Observation.value.convertsToString()', observation, { model: r4Model })).toEqual([
+      expected.length > 0,
+    ])
+  })
+
+  it('a FHIR Quantity subtype converts to String', () => {
+    const patient = {
+      resourceType: 'Patient',
+      extension: [
+        { url: 'http://example.org/age', valueAge: { value: 30, system: 'http://unitsofmeasure.org', code: 'a' } },
+      ],
+    }
+    expect(evaluate('Patient.extension.value.toString()', patient, { model: r4Model })).toEqual(["30 'a'"])
+  })
+
   it('toQuantity unit argument must be a string', () => {
     expect(() => evaluate("4.5 'mg'.toQuantity(1)")).toThrow(FhirPathTypeError)
     expect(() => evaluate("4.5 'mg'.convertsToQuantity(1)")).toThrow(FhirPathTypeError)
