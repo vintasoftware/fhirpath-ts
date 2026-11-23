@@ -44,7 +44,8 @@ The official FHIRPath conformance suites and their fixtures in
 publishes some fixtures only as XML, so these JSON fixtures are hand
 conversions: `r5/fixtures/parameters-example-html.json`, and in both `r4/` and
 `r5/`, `parameters-example-quantities.json`, `parameters-example-decimals.json`,
-and `parameters-quantity-unit-text.json`. The FHIR® specification content they embed is offered by HL7
+`parameters-example-large-exponents.json`, and `parameters-quantity-unit-text.json`.
+The FHIR® specification content they embed is offered by HL7
 under CC0 terms.
 
 ## HL7/fhirpath.js — NLM/Health Samurai license (BSD-style)

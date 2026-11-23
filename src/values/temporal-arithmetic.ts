@@ -155,6 +155,9 @@ function addCalendarComponent(temporal: Temporal, level: number, amount: number)
 }
 
 function addMilliseconds(temporal: Temporal, deltaMs: number): Temporal | undefined {
+  if (!Number.isFinite(deltaMs)) {
+    return undefined
+  }
   if (temporal.kind === 'time') {
     const baseMs =
       (temporal.hour ?? 0) * 3600000 +
@@ -177,7 +180,9 @@ function addMilliseconds(temporal: Temporal, deltaMs: number): Temporal | undefi
     )
   )
   const year = shifted.getUTCFullYear() - 400
-  if (year < 1 || year > 9999) {
+  // A shift past the Date range (±8.64e15 ms) gives an Invalid Date, whose
+  // year is NaN; the test is written so that NaN is out of range too.
+  if (!(year >= 1 && year <= 9999)) {
     return undefined
   }
   return rebuild(temporal, {

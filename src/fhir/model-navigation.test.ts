@@ -95,6 +95,22 @@ describe('model navigation branches', () => {
     expect(evaluate('(Observation.value as Quantity).value + 0.2 = 0.3', resource, options)).toEqual([true])
   })
 
+  it('a decimal no Decimal holds fails cleanly instead of crashing', () => {
+    // JSON.parse reads 1e999 as Infinity; NaN and text reach here only from a host.
+    for (const valueDecimal of [JSON.parse('1e999') as number, Number.NaN, 'not-a-number']) {
+      const resource = { resourceType: 'Parameters', parameter: [{ name: 'n', valueDecimal }] }
+      expect(() => evaluate('Parameters.parameter.value + 1', resource, options)).toThrow(
+        new FhirPathTypeError("Operator '+' is not defined for Object and System.Integer")
+      )
+      expect(() => evaluate('Parameters.parameter.value > 1', resource, options)).toThrow(FhirPathTypeError)
+      expect(() => evaluate('Parameters.parameter.value.round(2)', resource, options)).toThrow(FhirPathTypeError)
+      expect(evaluate('Parameters.parameter.value = 1', resource, options)).toEqual([false])
+      expect(evaluate('Parameters.parameter.value is decimal', resource, options)).toEqual([false])
+    }
+    const huge = { resourceType: 'Observation', status: 'final', valueQuantity: { value: JSON.parse('1e999') } }
+    expect(() => evaluate('Observation.value.value * 2', huge, options)).toThrow(FhirPathTypeError)
+  })
+
   it('malformed date strings stay as strings instead of throwing', () => {
     const resource = { resourceType: 'Patient', birthDate: 'not-a-date' }
     expect(evaluate('Patient.birthDate', resource, options)).toEqual(['not-a-date'])

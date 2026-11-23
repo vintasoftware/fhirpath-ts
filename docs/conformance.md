@@ -12,11 +12,12 @@ repository, converted to JSON offline, and run with Vitest.
 
 | Suite | Passing | Skipped with a reason | Failing |
 | --- | ---: | ---: | ---: |
-| R4 (`tests-fhir-r4.xml`) | 1,044 | 147 | 0 |
-| R5 (`tests-fhir-r5.xml`) | 1,187 | 160 | 0 |
+| R4 (`tests-fhir-r4.xml`) | 1,054 | 171 | 0 |
+| R5 (`tests-fhir-r5.xml`) | 1,197 | 184 | 0 |
 
 Every non-skipped official case passes. Of the skips, 115 in each suite are the
-`documentFunctions` group, and 15 are static-only cases (see below).
+`documentFunctions` group, 24 are in `testLargeExponents`, and 15 are
+static-only cases (see below).
 
 A case may run on the results of a `context` expression over its fixture
 instead of the fixture's root. Its `contextType` declares the focus types a
@@ -63,6 +64,9 @@ fails when a skip no longer matches a suite case.
 | `testLessThan29`, `testGreaterThan29` | Intentional divergence | Expect `1 year` and `2 months` not to compare; FHIRPath 3.0.0 converts calendar years to months (`6 months > 1 year` is false) |
 | Decimal exponent boundaries | Intentional divergence | Read the precision of `9.5e2` from its mantissa; a decimal keeps its precision as digits after the point, so `9.5e2` is `950` |
 | `testDistinct` order and precision in R5 | Intentional divergence | Expect `distinct()` to keep the last repeat, and empty when dates of different precision meet; FHIRPath 3.0.0 leaves the order open, and counts items as distinct unless `=` is true |
+| `testLargeExponents` values | Intentional divergence | Read `1e999999999` and `1e-999999999` exactly. Input is FHIR JSON, and `JSON.parse` reads these numbers as `Infinity` and `0`. No FHIRPath type holds `Infinity`, so operations on it are type errors |
+| `testHugeRoundPrecision` | Intentional divergence | Expects `1.5.round(2000000000)` to be empty; FHIRPath 3.0.0 sets no maximum precision for `round()`, and the result is `1.5` |
+| `testNegativeRoundPrecision` | Intentional divergence | Expects `1.5.round(-1)` to be empty; FHIRPath 3.0.0 makes a negative precision an error |
 
 The manifest contains the exact case names and evidence. Entries marked
 `runtimeOnly` dispute an expected value, not a feature. The analyzer pass still

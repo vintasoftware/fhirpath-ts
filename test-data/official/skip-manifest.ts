@@ -143,6 +143,51 @@ export const SKIP_MANIFEST: SkipEntry[] = [
     }
   ),
   ...skipCases(
+    BOTH_SUITES,
+    [
+      'testLargeExponentQtyEqualOtherUnit',
+      'testLargeExponentQtyLessOtherUnit',
+      'testLargeExponentQtyGreaterSameUnit',
+      'testLargeExponentQtyToString',
+      'testLargeExponentQtyTimes',
+      'testLargeExponentQtyDivide',
+      'testLargeExponentQtyLowBoundary',
+      'testLargeExponentQtyEqualOtherUnitElement',
+      'testLargeExponentQtyToStringElement',
+      'testSmallExponentQtyToString',
+      'testLargeExponentDecPlus',
+      'testLargeExponentDecMinus',
+      'testLargeExponentDecTimes',
+      'testLargeExponentDecDivide',
+      'testLargeExponentDecDiv',
+      'testLargeExponentDecMod',
+      'testLargeExponentDecRound',
+      'testLargeExponentDecLowBoundary',
+      'testLargeExponentDecHighBoundary',
+      'testLargeExponentDecGreater',
+      'testSmallExponentDecPlus',
+      'testLargeExponentDateAdd',
+    ].map(test => ['testLargeExponents', test] as const),
+    {
+      category: 'quirk',
+      runtimeOnly: true,
+      reason:
+        'input is FHIR JSON, whose numbers JSON.parse reads as JavaScript numbers: 1e999999999 becomes Infinity, which no FHIRPath type holds (operations on it are type errors), and 1e-999999999 becomes 0',
+    }
+  ),
+  ...skipCases(BOTH_SUITES, [['testLargeExponents', 'testHugeRoundPrecision']], {
+    category: 'quirk',
+    runtimeOnly: true,
+    reason:
+      'suite expects empty; FHIRPath 3.0.0 ("round") sets no maximum precision, and rounding 1.5 at a place past its last digit leaves 1.5, which takes no extra digits',
+  }),
+  ...skipCases(BOTH_SUITES, [['testLargeExponents', 'testNegativeRoundPrecision']], {
+    category: 'quirk',
+    runtimeOnly: true,
+    reason:
+      'suite expects empty; FHIRPath 3.0.0 ("round") says a precision below 0 ends the evaluation with an error',
+  }),
+  ...skipCases(
     ['r5'],
     ['testDistinct30', 'testDistinct32', 'testDistinct33', 'testDistinct34', 'testDistinct35'].map(
       test => ['testDistinct', test] as const

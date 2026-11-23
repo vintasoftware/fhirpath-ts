@@ -410,7 +410,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     reference: {
       kind: 'official',
       suite: 'r4',
-      groupIndex: 74,
+      groupIndex: 75,
       testIndex: 4,
     },
   },
@@ -427,7 +427,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     reference: {
       kind: 'official',
       suite: 'r4',
-      groupIndex: 75,
+      groupIndex: 76,
       testIndex: 4,
     },
   },
@@ -652,7 +652,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     reference: {
       kind: 'official',
       suite: 'r5',
-      groupIndex: 64,
+      groupIndex: 65,
       testIndex: 5,
     },
   },
@@ -669,7 +669,7 @@ export const RESOLVED_INFERENCE_CAPABILITIES = {
     reference: {
       kind: 'official',
       suite: 'r5',
-      groupIndex: 65,
+      groupIndex: 66,
       testIndex: 4,
     },
   },
