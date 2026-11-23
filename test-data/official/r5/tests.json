@@ -3740,6 +3740,17 @@
           }
         ],
         "inputfile": "patient-example.xml"
+      },
+      {
+        "name": "testRepeat6",
+        "expression": "(1 | 2).repeat($this).count() = 2",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "patient-example.xml"
       }
     ]
   },
@@ -7904,6 +7915,272 @@
       }
     ],
     "description": "Comparing quantities that have no UCUM code, by unit text or the lack of a unit"
+  },
+  {
+    "name": "testLargeExponents",
+    "tests": [
+      {
+        "name": "testLargeExponentQtyEqualOtherUnit",
+        "expression": "Parameters.parameter[0].value = 1 'g'",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentQtyEqualSameUnit",
+        "expression": "Parameters.parameter[0].value = 1 'kg'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentQtyEquivalentOtherUnit",
+        "expression": "Parameters.parameter[0].value ~ 1 'g'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentQtyEquivalentSameUnit",
+        "expression": "Parameters.parameter[0].value ~ 1 'kg'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentQtyLessOtherUnit",
+        "expression": "Parameters.parameter[0].value < 1 'g'",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentQtyGreaterSameUnit",
+        "expression": "Parameters.parameter[0].value > 1 'kg'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentQtyToString",
+        "expression": "Parameters.parameter[0].value.toString()",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "1E+999999999 'kg'"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentQtyTimes",
+        "expression": "Parameters.parameter[0].value * 2 'kg'",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentQtyDivide",
+        "expression": "Parameters.parameter[0].value / 2 'kg'",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentQtyLowBoundary",
+        "expression": "Parameters.parameter[0].value.lowBoundary()",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentQtyEqualOtherUnitElement",
+        "expression": "Parameters.parameter[0].value = 1 'g'",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml",
+        "mode": "element"
+      },
+      {
+        "name": "testLargeExponentQtyToStringElement",
+        "expression": "Parameters.parameter[0].value.toString()",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "1E+999999999 'kg'"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml",
+        "mode": "element"
+      },
+      {
+        "name": "testSmallExponentQtyEquivalentSameUnit",
+        "expression": "Parameters.parameter[1].value ~ 0 'kg'",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testSmallExponentQtyToString",
+        "expression": "Parameters.parameter[1].value.toString()",
+        "outputs": [
+          {
+            "type": "string",
+            "value": "1E-999999999 'kg'"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecPlus",
+        "expression": "Parameters.parameter[2].value + 1",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecMinus",
+        "expression": "Parameters.parameter[2].value - 1",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecTimes",
+        "expression": "Parameters.parameter[2].value * 2",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecDivide",
+        "expression": "Parameters.parameter[2].value / 2",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecDiv",
+        "expression": "Parameters.parameter[2].value div 2",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecMod",
+        "expression": "Parameters.parameter[2].value mod 2",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecRound",
+        "expression": "Parameters.parameter[2].value.round(2)",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecLowBoundary",
+        "expression": "Parameters.parameter[2].value.lowBoundary()",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecHighBoundary",
+        "expression": "Parameters.parameter[2].value.highBoundary()",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecEqual",
+        "expression": "Parameters.parameter[2].value = 1",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecEquivalent",
+        "expression": "Parameters.parameter[2].value ~ 1",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "false"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDecGreater",
+        "expression": "Parameters.parameter[2].value > 1",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testSmallExponentDecEquivalent",
+        "expression": "Parameters.parameter[3].value ~ 0",
+        "outputs": [
+          {
+            "type": "boolean",
+            "value": "true"
+          }
+        ],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testSmallExponentDecPlus",
+        "expression": "Parameters.parameter[3].value + 1",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testLargeExponentDateAdd",
+        "expression": "@2020-01-01 + Parameters.parameter[4].value",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testHugeRoundPrecision",
+        "expression": "1.5.round(2000000000)",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testNegativeRoundPrecision",
+        "expression": "1.5.round(-1)",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testHugeQtyLowBoundaryPrecision",
+        "expression": "1.5 'kg'.lowBoundary(999999999)",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      },
+      {
+        "name": "testNegativeQtyHighBoundaryPrecision",
+        "expression": "1.5 'kg'.highBoundary(-1)",
+        "outputs": [],
+        "inputfile": "parameters-example-large-exponents.xml"
+      }
+    ],
+    "description": "Decimals and quantities with a very large or very small exponent: an engine must not write these values out in full"
   },
   {
     "name": "testLessOrEqual",

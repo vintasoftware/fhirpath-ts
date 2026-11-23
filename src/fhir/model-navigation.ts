@@ -1,7 +1,7 @@
 import type { ModelProvider } from '../model/provider.ts'
 import { Temporal } from '../values/datetime.ts'
 import { Decimal } from '../values/decimal.ts'
-import { FHIR_PRIMITIVE_TO_SYSTEM, toTypedValue, type TypedValue } from '../values/typed-value.ts'
+import { FHIR_PRIMITIVE_TO_SYSTEM, OBJECT_TYPE, toTypedValue, type TypedValue } from '../values/typed-value.ts'
 import { childValue } from './element-origin.ts'
 
 export function isFhirPrimitiveType(typeName: string): boolean {
@@ -125,7 +125,11 @@ export function convertSingle(raw: unknown, sibling: unknown, typeName: string):
   }
   // FHIR primitives keep their FHIR type (the official type() and is() tests rely
   // on it) while the value itself parses into the System representation.
-  const typed: TypedValue = { type: `FHIR.${typeName}`, value: parsePrimitive(raw, systemType) }
+  const value = parsePrimitive(raw, systemType)
+  // A decimal no Decimal holds, such as the Infinity JSON.parse reads for
+  // 1e999, stays opaque, as it does without a model (toTypedValue).
+  const opaque = systemType === 'System.Decimal' && value !== undefined && !(value instanceof Decimal)
+  const typed: TypedValue = { type: opaque ? OBJECT_TYPE : `FHIR.${typeName}`, value }
   if (sibling !== undefined && sibling !== null) {
     typed.primitiveElement = sibling
   }

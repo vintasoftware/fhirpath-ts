@@ -396,6 +396,10 @@ describe('date/time arithmetic', () => {
   it('out-of-range years are empty', () => {
     expect(evaluate('@9999 + 1 year')).toEqual([])
     expect(evaluate('@0001 - 1 year')).toEqual([])
+    // Past the JavaScript Date range, and past the number range.
+    expect(evaluate('@2020-01-01 + 100000000 days')).toEqual([])
+    expect(evaluate("@2020-01-01T00:00:00Z - 100000000 'd'")).toEqual([])
+    expect(evaluate(`@T10:00:00 + ${'9'.repeat(310)} seconds`)).toEqual([])
   })
 })
 

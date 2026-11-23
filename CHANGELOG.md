@@ -8,6 +8,19 @@ See [RELEASING.md](RELEASING.md) for how a version gets cut and published.
 
 ## Unreleased
 
+### Fixed
+
+- With a model, a decimal element holding a value that no Decimal can hold,
+  such as the `Infinity` that `JSON.parse` reads for `1e999`, `NaN`, or text,
+  no longer crashes with a raw `TypeError` such as
+  `left.value.add is not a function`. It reads as an opaque value, as such a
+  number already does without a model: arithmetic and comparison throw
+  `FhirPathTypeError`, `= 1` is false, and `is decimal` is false.
+- Date and time arithmetic whose result lies past the JavaScript `Date` range,
+  such as `@2020-01-01 + 100000000 days`, is empty, as any result outside the
+  years 0001 to 9999 already was. It threw
+  `Date/time arithmetic produced an invalid value`.
+
 ## 0.6.1 - 2026-11-06
 
 The source checkers (ESLint rule, `fhirpath-check`, playground) read the
