@@ -56,6 +56,37 @@ npm run preview
 
 The static output is written to `demo/dist`.
 
+## Browser check before a release
+
+`npm test` compiles the samples and `npm run typecheck` checks the demo code. No
+test drives the page itself. Before a release, build the demo and check it in a
+headless browser, for example with puppeteer-core and a local Chrome:
+
+```bash
+npm run build
+npm run preview   # serves http://localhost:4173
+```
+
+Check the explorer, then open every playground tab. No tab should show an error,
+and each runnable sample should run. After the Pages deployment, repeat the check
+against the live site. This catches problems that unit tests cannot reach, such
+as the worker start-up order described in
+[AGENTS.md](../AGENTS.md#monaco-worker-integration).
+
+A script needs these details:
+
+- The playground loads Monaco only when `[data-playground]` comes near the
+  viewport (an `IntersectionObserver` in `src/main.ts`). Call `scrollIntoView()`
+  on it, then wait for `[data-pg-tabs] button`.
+- A scripted `click()` scrolls the page, so it can mount the playground while the
+  explorer is still being checked.
+- The output panel under the editor renders again each time results arrive.
+  TypeScript and analyzer markers come from separate asynchronous passes, so the
+  panel can show `.pg-clean` before either has reported. Wait for both before
+  judging a tab. Each output or problem line is a `.pg-row`; run output adds
+  `pg-out`, and problems add `pg-problem-error` or `pg-problem-warning`.
+- `[data-pg-run]` is hidden for samples that cannot run.
+
 ## Monaco declarations
 
 The editor checks sample code against declarations generated from the library's
